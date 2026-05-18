@@ -505,6 +505,8 @@ body { background: #F8F9FB; color: #1E2535; }
 
 /* ── Misc ───────────────────────────────────── */
 .divider { height: 1px; background: #F1F4F8; margin: 0; }
+/* Prevent SVG icons from blocking parent click handlers */
+.sb-icon, .lucide, button svg, a svg { pointer-events: none; }
 .btn { display:inline-flex; align-items:center; gap:6px; padding:0 14px; height:34px; border-radius:8px; border:1.5px solid #E2E8F0; background:white; color:#475569; font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; transition:all 130ms; }
 .btn:hover { background:#F8FAFC; border-color:#CBD5E1; }
 .btn-purple { background:rgba(68,101,246,0.1); color:#4465F6; border-color:rgba(68,101,246,0.2); }
@@ -2647,15 +2649,26 @@ function updateDisqButton(id){
   lbl.textContent=isDisq?'⚠ Disqualified — click to restore to pipeline':'Mark as disqualified — not a real company';
 }
 
+function switchTab(tab,btnEl){
+  showingDisqualified = (tab === 'disqualified');
+  // Toggle active class on buttons
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btnEl) btnEl.classList.add('active');
+  renderBoard();
+  kpis();
+}
+
 function updateDisqCount(){
   const disqCnt=leads.filter(l=>!!gDisq(l._id)).length;
-  const qualCnt=leads.filter(l=>!gDisq(l._id)).length;
-  const sbEl=document.getElementById('sb-disq-count');
-  if(sbEl)sbEl.textContent=disqCnt;
-  const tabDisq=document.getElementById('tab-disq-count');
-  if(tabDisq)tabDisq.textContent=disqCnt;
-  const tabQual=document.getElementById('tab-qualified-count');
-  if(tabQual)tabQual.textContent=qualCnt;
+  // Qualified count = leads in pipeline stages (not lead/mql, not disqualified)
+  const qualCnt=leads.filter(l=>!gDisq(l._id) && !['lead','mql'].includes(gStage(l._id))).length;
+  const cd=document.getElementById('count-disqualified');
+  if(cd)cd.textContent=disqCnt;
+  const cq=document.getElementById('count-qualified');
+  if(cq)cq.textContent=qualCnt;
+  // Update tb-record-count too
+  const tbCount=document.getElementById('tb-record-count');
+  if(tbCount) tbCount.textContent = `${leads.length} ${leads.length===1?'lead':'leads'}`;
 }
 
 // ─── LOST REASON ──────────────────────────────────────
