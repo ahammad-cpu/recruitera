@@ -7595,7 +7595,10 @@ function buildAccountRow(lead) {
           ${logoHtml || initials}
         </div>
         <div>
-          <div class="acc-name">${esc(name)}</div>
+          <div class="acc-name">
+            ${esc(name)}
+            ${paidCustomerBadge(lead)}
+          </div>
           ${metaHtml ? `<div class="acc-meta">${metaHtml}</div>` : ''}
         </div>
       </div>
@@ -9119,7 +9122,14 @@ let mergeSelections = {};
 let mergeChecked = new Set();
 
 function getLeadEmailDomain(lead) {
-  const email = (fv(lead,'Contact_Email','contact_email','email','Email')||'');
+  // Check domain column first (most reliable — set by Supabase sync)
+  if (lead.domain && lead.domain.length > 3) return lead.domain.toLowerCase().trim();
+
+  // Fallback: extract from email
+  const email = (
+    (lead.raw_data && lead.raw_data['Contact_Email']) ||
+    fv(lead,'Contact_Email','contact_email','email','Email') || ''
+  );
   if (!email.includes('@')) return null;
   const domain = email.split('@')[1].toLowerCase().trim();
   if (GENERIC_EMAIL_DOMAINS.includes(domain)) return null;
@@ -9256,48 +9266,85 @@ function updateMergeFooter() {
 async function mergeSelected() {
   if (mergeChecked.size === 0) return;
   const btn = document.getElementById('merge-confirm-btn');
-  btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Merging\u2026';
+  btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Merging…';
   const sb = window._sbClient;
   let merged = 0, failed = 0;
 
   for (const domain of mergeChecked) {
     const group = mergeGroups.find(g => g.domain === domain);
     if (!group) continue;
-    const primaryId = mergeSelections[domain] || group.defaultPrimary;
+    const primaryId  = mergeSelections[domain] || group.defaultPrimary;
     const primaryLead = group.leads.find(l => l._id === primaryId);
     if (!primaryLead) continue;
-    const primarySbId = primaryLead._supabase_id;
     const duplicates = group.leads.filter(l => l._id !== primaryId);
 
     for (const dup of duplicates) {
       try {
-        const dupSbId = dup._supabase_id;
-        if (sb && dupSbId && primarySbId) {
-          // Move activities to primary
-          await sb.from('activities').update({ account_id: primarySbId }).eq('account_id', dupSbId);
-          // Move contacts to primary (as non-primary)
-          await sb.from('contacts').update({ account_id: primarySbId, is_primary: false }).eq('account_id', dupSbId);
-          // Log merge activity on primary
-          const { data: { user } } = await sb.auth.getUser();
-          await sb.from('activities').insert({
-            account_id: primarySbId, author_id: user?.id || null, type: 'note',
-            text: 'Merged duplicate: ' + gName(dup) + ' (' + (fv(dup,'Contact_Email','contact_email','email','Email')||dup._id) + ')',
-          });
-          // Soft-delete duplicate
-          await sb.from('accounts').update({ is_disqualified: true, disq_reason: 'Merged into ' + gName(primaryLead) }).eq('id', dupSbId);
+        if (sb) {
+          // Resolve Supabase UUIDs by bubble_id
+          let primarySbId = primaryLead._supabase_id;
+          let dupSbId     = dup._supabase_id;
+
+          if (!primarySbId) {
+            const { data: pa } = await sb.from('accounts').select('id').eq('bubble_id', primaryLead._id).single();
+            primarySbId = pa?.id;
+          }
+          if (!dupSbId) {
+            const { data: da } = await sb.from('accounts').select('id').eq('bubble_id', dup._id).single();
+            dupSbId = da?.id;
+          }
+
+          if (dupSbId && primarySbId) {
+            // Move activities, contacts, files, stage_history, tags
+            await sb.from('activities')    .update({ account_id: primarySbId }).eq('account_id', dupSbId);
+            await sb.from('contacts')      .update({ account_id: primarySbId, is_primary: false }).eq('account_id', dupSbId);
+            await sb.from('files')         .update({ account_id: primarySbId }).eq('account_id', dupSbId);
+            await sb.from('stage_history') .update({ account_id: primarySbId }).eq('account_id', dupSbId);
+
+            // Log merge activity on primary
+            const { data: { user } } = await sb.auth.getUser();
+            await sb.from('activities').insert({
+              account_id: primarySbId,
+              author_id:  user?.id || null,
+              type:       'note',
+              text:       'Merged duplicate: ' + gName(dup) + ' (' + domain + ')',
+            });
+
+            // Fill missing fields on primary from duplicate
+            const updates = {};
+            const { data: keeper } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', primarySbId).single();
+            const { data: dupRow  } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', dupSbId).single();
+            if (keeper && dupRow) {
+              if (!keeper.am_mail   && dupRow.am_mail)   updates.am_mail   = dupRow.am_mail;
+              if (!keeper.source    && dupRow.source)    updates.source    = dupRow.source;
+              if (!keeper.campaign  && dupRow.campaign)  updates.campaign  = dupRow.campaign;
+              if (!keeper.medium    && dupRow.medium)    updates.medium    = dupRow.medium;
+              if (!keeper.deal_value && dupRow.deal_value) updates.deal_value = dupRow.deal_value;
+            }
+            if (Object.keys(updates).length) await sb.from('accounts').update(updates).eq('id', primarySbId);
+
+            // Delete the duplicate permanently
+            await sb.from('accounts').delete().eq('id', dupSbId);
+          }
         }
-        // Merge logs in localStorage
+
+        // Merge localStorage logs
         const dupLogs = gLog(dup._id);
         if (dupLogs.length > 0) {
-          const primaryLogs = gLog(primaryId);
-          const merged2 = [...primaryLogs, ...dupLogs.map(l => ({...l, text: '[from ' + gName(dup) + '] ' + l.text}))];
-          merged2.sort((a,b) => b.ts - a.ts);
-          sLog(primaryId, merged2);
+          const combined = [...gLog(primaryId), ...dupLogs.map(l => ({...l, text: '[from ' + gName(dup) + '] ' + l.text}))];
+          combined.sort((a,b) => b.ts - a.ts);
+          sLog(primaryId, combined);
         }
-        // Mark dup as disqualified locally
-        sDisq(dup._id, { reason: 'Merged into ' + gName(primaryLead), ts: Date.now() });
+
+        // Remove dup from local leads array
+        const dupIdx = leads.findIndex(l => l._id === dup._id);
+        if (dupIdx >= 0) leads.splice(dupIdx, 1);
+
         merged++;
-      } catch(e) { console.error('merge error', e); failed++; }
+      } catch(e) {
+        console.error('merge error for', domain, e);
+        failed++;
+      }
     }
   }
 
@@ -9307,9 +9354,9 @@ async function mergeSelected() {
   mergeGroups.forEach(g => { mergeSelections[g.domain] = g.defaultPrimary; });
   const cnt = document.getElementById('merge-domain-count');
   if (cnt) cnt.textContent = mergeGroups.length + ' domain' + (mergeGroups.length !== 1 ? 's' : '') + ' found';
-  renderMergeGroups(); renderAccountsTable(); renderBoard();
+  renderMergeGroups(); renderAccountsTable(); renderBoard(); init();
   btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Merge Selected';
-  toast(merged + ' duplicate' + (merged !== 1 ? 's' : '') + ' merged' + (failed > 0 ? ' \u00B7 ' + failed + ' failed' : ''), merged > 0 ? 'success' : 'error');
+  toast(merged + ' duplicate' + (merged !== 1 ? 's' : '') + ' merged' + (failed > 0 ? ' · ' + failed + ' failed' : ''), merged > 0 ? 'success' : 'error');
 }
 </script>
 
