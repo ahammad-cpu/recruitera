@@ -5450,18 +5450,28 @@ function openCfg(){
 
 // ── Load all accounts from Supabase (primary data source) ────────────────
 async function sbFetch() {
-  // Get auth token from localStorage (set by login page)
+  // Get auth token from localStorage and check expiration
   let accessToken = null;
   try {
     const raw = localStorage.getItem(SB_AUTH_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      accessToken = parsed?.access_token || parsed?.currentSession?.access_token;
+      const session = parsed?.currentSession || parsed;
+      const token   = session?.access_token;
+      const expiresAt = session?.expires_at || (token ? JSON.parse(atob(token.split('.')[1]))?.exp : null);
+      // Only use the token if it's still valid (with 60 sec buffer)
+      if (token && expiresAt && Date.now()/1000 < expiresAt - 60) {
+        accessToken = token;
+      } else if (token) {
+        console.warn('[CRM] Auth token expired, using publishable key for read-only access');
+        // Clear the expired token so other code paths don't try to use it
+        localStorage.removeItem(SB_AUTH_KEY);
+      }
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[CRM] Could not parse session:', e.message); }
 
   // Supabase REST requires BOTH apikey AND Authorization headers
-  // If logged in: Authorization = user JWT. If not: Authorization = publishable key
+  // If logged in with valid token: Authorization = user JWT. Otherwise: Authorization = publishable key
   const headers = {
     'apikey': SB_KEY,
     'Authorization': 'Bearer ' + (accessToken || SB_KEY),
