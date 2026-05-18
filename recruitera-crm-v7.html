@@ -4737,6 +4737,11 @@ button { user-select: none; -webkit-user-select: none; }
               <option value="D">Grade D (&lt;20)</option>
               <option value="none">Not scored</option>
             </select>
+            <select class="acc-select" id="acc-fpaid" onchange="renderAccountsTable()">
+              <option value="">All paid status</option>
+              <option value="paid">Paid customers</option>
+              <option value="prospect">Prospects only</option>
+            </select>
           </div>
           <button onclick="openMergeModal()" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;border:1.5px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.05);color:#DC2626;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all 130ms;" onmouseover="this.style.borderColor='#DC2626';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.borderColor='rgba(239,68,68,0.25)';this.style.background='rgba(239,68,68,0.05)'">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 20L4 4M4 20L20 4"/></svg>
@@ -5273,7 +5278,8 @@ function markLogoDomainFailed(domain){ if(domain) _failedLogoDomains.add(domain.
 function logoUrl(domain){
   if(!domain) return null;
   if(_failedLogoDomains.has(domain.toLowerCase())) return null;
-  return `https://img.logo.dev/${domain}?token=pk_X-1ZO13GSgeOoUrIuJ6BeQ&size=128&format=png`;
+  // Use Google favicon as primary — most reliable, works for all domains
+  return `https://www.google.com/s2/favicons?sz=128&domain_url=https://${domain}`;
 }
 function faviconUrl(domain){
   if(!domain) return null;
@@ -5282,7 +5288,13 @@ function faviconUrl(domain){
 function clearbitUrl(domain){
   if(!domain) return null;
   if(_failedLogoDomains.has(domain.toLowerCase())) return null;
+  // Clearbit as fallback
   return `https://logo.clearbit.com/${domain}?size=128`;
+}
+function logoDev(domain){
+  if(!domain) return null;
+  if(_failedLogoDomains.has(domain.toLowerCase())) return null;
+  return `https://img.logo.dev/${domain}?token=pk_X-1ZO13GSgeOoUrIuJ6BeQ&size=128&format=png`;
 }
 
 // ─── LOCATION DETECTION ───────────────────────────────
@@ -5733,7 +5745,7 @@ function buildCard(lead,st){
 
   // Logo HTML with fallback chain
   const logoHtml=logoSrc
-    ?`<div class="card-logo-mini" data-init="${init2}" data-color="${st.color}"><img src="${logoSrc}" data-tried="0" data-fallback="${clearbitLogoSrc||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);this.style.display='none';const p=this.parentElement;if(p){p.textContent=p.dataset.init||\'\';p.style.background=p.dataset.color||\'\';}}" /></div>`
+    ?`<div class="card-logo-mini" data-init="${init2}" data-color="${st.color}"><img src="${logoSrc}" data-tried="0" data-domain="${domain}" data-fallback="${clearbitLogoSrc||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);this.style.display='none';const p=this.parentElement;if(p){p.textContent=p.dataset.init||\'\';p.style.background=p.dataset.color||\'\';}}" /></div>`
     :`<div class="card-logo-mini" style="background:${st.color};">${init2}</div>`;
 
   card.innerHTML=`
@@ -6077,7 +6089,7 @@ function renderLdHero(lead){
   const initials=gInit(name);
 
   const logoHtml=logoSrc
-    ?`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}"
+    ?`<img src="${logoSrc}" data-tried="0" data-domain="${domain}" data-fallback="${clearbit||''}"
         style="width:100%;height:100%;object-fit:contain;background:#fff;padding:3px;border-radius:10px;"
         onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
     :'';
@@ -6655,7 +6667,7 @@ function renderModalHeader(lead){
   if(av){
     if(logoSrc){
       const clearbit=domain?clearbitUrl(domain):null;
-      av.innerHTML=`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;background:#fff;padding:2px;" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${gInit(name)}';_pe.style.background='${stageObj.color}';_pe.style.color='#fff';}}" />`;
+      av.innerHTML=`<img src="${logoSrc}" data-tried="0" data-domain="${domain}" data-fallback="${clearbit||''}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;background:#fff;padding:2px;" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${gInit(name)}';_pe.style.background='${stageObj.color}';_pe.style.color='#fff';}}" />`;
       av.style.background='';av.style.color='';
     }else{
       av.innerHTML='';av.textContent=gInit(name);
@@ -7064,7 +7076,7 @@ function renderRightEnrich(lead){
     const initials=gInit(eName||gName(lead));
     const bgColor=cached?.brandColor||'var(--cg-800)';
     const logoHtml=logoSrcFinal
-      ?`<img src="${logoSrcFinal}" data-tried="0" data-fallback="${clearbit||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';const s=_pe.querySelector('.enrich-initials');if(s)s.style.display='flex';}}" /><span class="enrich-initials" style="display:none;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`
+      ?`<img src="${logoSrcFinal}" data-tried="0" data-domain="${domain}" data-fallback="${clearbit||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';const s=_pe.querySelector('.enrich-initials');if(s)s.style.display='flex';}}" /><span class="enrich-initials" style="display:none;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`
       :`<span class="enrich-initials" style="display:flex;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`;
     body.innerHTML=`<div class="hs-enrich">
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;position:relative;z-index:1;">
@@ -7382,6 +7394,7 @@ function accFilteredLeads() {
   const fSrc   = document.getElementById('acc-fsrc')?.value   || '';
   const fStage = document.getElementById('acc-fstage')?.value || '';
   const fIcp   = document.getElementById('acc-ficp')?.value   || '';
+  const fPaid  = document.getElementById('acc-fpaid')?.value  || '';
 
   let result = leads.filter(l => {
     if (gDisq(l._id)) return false; // hide disqualified
@@ -7397,6 +7410,8 @@ function accFilteredLeads() {
       if (fIcp === 'none') { if (hasIcp) return false; }
       else { if (!hasIcp || icpGrade(score) !== fIcp) return false; }
     }
+    if (fPaid === 'paid'     && !isLeadPaidCustomer(l)) return false;
+    if (fPaid === 'prospect' &&  isLeadPaidCustomer(l)) return false;
     return true;
   });
 
@@ -7533,7 +7548,7 @@ function buildAccountRow(lead) {
   const logoSrc = contact.logo_url || (domain ? logoUrl(domain) : null);
   const clearbit= domain ? clearbitUrl(domain) : null;
   const logoHtml= logoSrc
-    ? `<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}"
+    ? `<img src="${logoSrc}" data-tried="0" data-domain="${domain}" data-fallback="${clearbit||''}"
         style="width:100%;height:100%;object-fit:contain;background:#fff;padding:2px;border-radius:7px;"
         onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
     : '';
