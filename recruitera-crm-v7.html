@@ -126,7 +126,7 @@ body { background: #F8F9FB; color: #1E2535; }
 .dark .tab-nav { border-color: #1E2535; background: #0A0E14; }
 .dark .tab-btn { color: #475569; }
 .dark .tab-btn:hover { color: #E2E8F0; }
-.dark .tab-btn.active { color: #C8E60A; }
+.dark .tab-btn.active { color: #FFFFFF; border-bottom-color: #FFFFFF; }
 .dark .insights-card { background: #121720; border-color: #1E2535; }
 .dark .modal { background: #1E2535; }
 .dark .modal .border-b { border-color: #2D3444; }
@@ -193,7 +193,7 @@ body { background: #F8F9FB; color: #1E2535; }
   text-decoration: none;
 }
 .sb-item:hover { background: rgba(255,255,255,0.06); color: #E2E8F0; }
-.sb-item.active { background: rgba(200,230,10,0.12); color: #C8E60A; }
+.sb-item.active { background: rgba(255,255,255,0.08); color: #FFFFFF; }
 .sb-item.active .sb-icon { color: #C8E60A; }
 .sb-icon { width: 18px; height: 18px; flex-shrink: 0; }
 
@@ -237,8 +237,8 @@ body { background: #F8F9FB; color: #1E2535; }
   display: flex; flex-direction: column; gap: 6px;
 }
 .pipeline-col.drag-over {
-  background: rgba(200,230,10,0.06);
-  outline: 2px dashed #C8E60A;
+  background: rgba(30,37,53,0.04);
+  outline: 2px dashed #1E2535;
 }
 
 /* ── Deal card ──────────────────────────────── */
@@ -284,20 +284,20 @@ body { background: #F8F9FB; color: #1E2535; }
   font-family: inherit; color: #1E2535;
   transition: border-color 130ms, box-shadow 130ms;
 }
-.ui-input:focus { outline: none; border-color: #C8E60A; box-shadow: 0 0 0 3px rgba(200,230,10,0.15); }
+.ui-input:focus { outline: none; border-color: #1E2535; box-shadow: 0 0 0 3px rgba(30,37,53,0.12); }
 .dark .ui-input { background: #1E2535; border-color: #2D3444; color: #F0F4FC; }
 
 /* ── Button base ────────────────────────────── */
 .btn-brand {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 0 16px; height: 36px; border-radius: 8px;
-  background: #C8E60A; color: #1E2535;
+  background: #1E2535; color: #FFFFFF;
   border: none; cursor: pointer;
   font-size: 13.5px; font-weight: 700; font-family: inherit;
   transition: all 130ms;
-  box-shadow: 0 2px 8px rgba(200,230,10,0.25);
+  box-shadow: 0 2px 8px rgba(30,37,53,0.25);
 }
-.btn-brand:hover { background: #B3CF09; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(200,230,10,0.35); }
+.btn-brand:hover { background: #2D3444; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(30,37,53,0.35); }
 .btn-brand:active { transform: translateY(0); }
 
 .btn-secondary {
@@ -381,8 +381,8 @@ body { background: #F8F9FB; color: #1E2535; }
   transition: color 130ms, border-color 130ms;
 }
 .tab-btn:hover { color: #1E2535; }
-.tab-btn.active { color: #C8E60A; border-bottom-color: #C8E60A; }
-.dark .tab-btn.active { color: #C8E60A; }
+.tab-btn.active { color: #1E2535; border-bottom-color: #1E2535; }
+.dark .tab-btn.active { color: #FFFFFF; border-bottom-color: #FFFFFF; }
 
 /* ── Activity timeline ──────────────────────── */
 .activity-item {
@@ -410,7 +410,7 @@ body { background: #F8F9FB; color: #1E2535; }
   font-size: 12px; background: white;
   transition: all 130ms;
 }
-.stage-step.active .stage-step-dot { border-color: #C8E60A; background: #C8E60A; color: #1E2535; }
+.stage-step.active .stage-step-dot { border-color: #1E2535; background: #1E2535; color: #C8E60A; }
 .stage-step.done .stage-step-dot { border-color: #22C55E; background: #22C55E; color: white; }
 .stage-step-line { flex: 1; height: 2px; background: #E2E8F0; margin-top: 17px; }
 .stage-step.done ~ .stage-step-line { display: none; }
@@ -491,7 +491,7 @@ body { background: #F8F9FB; color: #1E2535; }
 /* ── Insights tabs ──────────────────────────── */
 .insights-tab { padding: 10px 20px; font-size: 13.5px; font-weight: 600; color: #64748B; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; transition: all 130ms; margin-bottom: -1px; }
 .insights-tab:hover { color: #1E2535; }
-.insights-tab.active { color: #C8E60A; border-bottom-color: #C8E60A; }
+.insights-tab.active { color: #1E2535; border-bottom-color: #1E2535; }
 
 /* ── Config overlay ─────────────────────────── */
 #cfg-ov { position: fixed; inset: 0; background: rgba(15,23,42,0.7); backdrop-filter: blur(8px); z-index: 300; display: none; align-items: center; justify-content: center; }
@@ -499,8 +499,8 @@ body { background: #F8F9FB; color: #1E2535; }
 
 /* ── Deal modal ─────────────────────────────── */
 .deal-prob-option { border: 2px solid #E2E8F0; border-radius: 10px; padding: 12px; cursor: pointer; transition: all 130ms; text-align: center; }
-.deal-prob-option:hover { border-color: #C8E60A; background: rgba(200,230,10,0.05); }
-.deal-prob-option.selected { border-color: #C8E60A; background: rgba(200,230,10,0.1); }
+.deal-prob-option:hover { border-color: #1E2535; background: rgba(30,37,53,0.03); }
+.deal-prob-option.selected { border-color: #1E2535; background: rgba(30,37,53,0.06); }
 .dark .deal-prob-option { border-color: #2D3444; }
 
 /* ── Misc ───────────────────────────────────── */
@@ -789,8 +789,8 @@ textarea { resize: vertical; }
 .dark .ld-composer-ta { color:#E2E8F0; }
 .ld-composer-footer { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-top:1px solid #F1F4F8; background:#F8F9FB; }
 .dark .ld-composer-footer { background:#0A0E14; border-color:#1E2535; }
-.ld-save-btn { padding:5px 12px; background:#C8E60A; color:#1E2535; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 130ms; }
-.ld-save-btn:hover { background:#B3CF09; }
+.ld-save-btn { padding:5px 12px; background:#1E2535; color:#FFFFFF; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:all 130ms; }
+.ld-save-btn:hover { background:#2D3444; }
 
 /* ── Lead detail timeline / activity ────────── */
 .ld-timeline { display:flex; flex-direction:column; gap:0; }
@@ -856,7 +856,7 @@ textarea { resize: vertical; }
 /* ── Progress bar ───────────────────────────── */
 .ld-bar { height:6px; background:#F1F4F8; border-radius:999px; overflow:hidden; }
 .dark .ld-bar { background:#1E2535; }
-.ld-bar-fill { height:100%; background:#C8E60A; border-radius:999px; transition:width 400ms; }
+.ld-bar-fill { height:100%; background:#1E2535; border-radius:999px; transition:width 400ms; }
 
 /* ── Sidebar user ───────────────────────────── */
 .sb-user { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:background 130ms; }
@@ -2609,19 +2609,7 @@ function filterDisqualified(){
 
 function openDisqModal(){
   if(!curId)return;
-  const isDisq=!!gDisq(curId);
-  document.getElementById('disq-reason-select').value='';
-  if(isDisq){
-    document.getElementById('disq-modal-title').textContent='Remove disqualified flag?';
-    document.getElementById('disq-modal-sub').textContent='This will restore the company to the active pipeline.';
-    document.getElementById('disq-confirm-btn').textContent='Restore to pipeline';
-    document.getElementById('disq-confirm-btn').className='btn btn-secondary';
-  } else {
-    document.getElementById('disq-modal-title').textContent='Mark as disqualified?';
-    document.getElementById('disq-modal-sub').textContent='This company will be hidden from the pipeline and flagged as not a real/valid lead.';
-    document.getElementById('disq-confirm-btn').textContent='Disqualify company';
-    document.getElementById('disq-confirm-btn').className='btn btn-purple';
-  }
+  const r=document.getElementById('disq-reason');if(r)r.value='';
   document.getElementById('disq-modal-bg').classList.add('open');
 }
 function cancelDisq(){
@@ -2635,7 +2623,7 @@ function confirmDisq(){
     pushLog(curId,'note','Disqualified flag removed — restored to pipeline',gOwner(curId));
     toast('Restored to pipeline','success');
   } else {
-    const reason=document.getElementById('disq-reason-select').value||'Not a real company';
+    const reason=document.getElementById('disq-reason').value||'Not a real company';
     sDisq(curId,{reason,ts:Date.now()});
     pushLog(curId,'note',`Disqualified: ${reason}`,gOwner(curId));
     // Save to Supabase
@@ -2684,8 +2672,7 @@ function applyStageChange(id,newSid,oldSid){
   if(curId===id)refreshDrawerStepper(id);
 }
 function openLostModal(){
-  document.getElementById('lost-reason-select').value='';
-  document.getElementById('lost-reason-note').value='';
+  const r=document.getElementById('lost-reason');if(r)r.value='';const n=document.getElementById('lost-note');if(n)n.value='';
   document.getElementById('lost-modal-bg').classList.add('open');
 }
 function cancelLost(){
@@ -2693,9 +2680,9 @@ function cancelLost(){
   pendingStageChange=null;dragId=null;
 }
 function confirmLost(){
-  const reason=document.getElementById('lost-reason-select').value;
+  const reason=document.getElementById('lost-reason').value;
   if(!reason){toast('Please select a lost reason','error');return;}
-  const note=document.getElementById('lost-reason-note').value.trim();
+  const note=document.getElementById('lost-note').value.trim();
   if(pendingStageChange){
     const{id,newStage,oldStage}=pendingStageChange;
     sLost(id,{reason,note,ts:Date.now()});
