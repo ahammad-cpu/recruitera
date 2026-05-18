@@ -4939,6 +4939,11 @@ button { user-select: none; -webkit-user-select: none; }
 
 // ─── CONFIG & STATE ───────────────────────────────────
 const STORAGE_PREFIX='rcrm5_';
+
+// ── Supabase (primary data source + writes) ──────────────────────────────
+const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
+const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
 const ls={
   g:k=>{try{const v=localStorage.getItem(STORAGE_PREFIX+k);return v?JSON.parse(v):null;}catch{return null;}},
   s:(k,v)=>{try{localStorage.setItem(STORAGE_PREFIX+k,JSON.stringify(v));}catch{}},
@@ -5443,6 +5448,80 @@ function openCfg(){
   if(cfg.brandfetchKey)document.getElementById('cbrandfetchkey').value=cfg.brandfetchKey;
 }
 
+// ── Load all accounts from Supabase (primary data source) ────────────────
+async function sbFetch() {
+  // Get auth token from localStorage (set by login page)
+  let accessToken = null;
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      accessToken = parsed?.access_token || parsed?.currentSession?.access_token;
+    }
+  } catch(e) {}
+
+  const headers = {
+    'apikey': SB_KEY,
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) headers['Authorization'] = 'Bearer ' + accessToken;
+
+  // Fetch all accounts with pagination
+  const allAccounts = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const res = await fetch(
+      `${SB_URL}/rest/v1/accounts?select=*&order=created_at.asc&limit=${pageSize}&offset=${offset}&is_disqualified=eq.false`,
+      { headers }
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`Supabase ${res.status}: ${t.slice(0, 200)}`);
+    }
+    const batch = await res.json();
+    if (!batch || batch.length === 0) break;
+    allAccounts.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  // Map Supabase accounts to the lead format the CRM expects
+  return allAccounts.map(acc => ({
+    _id:              acc.bubble_id || acc.id,
+    _supabase_id:     acc.id,
+    // Contact fields (from raw_data)
+    'Contact_Name':   acc.raw_data?.Contact_Name  || acc.name || '',
+    'Contact_Email':  acc.raw_data?.Contact_Email || '',
+    'Contact_Mobile': acc.raw_data?.Contact_Mobile || '',
+    'Company Name':   acc.raw_data?.['Company Name'] || acc.name || '',
+    'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail'] || '',
+    'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail'] || '',
+    Source:           acc.source   || acc.raw_data?.Source || '',
+    Campaign:         acc.campaign || acc.raw_data?.Campaign || '',
+    Medium:           acc.medium   || acc.raw_data?.Medium   || '',
+    WP_Industry:      acc.industry || acc.raw_data?.WP_Industry || '',
+    WP_Company_Size:  acc.size     || acc.raw_data?.WP_Company_Size || '',
+    WP_Location:      acc.location || acc.raw_data?.WP_Location || '',
+    WP_Vacancies:     acc.vacancies || acc.raw_data?.WP_Vacancies || '',
+    WP_Company_Headcount: acc.raw_data?.WP_Company_Headcount || '',
+    Company_Ref:      acc.raw_data?.Company_Ref || '',
+    Original_Creation_Date: acc.raw_data?.Original_Creation_Date || acc.created_at,
+    Created_Date:     acc.created_at,
+    Modified_Date:    acc.updated_at,
+    // Pipeline state
+    _sb_stage:        acc.stage || 'lead',
+    _sb_is_disq:      acc.is_disqualified || false,
+    is_paid_customer: acc.is_paid_customer || false,
+    domain:           acc.domain || '',
+    deal_value:       acc.deal_value,
+    deal_probability: acc.deal_probability,
+    // Keep full raw_data for any field lookups
+    raw_data:         acc.raw_data || {},
+  }));
+}
+
 async function bFetch(app,key,type,cur=0,acc=[]){
   const url=`https://${app}.bubbleapps.io/api/1.1/obj/${type}?api_token=${key}&cursor=${cur}&limit=100`;
   const r=await fetch(url);
@@ -5478,12 +5557,17 @@ async function connect(){
 }
 
 async function refresh(){
-  showL('Refreshing…','Fetching latest data');
+  showL('Refreshing…','Fetching latest from Supabase');
   try{
-    const data=await bFetch(cfg.appName,cfg.apiKey,cfg.dataType);
-    leads=data;hideL();renderBoard();kpis();
-    toast(`Refreshed · ${data.length} records`);
-  }catch(e){hideL();toast(e.message,'error');}
+    const data = await sbFetch();
+    leads = data;
+    hideL();
+    init();
+    toast(`Refreshed · ${data.length} accounts`);
+  }catch(e){
+    hideL();
+    toast('Refresh failed: ' + e.message, 'error');
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────
@@ -8298,20 +8382,29 @@ function renderActivityFeed(el) {
 
 // ─── BOOT ─────────────────────────────────────────────
 (async function(){
-  if(loadCfg()&&cfg.appName&&cfg.apiKey){
-    showL('Loading workspace…','Fetching records');
-    try{
-      leads=await bFetch(cfg.appName,cfg.apiKey,cfg.dataType||'company');
-      hideL();
-      document.getElementById('sidebar').style.display='flex';
-      document.getElementById('main').style.display='flex';
-      init();
-    }catch(e){
+  showL('Loading workspace…','Fetching accounts from Supabase');
+  try{
+    leads = await sbFetch();
+    hideL();
+    document.getElementById('sidebar').style.display='flex';
+    document.getElementById('main').style.display='flex';
+    init();
+    toast(`Loaded ${leads.length} accounts`);
+  }catch(e){
+    // Fallback to Bubble if Supabase fails
+    console.warn('[CRM] Supabase load failed, trying Bubble:', e.message);
+    if(loadCfg()&&cfg.appName&&cfg.apiKey){
+      try{
+        leads=await bFetch(cfg.appName,cfg.apiKey,cfg.dataType||'company');
+        hideL();
+        document.getElementById('sidebar').style.display='flex';
+        document.getElementById('main').style.display='flex';
+        init();
+        toast(`Loaded ${leads.length} records (Bubble fallback)`);
+      }catch(e2){hideL();openCfg();toast(e2.message,'error');}
+    } else {
       hideL();openCfg();
-      toast(e.message,'error');
     }
-  } else {
-    openCfg();
   }
 })();
 </script>
