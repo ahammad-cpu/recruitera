@@ -597,11 +597,14 @@ window._sbClient = (function() {
     async getSession() {
       const session = loadSession();
       if (!session) return { data: { session: null }, error: null };
-      // Check if expired
-      const exp = session.expires_at || (session.user?.exp);
+      // Try to refresh if expired, but always return what we have
+      const exp = session.expires_at || session.user?.exp;
       if (exp && Date.now() / 1000 > exp - 60) {
-        const refreshed = await refreshSession();
-        return { data: { session: refreshed }, error: null };
+        try {
+          const refreshed = await refreshSession();
+          if (refreshed) return { data: { session: refreshed }, error: null };
+        } catch(e) {}
+        // If refresh failed, still return the old session and let the API call fail naturally
       }
       return { data: { session }, error: null };
     },
@@ -681,12 +684,12 @@ window._sbClient = (function() {
 // Auth gate
 (async function() {
   const sb = window._sbClient;
-  const { data: { session } } = await sb.auth.getSession();
-
-  // Handle magic link hash
+  // Handle magic link hash first
   sb.auth.onAuthStateChange(() => {});
 
-  const validSession = (await sb.auth.getSession()).data.session;
+  console.log('[AUTH] calling getSession...');
+  const { data: { session: validSession } } = await sb.auth.getSession();
+  console.log('[AUTH] session result:', validSession ? validSession.user?.email : 'null');
   if (!validSession) {
     window.location.href = './recruitera-login.html';
     return;
@@ -4892,6 +4895,7 @@ function sbAccountToLead(row) {
 (async function(){
   showL('Loading workspace…','Connecting to database');
   try {
+    console.log('[BOOT] waiting for auth-ready event...');
     // Wait for auth-ready event (fired by auth gate after session check)
     await new Promise(resolve => {
       if (window.AUTH_READY) { resolve(); return; }
@@ -4899,6 +4903,7 @@ function sbAccountToLead(row) {
       // Fallback timeout: 6 seconds
       setTimeout(resolve, 6000);
     });
+    console.log('[BOOT] auth-ready received. AUTH_SESSION:', !!window.AUTH_SESSION, 'AUTH_READY:', !!window.AUTH_READY);
     // If no session, auth gate redirected to login — stop here
     if (!window.AUTH_SESSION) {
       window.location.href = './recruitera-login.html';
