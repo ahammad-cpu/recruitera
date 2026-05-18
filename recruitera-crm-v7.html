@@ -5507,7 +5507,8 @@ async function sbFetch() {
     'Contact_Name':   acc.raw_data?.Contact_Name  || acc.name || '',
     'Contact_Email':  acc.raw_data?.Contact_Email || '',
     'Contact_Mobile': acc.raw_data?.Contact_Mobile || '',
-    'Company Name':   acc.raw_data?.['Company Name'] || acc.name || '',
+    // Company Name is the primary display field — fall back to domain, then contact name
+    'Company Name':   acc.raw_data?.['Company Name'] || (acc.domain ? acc.domain.split('.')[0] : '') || acc.raw_data?.Contact_Name || acc.name || '',
     'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail'] || '',
     'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail'] || '',
     Source:           acc.source   || acc.raw_data?.Source || '',
