@@ -896,6 +896,8 @@ input,select,textarea{
   padding:5px 0;border-bottom:1px solid var(--border);
 }
 .lp-row:last-child,.hs-info-row:last-child{border-bottom:none;}
+.paid-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:rgba(34,197,94,0.12);color:#16A34A;border:1px solid rgba(34,197,94,0.3);}
+.domain-invalid-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700;background:rgba(239,68,68,0.08);color:#DC2626;border:1px solid rgba(239,68,68,0.2);}
 .lp-row-lbl,.hs-info-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-4);flex-shrink:0;padding-top:2px;}
 .lp-row-val,.hs-info-val{font-size:12px;font-weight:600;color:var(--cg-900);text-align:right;word-break:break-word;}
 .lp-row-val.muted,.hs-info-val.muted{color:var(--text-4);font-weight:400;font-size:11px;}
@@ -4573,7 +4575,7 @@ button { user-select: none; -webkit-user-select: none; }
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9A9 9 0 0118.36 5.64L23 10M1 14L5.64 18.36A9 9 0 0020.49 15"/></svg>
           Refresh
         </button>
-        <button class="btn btn-primary btn-sm">
+        <button class="btn btn-primary btn-sm" onclick="openAddLeadModal()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5V19M5 12H19"/></svg>
           Add Lead
         </button>
@@ -4687,13 +4689,10 @@ button { user-select: none; -webkit-user-select: none; }
         </select>
         <select class="f-select" id="fowner" onchange="renderBoard()">
           <option value="">All owners</option>
-          <option value="AM">Amr Hammad</option>
-          <option value="RH">Rami</option>
-          <option value="JS">Javi</option>
-          <option value="SA">Sana</option>
-          <option value="SR">Sara</option>
-          <option value="OM">Omar</option>
         </select>
+        <button id="hide-paid-btn" onclick="toggleHidePaid()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-3);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 130ms;" title="Hide companies already using Recruitera">
+          🚫 Hide Paid Customers
+        </button>
         <span class="f-lbl" style="margin-left:8px;">Sort</span>
         <select class="f-select" id="fsort" onchange="renderBoard()">
           <option value="newest">Newest first</option>
@@ -4737,6 +4736,10 @@ button { user-select: none; -webkit-user-select: none; }
               <option value="none">Not scored</option>
             </select>
           </div>
+          <button onclick="openMergeModal()" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;border:1.5px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.05);color:#DC2626;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all 130ms;" onmouseover="this.style.borderColor='#DC2626';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.borderColor='rgba(239,68,68,0.25)';this.style.background='rgba(239,68,68,0.05)'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 20L4 4M4 20L20 4"/></svg>
+            Merge Duplicates
+          </button>
         </div>
 
         <!-- Stats bar -->
@@ -5175,7 +5178,15 @@ const gAcv=id=>ls.g('acv_'+id)||'';
 const sAcv=(id,v)=>ls.s('acv_'+id,v);
 const gClose=id=>ls.g('close_'+id)||'';
 const sClose=(id,v)=>ls.s('close_'+id,v);
-const gOwner=id=>ls.g('owner_'+id)||'AM';
+// gOwner: reads from localStorage override first, then falls back to AM Mail field
+const gOwner=id=>{
+  const lv=ls.g('owner_'+id); if(lv) return lv;
+  const l=leads.find(x=>x._id===id);
+  // Use AM Mail email as the owner identifier
+  const amMail=gAmMail(l)||'';
+  if(amMail) return amMail;
+  return CURRENT_USER.email||CURRENT_USER.id||'unknown';
+};
 const sOwner=(id,v)=>ls.s('owner_'+id,v);
 const gLog=id=>ls.g('log_'+id)||[];
 const sLog=(id,v)=>ls.s('log_'+id,v);
@@ -5458,7 +5469,20 @@ async function refresh(){
 
 // ─── INIT ─────────────────────────────────────────────
 function init(){
-  popFilters();renderBoard();kpis();updateDisqCount();
+  popFilters();
+
+  // Non-admin: auto-lock owner filter to their own email — they only see their leads
+  const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const myEmail = window.AUTH_PROFILE?.email || '';
+  if(!isAdmin && myEmail){
+    const fown=document.getElementById('fowner');
+    if(fown){ fown.value=myEmail; fown.disabled=true; fown.style.display='none'; }
+    // Also hide the owner filter label for non-admins
+    const fOwnerLabel=document.querySelector('label[for="fowner"]');
+    if(fOwnerLabel) fOwnerLabel.style.display='none';
+  }
+
+  renderBoard();kpis();updateDisqCount();
   document.getElementById('tb-record-count').textContent=`${leads.length} ${leads.length===1?'lead':'leads'}`;
   // Update accounts count in sidebar
   const accBadge=document.getElementById('acc-count-badge');
@@ -5474,9 +5498,27 @@ function popFilters(){
   sel.innerHTML='<option value="">All sources</option>'+srcs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
   const stg=document.getElementById('fstg');
   stg.innerHTML='<option value="">All stages</option>'+STAGES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-  // Populate owner filter dynamically from OWNERS list
+  // Populate owner filter from unique AM Mail values in leads data
   const own=document.getElementById('fowner');
-  if(own) own.innerHTML='<option value="">All owners</option>'+OWNERS.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('');
+  if(own){
+    const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+    const myEmail = window.AUTH_PROFILE?.email || '';
+    if(isAdmin){
+      // Admin sees all owners
+      const emails=[...new Set(leads.map(l=>gAmMail(l)).filter(Boolean))].sort();
+      own.innerHTML='<option value="">All owners</option>'+
+        emails.map(e=>{
+          // Try to match to a profile name
+          const label=e.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+          return `<option value="${esc(e)}">${esc(label)}</option>`;
+        }).join('');
+    } else {
+      // Non-admin: only show their own email, no filter choice
+      own.innerHTML=`<option value="${esc(myEmail)}">${esc(myEmail.split('@')[0])}</option>`;
+      own.value=myEmail;
+      own.disabled=true;
+    }
+  }
 }
 
 function filtered(){
@@ -5485,8 +5527,13 @@ function filtered(){
   const fst=document.getElementById('fstg')?.value||'';
   const ficp=document.getElementById('ficp')?.value||'';
   const ftrial=document.getElementById('ftrial')?.value||'';
-  const fowner=document.getElementById('fowner')?.value||'';
   const fsort=document.getElementById('fsort')?.value||'newest';
+  // Owner filter: admin picks from dropdown, non-admin always forced to their email
+  const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const myEmail = window.AUTH_PROFILE?.email || '';
+  const fowner = isAdmin
+    ? (document.getElementById('fowner')?.value||'')
+    : myEmail;
 
   let result=leads.filter(l=>{
     if(showingDisqualified) return !!gDisq(l._id);
@@ -5504,7 +5551,13 @@ function filtered(){
       if(icpGrade(s)!==ficp||(s===0&&ficp!=='D'))return false;
     }
     if(ftrial&&trialStatus(l)!==ftrial)return false;
-    if(fowner&&gOwner(l._id)!==fowner)return false;
+    // Owner filter: match by AM Mail email
+    if(fowner){
+      const leadOwner=gAmMail(l)||gOwner(l._id)||'';
+      if(leadOwner!==fowner)return false;
+    }
+    // Hide paid customers if toggle is on
+    if(hidePaidCustomers && isLeadPaidCustomer(l)) return false;
     return true;
   });
 
@@ -5645,7 +5698,11 @@ function buildCard(lead,st){
   const icpScore=calcIcpScore(lead._id);
   const icpG=icpGrade(icpScore);
   const hasIcp=Object.keys(gIcp(lead._id)).length>0;
-  const owner=OWNERS.find(o=>o.id===gOwner(lead._id))||OWNERS[0];
+  // Owner: use AM Mail field for display
+  const ownerEmail=gAmMail(lead)||gOwner(lead._id)||'';
+  const ownerInitials=ownerEmail?ownerEmail.split('@')[0].slice(0,2).toUpperCase():'??';
+  const ownerName=ownerEmail?ownerEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()):ownerEmail;
+  const owner={id:ownerInitials, name:ownerName, color:'#C8E60A'};
   const contact=gContact(lead._id);
   const init2=gInit(name);
 
@@ -5674,7 +5731,7 @@ function buildCard(lead,st){
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       ${logoHtml}
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.01em;">${esc(name)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.01em;">${esc(name)}${isLeadPaidCustomer(lead)?'<span class="paid-badge" style="margin-left:5px;font-size:9px;">✓ PAID</span>':''}</div>
         ${source?`<div style="font-size:10.5px;color:var(--text-4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(source)}</div>`:''}
       </div>
       ${acv?`<span style="font-size:11px;font-weight:700;color:#1A2230;background:#CCED59;padding:2px 8px;border-radius:999px;white-space:nowrap;letter-spacing:-0.01em;flex-shrink:0;">${esc(acv)}</span>`:''}
@@ -6038,6 +6095,8 @@ function renderLdHero(lead){
               ${stageObj.name}
             </span>
             ${isDisq?`<span class="ld-chip bad" style="font-size:10px;">Disqualified</span>`:''}
+            ${paidCustomerBadge(lead)}
+            ${domainValidationBadge(lead)}
           </div>
           <div class="ld-hero-meta">
             ${domain?`<span class="ld-hero-domain" onclick="openCompanySite()">🌐 ${esc(domain)}</span>`:''}
@@ -8381,5 +8440,953 @@ function renderActivityFeed(el) {
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════
+     ADD LEAD MODAL
+══════════════════════════════════════════════ -->
+<div class="modal-bg" id="add-lead-modal-bg" onclick="if(event.target===this)closeAddLeadModal()" style="display:none;align-items:center;justify-content:center;padding:24px;">
+  <div class="modal" style="max-width:560px;width:100%;max-height:90vh;overflow-y:auto;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:10px;background:var(--lime-700);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E2535" stroke-width="2.5"><path d="M12 5V19M5 12H19"/></svg>
+      </div>
+      <div>
+        <div style="font-weight:800;font-size:14px;color:var(--text);">Add New Lead</div>
+        <div style="font-size:11.5px;color:var(--text-4);margin-top:1px;">Manually create a lead in the pipeline</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <button onclick="openBulkUploadModal()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:7px;border:1.5px solid var(--border-2);background:var(--surface);color:var(--text-3);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Bulk Upload
+        </button>
+        <button onclick="closeAddLeadModal()" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--surface-2);color:var(--text-4);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
+    </div>
+    <!-- Body -->
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+      <!-- Company name -->
+      <div>
+        <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Company Name <span style="color:#EF4444;">*</span></label>
+        <input id="al-name" class="ui-input" placeholder="e.g. Hassan Allam Holding" required/>
+      </div>
+      <!-- Row: Source + Stage -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Source</label>
+          <select id="al-source" class="ui-input" style="appearance:none;">
+            <option value="">Select source…</option>
+            <option>LinkedIn</option>
+            <option>Website</option>
+            <option>Referral</option>
+            <option>Wuzzuf</option>
+            <option>Cold Outreach</option>
+            <option>Event</option>
+            <option>Inbound</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Stage</label>
+          <select id="al-stage" class="ui-input" style="appearance:none;">
+            <option value="lead">Lead</option>
+            <option value="mql">MQL</option>
+            <option value="sql">SQL</option>
+            <option value="demo">Demo</option>
+            <option value="proposal">Proposal</option>
+          </select>
+        </div>
+      </div>
+      <!-- Row: Campaign + Medium -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Campaign</label>
+          <input id="al-campaign" class="ui-input" placeholder="e.g. Q2-Enterprise-2026"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Medium</label>
+          <select id="al-medium" class="ui-input" style="appearance:none;">
+            <option value="">Select medium…</option>
+            <option>Email</option>
+            <option>Social</option>
+            <option>Paid</option>
+            <option>Organic</option>
+            <option>Direct</option>
+            <option>WhatsApp</option>
+            <option>Phone</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <!-- Row: AM Mail + RC Mail -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">AM Email (Owner)</label>
+          <input id="al-am-mail" class="ui-input" type="email" placeholder="am@recruitera.ai"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">RC Email</label>
+          <input id="al-rc-mail" class="ui-input" type="email" placeholder="rc@recruitera.ai"/>
+        </div>
+      </div>
+      <!-- Row: Industry + Size -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Industry</label>
+          <input id="al-industry" class="ui-input" placeholder="e.g. Construction"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:6px;">Company Size</label>
+          <select id="al-size" class="ui-input" style="appearance:none;">
+            <option value="">Select size…</option>
+            <option>1–10</option>
+            <option>11–50</option>
+            <option>51–200</option>
+            <option>201–500</option>
+            <option>501–1,000</option>
+            <option>1,001–5,000</option>
+            <option>5,000+</option>
+          </select>
+        </div>
+      </div>
+      <!-- Contact name + email -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:2px;">
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-4);margin-bottom:10px;">Contact Person (optional)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-4);margin-bottom:5px;">Name</label>
+            <input id="al-contact-name" class="ui-input" placeholder="HR Director name"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:10.5px;font-weight:600;color:var(--text-4);margin-bottom:5px;">Email</label>
+            <input id="al-contact-email" class="ui-input" type="email" placeholder="contact@company.com"/>
+          </div>
+        </div>
+      </div>
+      <!-- Error message -->
+      <div id="al-error" style="display:none;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#DC2626;font-size:13px;font-weight:600;"></div>
+    </div>
+    <!-- Footer -->
+    <div style="display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--border);">
+      <button onclick="closeAddLeadModal()" style="flex:1;height:38px;border-radius:8px;border:1.5px solid var(--border-2);background:var(--surface);color:var(--text-3);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;">Cancel</button>
+      <button onclick="submitAddLead()" id="al-submit-btn" style="flex:2;height:38px;border-radius:8px;border:none;background:var(--cg-900);color:#fff;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Create Lead
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     BULK UPLOAD MODAL
+══════════════════════════════════════════════ -->
+<div class="modal-bg" id="bulk-upload-modal-bg" onclick="if(event.target===this)closeBulkUploadModal()" style="display:none;align-items:center;justify-content:center;padding:24px;">
+  <div class="modal" style="max-width:600px;width:100%;max-height:90vh;overflow-y:auto;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:10px;background:rgba(68,101,246,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4465F6" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      </div>
+      <div>
+        <div style="font-weight:800;font-size:14px;color:var(--text);">Bulk Upload via Excel</div>
+        <div style="font-size:11.5px;color:var(--text-4);margin-top:1px;">Upload a .xlsx file to import multiple leads at once</div>
+      </div>
+      <button onclick="closeBulkUploadModal()" style="margin-left:auto;width:28px;height:28px;border-radius:7px;border:none;background:var(--surface-2);color:var(--text-4);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+    </div>
+    <!-- Body -->
+    <div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <!-- Template download -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);">📄 Download Template</div>
+          <div style="font-size:11.5px;color:var(--text-4);margin-top:2px;">Use this template to ensure correct column format</div>
+        </div>
+        <button onclick="downloadBulkTemplate()" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;border:1.5px solid var(--border-2);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download
+        </button>
+      </div>
+      <!-- Required columns info -->
+      <div style="padding:12px 14px;border-radius:10px;background:rgba(68,101,246,0.06);border:1px solid rgba(68,101,246,0.15);">
+        <div style="font-size:11.5px;font-weight:700;color:#4465F6;margin-bottom:6px;">Required columns in your Excel:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          ${['Company Name','Source','Campaign','Medium','AM Mail','RC Mail','Industry','Size','Stage'].map(c=>
+            `<span style="padding:2px 8px;border-radius:5px;background:rgba(68,101,246,0.1);color:#4465F6;font-size:11px;font-weight:600;">${c}</span>`
+          ).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--text-4);margin-top:8px;">Only <strong style="color:var(--text-2);">Company Name</strong> is required. All other columns are optional.</div>
+      </div>
+      <!-- Drop zone -->
+      <div id="bulk-drop-zone" onclick="document.getElementById('bulk-file-input').click()" style="border:2px dashed var(--border-2);border-radius:12px;padding:28px 20px;text-align:center;cursor:pointer;transition:all 150ms;" ondragover="event.preventDefault();this.style.borderColor='var(--lime-700)';this.style.background='rgba(200,230,10,0.04)'" ondragleave="this.style.borderColor='var(--border-2)';this.style.background=''" ondrop="handleBulkDrop(event)">
+        <div style="font-size:28px;margin-bottom:8px;">📊</div>
+        <div style="font-size:13.5px;font-weight:700;color:var(--text-2);">Drop your Excel file here</div>
+        <div style="font-size:12px;color:var(--text-4);margin-top:4px;">or click to browse · .xlsx files only</div>
+        <input type="file" id="bulk-file-input" accept=".xlsx,.xls" style="display:none;" onchange="handleBulkFile(this.files[0])"/>
+      </div>
+      <!-- Preview table -->
+      <div id="bulk-preview" style="display:none;">
+        <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-4);margin-bottom:8px;" id="bulk-preview-label">Preview (first 5 rows)</div>
+        <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border);">
+          <table id="bulk-preview-table" style="width:100%;border-collapse:collapse;font-size:12px;"></table>
+        </div>
+        <div style="margin-top:10px;padding:8px 12px;border-radius:7px;background:var(--surface-2);border:1px solid var(--border);font-size:12px;color:var(--text-3);" id="bulk-stats"></div>
+      </div>
+      <!-- Error -->
+      <div id="bulk-error" style="display:none;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#DC2626;font-size:13px;font-weight:600;"></div>
+    </div>
+    <!-- Footer -->
+    <div style="display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--border);">
+      <button onclick="closeBulkUploadModal()" style="flex:1;height:38px;border-radius:8px;border:1.5px solid var(--border-2);background:var(--surface);color:var(--text-3);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;">Cancel</button>
+      <button onclick="submitBulkUpload()" id="bulk-submit-btn" disabled style="flex:2;height:38px;border-radius:8px;border:none;background:var(--cg-900);color:#fff;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;opacity:0.45;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <span id="bulk-submit-label">Upload Leads</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ══════════════════════════════════════════════
+// ADD LEAD MODAL
+// ══════════════════════════════════════════════
+
+function openAddLeadModal() {
+  // Pre-fill AM mail with current user
+  const amMailInput = document.getElementById('al-am-mail');
+  if (amMailInput && window.AUTH_PROFILE?.email) {
+    amMailInput.value = window.AUTH_PROFILE.email;
+  }
+  // Reset fields
+  ['al-name','al-campaign','al-industry','al-contact-name','al-contact-email','al-rc-mail'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['al-source','al-stage','al-medium','al-size'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.selectedIndex = 0;
+  });
+  document.getElementById('al-stage').value = 'lead';
+  const errEl = document.getElementById('al-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  const bg = document.getElementById('add-lead-modal-bg');
+  bg.style.display = 'flex';
+  bg.classList.add('open');
+  setTimeout(() => document.getElementById('al-name')?.focus(), 100);
+}
+
+function closeAddLeadModal() {
+  const bg = document.getElementById('add-lead-modal-bg');
+  bg.style.display = 'none';
+  bg.classList.remove('open');
+}
+
+async function submitAddLead() {
+  const name = document.getElementById('al-name').value.trim();
+  const errEl = document.getElementById('al-error');
+  errEl.style.display = 'none';
+
+  if (!name) {
+    errEl.textContent = 'Company Name is required.';
+    errEl.style.display = 'block';
+    document.getElementById('al-name').focus();
+    return;
+  }
+
+  const btn = document.getElementById('al-submit-btn');
+  btn.style.opacity = '0.6';
+  btn.style.pointerEvents = 'none';
+  btn.innerHTML = '<span class="spinner"></span> Creating…';
+
+  try {
+    const sb = window._sbClient;
+    if (!sb) throw new Error('Database not connected');
+
+    const stage    = document.getElementById('al-stage').value    || 'lead';
+    const source   = document.getElementById('al-source').value   || null;
+    const campaign = document.getElementById('al-campaign').value.trim() || null;
+    const medium   = document.getElementById('al-medium').value   || null;
+    const amMail   = document.getElementById('al-am-mail').value.trim() || null;
+    const rcMail   = document.getElementById('al-rc-mail').value.trim() || null;
+    const industry = document.getElementById('al-industry').value.trim() || null;
+    const size     = document.getElementById('al-size').value     || null;
+    const cName    = document.getElementById('al-contact-name').value.trim() || null;
+    const cEmail   = document.getElementById('al-contact-email').value.trim() || null;
+
+    // Build bubble_id as a temp unique id
+    const tempBubbleId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+    const row = {
+      name,
+      stage,
+      source,
+      campaign,
+      medium,
+      am_mail:   amMail,
+      rc_mail:   rcMail,
+      industry,
+      size,
+      bubble_id: tempBubbleId,
+      raw_data:  {},
+    };
+
+    // Insert account
+    const { data: newAccount, error: accErr } = await sb.from('accounts').insert(row);
+    if (accErr) throw new Error(accErr.message);
+
+    // Get the new account id
+    const { data: inserted, error: fetchErr } = await sb
+      .from('accounts')
+      .select('id')
+      .eq('bubble_id', tempBubbleId)
+      .single();
+
+    if (fetchErr || !inserted) throw new Error('Could not retrieve new account');
+
+    const accountId = inserted.id;
+
+    // Insert contact if provided
+    if (cName || cEmail) {
+      await sb.from('contacts').insert({
+        account_id: accountId,
+        full_name:  cName,
+        email:      cEmail,
+        is_primary: true,
+      });
+    }
+
+    // Log activity
+    const { data: { user } } = await sb.auth.getUser();
+    await sb.from('activities').insert({
+      account_id: accountId,
+      author_id:  user?.id || null,
+      type:       'note',
+      text:       `Lead created manually: ${name}`,
+    });
+
+    // Add to local leads array
+    const newLead = {
+      _id:          tempBubbleId,
+      _supabase_id: accountId,
+      name,
+      'Contact_Name': name,
+      'AM Mail':      amMail || '',
+      'RC Mail':      rcMail || '',
+      Source:         source || '',
+      Campaign:       campaign || '',
+      Medium:         medium || '',
+      WP_Industry:    industry || '',
+      WP_Company_Size:size || '',
+      _sb_stage:      stage,
+      _sb_is_disq:    false,
+      raw_data:       {},
+    };
+    leads.unshift(newLead);
+
+    closeAddLeadModal();
+    init();
+    toast(`${name} added to pipeline`, 'success');
+
+    // Auto-open the new lead detail
+    setTimeout(() => openDrawer(tempBubbleId), 400);
+
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = '';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Create Lead';
+  }
+}
+
+// ══════════════════════════════════════════════
+// BULK UPLOAD MODAL
+// ══════════════════════════════════════════════
+
+let bulkRows = [];
+
+function openBulkUploadModal() {
+  closeAddLeadModal();
+  bulkRows = [];
+  document.getElementById('bulk-preview').style.display = 'none';
+  document.getElementById('bulk-error').style.display = 'none';
+  document.getElementById('bulk-submit-btn').disabled = true;
+  document.getElementById('bulk-submit-btn').style.opacity = '0.45';
+  document.getElementById('bulk-submit-label').textContent = 'Upload Leads';
+  document.getElementById('bulk-file-input').value = '';
+  const bg = document.getElementById('bulk-upload-modal-bg');
+  bg.style.display = 'flex';
+  bg.classList.add('open');
+}
+
+function closeBulkUploadModal() {
+  const bg = document.getElementById('bulk-upload-modal-bg');
+  bg.style.display = 'none';
+  bg.classList.remove('open');
+}
+
+function handleBulkDrop(e) {
+  e.preventDefault();
+  document.getElementById('bulk-drop-zone').style.borderColor = 'var(--border-2)';
+  document.getElementById('bulk-drop-zone').style.background = '';
+  const file = e.dataTransfer.files[0];
+  if (file) handleBulkFile(file);
+}
+
+async function handleBulkFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.xlsx?$/i)) {
+    showBulkError('Please upload a .xlsx file');
+    return;
+  }
+  try {
+    // Load SheetJS dynamically
+    if (!window.XLSX) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(buf, { type: 'array' });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    if (!data || data.length === 0) {
+      showBulkError('No data found in file. Please check the template.');
+      return;
+    }
+
+    // Normalize column names (case-insensitive)
+    const normalize = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const colMap = {
+      company_name:   ['company_name', 'company', 'name', 'account_name'],
+      source:         ['source', 'lead_source'],
+      campaign:       ['campaign', 'utm_campaign'],
+      medium:         ['medium', 'utm_medium'],
+      am_mail:        ['am_mail', 'am_email', 'account_manager', 'am'],
+      rc_mail:        ['rc_mail', 'rc_email', 'recruiter'],
+      industry:       ['industry', 'sector'],
+      size:           ['size', 'company_size', 'employees'],
+      stage:          ['stage', 'pipeline_stage'],
+      contact_name:   ['contact_name', 'contact', 'full_name'],
+      contact_email:  ['contact_email', 'email'],
+      contact_phone:  ['contact_phone', 'phone', 'mobile'],
+    };
+
+    bulkRows = data.map(row => {
+      const out = {};
+      const keys = Object.keys(row);
+      for (const [field, aliases] of Object.entries(colMap)) {
+        const match = keys.find(k => aliases.includes(normalize(k)));
+        out[field] = match ? String(row[match] || '').trim() : '';
+      }
+      return out;
+    }).filter(r => r.company_name); // require company name
+
+    if (bulkRows.length === 0) {
+      showBulkError('No rows with a Company Name found. Make sure column is named "Company Name".');
+      return;
+    }
+
+    // Show preview
+    document.getElementById('bulk-error').style.display = 'none';
+    renderBulkPreview(bulkRows.slice(0, 5));
+    document.getElementById('bulk-stats').innerHTML =
+      `<strong>${bulkRows.length}</strong> leads ready to import · ${data.length - bulkRows.length > 0 ? `<span style="color:var(--warn);">${data.length - bulkRows.length} rows skipped (missing Company Name)</span>` : 'All rows valid ✓'}`;
+    document.getElementById('bulk-preview').style.display = 'block';
+    document.getElementById('bulk-submit-btn').disabled = false;
+    document.getElementById('bulk-submit-btn').style.opacity = '1';
+    document.getElementById('bulk-submit-label').textContent = `Import ${bulkRows.length} Leads`;
+
+  } catch(e) {
+    showBulkError('Failed to parse file: ' + e.message);
+  }
+}
+
+function renderBulkPreview(rows) {
+  if (!rows.length) return;
+  const cols = ['company_name','source','campaign','medium','am_mail','stage'];
+  const labels = { company_name:'Company', source:'Source', campaign:'Campaign', medium:'Medium', am_mail:'AM Mail', stage:'Stage' };
+  const tbl = document.getElementById('bulk-preview-table');
+  tbl.innerHTML = `
+    <thead>
+      <tr style="background:var(--surface-2);">
+        ${cols.map(c => `<th style="padding:7px 10px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-4);border-bottom:1px solid var(--border);white-space:nowrap;">${labels[c]||c}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(r => `<tr>
+        ${cols.map(c => `<td style="padding:7px 10px;font-size:12.5px;color:var(--text-2);border-bottom:1px solid var(--border);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${esc(r[c]||'—')}</td>`).join('')}
+      </tr>`).join('')}
+    </tbody>`;
+}
+
+function showBulkError(msg) {
+  const el = document.getElementById('bulk-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function downloadBulkTemplate() {
+  // Generate a simple CSV template the user can open in Excel
+  const headers = ['Company Name','Source','Campaign','Medium','AM Mail','RC Mail','Industry','Size','Stage','Contact Name','Contact Email','Contact Phone'];
+  const example = ['Acme Corp','LinkedIn','Q2-2026','Email','am@recruitera.ai','rc@recruitera.ai','Construction','201–500','lead','Ahmed Ali','ahmed@acme.com','+201000000000'];
+  const csv = [headers, example].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recruitera-bulk-template.csv';
+  a.click();
+  toast('Template downloaded', 'success');
+}
+
+async function submitBulkUpload() {
+  if (!bulkRows.length) return;
+  const btn = document.getElementById('bulk-submit-btn');
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+
+  const VALID_STAGES = ['lead','mql','sql','demo','proposal','won','lost'];
+  let success = 0, failed = 0;
+
+  try {
+    const sb = window._sbClient;
+    if (!sb) throw new Error('Database not connected');
+    const { data: { user } } = await sb.auth.getUser();
+
+    for (let i = 0; i < bulkRows.length; i++) {
+      const r = bulkRows[i];
+      document.getElementById('bulk-submit-label').textContent = `Uploading ${i+1}/${bulkRows.length}…`;
+
+      try {
+        const stage = VALID_STAGES.includes((r.stage||'lead').toLowerCase()) ? (r.stage||'lead').toLowerCase() : 'lead';
+        const tempId = 'bulk_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,6);
+
+        const row = {
+          name:      r.company_name,
+          stage,
+          source:    r.source   || null,
+          campaign:  r.campaign || null,
+          medium:    r.medium   || null,
+          am_mail:   r.am_mail  || null,
+          rc_mail:   r.rc_mail  || null,
+          industry:  r.industry || null,
+          size:      r.size     || null,
+          bubble_id: tempId,
+          raw_data:  {},
+        };
+
+        const { error: accErr } = await sb.from('accounts').insert(row);
+        if (accErr) { failed++; continue; }
+
+        // Get inserted ID
+        const { data: ins } = await sb.from('accounts').select('id').eq('bubble_id', tempId).single();
+        const accountId = ins?.id;
+
+        // Insert contact if provided
+        if (accountId && (r.contact_name || r.contact_email)) {
+          await sb.from('contacts').insert({
+            account_id: accountId,
+            full_name:  r.contact_name  || null,
+            email:      r.contact_email || null,
+            phone:      r.contact_phone || null,
+            is_primary: true,
+          });
+        }
+
+        // Add to local array
+        leads.unshift({
+          _id: tempId,
+          _supabase_id: accountId || null,
+          name: r.company_name,
+          'Contact_Name': r.company_name,
+          'AM Mail': r.am_mail || '',
+          Source: r.source || '',
+          Campaign: r.campaign || '',
+          Medium: r.medium || '',
+          WP_Industry: r.industry || '',
+          WP_Company_Size: r.size || '',
+          _sb_stage: stage,
+          _sb_is_disq: false,
+          raw_data: {},
+        });
+
+        success++;
+      } catch(e) { failed++; }
+    }
+
+    closeBulkUploadModal();
+    init();
+    toast(`${success} leads imported${failed > 0 ? ` · ${failed} failed` : ''}`, success > 0 ? 'success' : 'error');
+    bulkRows = [];
+
+  } catch(e) {
+    showBulkError('Upload failed: ' + e.message);
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    document.getElementById('bulk-submit-label').textContent = `Retry Import`;
+  }
+}
+
+// Close modals on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeAddLeadModal();
+    closeBulkUploadModal();
+  }
+});
+</script>
+
+
+<!-- ══════════════════════════════════════════════
+     MERGE DUPLICATES MODAL
+══════════════════════════════════════════════ -->
+<div class="modal-bg" id="merge-modal-bg" onclick="if(event.target===this)closeMergeModal()" style="display:none;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;">
+  <div class="modal" style="max-width:680px;width:100%;margin:auto;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:10px;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5"><circle cx="8" cy="8" r="5"/><circle cx="16" cy="8" r="5"/><path d="M5.5 13C5.5 16.5 8.5 19 12 19s6.5-2.5 6.5-6"/></svg>
+      </div>
+      <div>
+        <div style="font-weight:800;font-size:14px;color:var(--text);">Merge Duplicate Companies</div>
+        <div style="font-size:11.5px;color:var(--text-4);margin-top:1px;">Companies grouped by shared email domain</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+        <span id="merge-domain-count" style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(239,68,68,0.1);color:#DC2626;"></span>
+        <button onclick="closeMergeModal()" style="width:28px;height:28px;border-radius:7px;border:none;background:var(--surface-2);color:var(--text-4);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
+    </div>
+
+    <!-- Filter/Search -->
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;">
+      <input id="merge-search" class="ui-input" placeholder="Search by domain or company name…" oninput="renderMergeGroups()" style="flex:1;"/>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-3);cursor:pointer;white-space:nowrap;">
+        <input type="checkbox" id="merge-show-all" onchange="renderMergeGroups()" style="cursor:pointer;"/>
+        Show all (incl. already merged)
+      </label>
+    </div>
+
+    <!-- Groups list -->
+    <div id="merge-groups-list" style="max-height:60vh;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;"></div>
+
+    <!-- Footer -->
+    <div style="display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);align-items:center;">
+      <div style="flex:1;font-size:12px;color:var(--text-4);" id="merge-footer-status">Select groups to merge</div>
+      <button onclick="closeMergeModal()" style="height:36px;padding:0 16px;border-radius:8px;border:1.5px solid var(--border-2);background:var(--surface);color:var(--text-3);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">Close</button>
+      <button onclick="mergeSelected()" id="merge-confirm-btn" disabled style="height:36px;padding:0 16px;border-radius:8px;border:none;background:#DC2626;color:#fff;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;opacity:0.45;">
+        Merge Selected
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ═══════════════════════════════════════
+// MERGE DUPLICATES BY EMAIL DOMAIN
+// ═══════════════════════════════════════
+
+const GENERIC_EMAIL_DOMAINS = ['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','live.com','me.com','msn.com','mail.com','protonmail.com'];
+
+let mergeGroups = [];
+let mergeSelections = {};
+let mergeChecked = new Set();
+
+function getLeadEmailDomain(lead) {
+  const email = (fv(lead,'Contact_Email','contact_email','email','Email')||'');
+  if (!email.includes('@')) return null;
+  const domain = email.split('@')[1].toLowerCase().trim();
+  if (GENERIC_EMAIL_DOMAINS.includes(domain)) return null;
+  if (domain.length < 4) return null;
+  return domain;
+}
+
+function buildMergeGroups() {
+  const byDomain = {};
+  leads.forEach(l => {
+    if (gDisq(l._id)) return;
+    const domain = getLeadEmailDomain(l);
+    if (!domain) return;
+    if (!byDomain[domain]) byDomain[domain] = [];
+    byDomain[domain].push(l);
+  });
+  return Object.entries(byDomain)
+    .filter(([, arr]) => arr.length > 1)
+    .map(([domain, arr]) => ({
+      domain,
+      leads: arr,
+      defaultPrimary: arr.reduce((best, l) =>
+        calcIcpScore(l._id) > calcIcpScore(best._id) ? l : best, arr[0])._id
+    }))
+    .sort((a, b) => b.leads.length - a.leads.length);
+}
+
+function openMergeModal() {
+  mergeGroups = buildMergeGroups();
+  mergeSelections = {};
+  mergeChecked = new Set();
+  mergeGroups.forEach(g => { mergeSelections[g.domain] = g.defaultPrimary; });
+  const cnt = document.getElementById('merge-domain-count');
+  if (cnt) cnt.textContent = mergeGroups.length + ' domain' + (mergeGroups.length !== 1 ? 's' : '') + ' found';
+  const srch = document.getElementById('merge-search');
+  if (srch) srch.value = '';
+  renderMergeGroups();
+  const bg = document.getElementById('merge-modal-bg');
+  if (bg) { bg.style.display = 'flex'; bg.classList.add('open'); }
+}
+
+function closeMergeModal() {
+  const bg = document.getElementById('merge-modal-bg');
+  if (bg) { bg.style.display = 'none'; bg.classList.remove('open'); }
+}
+
+function renderMergeGroups() {
+  const q = (document.getElementById('merge-search')?.value || '').toLowerCase();
+  const list = document.getElementById('merge-groups-list');
+  if (!list) return;
+  const groups = mergeGroups.filter(g =>
+    !q || g.domain.includes(q) || g.leads.some(l => gName(l).toLowerCase().includes(q))
+  );
+
+  if (!groups.length) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-4);"><div style="font-size:28px;margin-bottom:8px;">\uD83C\uDF89</div><div style="font-weight:700;font-size:14px;color:var(--text-2);">No duplicates found</div><div style="font-size:12.5px;margin-top:4px;">All companies have unique email domains</div></div>';
+    updateMergeFooter(); return;
+  }
+
+  const stageColors = {lead:'#98A2B3',mql:'#969BA1',sql:'#4465F6',demo:'#9333EA',proposal:'#C8E60A',won:'#2F8F5C',lost:'#B83A3A'};
+
+  list.innerHTML = groups.map(g => {
+    const primaryId = mergeSelections[g.domain] || g.defaultPrimary;
+    const primaryLead = g.leads.find(l => l._id === primaryId) || g.leads[0];
+    const isChecked = mergeChecked.has(g.domain);
+    const domKey = g.domain.replace(/[^a-zA-Z0-9]/g, '_');
+
+    return '<div style="border:1.5px solid ' + (isChecked ? '#DC2626' : 'var(--border)') + ';border-radius:12px;overflow:hidden;">'
+      + '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
+      + '<input type="checkbox" ' + (isChecked ? 'checked' : '') + ' onchange="toggleMergeCheck(\'' + g.domain + '\',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:#DC2626;flex-shrink:0;"/>'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--text);">\uD83C\uDF10 ' + esc(g.domain)
+      + ' <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;background:rgba(239,68,68,0.1);color:#DC2626;">' + g.leads.length + ' entries</span></div></div>'
+      + '<div style="font-size:11.5px;color:var(--text-4);">Select primary below \u2193</div>'
+      + '</div>'
+      + '<div>' + g.leads.map((l, i) => {
+        const isPrimary = l._id === primaryId;
+        const stage = gStage(l._id);
+        const sc = stageColors[stage] || '#98A2B3';
+        const stageObj = STAGES.find(s => s.id === stage) || STAGES[0];
+        const icpScore = calcIcpScore(l._id);
+        const email = fv(l,'Contact_Email','contact_email','email','Email') || '';
+        return '<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;'
+          + 'border-bottom:' + (i < g.leads.length-1 ? '1px solid var(--border)' : 'none') + ';'
+          + 'background:' + (isPrimary ? 'rgba(34,197,94,0.04)' : 'var(--surface)') + ';">'
+          + '<input type="radio" name="pri_' + domKey + '" value="' + l._id + '" ' + (isPrimary ? 'checked' : '')
+          + ' onchange="setPrimary(\' + g.domain + \',\' + l._id + \')" style="accent-color:#22C55E;cursor:pointer;flex-shrink:0;"/>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
+          + '<span style="font-size:13px;font-weight:700;color:var(--text);">' + esc(gName(l)) + '</span>'
+          + (isPrimary ? '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,0.12);color:#16A34A;">PRIMARY</span>' : '')
+          + '<span style="font-size:11px;padding:1px 7px;border-radius:999px;background:' + sc + '18;color:' + sc + ';">' + stageObj.name + '</span>'
+          + (icpScore > 0 ? '<span style="font-size:10.5px;color:var(--text-4);">ICP ' + icpScore + '</span>' : '')
+          + '</div>'
+          + '<div style="font-size:11.5px;color:var(--text-4);margin-top:2px;">' + esc(email) + '</div>'
+          + '</div>'
+          + '<div style="font-size:11px;color:var(--text-4);flex-shrink:0;">'
+          + (gCreated(l) ? new Date(gCreated(l)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '\u2014')
+          + '</div></label>';
+      }).join('') + '</div>'
+      + (isChecked ? '<div style="padding:10px 14px;background:rgba(239,68,68,0.04);border-top:1px solid rgba(239,68,68,0.15);font-size:12px;color:#DC2626;">\u26A1 Will keep <strong>' + esc(gName(primaryLead)) + '</strong> as primary \u00B7 ' + (g.leads.length - 1) + ' will be merged as contacts</div>' : '')
+      + '</div>';
+  }).join('');
+  updateMergeFooter();
+}
+
+function toggleMergeCheck(domain, checked) {
+  if (checked) mergeChecked.add(domain); else mergeChecked.delete(domain);
+  renderMergeGroups();
+}
+
+function setPrimary(domain, leadId) {
+  mergeSelections[domain] = leadId;
+  renderMergeGroups();
+}
+
+function updateMergeFooter() {
+  const btn = document.getElementById('merge-confirm-btn');
+  const status = document.getElementById('merge-footer-status');
+  const count = mergeChecked.size;
+  if (!btn || !status) return;
+  if (count === 0) {
+    btn.disabled = true; btn.style.opacity = '0.45';
+    status.textContent = 'Check groups above to select for merging';
+  } else {
+    btn.disabled = false; btn.style.opacity = '1';
+    const totalDupes = [...mergeChecked].reduce((s, domain) => {
+      const g = mergeGroups.find(x => x.domain === domain);
+      return s + (g ? g.leads.length - 1 : 0);
+    }, 0);
+    status.innerHTML = '<strong>' + count + '</strong> group' + (count !== 1 ? 's' : '') + ' selected \u00B7 <strong>' + totalDupes + '</strong> duplicate' + (totalDupes !== 1 ? 's' : '') + ' will be merged';
+  }
+}
+
+async function mergeSelected() {
+  if (mergeChecked.size === 0) return;
+  const btn = document.getElementById('merge-confirm-btn');
+  btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Merging\u2026';
+  const sb = window._sbClient;
+  let merged = 0, failed = 0;
+
+  for (const domain of mergeChecked) {
+    const group = mergeGroups.find(g => g.domain === domain);
+    if (!group) continue;
+    const primaryId = mergeSelections[domain] || group.defaultPrimary;
+    const primaryLead = group.leads.find(l => l._id === primaryId);
+    if (!primaryLead) continue;
+    const primarySbId = primaryLead._supabase_id;
+    const duplicates = group.leads.filter(l => l._id !== primaryId);
+
+    for (const dup of duplicates) {
+      try {
+        const dupSbId = dup._supabase_id;
+        if (sb && dupSbId && primarySbId) {
+          // Move activities to primary
+          await sb.from('activities').update({ account_id: primarySbId }).eq('account_id', dupSbId);
+          // Move contacts to primary (as non-primary)
+          await sb.from('contacts').update({ account_id: primarySbId, is_primary: false }).eq('account_id', dupSbId);
+          // Log merge activity on primary
+          const { data: { user } } = await sb.auth.getUser();
+          await sb.from('activities').insert({
+            account_id: primarySbId, author_id: user?.id || null, type: 'note',
+            text: 'Merged duplicate: ' + gName(dup) + ' (' + (fv(dup,'Contact_Email','contact_email','email','Email')||dup._id) + ')',
+          });
+          // Soft-delete duplicate
+          await sb.from('accounts').update({ is_disqualified: true, disq_reason: 'Merged into ' + gName(primaryLead) }).eq('id', dupSbId);
+        }
+        // Merge logs in localStorage
+        const dupLogs = gLog(dup._id);
+        if (dupLogs.length > 0) {
+          const primaryLogs = gLog(primaryId);
+          const merged2 = [...primaryLogs, ...dupLogs.map(l => ({...l, text: '[from ' + gName(dup) + '] ' + l.text}))];
+          merged2.sort((a,b) => b.ts - a.ts);
+          sLog(primaryId, merged2);
+        }
+        // Mark dup as disqualified locally
+        sDisq(dup._id, { reason: 'Merged into ' + gName(primaryLead), ts: Date.now() });
+        merged++;
+      } catch(e) { console.error('merge error', e); failed++; }
+    }
+  }
+
+  mergeChecked.clear();
+  mergeGroups = buildMergeGroups();
+  mergeSelections = {};
+  mergeGroups.forEach(g => { mergeSelections[g.domain] = g.defaultPrimary; });
+  const cnt = document.getElementById('merge-domain-count');
+  if (cnt) cnt.textContent = mergeGroups.length + ' domain' + (mergeGroups.length !== 1 ? 's' : '') + ' found';
+  renderMergeGroups(); renderAccountsTable(); renderBoard();
+  btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Merge Selected';
+  toast(merged + ' duplicate' + (merged !== 1 ? 's' : '') + ' merged' + (failed > 0 ? ' \u00B7 ' + failed + ' failed' : ''), merged > 0 ? 'success' : 'error');
+}
+</script>
+
+
+<script>
+// ══════════════════════════════════════════════
+// PAID CUSTOMERS & DOMAIN VALIDATION
+// ══════════════════════════════════════════════
+
+// Cache of paid domains loaded from Supabase
+let PAID_DOMAINS = new Set();
+let PAID_EMAILS  = new Set();
+
+async function loadPaidCustomers() {
+  try {
+    const sb = window._sbClient;
+    if (!sb) return;
+    const { data } = await sb.from('paid_customers')
+      .select('domain, email')
+      .eq('is_active', true);
+    if (!data) return;
+    PAID_DOMAINS = new Set(data.map(r => r.domain).filter(Boolean).map(d => d.toLowerCase()));
+    PAID_EMAILS  = new Set(data.map(r => r.email).filter(Boolean).map(e => e.toLowerCase()));
+    console.log(`[CRM] Loaded ${PAID_DOMAINS.size} paid domains`);
+  } catch(e) {
+    console.warn('[CRM] Could not load paid customers:', e.message);
+  }
+}
+
+// Check if a lead is a paid customer
+function isLeadPaidCustomer(lead) {
+  // Check flag from Supabase
+  if (lead._sb_is_paid) return true;
+  if (lead.is_paid_customer) return true;
+  // Check domain match
+  const email = lead['Contact_Email'] || lead.raw_data?.Contact_Email || '';
+  if (email && email.includes('@')) {
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (domain && PAID_DOMAINS.has(domain)) return true;
+  }
+  const domain = (lead.domain || '').toLowerCase();
+  if (domain && PAID_DOMAINS.has(domain)) return true;
+  return false;
+}
+
+// ── Domain validation ─────────────────────────────────────────────────────
+const GENERIC_DOMAINS = new Set([
+  'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com',
+  'live.com','me.com','msn.com','aol.com','protonmail.com','ymail.com',
+  'googlemail.com','yahoo.co.uk','yahoo.com.eg','hotmail.co.uk','yahoo.fr',
+]);
+const OBVIOUSLY_INVALID = /^(test|example|fake|dummy|none|na|n\/a|temp|noemail)\./i;
+
+// Safe helper — returns HTML string, no nested backticks inside template literals
+function paidCustomerBadge(lead) {
+  if (!isLeadPaidCustomer(lead)) return '';
+  return '<span class="paid-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Paid Customer</span>';
+}
+
+function domainValidationBadge(lead) {
+  const em = gEmail(lead);
+  if (!em) return '';
+  const v = validateEmailDomain(em);
+  if (!v.valid) return '<span class="domain-invalid-badge">⚠ Invalid domain</span>';
+  if (v.generic) return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:600;background:rgba(245,158,11,0.1);color:#D97706;border:1px solid rgba(245,158,11,0.2);">Generic email</span>';
+  return '';
+}
+
+function validateEmailDomain(email) {
+  if (!email || !email.includes('@')) return { valid: false, reason: 'No email' };
+  const parts = email.split('@');
+  if (parts.length !== 2) return { valid: false, reason: 'Invalid format' };
+  const domain = parts[1].toLowerCase().trim();
+  if (!domain.includes('.')) return { valid: false, reason: 'No TLD' };
+  if (domain.length < 4) return { valid: false, reason: 'Domain too short' };
+  if (OBVIOUSLY_INVALID.test(domain)) return { valid: false, reason: 'Test domain' };
+  if (GENERIC_DOMAINS.has(domain)) return { valid: true, generic: true, reason: 'Generic email' };
+  return { valid: true, generic: false, reason: null };
+}
+
+// ── Filter: hide paid customers from board by default ─────────────────────
+let hidePaidCustomers = false; // Admin can toggle
+
+function toggleHidePaid() {
+  hidePaidCustomers = !hidePaidCustomers;
+  const btn = document.getElementById('hide-paid-btn');
+  if (btn) {
+    btn.textContent = hidePaidCustomers ? '👁 Show Paid Customers' : '🚫 Hide Paid Customers';
+    btn.style.background = hidePaidCustomers ? 'rgba(34,197,94,0.1)' : '';
+    btn.style.color = hidePaidCustomers ? '#16A34A' : '';
+  }
+  renderBoard(); kpis();
+}
+
+// ── Load paid customers on boot ───────────────────────────────────────────
+window.addEventListener('auth-ready', () => {
+  loadPaidCustomers().then(() => {
+    renderBoard(); kpis();
+  });
+});
+</script>
+
 </body>
 </html>
