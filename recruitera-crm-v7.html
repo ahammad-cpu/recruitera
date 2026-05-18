@@ -4685,6 +4685,15 @@ button { user-select: none; -webkit-user-select: none; }
           <option value="expired">Trial expired</option>
           <option value="none">No trial</option>
         </select>
+        <select class="f-select" id="fowner" onchange="renderBoard()">
+          <option value="">All owners</option>
+          <option value="AM">Amr Hammad</option>
+          <option value="RH">Rami</option>
+          <option value="JS">Javi</option>
+          <option value="SA">Sana</option>
+          <option value="SR">Sara</option>
+          <option value="OM">Omar</option>
+        </select>
         <span class="f-lbl" style="margin-left:8px;">Sort</span>
         <select class="f-select" id="fsort" onchange="renderBoard()">
           <option value="newest">Newest first</option>
@@ -5465,6 +5474,9 @@ function popFilters(){
   sel.innerHTML='<option value="">All sources</option>'+srcs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
   const stg=document.getElementById('fstg');
   stg.innerHTML='<option value="">All stages</option>'+STAGES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  // Populate owner filter dynamically from OWNERS list
+  const own=document.getElementById('fowner');
+  if(own) own.innerHTML='<option value="">All owners</option>'+OWNERS.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('');
 }
 
 function filtered(){
@@ -5473,6 +5485,7 @@ function filtered(){
   const fst=document.getElementById('fstg')?.value||'';
   const ficp=document.getElementById('ficp')?.value||'';
   const ftrial=document.getElementById('ftrial')?.value||'';
+  const fowner=document.getElementById('fowner')?.value||'';
   const fsort=document.getElementById('fsort')?.value||'newest';
 
   let result=leads.filter(l=>{
@@ -5491,6 +5504,7 @@ function filtered(){
       if(icpGrade(s)!==ficp||(s===0&&ficp!=='D'))return false;
     }
     if(ftrial&&trialStatus(l)!==ftrial)return false;
+    if(fowner&&gOwner(l._id)!==fowner)return false;
     return true;
   });
 
@@ -8095,16 +8109,26 @@ function renderWinLoss(el) {
 }
 
 function renderJourney(el) {
-  // For each lead, calculate stages traversed by looking at log entries
-  // Build a simple "stage transitions" view
+  // Stage order for forward-only filtering
+  const stageOrder = STAGES.map(s => s.id);
+  const stageIdx = id => stageOrder.indexOf(id);
+
+  // Build stage transitions — forward moves only
   const transitions = {};
   leads.forEach(l => {
     const logs = gLog(l._id).filter(log => log.type === 'stage');
     logs.forEach(log => {
       const match = log.text.match(/from (.+?) to (.+)/i);
       if (match) {
-        const key = `${match[1]} → ${match[2]}`;
-        transitions[key] = (transitions[key] || 0) + 1;
+        const fromRaw = match[1].trim().toLowerCase();
+        const toRaw   = match[2].trim().toLowerCase();
+        const fromSt  = STAGES.find(s => s.name.toLowerCase() === fromRaw || s.id === fromRaw);
+        const toSt    = STAGES.find(s => s.name.toLowerCase() === toRaw   || s.id === toRaw);
+        // Only count forward moves (to a later stage)
+        if (fromSt && toSt && stageIdx(toSt.id) > stageIdx(fromSt.id)) {
+          const key = `${fromSt.name} → ${toSt.name}`;
+          transitions[key] = (transitions[key] || 0) + 1;
+        }
       }
     });
   });
