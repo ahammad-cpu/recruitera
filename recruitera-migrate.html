@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Recruitera — Bubble → Supabase Migration</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --lime-700: #CCED59;
+  --lime-800: #B5D44A;
+  --bg: #0D1117;
+  --surface: #161B22;
+  --surface-2: #21262D;
+  --border: #30363D;
+  --border-2: #444C56;
+  --text: #F0F6FC;
+  --text-2: #C9D1D9;
+  --text-3: #8B949E;
+  --text-4: #6E7681;
+  --ok: #2F8F5C;
+  --warn: #B8761A;
+  --bad: #B83A3A;
+  --info: #2C5BA8;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Montserrat', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 24px;
+}
+.wrap { max-width: 920px; margin: 0 auto; }
+.header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.logo {
+  width: 44px; height: 44px;
+  background: var(--lime-700);
+  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: #1A2230;
+}
+h1 { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+.subtitle { color: var(--text-3); font-size: 13px; margin-top: 2px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-3); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .step-num {
+  width: 22px; height: 22px; background: var(--lime-700);
+  color: #1A2230; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+label {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+input[type=text], input[type=url], input[type=password] {
+  padding: 11px 13px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-family: inherit;
+}
+input:focus {
+  outline: none;
+  border-color: var(--lime-700);
+  box-shadow: 0 0 0 3px rgba(204,237,89,0.15);
+}
+.hint { font-size: 11.5px; color: var(--text-4); margin-top: 4px; line-height: 1.5; }
+.hint code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--lime-700);
+}
+
+button {
+  padding: 11px 20px;
+  background: var(--lime-700);
+  color: #1A2230;
+  border: none;
+  border-radius: 9px;
+  font-size: 13.5px; font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: all 130ms;
+}
+button:hover:not(:disabled) { background: var(--lime-800); transform: translateY(-1px); }
+button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+button.secondary {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+button.secondary:hover:not(:disabled) { background: var(--surface); }
+button.danger { background: var(--bad); color: white; }
+
+.progress-bar {
+  width: 100%; height: 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--lime-700), var(--ok));
+  transition: width 300ms;
+  width: 0%;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: var(--surface-2);
+  border-radius: 9px;
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+.stat-val { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.stat-lbl { font-size: 10.5px; color: var(--text-4); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+.log {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 12px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  max-height: 280px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-2);
+}
+.log .ok   { color: var(--ok); }
+.log .warn { color: var(--warn); }
+.log .bad  { color: var(--bad); }
+.log .info { color: var(--info); }
+.log .dim  { color: var(--text-4); }
+
+.divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  color: var(--text-3);
+}
+.pill.ok   { background: rgba(47,143,92,0.15);  color: var(--ok);   border-color: var(--ok); }
+.pill.bad  { background: rgba(184,58,58,0.15);  color: var(--bad);  border-color: var(--bad); }
+.pill.warn { background: rgba(184,118,26,0.15); color: var(--warn); border-color: var(--warn); }
+
+.warning-box {
+  background: rgba(184,118,26,0.1);
+  border: 1px solid var(--warn);
+  border-radius: 9px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--warn);
+  margin-bottom: 14px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">R</div>
+    <div>
+      <h1>Bubble → Supabase Migration</h1>
+      <div class="subtitle">One-time data import. Runs locally in your browser.</div>
+    </div>
+    <div style="margin-left:auto;" id="auth-status"></div>
+  </div>
+
+  <!-- Step 1: Credentials -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">1</span>Bubble.io credentials</div>
+
+    <div class="warning-box">
+      🔒 Your credentials stay in your browser. Nothing is sent anywhere except your own Bubble account and your own Supabase project.
+    </div>
+
+    <div class="field">
+      <label for="bubble-url">Bubble app URL</label>
+      <input type="url" id="bubble-url" placeholder="https://yourapp.bubbleapps.io" />
+      <div class="hint">If using a custom domain, paste that. Example: <code>https://app.recruitera.ai</code></div>
+    </div>
+
+    <div class="field">
+      <label for="bubble-type">Bubble Data Type name</label>
+      <input type="text" id="bubble-type" placeholder="Lead" value="Lead"/>
+      <div class="hint">The name of the data type that holds your accounts. Usually <code>Lead</code>, <code>Account</code>, or <code>Company</code>.</div>
+    </div>
+
+    <div class="field">
+      <label for="bubble-key">Bubble Private API key</label>
+      <input type="password" id="bubble-key" placeholder="Paste your private API key" />
+      <div class="hint">In Bubble: Settings → API → "Generate a new API token" (Private). Needs Data API read access.</div>
+    </div>
+
+    <div class="field">
+      <label for="bubble-env">Environment</label>
+      <select id="bubble-env" style="padding:11px 13px;background:var(--surface-2);border:1.5px solid var(--border);border-radius:9px;color:var(--text);font-size:13.5px;font-family:inherit;">
+        <option value="live">Live (production data)</option>
+        <option value="version-test">Development (version-test)</option>
+      </select>
+    </div>
+
+    <button onclick="testBubbleConnection()" id="btn-test">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Test connection
+    </button>
+
+    <div id="test-result" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Step 2: Preview -->
+  <div class="card" id="preview-card" style="display:none;">
+    <div class="card-title"><span class="step-num">2</span>Preview &amp; field mapping</div>
+
+    <div class="stat-row" id="preview-stats"></div>
+
+    <div style="margin-bottom:10px;font-size:12.5px;color:var(--text-2);font-weight:600;">First 3 leads detected:</div>
+    <div class="log" id="preview-log"></div>
+
+    <div class="divider"></div>
+
+    <div class="hint" style="margin-bottom:14px;">
+      ✓ All fields are mapped automatically based on Bubble's field naming. Custom fields and raw data are preserved in <code>raw_data</code> jsonb column.
+    </div>
+
+    <div class="btn-row">
+      <button onclick="startMigration()" id="btn-migrate">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Start migration to Supabase
+      </button>
+      <button class="secondary" onclick="document.getElementById('preview-card').style.display='none'">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Migration progress -->
+  <div class="card" id="progress-card" style="display:none;">
+    <div class="card-title"><span class="step-num">3</span>Migration progress</div>
+
+    <div class="stat-row" id="progress-stats">
+      <div class="stat"><div class="stat-val" id="p-fetched">0</div><div class="stat-lbl">Fetched</div></div>
+      <div class="stat"><div class="stat-val" id="p-inserted">0</div><div class="stat-lbl">Inserted</div></div>
+      <div class="stat"><div class="stat-val" id="p-skipped">0</div><div class="stat-lbl">Skipped</div></div>
+      <div class="stat"><div class="stat-val" id="p-errors">0</div><div class="stat-lbl">Errors</div></div>
+    </div>
+
+    <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill"></div></div>
+    <div id="progress-label" style="font-size:12.5px;color:var(--text-3);margin-bottom:14px;text-align:center;font-variant-numeric:tabular-nums;">Ready</div>
+
+    <div class="log" id="migration-log"></div>
+
+    <div style="margin-top:14px;display:flex;gap:10px;">
+      <button class="secondary" onclick="downloadLog()" id="btn-download-log" style="display:none;">Download log</button>
+      <button onclick="window.location.href='./recruitera-crm-v7.html'" id="btn-open-crm" style="display:none;">Open CRM →</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Auth check ─────────────────────────────
+window.supabase = supabase;
+const authEl = document.getElementById('auth-status');
+authEl.innerHTML = '<span class="pill warn">Checking session...</span>';
+
+// Give Supabase a moment to hydrate session from localStorage
+async function checkAuth() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) {
+    console.error('Session error:', error);
+  }
+  if (session && session.user) {
+    authEl.innerHTML = `<span class="pill ok">✓ Signed in as ${session.user.email}</span>`;
+    return true;
+  }
+  return false;
+}
+
+let signedIn = await checkAuth();
+
+// If not signed in, wait for auth state changes for up to 3 seconds
+if (!signedIn) {
+  await new Promise((resolve) => {
+    const timeout = setTimeout(resolve, 3000);
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && session.user) {
+        signedIn = true;
+        clearTimeout(timeout);
+        authEl.innerHTML = `<span class="pill ok">✓ Signed in as ${session.user.email}</span>`;
+        sub?.subscription?.unsubscribe?.();
+        resolve();
+      }
+    });
+  });
+}
+
+if (!signedIn) {
+  authEl.innerHTML = '<span class="pill bad">Not signed in &mdash; <a href="./recruitera-login.html" style="color:inherit;text-decoration:underline;">login here</a></span>';
+  // DON'T auto-redirect - let user see the message and click manually
+}
+
+// ─── State ──────────────────────────────────
+window.fetchedLeads = [];
+window.migrationLog = [];
+
+// ─── Logger ─────────────────────────────────
+function log(level, msg, target = 'migration-log') {
+  const el = document.getElementById(target);
+  if (!el) return;
+  const cls = ({ok:'ok', err:'bad', warn:'warn', info:'info', dim:'dim'})[level] || '';
+  const time = new Date().toLocaleTimeString();
+  const line = `[${time}] ${msg}`;
+  window.migrationLog.push(line);
+  const span = document.createElement('div');
+  span.className = cls;
+  span.textContent = line;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Helpers ────────────────────────────────
+function getCreds() {
+  return {
+    url: document.getElementById('bubble-url').value.trim().replace(/\/$/, ''),
+    type: document.getElementById('bubble-type').value.trim(),
+    key: document.getElementById('bubble-key').value.trim(),
+    env: document.getElementById('bubble-env').value,
+  };
+}
+
+function bubbleApiBase(url, env) {
+  // Bubble Data API: https://{appname}.bubbleapps.io/{api-or-version-test}/api/1.1/obj/{type}
+  return `${url}/${env === 'version-test' ? 'version-test' : 'api'}/1.1/obj`;
+}
+
+function parseSource(raw) {
+  if (!raw) return '';
+  try {
+    const p = JSON.parse(raw);
+    if (Array.isArray(p)) return p.join(', ');
+  } catch {}
+  return String(raw);
+}
+
+function extractDomain(website) {
+  if (!website) return null;
+  try {
+    const u = new URL(website.startsWith('http') ? website : 'https://' + website);
+    return u.hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return String(website).replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase() || null;
+  }
+}
+
+// Map a Bubble lead to Supabase account row
+function bubbleToAccount(b) {
+  const name = b.Contact_Name || b.company_name || b.company_name_lowercase || b.Name || 'Untitled';
+  const website = b.WP_Website || b.Website || b.website || '';
+  const domain = extractDomain(website);
+
+  // Parse date safely
+  const parseDate = d => {
+    if (!d) return null;
+    try { return new Date(d).toISOString(); } catch { return null; }
+  };
+
+  return {
+    bubble_id: b._id,
+    name: String(name).slice(0, 200),
+    domain: domain,
+    website: website || null,
+    industry: b.WP_Industry || b.Industry || null,
+    size: b.WP_Company_Size || b.Company_Size || null,
+    location: b.WP_Location || b.Location || null,
+    description: (b.WP_Description || b.Description || '').slice(0, 5000) || null,
+    vacancies: b.WP_Vacancies || b.Vacancies || null,
+    stage: 'lead',  // All Bubble leads start as 'lead' — you'll qualify them in CRM
+    source: parseSource(b.Source || b.source) || null,
+    medium: b.Medium || b.medium || null,
+    campaign: b.Campaign || b.campaign || null,
+    first_touch: parseDate(b.First_Touch || b.first_touch),
+    rc_mail: b['RC Mail'] || b['RC_Mail'] || null,
+    am_mail: b['AM Mail'] || b['AM_Mail'] || null,
+    raw_data: b,  // Preserve all original fields
+    created_at: parseDate(b.Original_Creation_Date || b['Created Date']) || new Date().toISOString(),
+  };
+}
+
+// ─── Test connection ────────────────────────
+window.testBubbleConnection = async () => {
+  const c = getCreds();
+  const resultEl = document.getElementById('test-result');
+  const btn = document.getElementById('btn-test');
+
+  if (!c.url || !c.type || !c.key) {
+    resultEl.innerHTML = '<span class="pill bad">Fill all fields first</span>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" style="animation:spin 700ms linear infinite;" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Testing...';
+
+  try {
+    const url = `${bubbleApiBase(c.url, c.env)}/${encodeURIComponent(c.type)}?limit=3`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${c.key}` }
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    const count = data.response?.count || 0;
+    const remaining = data.response?.remaining || 0;
+    const total = count + remaining;
+    const sample = data.response?.results || [];
+
+    resultEl.innerHTML = `<span class="pill ok">✓ Connected — ${total} ${c.type} records available</span>`;
+
+    // Show preview
+    const previewCard = document.getElementById('preview-card');
+    previewCard.style.display = 'block';
+
+    const statsEl = document.getElementById('preview-stats');
+    statsEl.innerHTML = `
+      <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Total records</div></div>
+      <div class="stat"><div class="stat-val">${Object.keys(sample[0] || {}).length}</div><div class="stat-lbl">Fields per record</div></div>
+      <div class="stat"><div class="stat-val">${c.env === 'live' ? 'LIVE' : 'TEST'}</div><div class="stat-lbl">Environment</div></div>
+      <div class="stat"><div class="stat-val">${Math.ceil(total/100)}</div><div class="stat-lbl">API batches needed</div></div>`;
+
+    // Show first 3 mapped
+    const logEl = document.getElementById('preview-log');
+    logEl.innerHTML = '';
+    sample.slice(0, 3).forEach((b, i) => {
+      const mapped = bubbleToAccount(b);
+      const line = document.createElement('div');
+      line.innerHTML = `<span class="dim">[${i+1}]</span> <strong>${mapped.name}</strong>
+  <span class="dim">domain:</span> ${mapped.domain || '—'}
+  <span class="dim">industry:</span> ${mapped.industry || '—'}
+  <span class="dim">size:</span> ${mapped.size || '—'}
+  <span class="dim">source:</span> ${mapped.source || '—'}
+  <span class="dim">bubble_id:</span> ${mapped.bubble_id}
+`;
+      logEl.appendChild(line);
+    });
+
+    previewCard.scrollIntoView({behavior:'smooth', block:'start'});
+  } catch (err) {
+    resultEl.innerHTML = `<span class="pill bad">✗ ${err.message}</span>`;
+    console.error(err);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Test connection';
+};
+
+// ─── Fetch all leads from Bubble (paginated) ──
+async function fetchAllBubbleLeads(c) {
+  log('info', `Fetching all ${c.type} records from Bubble...`);
+  const all = [];
+  let cursor = 0;
+  const pageSize = 100;
+  let total = 0;
+  let pageNum = 0;
+
+  while (true) {
+    pageNum++;
+    const url = `${bubbleApiBase(c.url, c.env)}/${encodeURIComponent(c.type)}?cursor=${cursor}&limit=${pageSize}`;
+    log('dim', `  Page ${pageNum}: fetching cursor=${cursor}...`);
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${c.key}` }
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`Bubble API error on page ${pageNum}: ${res.status} ${t.slice(0,200)}`);
+    }
+    const data = await res.json();
+    const results = data.response?.results || [];
+    const remaining = data.response?.remaining || 0;
+    total = total || (data.response?.count || 0) + remaining;
+
+    all.push(...results);
+    log('dim', `  Got ${results.length} records (total so far: ${all.length} / ${total})`);
+    document.getElementById('p-fetched').textContent = all.length;
+
+    if (remaining === 0 || results.length === 0) break;
+    cursor += pageSize;
+
+    // Safety: prevent infinite loops
+    if (pageNum > 100) {
+      log('warn', `  Hit safety limit of 100 pages (${all.length} records fetched)`);
+      break;
+    }
+  }
+
+  log('ok', `✓ Fetched ${all.length} total records from Bubble`);
+  return all;
+}
+
+// ─── Push to Supabase in batches ────────────
+async function pushToSupabase(rows) {
+  log('info', `Pushing ${rows.length} rows to Supabase in batches of 50...`);
+  let inserted = 0, skipped = 0, errors = 0;
+  const batchSize = 50;
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+
+    // Use upsert on bubble_id so re-running this script is safe
+    const { data, error } = await supabase
+      .from('accounts')
+      .upsert(batch, { onConflict: 'bubble_id', ignoreDuplicates: false })
+      .select('id, bubble_id');
+
+    if (error) {
+      log('bad', `  Batch ${Math.floor(i/batchSize)+1} ERROR: ${error.message}`);
+      errors += batch.length;
+    } else {
+      inserted += data?.length || batch.length;
+      log('dim', `  Batch ${Math.floor(i/batchSize)+1}/${Math.ceil(rows.length/batchSize)}: ${data?.length || batch.length} rows upserted`);
+    }
+
+    document.getElementById('p-inserted').textContent = inserted;
+    document.getElementById('p-skipped').textContent = skipped;
+    document.getElementById('p-errors').textContent = errors;
+    document.getElementById('progress-fill').style.width = `${((i+batch.length)/rows.length*100).toFixed(0)}%`;
+    document.getElementById('progress-label').textContent = `${i+batch.length} / ${rows.length} processed`;
+  }
+
+  return { inserted, skipped, errors };
+}
+
+// ─── Start migration ────────────────────────
+window.startMigration = async () => {
+  const c = getCreds();
+  const progressCard = document.getElementById('progress-card');
+  progressCard.style.display = 'block';
+  progressCard.scrollIntoView({behavior:'smooth', block:'start'});
+
+  document.getElementById('btn-migrate').disabled = true;
+  document.getElementById('migration-log').innerHTML = '';
+
+  try {
+    // 1. Fetch all from Bubble
+    const bubbleLeads = await fetchAllBubbleLeads(c);
+    window.fetchedLeads = bubbleLeads;
+
+    // 2. Map to Supabase shape
+    log('info', `Mapping ${bubbleLeads.length} records to Supabase schema...`);
+    const mapped = bubbleLeads.map(bubbleToAccount);
+    log('ok', `✓ Mapped ${mapped.length} records`);
+
+    // 3. Push to Supabase
+    const result = await pushToSupabase(mapped);
+
+    log('ok', `✓ Migration complete!`);
+    log('ok', `  Inserted: ${result.inserted}`);
+    log('warn', `  Errors:   ${result.errors}`);
+    document.getElementById('progress-label').textContent = `✓ Done! ${result.inserted} accounts in Supabase`;
+
+    document.getElementById('btn-download-log').style.display = '';
+    document.getElementById('btn-open-crm').style.display = '';
+  } catch (err) {
+    log('bad', `✗ Migration failed: ${err.message}`);
+    console.error(err);
+    document.getElementById('btn-migrate').disabled = false;
+    document.getElementById('btn-download-log').style.display = '';
+  }
+};
+
+// ─── Download log ───────────────────────────
+window.downloadLog = () => {
+  const blob = new Blob([window.migrationLog.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `migration-log-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.txt`;
+  a.click();
+};
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</body>
+</html>

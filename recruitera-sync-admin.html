@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Recruitera — Sync Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --lime-700: #CCED59; --lime-800: #B5D44A;
+  --bg: #0D1117; --surface: #161B22; --surface-2: #21262D;
+  --border: #30363D; --border-2: #444C56;
+  --text: #F0F6FC; --text-2: #C9D1D9; --text-3: #8B949E; --text-4: #6E7681;
+  --ok: #2F8F5C; --warn: #B8761A; --bad: #B83A3A; --info: #2C5BA8;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: 'Montserrat', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; }
+.wrap { max-width: 760px; margin: 0 auto; }
+.header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.logo { width: 44px; height: 44px; background: var(--lime-700); border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: #1A2230; }
+h1 { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+.subtitle { color: var(--text-3); font-size: 13px; margin-top: 2px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 16px; }
+.card-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+input, select { padding: 11px 13px; background: var(--surface-2); border: 1.5px solid var(--border); border-radius: 9px; color: var(--text); font-size: 13.5px; font-family: inherit; }
+input:focus, select:focus { outline: none; border-color: var(--lime-700); box-shadow: 0 0 0 3px rgba(204,237,89,0.15); }
+.hint { font-size: 11.5px; color: var(--text-4); margin-top: 4px; line-height: 1.5; }
+.hint code { background: var(--surface-2); padding: 1px 6px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--lime-700); }
+button { padding: 11px 20px; background: var(--lime-700); color: #1A2230; border: none; border-radius: 9px; font-size: 13.5px; font-weight: 800; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 7px; transition: all 130ms; }
+button:hover:not(:disabled) { background: var(--lime-800); transform: translateY(-1px); }
+button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+button.secondary { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+button.secondary:hover:not(:disabled) { background: var(--surface); }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.toggle { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; cursor: pointer; }
+.toggle input { width: 38px; height: 22px; appearance: none; background: var(--border-2); border-radius: 999px; position: relative; cursor: pointer; transition: all 130ms; padding: 0; border: none; }
+.toggle input:checked { background: var(--ok); }
+.toggle input::before { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: all 130ms; }
+.toggle input:checked::before { transform: translateX(16px); }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--text-3); }
+.pill.ok { background: rgba(47,143,92,0.15); color: var(--ok); border-color: var(--ok); }
+.pill.bad { background: rgba(184,58,58,0.15); color: var(--bad); border-color: var(--bad); }
+.pill.warn { background: rgba(184,118,26,0.15); color: var(--warn); border-color: var(--warn); }
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface-2); border-radius: 9px; padding: 12px; border: 1px solid var(--border); }
+.stat-val { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat-lbl { font-size: 10.5px; color: var(--text-4); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
+.log { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; font-family: 'DM Mono', monospace; font-size: 11.5px; line-height: 1.65; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
+.warning-box { background: rgba(184,118,26,0.1); border: 1px solid var(--warn); border-radius: 9px; padding: 12px 14px; font-size: 12.5px; color: var(--warn); margin-bottom: 14px; }
+.success-box { background: rgba(47,143,92,0.1); border: 1px solid var(--ok); border-radius: 9px; padding: 12px 14px; font-size: 12.5px; color: var(--ok); margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">R</div>
+    <div>
+      <h1>Sync Admin</h1>
+      <div class="subtitle">Configure and monitor the Bubble → Supabase sync</div>
+    </div>
+    <div style="margin-left:auto;" id="auth-status"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="card">
+    <div class="card-title">
+      Sync Status
+      <button class="secondary" onclick="loadStatus()" style="padding:6px 12px;font-size:11px;">↻ Refresh</button>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-val" id="s-enabled">—</div><div class="stat-lbl">Status</div></div>
+      <div class="stat"><div class="stat-val" id="s-last-sync">—</div><div class="stat-lbl">Last sync</div></div>
+      <div class="stat"><div class="stat-val" id="s-last-count">—</div><div class="stat-lbl">Last synced</div></div>
+      <div class="stat"><div class="stat-val" id="s-accounts">—</div><div class="stat-lbl">Total accounts</div></div>
+    </div>
+    <div id="last-error" style="display:none;"></div>
+  </div>
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-title">Bubble Configuration</div>
+
+    <div class="warning-box">
+      🔒 Stored in <code style="font-family:monospace;">sync_config</code> table with admin-only RLS. Only you can read or modify this.
+    </div>
+
+    <div class="field">
+      <label for="cfg-url">Bubble app URL</label>
+      <input type="url" id="cfg-url" placeholder="https://yourapp.bubbleapps.io" />
+      <div class="hint">Your Bubble app URL (no trailing slash). Custom domains also work.</div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="cfg-type">Data Type</label>
+        <input type="text" id="cfg-type" placeholder="Lead" value="Lead"/>
+      </div>
+      <div class="field">
+        <label for="cfg-env">Environment</label>
+        <select id="cfg-env">
+          <option value="live">Live</option>
+          <option value="version-test">Development</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="cfg-key">Bubble Private API Key</label>
+      <input type="password" id="cfg-key" placeholder="••••••••••••" />
+      <div class="hint">In Bubble: Settings → API → "Generate a new API token" (Private, with Data API read scope).</div>
+    </div>
+
+    <label class="toggle" style="margin-bottom: 16px;">
+      <input type="checkbox" id="cfg-enabled" />
+      <div>
+        <div style="font-size: 13px; font-weight: 700;">Sync enabled</div>
+        <div style="font-size: 11px; color: var(--text-3);">Allow scheduled and manual syncs to run</div>
+      </div>
+    </label>
+
+    <div class="btn-row">
+      <button onclick="saveConfig()" id="btn-save">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Save config
+      </button>
+      <button class="secondary" onclick="testConnection()" id="btn-test">Test Bubble connection</button>
+      <button class="secondary" onclick="runSyncNow()" id="btn-run">⚡ Run sync now</button>
+    </div>
+
+    <div id="test-result" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="card">
+    <div class="card-title">Activity Log</div>
+    <div class="log" id="activity-log">Loading...</div>
+  </div>
+
+  <div style="text-align: center; padding: 20px;">
+    <a href="./recruitera-crm-v7.html" style="color: var(--lime-700); text-decoration: none; font-weight: 600; font-size: 13px;">← Back to CRM</a>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+window.supabase = supabase;
+
+// ── Auth gate ──
+async function getValidSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) return session;
+  return new Promise(resolve => {
+    const t = setTimeout(() => resolve(null), 2000);
+    supabase.auth.onAuthStateChange((_, s) => {
+      if (s?.user) { clearTimeout(t); resolve(s); }
+    });
+  });
+}
+
+const session = await getValidSession();
+const authEl = document.getElementById('auth-status');
+if (!session) {
+  // Redirect to login immediately instead of greying out the page
+  window.location.href = './recruitera-login.html';
+} else {
+  // Check admin
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+  if (profile?.role !== 'admin') {
+    authEl.innerHTML = '<span class="pill bad">Admin only</span>';
+    document.querySelector('.wrap').innerHTML = '<div class="card"><div class="card-title">Access denied</div><p style="color:var(--text-3);font-size:13px;">This page is for admins only. <a href="./recruitera-crm-v7.html" style="color:var(--lime-700);">Go back to CRM</a></p></div>';
+  } else {
+    authEl.innerHTML = `<span class="pill ok">✓ Admin · ${profile.full_name}</span>`;
+    await loadConfig();
+    await loadStatus();
+    await loadActivityLog();
+  }
+}
+
+// ── Load config ──
+async function loadConfig() {
+  const { data, error } = await supabase.from('sync_config').select('*').eq('source', 'bubble').single();
+  if (error) { console.error(error); return; }
+  const cfg = data?.config || {};
+  document.getElementById('cfg-url').value = cfg.url || '';
+  document.getElementById('cfg-type').value = cfg.type || 'Lead';
+  document.getElementById('cfg-env').value = cfg.environment || 'live';
+  document.getElementById('cfg-key').value = cfg.api_key ? '••••••••••••••••' : '';
+  document.getElementById('cfg-enabled').checked = data?.enabled || false;
+}
+
+// ── Save config ──
+window.saveConfig = async () => {
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  const url = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+  const type = document.getElementById('cfg-type').value.trim();
+  const env = document.getElementById('cfg-env').value;
+  const keyInput = document.getElementById('cfg-key').value.trim();
+  const enabled = document.getElementById('cfg-enabled').checked;
+
+  // Load existing config so we don't blow away api_key if user didn't change it
+  const { data: existing } = await supabase.from('sync_config').select('config').eq('source', 'bubble').single();
+  const existingKey = existing?.config?.api_key || '';
+  const newKey = keyInput.startsWith('•') ? existingKey : keyInput;
+
+  const config = {
+    url, type, environment: env,
+    api_key: newKey,
+  };
+
+  const { error } = await supabase.from('sync_config').upsert({
+    source: 'bubble', config, enabled,
+    updated_by: (await supabase.auth.getUser()).data.user.id,
+  });
+
+  if (error) {
+    document.getElementById('test-result').innerHTML = `<span class="pill bad">✗ ${error.message}</span>`;
+  } else {
+    document.getElementById('test-result').innerHTML = `<span class="pill ok">✓ Config saved</span>`;
+    await loadConfig();
+  }
+  btn.disabled = false;
+};
+
+// ── Test Bubble connection (from browser) ──
+window.testConnection = async () => {
+  const url = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+  const type = document.getElementById('cfg-type').value.trim();
+  const env = document.getElementById('cfg-env').value;
+  const keyInput = document.getElementById('cfg-key').value.trim();
+  const { data: existing } = await supabase.from('sync_config').select('config').eq('source', 'bubble').single();
+  const apiKey = keyInput.startsWith('•') ? existing?.config?.api_key : keyInput;
+  const resultEl = document.getElementById('test-result');
+
+  if (!url || !type || !apiKey) {
+    resultEl.innerHTML = '<span class="pill bad">Fill all fields first</span>';
+    return;
+  }
+
+  const envPath = env === 'version-test' ? 'version-test' : 'api';
+  const testUrl = `${url}/${envPath}/1.1/obj/${encodeURIComponent(type)}?limit=1`;
+  resultEl.innerHTML = '<span class="pill warn">Testing...</span>';
+
+  try {
+    const res = await fetch(testUrl, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+    }
+    const data = await res.json();
+    const total = (data.response?.count || 0) + (data.response?.remaining || 0);
+    resultEl.innerHTML = `<span class="pill ok">✓ Connected — ${total} ${type} records available</span>`;
+  } catch (err) {
+    resultEl.innerHTML = `<span class="pill bad">✗ ${err.message}</span>`;
+  }
+};
+
+// ── Trigger sync now ──
+window.runSyncNow = async () => {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" style="animation:spin 700ms linear infinite;" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Running...';
+  const resultEl = document.getElementById('test-result');
+  resultEl.innerHTML = '<span class="pill warn">Calling edge function...</span>';
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/bubble-sync`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+      },
+    });
+    const data = await res.json();
+    if (data.ok) {
+      resultEl.innerHTML = `<span class="pill ok">✓ Sync done — ${data.synced || 0} records updated${data.errors ? `, ${data.errors} errors` : ''}</span>`;
+      await loadStatus();
+      await loadActivityLog();
+    } else {
+      resultEl.innerHTML = `<span class="pill bad">✗ ${data.error || 'Unknown error'}</span>`;
+    }
+  } catch (err) {
+    resultEl.innerHTML = `<span class="pill bad">✗ ${err.message}</span>`;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '⚡ Run sync now';
+};
+
+// ── Status ──
+window.loadStatus = async () => {
+  const { data: cfgData } = await supabase.from('sync_config').select('enabled').eq('source','bubble').single();
+  const { data: stateData } = await supabase.from('sync_state').select('*').eq('source','bubble').single();
+  const { count: acctCount } = await supabase.from('accounts').select('*', { count: 'exact', head: true });
+
+  document.getElementById('s-enabled').innerHTML = cfgData?.enabled
+    ? '<span style="color:var(--ok);font-size:18px;">✓ ON</span>'
+    : '<span style="color:var(--text-4);font-size:18px;">— OFF</span>';
+
+  const lastSync = stateData?.last_sync_at;
+  document.getElementById('s-last-sync').textContent = lastSync
+    ? new Date(lastSync).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'Never';
+
+  document.getElementById('s-last-count').textContent = stateData?.last_count ?? '—';
+  document.getElementById('s-accounts').textContent = acctCount ?? '—';
+
+  if (stateData?.last_error_msg) {
+    document.getElementById('last-error').style.display = '';
+    document.getElementById('last-error').innerHTML = `<div class="warning-box" style="margin-top:14px;margin-bottom:0;">⚠️ Last error: ${stateData.last_error_msg}</div>`;
+  }
+};
+
+// ── Activity log ──
+window.loadActivityLog = async () => {
+  const { data } = await supabase
+    .from('sync_state')
+    .select('*')
+    .eq('source','bubble')
+    .single();
+  const el = document.getElementById('activity-log');
+  if (!data) { el.textContent = 'No sync runs yet'; return; }
+  el.innerHTML = `
+Source:        bubble
+Last run:      ${data.last_run_at ? new Date(data.last_run_at).toLocaleString() : 'Never'}
+Last sync at:  ${data.last_sync_at ? new Date(data.last_sync_at).toLocaleString() : 'Never'}
+Records last:  ${data.last_count ?? 0}
+Errors last:   ${data.last_errors ?? 0}
+${data.last_error_msg ? `Error msg:     ${data.last_error_msg}` : ''}
+  `;
+};
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</body>
+</html>
