@@ -3542,11 +3542,18 @@ function submitLog(){
 
 // ─── LOADER & TOAST ───────────────────────────────────
 function showL(t,s){
-  document.getElementById('loader-text').textContent=t;
-  document.getElementById('loader-sub').textContent=s||'';
-  document.getElementById('loader-ov').classList.add('open');
+  console.log('[LOADER]', t, s);
+  const title=document.getElementById('loader-title');
+  const sub=document.getElementById('loader-sub');
+  const ov=document.getElementById('loader-overlay');
+  if(title) title.textContent=t;
+  if(sub) sub.textContent=s||'';
+  if(ov) ov.style.display='flex';
 }
-function hideL(){document.getElementById('loader-ov').classList.remove('open');}
+function hideL(){
+  const ov=document.getElementById('loader-overlay');
+  if(ov){ov.style.opacity='0';ov.style.transition='opacity 300ms';setTimeout(()=>{ov.style.display='none';},300);}
+}
 
 function toast(msg,type='default'){
   const t=document.createElement('div');
@@ -4893,6 +4900,7 @@ function sbAccountToLead(row) {
 
 // ─── BOOT ─────────────────────────────────────────────
 (async function(){
+  await new Promise(r => { if(document.readyState!=='loading'){r();}else{document.addEventListener('DOMContentLoaded',r);} });
   showL('Loading workspace…','Connecting to database');
   try {
     console.log('[BOOT] waiting for auth-ready event...');
