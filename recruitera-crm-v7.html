@@ -8384,27 +8384,22 @@ function renderActivityFeed(el) {
 (async function(){
   showL('Loading workspace…','Fetching accounts from Supabase');
   try{
+    console.log('[CRM] Calling sbFetch...');
     leads = await sbFetch();
+    console.log('[CRM] sbFetch returned', leads.length, 'accounts');
     hideL();
     document.getElementById('sidebar').style.display='flex';
     document.getElementById('main').style.display='flex';
     init();
-    toast(`Loaded ${leads.length} accounts`);
+    toast(`Loaded ${leads.length} accounts from Supabase`, 'success');
   }catch(e){
-    // Fallback to Bubble if Supabase fails
-    console.warn('[CRM] Supabase load failed, trying Bubble:', e.message);
-    if(loadCfg()&&cfg.appName&&cfg.apiKey){
-      try{
-        leads=await bFetch(cfg.appName,cfg.apiKey,cfg.dataType||'company');
-        hideL();
-        document.getElementById('sidebar').style.display='flex';
-        document.getElementById('main').style.display='flex';
-        init();
-        toast(`Loaded ${leads.length} records (Bubble fallback)`);
-      }catch(e2){hideL();openCfg();toast(e2.message,'error');}
-    } else {
-      hideL();openCfg();
-    }
+    console.error('[CRM] Supabase load FAILED:', e);
+    hideL();
+    document.getElementById('sidebar').style.display='flex';
+    document.getElementById('main').style.display='flex';
+    leads = [];
+    init();
+    toast('Supabase load failed: ' + e.message, 'error');
   }
 })();
 </script>
