@@ -4687,12 +4687,14 @@ button { user-select: none; -webkit-user-select: none; }
           <option value="expired">Trial expired</option>
           <option value="none">No trial</option>
         </select>
+        <select class="f-select" id="fpaid" onchange="renderBoard()">
+          <option value="">All paid status</option>
+          <option value="paid">✓ Paid customers</option>
+          <option value="prospect">Prospects only</option>
+        </select>
         <select class="f-select" id="fowner" onchange="renderBoard()">
           <option value="">All owners</option>
         </select>
-        <button id="hide-paid-btn" onclick="toggleHidePaid()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-3);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 130ms;" title="Hide companies already using Recruitera">
-          🚫 Hide Paid Customers
-        </button>
         <span class="f-lbl" style="margin-left:8px;">Sort</span>
         <select class="f-select" id="fsort" onchange="renderBoard()">
           <option value="newest">Newest first</option>
@@ -5556,8 +5558,10 @@ function filtered(){
       const leadOwner=gAmMail(l)||gOwner(l._id)||'';
       if(leadOwner!==fowner)return false;
     }
-    // Hide paid customers if toggle is on
-    if(hidePaidCustomers && isLeadPaidCustomer(l)) return false;
+    // Paid status filter
+    const fpaid = document.getElementById('fpaid')?.value || '';
+    if(fpaid === 'paid'     && !isLeadPaidCustomer(l)) return false;
+    if(fpaid === 'prospect' &&  isLeadPaidCustomer(l)) return false;
     return true;
   });
 
@@ -5724,7 +5728,7 @@ function buildCard(lead,st){
 
   // Logo HTML with fallback chain
   const logoHtml=logoSrc
-    ?`<div class="card-logo-mini" data-init="${init2}" data-color="${st.color}"><img src="${logoSrc}" data-tried="0" data-fallback="${clearbitLogoSrc||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';const p=this.parentElement;p.textContent=p.dataset.init;p.style.background=p.dataset.color;}" /></div>`
+    ?`<div class="card-logo-mini" data-init="${init2}" data-color="${st.color}"><img src="${logoSrc}" data-tried="0" data-fallback="${clearbitLogoSrc||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';const p=this.parentElement;if(p){p.textContent=p.dataset.init||\'\';p.style.background=p.dataset.color||\'\';}}" /></div>`
     :`<div class="card-logo-mini" style="background:${st.color};">${init2}</div>`;
 
   card.innerHTML=`
@@ -6070,7 +6074,7 @@ function renderLdHero(lead){
   const logoHtml=logoSrc
     ?`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}"
         style="width:100%;height:100%;object-fit:contain;background:#fff;padding:3px;border-radius:10px;"
-        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';this.parentElement.textContent='${initials}';this.parentElement.style.background='${stageObj.color}22';this.parentElement.style.color='${stageObj.color}';}" />`
+        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
     :'';
 
   const el=document.getElementById('ld-hero-card');if(!el)return;
@@ -6646,7 +6650,7 @@ function renderModalHeader(lead){
   if(av){
     if(logoSrc){
       const clearbit=domain?clearbitUrl(domain):null;
-      av.innerHTML=`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;background:#fff;padding:2px;" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';this.parentElement.textContent='${gInit(name)}';this.parentElement.style.background='${stageObj.color}';this.parentElement.style.color='#fff';}" />`;
+      av.innerHTML=`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;background:#fff;padding:2px;" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${gInit(name)}';_pe.style.background='${stageObj.color}';_pe.style.color='#fff';}}" />`;
       av.style.background='';av.style.color='';
     }else{
       av.innerHTML='';av.textContent=gInit(name);
@@ -7055,7 +7059,7 @@ function renderRightEnrich(lead){
     const initials=gInit(eName||gName(lead));
     const bgColor=cached?.brandColor||'var(--cg-800)';
     const logoHtml=logoSrcFinal
-      ?`<img src="${logoSrcFinal}" data-tried="0" data-fallback="${clearbit||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';const s=this.parentElement.querySelector('.enrich-initials');if(s)s.style.display='flex';}" /><span class="enrich-initials" style="display:none;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`
+      ?`<img src="${logoSrcFinal}" data-tried="0" data-fallback="${clearbit||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';const s=_pe.querySelector('.enrich-initials');if(s)s.style.display='flex';}}" /><span class="enrich-initials" style="display:none;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`
       :`<span class="enrich-initials" style="display:flex;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`;
     body.innerHTML=`<div class="hs-enrich">
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;position:relative;z-index:1;">
@@ -7526,7 +7530,7 @@ function buildAccountRow(lead) {
   const logoHtml= logoSrc
     ? `<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}"
         style="width:100%;height:100%;object-fit:contain;background:#fff;padding:2px;border-radius:7px;"
-        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';this.parentElement.textContent='${initials}';this.parentElement.style.background='${stageObj.color}22';this.parentElement.style.color='${stageObj.color}';}" />`
+        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
     : '';
 
   // Is already in a deal stage (SQL or beyond, not lead/mql)
