@@ -5460,11 +5460,13 @@ async function sbFetch() {
     }
   } catch(e) {}
 
+  // Supabase REST requires BOTH apikey AND Authorization headers
+  // If logged in: Authorization = user JWT. If not: Authorization = publishable key
   const headers = {
     'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + (accessToken || SB_KEY),
     'Content-Type': 'application/json',
   };
-  if (accessToken) headers['Authorization'] = 'Bearer ' + accessToken;
 
   // Fetch all accounts with pagination
   const allAccounts = [];
