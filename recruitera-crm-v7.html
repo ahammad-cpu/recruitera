@@ -4689,7 +4689,7 @@ button { user-select: none; -webkit-user-select: none; }
         </select>
         <select class="f-select" id="fpaid" onchange="renderBoard()">
           <option value="">All paid status</option>
-          <option value="paid">✓ Paid customers</option>
+          <option value="paid">Paid customers</option>
           <option value="prospect">Prospects only</option>
         </select>
         <select class="f-select" id="fowner" onchange="renderBoard()">
@@ -5266,17 +5266,22 @@ function guessDomainfromName(name){
   if(clean.length<3)return null;
   return clean+'.com';
 }
+// ── Failed domain cache — skip retrying domains that already 404'd ──────────
+const _failedLogoDomains = new Set();
+function markLogoDomainFailed(domain){ if(domain) _failedLogoDomains.add(domain.toLowerCase()); }
+
 function logoUrl(domain){
-  if(!domain)return null;
-  // Use logo.dev as primary — fast CDN, good coverage
+  if(!domain) return null;
+  if(_failedLogoDomains.has(domain.toLowerCase())) return null;
   return `https://img.logo.dev/${domain}?token=pk_X-1ZO13GSgeOoUrIuJ6BeQ&size=128&format=png`;
 }
 function faviconUrl(domain){
-  if(!domain)return null;
+  if(!domain) return null;
   return `https://www.google.com/s2/favicons?sz=64&domain_url=https://${domain}`;
 }
 function clearbitUrl(domain){
-  if(!domain)return null;
+  if(!domain) return null;
+  if(_failedLogoDomains.has(domain.toLowerCase())) return null;
   return `https://logo.clearbit.com/${domain}?size=128`;
 }
 
@@ -5728,7 +5733,7 @@ function buildCard(lead,st){
 
   // Logo HTML with fallback chain
   const logoHtml=logoSrc
-    ?`<div class="card-logo-mini" data-init="${init2}" data-color="${st.color}"><img src="${logoSrc}" data-tried="0" data-fallback="${clearbitLogoSrc||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{this.style.display='none';const p=this.parentElement;if(p){p.textContent=p.dataset.init||\'\';p.style.background=p.dataset.color||\'\';}}" /></div>`
+    ?`<div class="card-logo-mini" data-init="${init2}" data-color="${st.color}"><img src="${logoSrc}" data-tried="0" data-fallback="${clearbitLogoSrc||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);this.style.display='none';const p=this.parentElement;if(p){p.textContent=p.dataset.init||\'\';p.style.background=p.dataset.color||\'\';}}" /></div>`
     :`<div class="card-logo-mini" style="background:${st.color};">${init2}</div>`;
 
   card.innerHTML=`
@@ -6074,7 +6079,7 @@ function renderLdHero(lead){
   const logoHtml=logoSrc
     ?`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}"
         style="width:100%;height:100%;object-fit:contain;background:#fff;padding:3px;border-radius:10px;"
-        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
+        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
     :'';
 
   const el=document.getElementById('ld-hero-card');if(!el)return;
@@ -6650,7 +6655,7 @@ function renderModalHeader(lead){
   if(av){
     if(logoSrc){
       const clearbit=domain?clearbitUrl(domain):null;
-      av.innerHTML=`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;background:#fff;padding:2px;" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${gInit(name)}';_pe.style.background='${stageObj.color}';_pe.style.color='#fff';}}" />`;
+      av.innerHTML=`<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}" style="width:100%;height:100%;object-fit:contain;border-radius:9px;background:#fff;padding:2px;" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${gInit(name)}';_pe.style.background='${stageObj.color}';_pe.style.color='#fff';}}" />`;
       av.style.background='';av.style.color='';
     }else{
       av.innerHTML='';av.textContent=gInit(name);
@@ -7059,7 +7064,7 @@ function renderRightEnrich(lead){
     const initials=gInit(eName||gName(lead));
     const bgColor=cached?.brandColor||'var(--cg-800)';
     const logoHtml=logoSrcFinal
-      ?`<img src="${logoSrcFinal}" data-tried="0" data-fallback="${clearbit||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';const s=_pe.querySelector('.enrich-initials');if(s)s.style.display='flex';}}" /><span class="enrich-initials" style="display:none;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`
+      ?`<img src="${logoSrcFinal}" data-tried="0" data-fallback="${clearbit||''}" onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';const s=_pe.querySelector('.enrich-initials');if(s)s.style.display='flex';}}" /><span class="enrich-initials" style="display:none;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`
       :`<span class="enrich-initials" style="display:flex;width:44px;height:44px;border-radius:10px;background:${bgColor};color:#fff;font-size:16px;font-weight:700;align-items:center;justify-content:center;flex-shrink:0;">${initials}</span>`;
     body.innerHTML=`<div class="hs-enrich">
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;position:relative;z-index:1;">
@@ -7530,7 +7535,7 @@ function buildAccountRow(lead) {
   const logoHtml= logoSrc
     ? `<img src="${logoSrc}" data-tried="0" data-fallback="${clearbit||''}"
         style="width:100%;height:100%;object-fit:contain;background:#fff;padding:2px;border-radius:7px;"
-        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
+        onerror="if(this.dataset.tried==='0'&&this.dataset.fallback){this.dataset.tried='1';this.src=this.dataset.fallback;}else{markLogoDomainFailed(this.dataset.domain||new URL(this.src).hostname.replace('img.logo.dev/','').replace('logo.clearbit.com/','').split('?')[0]);const _pe=this.parentElement;if(_pe){this.style.display='none';_pe.textContent='${initials}';_pe.style.background='${stageObj.color}22';_pe.style.color='${stageObj.color}';}}" />`
     : '';
 
   // Is already in a deal stage (SQL or beyond, not lead/mql)
