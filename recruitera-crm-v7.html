@@ -3473,6 +3473,8 @@ button { user-select: none; -webkit-user-select: none; }
 /* Outer container */
 #accounts-view {
   background: var(--bg) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
 /* ── Page header (title + subtitle + actions) ── */
@@ -3640,15 +3642,10 @@ button { user-select: none; -webkit-user-select: none; }
 
 /* ── Table wrapper ── */
 .acc-table-wrap {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
-  min-height: 0;
-  margin: 12px 28px 0;
+  margin: 12px 28px 24px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  margin-bottom: 24px;
 }
 .acc-table {
   width: 100%;
@@ -4724,7 +4721,7 @@ td, .metric-val, .ld-act-time {
   
 
   <!-- ─── ACCOUNTS VIEW ─── -->
-  <div id="accounts-view" style="display:none;flex-direction:column;position:absolute;top:60px;left:0;right:0;bottom:0;background:#F4F3F0;z-index:5;overflow:hidden;">
+  <div id="accounts-view" style="display:none;flex-direction:column;position:absolute;top:60px;left:0;right:0;bottom:0;background:#F4F3F0;z-index:5;overflow-y:auto;overflow-x:hidden;">
 
     <!-- Page header: title + subtitle + actions -->
     <div class="acc-page-header">
@@ -7486,7 +7483,7 @@ function switchMainView(view) {
     if (boardView)    { boardView.style.display = 'none'; }
     if (insightsView) { insightsView.style.cssText = 'display:none;'; }
     if (accountsView) {
-      accountsView.style.cssText = 'display:flex;flex-direction:column;position:absolute;top:56px;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow:hidden;';
+      accountsView.style.cssText = 'display:flex;flex-direction:column;position:absolute;top:60px;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;overflow-x:hidden;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.add('active'); }
