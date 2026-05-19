@@ -7539,7 +7539,7 @@ function accFilteredLeads() {
 
     // Tab filter
     if (accActiveTab === 'deal' && ['lead','mql'].includes(gStage(id))) return false;
-    if (accActiveTab === 'paid' && !isPaidCustomer(lead)) return false;
+    if (accActiveTab === 'paid' && !isLeadPaidCustomer(lead)) return false;
     if (accActiveTab === 'prospect' && !['lead','mql'].includes(gStage(id))) return false;
 
     if (q) {
@@ -7554,8 +7554,8 @@ function accFilteredLeads() {
     if (fStage && gStage(id)    !== fStage) return false;
     if (fOwner && gOwner(id)    !== fOwner) return false;
     if (fPaid) {
-      if (fPaid === 'paid'     && !isPaidCustomer(lead)) return false;
-      if (fPaid === 'prospect' && isPaidCustomer(lead))  return false;
+      if (fPaid === 'paid'     && !isLeadPaidCustomer(lead)) return false;
+      if (fPaid === 'prospect' && isLeadPaidCustomer(lead))  return false;
     }
     if (fIcp) {
       const score = calcIcpScore(id);
@@ -7598,7 +7598,7 @@ function renderAccountsTable() {
   // Update tab counts
   const all   = leads.filter(l => !gDisq(l._id));
   const inDeal = all.filter(l => !['lead','mql'].includes(gStage(l._id)));
-  const paid  = all.filter(l => isPaidCustomer(l));
+  const paid  = all.filter(l => isLeadPaidCustomer(l));
   const prosp = all.filter(l => ['lead','mql'].includes(gStage(l._id)));
   const el_all  = document.getElementById('acc-tab-all-count');
   const el_deal = document.getElementById('acc-tab-deal-count');
@@ -7759,7 +7759,7 @@ function buildAccountRow(lead) {
 
   // Status pill: Paid = green, Lead/MQL/Freemium = purple outline, deal stages = blue
   let statusBg, statusColor, statusBorder, statusDot, statusLabel;
-  const isPaid = paidCustomerBadge(lead).includes('Paid') || isPaidCustomer(lead);
+  const isPaid = paidCustomerBadge(lead).includes('Paid') || isLeadPaidCustomer(lead);
   if (isPaid) {
     statusBg = '#EAF3DE'; statusColor = '#27500A'; statusBorder = '#97C459'; statusDot = '#3B6D11'; statusLabel = 'Paid';
   } else if (['lead','mql'].includes(stage)) {
