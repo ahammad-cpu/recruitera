@@ -5237,9 +5237,19 @@ function trialStatus(lead){
 }
 
 // ─── STATE GETTERS/SETTERS ────────────────────────────
-const gStage=id=>ls.g('st_'+id)||'lead';
+const gStage=id=>{
+  const ls_val=ls.g('st_'+id);
+  if(ls_val)return ls_val;
+  // Fall back to Supabase stage stored in lead object
+  const l=leads.find(x=>x._id===id);
+  return l?._sb_stage||'lead';
+};
 const sStage=(id,s)=>ls.s('st_'+id,s);
-const gAcv=id=>ls.g('acv_'+id)||'';
+const gAcv=id=>{
+  const v=ls.g('acv_'+id);if(v)return v;
+  const l=leads.find(x=>x._id===id);
+  return l?.deal_value?String(l.deal_value):'';
+};
 const sAcv=(id,v)=>ls.s('acv_'+id,v);
 const gClose=id=>ls.g('close_'+id)||'';
 const sClose=(id,v)=>ls.s('close_'+id,v);
@@ -5648,6 +5658,22 @@ async function refresh(){
 
 // ─── INIT ─────────────────────────────────────────────
 function init(){
+  // Seed stage, deal value from Supabase data into localStorage cache
+  leads.forEach(l=>{
+    const id=l._id;
+    if(l._sb_stage && l._sb_stage!=='lead' && !ls.g('st_'+id)){
+      ls.s('st_'+id, l._sb_stage);
+    }
+    if(l.deal_value && !ls.g('acv_'+id)){
+      ls.s('acv_'+id, String(l.deal_value));
+    }
+    if(l.deal_close_date && !ls.g('close_'+id)){
+      ls.s('close_'+id, l.deal_close_date);
+    }
+    if(l.is_disqualified && !ls.g('disq_'+id)){
+      ls.s('disq_'+id,'1');
+    }
+  });
   popFilters();
 
   // Non-admin: auto-lock owner filter to their own email — they only see their leads
@@ -5978,7 +6004,11 @@ function switchPipelineTab(tab){
 }
 
 // ─── DISQUALIFIED ─────────────────────────────────────
-const gDisq=id=>ls.g('disq_'+id)||null;
+const gDisq=id=>{
+  const v=ls.g('disq_'+id);if(v)return v;
+  const l=leads.find(x=>x._id===id);
+  return l?._sb_is_disq?'1':null;
+};
 const sDisq=(id,v)=>ls.s('disq_'+id,v);
 const rDisq=id=>ls.r('disq_'+id);
 
@@ -6053,9 +6083,17 @@ function updateDisqCount(){
 let pendingStageChange=null;
 function applyStageChange(id,newSid,oldSid){
   sStage(id,newSid);
+  const l=leads.find(x=>x._id===id);
+  if(l)l._sb_stage=newSid;
   const newName=STAGES.find(s=>s.id===newSid).name;
   const oldName=STAGES.find(s=>s.id===oldSid)?.name||oldSid;
   pushLog(id,'stage',`Stage changed from ${oldName} → ${newName}`,gOwner(id));
+  // Persist to Supabase
+  const sbId=l?._supabase_id;
+  if(sbId&&window._sbClient){
+    window._sbClient.from('accounts').update({stage:newSid}).eq('id',sbId)
+      .then(({error})=>{ if(error)console.warn('[CRM] Stage sync:',error.message); });
+  }
   renderBoard();
   toast(`Moved to ${newName}`);
   if(curId===id)refreshDrawerStepper(id);
