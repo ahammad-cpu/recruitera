@@ -2255,6 +2255,7 @@ input,select,textarea{
 /* Hero card */
 .ld-hero-card {
   background: var(--surface);
+  background-image: radial-gradient(circle at 95% 25%, color-mix(in oklab, var(--lime-700) 18%, transparent) 0%, transparent 55%);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   overflow: hidden;
@@ -7197,6 +7198,11 @@ body .ld-tab-content {
         <option value="none">Not scored</option>
       </select>
       <select class="acc-select" id="acc-fowner" onchange="renderAccountsTable()"><option value="">Owner: All</option></select>
+      <select class="acc-select" id="acc-ftrial" onchange="renderAccountsTable()">
+        <option value="">Trial: All</option>
+        <option value="yes">Has Trial</option>
+        <option value="no">No Trial</option>
+      </select>
     </div>
 
     <!-- Stats bar (hidden, kept for JS compat) -->
@@ -7620,7 +7626,7 @@ const gDescription=l=>fv(l,'WP_Description','Description','description','About',
 const gStatus=l=>fv(l,'Activation','activation','Status','status','Plan Status')||'';
 const gJobs=l=>fv(l,'Active Jobs Count','Active_Jobs_Count','active_jobs_count','Jobs Count')??'';
 const gTrialEnd=l=>fv(l,'Free Trial End Date','Free_Trial_End_Date','free_trial_end_date','Trial End')||'';
-const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created_Date','Created Date','created_date')||'';
+const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created_Date','Created Date','created_date','Created_at','created_at')||'';
 const gInit=n=>n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'??';
 
 function trialStatus(lead){
@@ -7974,7 +7980,11 @@ async function sbFetch() {
                    || '',
     'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail'] || '',
     'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail'] || '',
-    Source:           acc.source   || acc.raw_data?.Source || '',
+    Source:           (acc.raw_data?.Source && acc.raw_data?.Source !== 'Bubble Sync')
+                      ? acc.raw_data?.Source
+                      : (acc.source && acc.source !== 'Bubble Sync')
+                      ? acc.source
+                      : acc.raw_data?.Source || acc.source || '',
     Campaign:         acc.campaign || acc.raw_data?.Campaign || '',
     Medium:           acc.medium   || acc.raw_data?.Medium   || '',
     WP_Industry:      acc.industry || acc.raw_data?.WP_Industry || '',
@@ -7983,13 +7993,26 @@ async function sbFetch() {
     WP_Vacancies:     acc.vacancies || acc.raw_data?.WP_Vacancies || '',
     WP_Company_Headcount: acc.raw_data?.WP_Company_Headcount || '',
     Company_Ref:      acc.raw_data?.Company_Ref || '',
-    Original_Creation_Date: acc.raw_data?.Original_Creation_Date || acc.created_at,
-    Created_Date:     acc.created_at,
+    Original_Creation_Date: acc.bubble_created_at
+                          || acc.raw_data?.Original_Creation_Date
+                          || acc.raw_data?.['Created Date']
+                          || acc.raw_data?.created_at
+                          || acc.created_at,
+    Created_Date:     acc.bubble_created_at || acc.created_at,
     Modified_Date:    acc.updated_at,
     // Pipeline state
     _sb_stage:        acc.stage || 'lead',
     _sb_is_disq:      acc.is_disqualified || false,
     is_paid_customer: acc.is_paid_customer || false,
+    paid_status:      acc.paid_status || null,
+    activation_status: acc.activation_status || null,
+    has_trial:        acc.has_trial || false,
+    company_ref:      acc.company_ref || acc.raw_data?.Company_Ref || null,
+    utm_source:       acc.utm_source || acc.raw_data?.utm_source || null,
+    utm_medium:       acc.utm_medium || acc.raw_data?.utm_medium || null,
+    utm_campaign:     acc.utm_campaign || acc.raw_data?.utm_campaign || null,
+    utm_content:      acc.utm_content || acc.raw_data?.utm_content || null,
+    wp_marketing_channel: acc.wp_marketing_channel || acc.raw_data?.WP_Marketing_Channel || null,
     domain:           acc.domain || '',
     deal_value:       acc.deal_value,
     deal_probability: acc.deal_probability,
@@ -8662,6 +8685,11 @@ function renderLdHero(lead){
   const acv=gAcv(id);const closeDate=gClose(id);
   const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
   const ts=trialStatus(lead);
+  // Use real paid_status from Supabase column
+  const realPaidStatus = lead.paid_status || null;
+  const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
+  const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
+  const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
   const isDisq=!!gDisq(id);
   const isPreDeal=['lead','mql'].includes(stageObj.id);
   const initials=gInit(name);
@@ -8750,7 +8778,14 @@ function renderLdHero(lead){
         </div>
         <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);">
           <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Trial</div>
-          <div style="margin-top:8px;"><span class="ld-chip ${trialCls}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:${ts==='active'?'var(--ok-bg)':ts==='expired'?'var(--bad-bg)':'var(--surface-2)'};color:${ts==='active'?'var(--ok)':ts==='expired'?'var(--bad)':'var(--text-3)'};border:1px solid ${ts==='active'?'var(--ok-border)':ts==='expired'?'var(--bad-border)':'var(--border)'};"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>${trialLbl}</span></div>
+          <div style="margin-top:8px;">\${hasTrial
+            ? trialActive
+              ? \`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-border);"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Active</span>\`
+              : trialExpired
+              ? \`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad-border);"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>Expired</span>\`
+              : \`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border);"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>\${realPaidStatus||'Trial'}</span>\`
+            : \`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border);"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>No trial</span>\`
+          }</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;">free trial</div>
         </div>
         <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);">
@@ -8999,6 +9034,40 @@ function renderLdNotes(lead,el){
 }
 
 
+
+// ── Tags panel helpers ──
+function renderLdTags(id) {
+  const contact = gContact(id);
+  const tags = contact.tags || [];
+  if (!tags.length) return '<span style="font-size:12px;color:var(--text-4);font-style:italic;">No tags yet</span>';
+  return tags.map(tag => {
+    const isLime = tag.color === 'lime';
+    return `<span style="font-size:11px;font-weight:600;background:${isLime?'var(--lime-200)':'var(--surface-2)'};color:${isLime?'#4F5E1B':'var(--text-2)'};padding:3px 10px;border-radius:999px;border:1px solid ${isLime?'var(--lime-700)':'var(--border)'};cursor:pointer;" onclick="ldRemoveTag('${id}','${tag.label}')">${esc(tag.label)}</span>`;
+  }).join('');
+}
+
+function ldAddTag(id) {
+  const label = prompt('Tag name:');
+  if (!label || !label.trim()) return;
+  const contact = gContact(id);
+  const tags = contact.tags || [];
+  if (!tags.find(t => t.label === label.trim())) {
+    tags.push({ label: label.trim(), color: 'default' });
+    const updated = { ...contact, tags };
+    sContact(id, updated);
+    const el = document.getElementById('ld-tags-panel');
+    if (el) el.innerHTML = renderLdTags(id);
+  }
+}
+
+function ldRemoveTag(id, label) {
+  const contact = gContact(id);
+  const tags = (contact.tags || []).filter(t => t.label !== label);
+  sContact(id, { ...contact, tags });
+  const el = document.getElementById('ld-tags-panel');
+  if (el) el.innerHTML = renderLdTags(id);
+}
+
 function renderLdRight(lead){
   const id=lead._id;
   const el=document.getElementById('ld-right');if(!el)return;
@@ -9085,6 +9154,17 @@ function renderLdRight(lead){
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Save changes
         </button>
       </div>
+    </div>
+
+    <div class="ld-panel-card">
+      <div class="ld-panel-head">
+        <div class="ld-panel-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Tags
+        </div>
+        <button onclick="ldAddTag('${id}')" style="font-size:10px;font-weight:600;padding:3px 8px;background:transparent;border:1px dashed var(--border-2);border-radius:6px;color:var(--text-3);cursor:pointer;font-family:inherit;">+ Add</button>
+      </div>
+      <div id="ld-tags-panel" style="display:flex;flex-wrap:wrap;gap:6px;">\${renderLdTags(id)}</div>
     </div>
 
     <div class="ld-panel-card">
@@ -9345,6 +9425,11 @@ function renderStepper(id){
 function renderSnapBar(lead){
   const id=lead._id;
   const ts=trialStatus(lead);
+  // Use real paid_status from Supabase column
+  const realPaidStatus = lead.paid_status || null;
+  const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
+  const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
+  const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
   const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
   const acv=gAcv(id);const closeDate=gClose(id);
   const editIcon=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
@@ -9438,6 +9523,11 @@ function renderLeftKeyInfo(lead){
   const size=contact.size_manual||contact.size_detected||enrichCache[domainFromBubble(lead)||guessDomainfromName(gName(lead))]?.size||'';
   const stageObj=STAGES.find(s=>s.id===gStage(id))||STAGES[0];
   const ts=trialStatus(lead);
+  // Use real paid_status from Supabase column
+  const realPaidStatus = lead.paid_status || null;
+  const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
+  const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
+  const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
   const trialLabel=ts==='active'?'🟢 Active':ts==='expired'?'🔴 Expired':'No trial';
   const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
   const lostData=gLost(id);
@@ -10003,7 +10093,8 @@ function accFilteredLeads() {
   const fSrc   = document.getElementById('acc-fsrc')?.value   || '';
   const fStage = document.getElementById('acc-fstage')?.value || '';
   const fIcp   = document.getElementById('acc-ficp')?.value   || '';
-  const fPaid  = document.getElementById('acc-fpaid')?.value  || '';
+  const fPaid   = document.getElementById('acc-fpaid')?.value  || '';
+  const fTrial  = document.getElementById('acc-ftrial')?.value || '';
   const fOwner = document.getElementById('acc-fowner')?.value || '';
 
   const filtered = leads.filter(lead => {
@@ -10029,6 +10120,10 @@ function accFilteredLeads() {
     if (fPaid) {
       if (fPaid === 'paid'     && !isLeadPaidCustomer(lead)) return false;
       if (fPaid === 'prospect' && isLeadPaidCustomer(lead))  return false;
+    }
+    if (fTrial) {
+      if (fTrial === 'yes' && !lead.has_trial) return false;
+      if (fTrial === 'no'  &&  lead.has_trial) return false;
     }
     if (fIcp) {
       const score = calcIcpScore(id);
@@ -12114,10 +12209,14 @@ async function loadPaidCustomers() {
 
 // Check if a lead is a paid customer
 function isLeadPaidCustomer(lead) {
-  // Check flag from Supabase
-  if (lead._sb_is_paid) return true;
+  // Primary: use paid_status column from Supabase (most accurate)
+  if (lead.paid_status) {
+    return ['Paid','Without Charge'].includes(lead.paid_status) && lead.activation_status === 'Active';
+  }
+  // Fallback: is_paid_customer flag
   if (lead.is_paid_customer) return true;
-  // Check domain match
+  if (lead._sb_is_paid) return true;
+  // Domain match fallback
   const email = lead['Contact_Email'] || lead.raw_data?.Contact_Email || '';
   if (email && email.includes('@')) {
     const domain = email.split('@')[1]?.toLowerCase();
