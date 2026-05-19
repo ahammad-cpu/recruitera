@@ -3651,6 +3651,7 @@ button { user-select: none; -webkit-user-select: none; }
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
 }
 .acc-table thead th {
   position: sticky;
@@ -3687,7 +3688,10 @@ button { user-select: none; -webkit-user-select: none; }
 .acc-table tbody td {
   padding: 13px 16px;
   vertical-align: middle;
-  color: #1C2333;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Account cell ── */
@@ -4792,6 +4796,15 @@ td, .metric-val, .ld-act-time {
     <!-- Table in white rounded card -->
     <div class="acc-table-wrap">
       <table class="acc-table">
+        <colgroup>
+          <col style="width:260px;min-width:200px;">
+          <col style="width:130px;">
+          <col style="width:100px;">
+          <col style="width:140px;">
+          <col style="width:160px;">
+          <col style="width:130px;">
+          <col style="width:130px;">
+        </colgroup>
         <thead>
           <tr>
             <th onclick="accSort('name')" id="acc-th-name">ACCOUNT <span class="sort-icon">↕</span></th>
@@ -4800,7 +4813,7 @@ td, .metric-val, .ld-act-time {
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('created')" id="acc-th-created">SINCE <span class="sort-icon">↕</span></th>
-            <th style="width:120px;text-align:center;">ACTION</th>
+            <th style="text-align:center;">ACTION</th>
           </tr>
         </thead>
         <tbody id="acc-tbody"></tbody>
