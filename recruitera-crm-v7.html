@@ -7545,7 +7545,7 @@ function accFilteredLeads() {
   const fPaid  = document.getElementById('acc-fpaid')?.value  || '';
   const fOwner = document.getElementById('acc-fowner')?.value || '';
 
-  return leads.filter(lead => {
+  const filtered = leads.filter(lead => {
     const id = lead._id;
     if (gDisq(id)) return false;
 
@@ -7580,6 +7580,32 @@ function accFilteredLeads() {
     }
     return true;
   });
+
+  // ── Apply sort ──
+  filtered.sort((a, b) => {
+    const dir = accSortDir === 'asc' ? 1 : -1;
+    switch (accSortCol) {
+      case 'name':
+        return dir * gName(a).localeCompare(gName(b));
+      case 'stage':
+        return dir * (gStage(a._id) || '').localeCompare(gStage(b._id) || '');
+      case 'icp':
+        return dir * (calcIcpScore(a._id) - calcIcpScore(b._id));
+      case 'owner':
+        return dir * (gOwner(a._id) || '').localeCompare(gOwner(b._id) || '');
+      case 'source':
+        return dir * (gSource(a) || '').localeCompare(gSource(b) || '');
+      case 'created': {
+        const ta = new Date(gCreated(a) || 0).getTime();
+        const tb = new Date(gCreated(b) || 0).getTime();
+        return dir * (ta - tb);
+      }
+      default:
+        return 0;
+    }
+  });
+
+  return filtered;
 }
 
 function accSort(col) {
