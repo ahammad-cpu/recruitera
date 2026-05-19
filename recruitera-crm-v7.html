@@ -63,6 +63,25 @@
   /* ─── Lime aliases for backward compat ─── */
   --lime-pale:#ECF8C0;
   --lime-bright:#CCED59;
+  --lime-100:#F2FAD5;
+
+  /* ─── Token aliases (fix undefined references) ─── */
+  --success:        var(--ok);
+  --success-bg:     var(--ok-bg);
+  --success-border: var(--ok-border);
+  --error:          var(--bad);
+  --error-bg:       var(--bad-bg);
+  --error-border:   var(--bad-border);
+  --warning-border: var(--warn-border);
+  --purple:         var(--purple-700);
+  --n-200:          var(--cg-200);
+  --n-300:          var(--cg-300);
+  --n-400:          var(--cg-400);
+
+  /* ─── Heavier shadows for modals & popovers ─── */
+  --shadow-lg:  0 8px 24px rgba(20,24,30,0.12), 0 2px 6px rgba(20,24,30,0.06);
+  --shadow-xl:  0 16px 40px rgba(20,24,30,0.16), 0 4px 10px rgba(20,24,30,0.08);
+  --shadow-2xl: 0 24px 64px rgba(20,24,30,0.22), 0 6px 14px rgba(20,24,30,0.10);
 }
 
 
@@ -3473,8 +3492,6 @@ button { user-select: none; -webkit-user-select: none; }
 /* Outer container */
 #accounts-view {
   background: var(--bg) !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
 }
 
 /* ── Page header (title + subtitle + actions) ── */
@@ -3651,7 +3668,6 @@ button { user-select: none; -webkit-user-select: none; }
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  table-layout: fixed;
 }
 .acc-table thead th {
   position: sticky;
@@ -3688,10 +3704,7 @@ button { user-select: none; -webkit-user-select: none; }
 .acc-table tbody td {
   padding: 13px 16px;
   vertical-align: middle;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #1C2333;
 }
 
 /* ── Account cell ── */
@@ -3699,7 +3712,7 @@ button { user-select: none; -webkit-user-select: none; }
   display: flex;
   align-items: center;
   gap: 11px;
-  overflow: hidden;
+  min-width: 200px;
 }
 .acc-avatar {
   width: 36px; height: 36px;
@@ -3718,14 +3731,11 @@ button { user-select: none; -webkit-user-select: none; }
   border-radius: 50%;
 }
 .acc-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  color: #1C2333;
   letter-spacing: -0.01em;
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .acc-meta {
   font-size: 11.5px;
@@ -4515,7 +4525,2403 @@ button { user-select: none; -webkit-user-select: none; }
 td, .metric-val, .ld-act-time {
   font-feature-settings: "tnum";
 }
+/* ════════════════════════════════════════════════════════════════
+   POLISH PASS — appended overrides
+   Raise typographic hierarchy, tighten chips/buttons/cards,
+   and normalize density without touching original selectors.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Type hierarchy: lift key levels to 600/700 ─── */
+.page-title,
+.tb-title,
+.acc-page-title,
+.cfg-title,
+.kpi-val,
+.col-footer-val,
+.hs-icp-num, .hs-icp-total-score,
+.lp-icp-num, .lp-icp-total-score,
+.lp-name,
+.hs-company-name {
+  font-weight: 700;
+  letter-spacing: -0.022em;
+}
+
+.btn-primary,
+.btn-dark,
+.btn-danger,
+.btn-purple,
+.lp-save-btn, .hs-save-btn, .hs-form-save,
+.lp-post-btn, .hs-post-btn,
+.cfg-btn,
+.lp-icp-save-btn, .hs-icp-save,
+.sb-item.active,
+.lp-tab.active, .hs-tab.active, .pipeline-tab.active,
+.col-name,
+.tag-icp-a, .tag-icp-b, .tag-icp-c, .tag-icp-d,
+.hs-ov-card-title, .lp-ov-title,
+.hs-info-sec-title, .hs-right-sec-title,
+.lp-sec-hdr, .lp-right-hdr,
+.lost-modal-title, .disq-title,
+.kpi-delta,
+.lp-step-lbl.cur, .hs-step-lbl.cur,
+.hs-act-author, .lp-act-who,
+.lp-cf-lbl, .lp-row-lbl, .hs-info-lbl,
+.lp-snap-lbl, .hs-snap-lbl,
+.eyebrow, .kpi-lbl, .f-lbl,
+.col-collapsed-label .col-rotated-text {
+  font-weight: 600;
+}
+
+/* Eyebrow/uppercase labels use letter-spacing for breathing room */
+.kpi-lbl,
+.col-name,
+.lp-sec-hdr,
+.lp-right-hdr,
+.hs-info-sec-title,
+.hs-right-sec-title,
+.lp-ov-title,
+.hs-snap-lbl,
+.lp-snap-lbl,
+.hs-trial-head,
+.lp-icp-lbl, .hs-icp-lbl,
+.cfg-divider-lbl {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ─── Body text and metadata at 500 stays, but ensure muted tones ─── */
+.page-subtitle,
+.kpi-delta,
+.cfg-sub,
+.disq-sub,
+.lost-modal-sub,
+.hs-act-time, .lp-act-time,
+.lp-act-text, .hs-act-text {
+  letter-spacing: -0.005em;
+}
+
+/* ─── Cards: tighten radius + soften borders ─── */
+.kpi,
+.lp-ov-card,
+.hs-overview-card {
+  border-radius: 12px;
+  box-shadow: var(--shadow-xs);
+}
+
+/* ─── Buttons: consistent contrast on primary CTAs ─── */
+.btn-primary,
+.lp-post-btn, .hs-post-btn,
+.lp-save-btn,
+.lp-icp-save-btn,
+.hs-icp-save,
+.cfg-btn {
+  color: #1A2230;
+}
+
+/* ─── Chips: even padding + crisp borders ─── */
+.tag,
+.hs-lifecycle-badge,
+.hs-source-badge,
+.paid-badge,
+.domain-invalid-badge,
+.hs-stage-badge,
+.lp-stage-pill {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* ─── Sidebar: stronger active indicator ─── */
+.sb-item.active::before {
+  display: block !important;
+}
+
+/* ─── KPI accent: clean 3px instead of 2px hairline so it reads on hover ─── */
+.kpi::before { height: 3px; left: 0; right: 0; border-radius: 0; }
+
+/* ─── Tables: consistent header treatment ─── */
+.table th,
+.col-hdr,
+.lp-ov-hdr,
+.hs-ov-card-hdr,
+.hs-info-sec-hdr,
+.lp-sec-hdr,
+.lp-right-hdr,
+.hs-right-sec-hdr {
+  background: var(--surface);
+}
+
+/* ─── Modal shells: real elevation ─── */
+.hs-modal,
+.lost-modal,
+.disq-modal,
+.cfg-modal,
+.loader-card {
+  box-shadow: var(--shadow-2xl);
+}
+
+/* ─── Toast: lift above page ─── */
+.toast {
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border);
+}
+
+/* ─── Tabs: lime underline used consistently ─── */
+.hs-tab.active { border-bottom-color: var(--lime-700); }
+.pipeline-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ─── Inputs: subtle focus ring with brand lime ─── */
+.tb-search-input:focus,
+.f-select:focus,
+.cfg-input:focus,
+.lp-cf-input:focus,
+.hs-cp-input:focus,
+.hs-df-input:focus,
+.hs-cf-input:focus,
+.hs-compose-ta:focus,
+.lp-ta:focus,
+.lost-select:focus,
+.lost-note:focus {
+  border-color: var(--lime-700);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent);
+}
+
+/* ─── Hero gradients: standardize to a single charcoal recipe ─── */
+.lp-hero,
+.hs-hero,
+.hs-enrich,
+.lp-enrich,
+.hs-icp-summary,
+.lp-icp-summary {
+  background: linear-gradient(160deg, #1F2832 0%, #2D3844 60%, #424B56 100%);
+}
+
+/* ─── Subtle status chips re-balance (more vibrant text on soft bg) ─── */
+.tag-active   { background: var(--ok-bg);    color: var(--ok);    border-color: var(--ok-border); }
+.tag-expired  { background: var(--bad-bg);   color: var(--bad);   border-color: var(--bad-border); }
+.tag-industry { background: var(--purple-100); color: var(--purple-700); border-color: var(--purple-700); }
+
+/* ─── Hide stale duplicate rule that disabled the sidebar accent ─── */
+.sb-item.active { position: relative; }
+
+/* ─── 8pt spacing tightening on common gaps ─── */
+.kpis { gap: 16px; }
+.filters { gap: 12px; }
+.board  { gap: 12px; }
+
+/* ─── Pipeline tabs: fix accidental top-level CSS (orphaned background) ─── */
+.pipeline-tab.active {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+/* ─── Smaller, calmer pill on counters ─── */
+.col-count,
+.pipeline-tab-badge,
+.tb-badge {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+/* ════════════════════════════════════════════════════════════════
+   MATCH RECRUITERA DASHBOARD — TABLE & COLOR PARITY
+   Applies dashboard table styling + neutral palette consistently.
+   Excludes kanban (.board, .col, .card) by design.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Table wrapper card to dashboard card chrome ─── */
+.acc-table-wrap {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--shadow-xs) !important;
+  overflow: hidden !important;
+  margin: 0 24px 24px !important;
+}
+
+/* ─── Table headers — eyebrow style (matches dashboard .table th) ─── */
+.acc-table thead th {
+  background: var(--surface) !important;
+  color: var(--text-3) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  padding: 12px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  text-align: left !important;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.acc-table thead th:hover { color: var(--text-2) !important; }
+.acc-table thead th.sorted { color: var(--text) !important; }
+
+/* ─── Table body cells — dashboard 13/500 with hairline rows ─── */
+.acc-table tbody td {
+  padding: 0 14px !important;
+  height: 52px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--border) !important;
+  vertical-align: middle !important;
+}
+.acc-table tbody tr {
+  border-bottom: none !important;
+  transition: background 110ms ease !important;
+}
+.acc-table tbody tr:hover td {
+  background: var(--surface-2) !important;
+}
+.acc-table tbody tr:last-child td { border-bottom: none !important; }
+
+/* ─── Avatars in table — match dashboard sm avatar ─── */
+.acc-avatar {
+  width: 28px !important; height: 28px !important;
+  border-radius: 999px !important;
+  background: var(--cg-800) !important;
+  color: white !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important; justify-content: center !important;
+  flex-shrink: 0 !important;
+  border: none !important;
+}
+
+/* ─── Account name link color back to text (no blue link in tables) ─── */
+.acc-name {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+}
+.acc-name:hover { text-decoration: none !important; color: var(--cg-900) !important; }
+
+/* ─── Numbers tabular ─── */
+.acc-table tbody td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Search + filter row to dashboard chrome ─── */
+.acc-search-input {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  height: 34px !important;
+  font-size: 13px !important;
+  color: var(--text) !important;
+}
+.acc-search-input:focus {
+  background: var(--surface) !important;
+  border-color: var(--lime-700) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent) !important;
+}
+.acc-select {
+  height: 34px !important;
+  padding: 0 28px 0 12px !important;
+  background-color: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+.acc-select:hover { border-color: var(--border-2) !important; }
+.acc-select:focus {
+  border-color: var(--lime-700) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent) !important;
+}
+
+/* ─── Export button matches default button ─── */
+.acc-export-btn {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  height: 34px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.acc-export-btn:hover { background: var(--surface-2) !important; }
+
+/* ─── Page header surface aligned with dashboard ─── */
+#accounts-view {
+  background: var(--bg) !important;
+}
+.acc-page-header,
+.acc-toolbar {
+  background: transparent !important;
+}
+.acc-page-title {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text) !important;
+}
+.acc-page-subtitle {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-3) !important;
+}
+
+/* ─── In-deal chip aligned ─── */
+.acc-in-deal {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-2) !important;
+  padding: 2px 8px !important;
+}
+
+/* ─── Apply same dashboard table look to ANY OTHER tables (insights, plans, etc.)
+       — explicitly EXCLUDE the kanban classes via :not() ─── */
+:where(.content table:not(.no-polish)) thead th {
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+:where(.content table:not(.no-polish)) tbody td {
+  padding: 0 14px;
+  height: 52px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+:where(.content table:not(.no-polish)) tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+/* Empty state in tables aligns with dashboard muted style */
+.acc-empty {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 56px 24px;
+  text-align: center;
+}
+.acc-empty-icon { font-size: 32px; opacity: 0.55; margin-bottom: 12px; }
+.acc-empty-title {
+  font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.01em;
+}
+.acc-empty-sub {
+  font-size: 12px; color: var(--text-3); font-weight: 500; margin-top: 4px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SIDEBAR — match Recruitera dashboard (expanded with labels)
+   ════════════════════════════════════════════════════════════════ */
+.sidebar,
+.sidebar.collapsed {
+  width: 232px !important;
+  padding: 20px 14px !important;
+  align-items: stretch !important;
+  background: var(--surface) !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+/* Brand block at top */
+.sb-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  justify-content: flex-start !important;
+  padding: 0 4px 18px !important;
+  border-bottom: 1px solid var(--border) !important;
+  margin-bottom: 14px !important;
+}
+.sb-logo {
+  width: 30px !important; height: 30px !important;
+  border-radius: 8px !important;
+  background: var(--cg-900) !important;
+  color: var(--lime-700) !important;
+  display: grid !important; place-items: center !important;
+  font-weight: 800 !important; font-size: 13px !important;
+  letter-spacing: -0.02em !important;
+  background-image: none !important;
+}
+.sb-logo::before {
+  content: "R";
+}
+.sb-brand-text,
+.sidebar .sb-brand-text,
+.sidebar.collapsed .sb-brand-text {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+}
+.sb-brand-name,
+.sidebar .sb-brand-name,
+.sidebar.collapsed .sb-brand-name {
+  display: block !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  letter-spacing: -0.01em !important;
+  color: var(--text) !important;
+}
+.sb-brand-sub,
+.sidebar .sb-brand-sub,
+.sidebar.collapsed .sb-brand-sub {
+  display: block !important;
+  font-size: 10px !important;
+  color: var(--text-3) !important;
+  margin-top: 1px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  font-weight: 600 !important;
+}
+
+/* Nav group labels */
+.sb-lbl,
+.sidebar .sb-lbl,
+.sidebar.collapsed .sb-lbl {
+  display: block !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-4) !important;
+  padding: 14px 10px 6px !important;
+  font-weight: 600 !important;
+}
+
+/* Nav items — full width with label + badge */
+.sb-nav {
+  align-items: stretch !important;
+  gap: 4px !important;
+  padding: 0 !important;
+}
+.sb-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+  height: auto !important;
+  padding: 9px 10px !important;
+  border-radius: 8px !important;
+  color: var(--text-2) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+.sb-item:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+.sb-item.active {
+  background: var(--cg-900) !important;
+  color: #FFFFFF !important;
+}
+.sb-item.active::before { display: none !important; }
+.sb-item::after { display: none !important; }
+
+.sb-icon { width: 16px !important; height: 16px !important; flex-shrink: 0 !important; opacity: 0.85 !important; }
+
+.sb-item-label,
+.sidebar .sb-item-label,
+.sidebar.collapsed .sb-item-label {
+  display: inline !important;
+  flex: 1 !important;
+}
+
+/* Badge counters on right */
+.sb-cnt,
+.sidebar .sb-cnt,
+.sidebar.collapsed .sb-cnt {
+  display: inline-flex !important;
+  margin-left: auto !important;
+  background: var(--lime-700) !important;
+  color: #1A2230 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 1px 7px !important;
+  border-radius: 999px !important;
+  align-items: center !important;
+  min-width: 22px;
+  justify-content: center;
+}
+.sb-item.active .sb-cnt {
+  background: var(--lime-700) !important;
+  color: #1A2230 !important;
+}
+
+/* Footer with user */
+.sb-user {
+  margin-top: auto !important;
+  padding: 12px 4px 4px !important;
+  border-top: 1px solid var(--border) !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.sb-av {
+  width: 30px !important; height: 30px !important;
+  background: linear-gradient(135deg, var(--purple-700), #6C56D9) !important;
+  color: white !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+.sb-user-info,
+.sidebar .sb-user-info,
+.sidebar.collapsed .sb-user-info {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+}
+.sb-user-name,
+.sidebar .sb-user-name,
+.sidebar.collapsed .sb-user-name {
+  display: block !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+.sb-user-role,
+.sidebar .sb-user-role,
+.sidebar.collapsed .sb-user-role {
+  display: block !important;
+  font-size: 10px !important;
+  color: var(--text-3) !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  font-weight: 600 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MODAL & FORM SHELL — Add Lead, Bulk Upload, etc.
+   The .modal-bg / .modal / .ui-input classes weren't styled;
+   they rendered as bare content. Apply Recruitera modal chrome.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Backdrop */
+.modal-bg {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(20, 24, 30, 0.55) !important;
+  backdrop-filter: blur(6px) !important;
+  z-index: 1000 !important;
+  align-items: center;
+  justify-content: center;
+  animation: rPolish-fade .14s ease-out;
+}
+.modal-bg.open { animation: rPolish-fade .14s ease-out; }
+
+/* Card */
+.modal {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-2xl) !important;
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  animation: rPolish-pop .18s ease-out;
+}
+@keyframes rPolish-fade { from { opacity: 0; } }
+@keyframes rPolish-pop  { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+
+/* Form inputs inside modals */
+.modal .ui-input,
+.ui-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  outline: 0;
+  transition: border-color .12s, box-shadow .12s;
+}
+.modal .ui-input::placeholder,
+.ui-input::placeholder {
+  color: var(--text-4);
+  font-weight: 400;
+}
+.modal .ui-input:hover,
+.ui-input:hover {
+  border-color: var(--cg-400);
+}
+.modal .ui-input:focus,
+.ui-input:focus {
+  border-color: var(--lime-700);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent);
+}
+
+/* Select look-alike — add chevron since native arrow is hidden */
+.modal select.ui-input,
+select.ui-input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* Labels in modal forms — eyebrow style consistently */
+.modal label {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+}
+
+/* Modal header icon (lime square) — keep but soften */
+.modal > div:first-child > div:first-child {
+  /* keeps existing inline lime square; just stable shadow */
+  box-shadow: var(--shadow-xs);
+}
+
+/* Primary CTA inside modal footer (dark) — bring it on-brand */
+.modal button[onclick*="submitAddLead"],
+.modal button[onclick*="submitBulkUpload"],
+.modal #al-submit-btn,
+.modal #bulk-submit-btn {
+  background: var(--lime-700) !important;
+  color: #1A2230 !important;
+  font-weight: 600 !important;
+  border: 1px solid var(--lime-800) !important;
+}
+.modal button[onclick*="submitAddLead"]:hover,
+.modal button[onclick*="submitBulkUpload"]:hover,
+.modal #al-submit-btn:hover,
+.modal #bulk-submit-btn:not(:disabled):hover {
+  background: var(--lime-800) !important;
+}
+
+/* Cancel button inside modal */
+.modal button[onclick*="closeAddLeadModal"],
+.modal button[onclick*="closeBulkUploadModal"] {
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  font-weight: 500 !important;
+}
+.modal button[onclick*="closeAddLeadModal"]:hover,
+.modal button[onclick*="closeBulkUploadModal"]:hover {
+  background: var(--surface-2) !important;
+}
+
+/* Close X — small icon button */
+.modal button[onclick*="closeAddLeadModal"][style*="width:28px"],
+.modal button[onclick*="closeBulkUploadModal"][style*="width:28px"] {
+  flex: none !important;
+}
+
+/* Footer always sticks to bottom of modal */
+.modal > div:last-of-type[style*="border-top"] {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEAD DETAIL PAGE — UX/UI refinements
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Stage stepper: differentiate stages by intent ─── */
+.ld-stage-strip,
+.lead-stages {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 14px !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.ld-stage-strip-label,
+.lead-stages-label {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: 12px !important;
+}
+
+/* Stage buttons — flatter, less duplication; hide redundant "Stage N" sublabel */
+.ld-stage-btn,
+.lead-stage-btn {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 14px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-2) !important;
+  letter-spacing: -0.005em !important;
+  position: relative;
+  transition: all .14s ease;
+}
+.ld-stage-btn:hover,
+.lead-stage-btn:hover {
+  background: var(--surface) !important;
+  border-color: var(--cg-400) !important;
+  color: var(--text) !important;
+}
+
+/* Current stage = lime */
+.ld-stage-btn.current,
+.ld-stage-btn.active,
+.lead-stage-btn.current,
+.lead-stage-btn.active {
+  background: var(--lime-200) !important;
+  border-color: var(--lime-700) !important;
+  color: var(--text) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent) !important;
+}
+
+/* Won = success tint; Lost = danger tint — terminal state cue */
+.ld-stage-btn[data-stage="won"],
+.lead-stage-btn[data-stage="won"] {
+  background: var(--ok-bg) !important;
+  color: var(--ok) !important;
+  border-color: var(--ok-border) !important;
+}
+.ld-stage-btn[data-stage="lost"],
+.lead-stage-btn[data-stage="lost"] {
+  background: var(--bad-bg) !important;
+  color: var(--bad) !important;
+  border-color: var(--bad-border) !important;
+}
+
+/* Tone down "Stage N" sublabel inside the buttons */
+.ld-stage-btn small,
+.lead-stage-btn small,
+.ld-stage-btn .stage-num,
+.lead-stage-btn .stage-num {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--text-4) !important;
+  opacity: 0.65 !important;
+  display: block;
+  margin-top: 2px;
+}
+
+/* ─── Activity composer: lighter, cleaner ─── */
+.lp-compose,
+.lead-compose {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.lp-ta,
+.lead-compose textarea {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  font-size: 13.5px !important;
+  line-height: 1.55 !important;
+  min-height: 100px !important;
+}
+.lp-ta:focus,
+.lead-compose textarea:focus {
+  background: var(--surface) !important;
+  border-color: var(--lime-700) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent) !important;
+}
+
+/* Less-prominent tip helper text */
+.lp-tip,
+.compose-hint,
+.compose-tip {
+  font-size: 11px !important;
+  color: var(--text-4) !important;
+  font-weight: 500 !important;
+}
+
+/* Keyboard hint pills (Ctrl + Enter) — slim down */
+.kbd-hint,
+.compose-kbd,
+kbd {
+  font-size: 10px !important;
+  padding: 1px 5px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--border-2) !important;
+  color: var(--text-3) !important;
+  background: var(--surface-2) !important;
+  font-family: ui-monospace, Menlo, monospace !important;
+  font-weight: 600 !important;
+}
+
+/* ─── Right-rail "Save" pill aligned with brand ─── */
+.lp-right .save-btn,
+.lead-right .save-btn,
+.lp-right [class*="save"],
+.contact-save-btn {
+  background: var(--lime-700) !important;
+  color: #1A2230 !important;
+  border: 1px solid var(--lime-800) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  padding: 4px 10px !important;
+  border-radius: 999px !important;
+  letter-spacing: -0.005em !important;
+}
+.lp-right .save-btn:hover,
+.lead-right .save-btn:hover {
+  background: var(--lime-800) !important;
+}
+
+/* "Auto" tag on Company Details — make it look like a metadata pill, not a CTA */
+.lp-right .auto-badge,
+.lead-right .auto-badge,
+[class*="auto-tag"] {
+  background: var(--ok-bg) !important;
+  color: var(--ok) !important;
+  border: 1px solid var(--ok-border) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  padding: 2px 7px !important;
+  border-radius: 999px !important;
+}
+
+/* ─── Activity items: tighter, dated rail ─── */
+.lp-act,
+.lead-activity-item {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+  margin-bottom: 8px !important;
+}
+.lp-act:hover,
+.lead-activity-item:hover {
+  border-color: var(--cg-300) !important;
+}
+.lp-act-icon,
+.lead-activity-icon {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
+  background: var(--lime-200) !important;
+  color: var(--cg-900) !important;
+}
+.lp-act-time,
+.lead-activity-time {
+  font-size: 10px !important;
+  color: var(--text-4) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+/* "All activity" eyebrow */
+.all-activity-label,
+.lead-activity-header,
+.lp-act-header {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin: 14px 0 8px !important;
+}
+
+/* ─── Header strip cleanup ─── */
+.lp-topbar,
+.lead-topbar {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.lp-back,
+.lead-back {
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+}
+
+/* Pagination counter pill (1/2, 2/2) — neutralize */
+.lp-pagination,
+.lead-pagination {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-3) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* ─── Composer tab pills ─── */
+.lp-type-btn,
+.compose-type-btn {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--text-3) !important;
+  font-weight: 600 !important;
+  padding: 7px 10px !important;
+  border-radius: 8px !important;
+}
+.lp-type-btn:hover,
+.compose-type-btn:hover {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+}
+.lp-type-btn.active,
+.compose-type-btn.active {
+  background: transparent !important;
+  color: var(--text) !important;
+  border-bottom: 2px solid var(--cg-900) !important;
+  border-radius: 0 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEAD DETAIL v6 — Deep UX/UI pass
+   1. Activity grouped by day
+   2. Right rail collapsible
+   3. Inline edit on contact fields
+   4. Keyboard nav ← → between stages
+   5. Cleaner visual rhythm + consistent hierarchy
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Page layout: roomier rhythm, soft section bg ─── */
+.lp-body,
+.lead-body {
+  background: var(--bg) !important;
+  gap: 0 !important;
+}
+.lp-center-body,
+.lead-center {
+  padding: 20px 28px !important;
+  background: var(--bg) !important;
+}
+
+/* ─── Day dividers in activity timeline (use ::before pseudo to inject) ─── */
+.lp-timeline,
+.lead-timeline {
+  position: relative;
+}
+.lead-day-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 14px 0 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lead-day-header:first-child { border-top: none; margin-top: 0; padding-top: 4px; }
+.lead-day-header::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--border), transparent);
+}
+
+/* ─── Activity rail with vertical timeline line ─── */
+.lp-timeline,
+.lead-timeline {
+  padding-left: 8px;
+}
+.lp-act,
+.lead-activity-item {
+  position: relative;
+  padding-left: 38px !important;
+}
+.lp-act::before,
+.lead-activity-item::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 0;
+  bottom: -8px;
+  width: 1.5px;
+  background: var(--border);
+}
+.lp-act:last-child::before,
+.lead-activity-item:last-child::before { display: none; }
+
+.lp-act .lp-act-icon,
+.lead-activity-item .lead-activity-icon {
+  position: absolute;
+  left: 6px;
+  top: 10px;
+  z-index: 1;
+  box-shadow: 0 0 0 4px var(--surface);
+}
+
+/* ─── Right rail: collapsible behaviour ─── */
+.lp-right,
+.lead-right {
+  position: relative;
+  transition: width .26s cubic-bezier(0.16, 1, 0.3, 1), padding .26s;
+}
+.lp-right.collapsed,
+.lead-right.collapsed {
+  width: 44px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.lp-right.collapsed > *:not(.rail-toggle),
+.lead-right.collapsed > *:not(.rail-toggle) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Collapse handle */
+.rail-toggle {
+  position: absolute;
+  top: 12px;
+  left: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 10;
+  color: var(--text-3);
+  transition: all .12s;
+}
+.rail-toggle:hover {
+  color: var(--text);
+  border-color: var(--cg-400);
+}
+.rail-toggle svg { width: 14px; height: 14px; transition: transform .26s; }
+.lp-right.collapsed .rail-toggle svg,
+.lead-right.collapsed .rail-toggle svg { transform: rotate(180deg); }
+
+/* ─── Inline-edit contact fields (replace "Save" button noise) ─── */
+.contact-field,
+.lead-contact-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.contact-field:last-child,
+.lead-contact-field:last-child { border-bottom: none; }
+.contact-field-label,
+.lead-contact-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.contact-field-value,
+.lead-contact-field-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: text;
+  margin: 0 -8px;
+  transition: all .12s;
+  min-height: 30px;
+}
+.contact-field-value:hover,
+.lead-contact-field-value:hover {
+  background: var(--surface-2);
+}
+.contact-field-value:focus,
+.lead-contact-field-value:focus {
+  background: var(--surface);
+  border-color: var(--lime-700);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent);
+  outline: none;
+}
+.contact-field-value.empty,
+.lead-contact-field-value.empty {
+  color: var(--text-4);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Pencil icon on hover for inline-edit affordance */
+.contact-field-value::after,
+.lead-contact-field-value::after {
+  content: "✎";
+  float: right;
+  color: var(--text-4);
+  opacity: 0;
+  font-size: 12px;
+  transition: opacity .12s;
+}
+.contact-field-value:hover::after,
+.lead-contact-field-value:hover::after { opacity: 0.7; }
+
+/* Hide explicit "Save" button on contact card — now inline ✎ pattern */
+.lp-right .save-btn,
+.lead-right .save-btn,
+.contact-save-btn {
+  display: none !important;
+}
+
+/* ─── Stage stepper: better visual states + keyboard hint ─── */
+.ld-stage-strip,
+.lead-stages {
+  position: relative;
+}
+.ld-stage-strip::after,
+.lead-stages::after {
+  content: "Tip: use ← / → keys to move stages";
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 10px;
+  color: var(--text-4);
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.ld-stage-btn,
+.lead-stage-btn {
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left !important;
+  position: relative;
+  overflow: hidden;
+}
+.ld-stage-btn::before,
+.lead-stage-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, color-mix(in oklab, currentColor 4%, transparent) 100%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .14s;
+}
+.ld-stage-btn:hover::before,
+.lead-stage-btn:hover::before { opacity: 1; }
+
+.ld-stage-btn.current::after,
+.lead-stage-btn.current::after,
+.ld-stage-btn.active::after,
+.lead-stage-btn.active::after {
+  content: "";
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: var(--lime-700);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent);
+}
+
+/* ─── Composer: add quick-task chip alongside the tabs ─── */
+.compose-quick-task {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--cg-900);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  border: none;
+  transition: background .12s;
+}
+.compose-quick-task:hover { background: var(--cg-800); }
+.compose-quick-task svg { width: 11px; height: 11px; }
+
+/* ─── Save note button: brand lime, bigger affordance ─── */
+.lp-post-btn,
+.save-note-btn,
+.compose-save-btn {
+  background: var(--lime-700) !important;
+  color: #1A2230 !important;
+  border: 1px solid var(--lime-800) !important;
+  height: 36px !important;
+  padding: 0 18px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+}
+.lp-post-btn:hover,
+.save-note-btn:hover,
+.compose-save-btn:hover {
+  background: var(--lime-800) !important;
+}
+
+/* ─── Activity item icons: distinct color per type ─── */
+.lp-act-icon.stage,
+.lead-activity-icon.stage {
+  background: var(--lime-200) !important;
+  color: var(--cg-900) !important;
+}
+.lp-act-icon.note,
+.lead-activity-icon.note {
+  background: var(--warn-bg) !important;
+  color: var(--warn) !important;
+}
+.lp-act-icon.call,
+.lead-activity-icon.call {
+  background: var(--info-bg) !important;
+  color: var(--info) !important;
+}
+.lp-act-icon.email,
+.lead-activity-icon.email {
+  background: var(--purple-100) !important;
+  color: var(--purple-700) !important;
+}
+.lp-act-icon.meeting,
+.lead-activity-icon.meeting {
+  background: var(--ok-bg) !important;
+  color: var(--ok) !important;
+}
+.lp-act-icon.task,
+.lead-activity-icon.task {
+  background: var(--cg-50) !important;
+  color: var(--cg-800) !important;
+}
+
+/* Activity who / what / time hierarchy */
+.lp-act-who,
+.lead-activity-who {
+  font-size: 12.5px !important;
+  color: var(--text-2) !important;
+}
+.lp-act-who strong,
+.lead-activity-who strong {
+  font-weight: 700 !important;
+  color: var(--text) !important;
+}
+.lp-act-text,
+.lead-activity-text {
+  font-size: 13px !important;
+  color: var(--text) !important;
+  line-height: 1.5 !important;
+  margin-top: 2px !important;
+}
+
+/* ─── Tabs row: Activity / Notes / Tasks — tighter ─── */
+.lp-tabs,
+.lead-tabs {
+  border-bottom: 1px solid var(--border) !important;
+  margin-bottom: 18px !important;
+  padding: 0 !important;
+  gap: 4px !important;
+}
+.lp-tab,
+.lead-tab {
+  padding: 10px 6px !important;
+  margin: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-3) !important;
+  border-bottom: 2px solid transparent !important;
+}
+.lp-tab:hover,
+.lead-tab:hover { color: var(--text) !important; }
+.lp-tab.active,
+.lead-tab.active {
+  color: var(--text) !important;
+  border-bottom-color: var(--lime-700) !important;
+}
+.lp-tab-count,
+.lead-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-radius: 999px;
+}
+.lp-tab.active .lp-tab-count,
+.lead-tab.active .lead-tab-count {
+  background: var(--lime-700);
+  color: #1A2230;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEAD DETAIL v7 — Restructure to match Recruitera Account Detail
+   Light hero · prominent stat strip · 2-col body · sticky right rail
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Page surface ─── */
+.lead-page,
+.lp-page,
+.lead-detail-page {
+  background: var(--bg) !important;
+}
+.lp-topbar,
+.lead-topbar {
+  height: 56px !important;
+  padding: 0 28px !important;
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* ─── HERO — light card, soft lime glow on right ─── */
+.lp-hero,
+.lead-hero {
+  background: var(--surface) !important;
+  background-image: radial-gradient(circle at 95% 30%, color-mix(in oklab, var(--lime-700) 22%, transparent) 0%, transparent 55%) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  margin: 20px 28px 0 !important;
+  padding: 24px !important;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-xs) !important;
+}
+.lp-hero::after,
+.lead-hero::after { display: none !important; }
+
+/* Hero top row: avatar + name + chips + actions */
+.lp-hero-top,
+.lead-hero-top {
+  padding: 0 !important;
+  gap: 18px !important;
+  align-items: flex-start !important;
+}
+.lp-avatar,
+.lead-avatar {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 12px !important;
+  background: var(--cg-900) !important;
+  color: var(--lime-700) !important;
+  border: none !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+}
+.lp-name,
+.lead-name {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  letter-spacing: -0.022em !important;
+  gap: 10px !important;
+}
+.lp-meta,
+.lead-meta {
+  margin-top: 10px !important;
+  gap: 18px !important;
+}
+.lp-meta-item,
+.lead-meta-item {
+  color: var(--text-3) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.lp-meta-item svg { width: 12px !important; height: 12px !important; }
+.lp-domain,
+.lead-domain {
+  color: var(--text-3) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.lp-domain:hover,
+.lead-domain:hover { color: var(--text) !important; }
+
+/* Hero quick actions: light pills on right */
+.lp-actions,
+.lead-actions {
+  padding: 0 !important;
+  margin-left: auto;
+  align-self: flex-start;
+}
+.lp-action-btn,
+.lead-action-btn {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 7px 12px !important;
+  border-radius: 8px !important;
+}
+.lp-action-btn:hover,
+.lead-action-btn:hover {
+  background: var(--surface-2) !important;
+  border-color: var(--border-2) !important;
+  color: var(--text) !important;
+}
+.lp-action-btn.primary,
+.lp-action-btn:first-child {
+  /* Impersonate-style: keep neutral */
+}
+
+/* ─── STAT STRIP — big numbers with vertical dividers ─── */
+.lp-snap,
+.lead-snap {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  background: transparent !important;
+  border-top: 1px solid var(--border) !important;
+  margin-top: 22px !important;
+  padding-top: 18px !important;
+  gap: 0 !important;
+}
+.lp-snap-cell,
+.lead-snap-cell {
+  padding: 0 18px !important;
+  background: transparent !important;
+  border-right: 1px solid var(--border) !important;
+  border-left: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  cursor: default !important;
+}
+.lp-snap-cell:first-child { padding-left: 0 !important; }
+.lp-snap-cell:last-child {
+  border-right: none !important;
+  padding-right: 0 !important;
+}
+.lp-snap-cell:hover,
+.lead-snap-cell:hover { background: transparent !important; }
+.lp-snap-lbl,
+.lead-snap-lbl {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: 0 !important;
+}
+.lp-snap-val,
+.lead-snap-val {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.022em !important;
+  color: var(--text) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.lp-snap-val .suffix,
+.lp-snap-sub,
+.lead-snap-sub {
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  color: var(--text-3) !important;
+}
+
+/* ─── TABS — underline with lime accent ─── */
+.lp-tabs,
+.lead-tabs {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 0 28px !important;
+  margin: 20px 0 0 !important;
+  height: 44px !important;
+}
+.lp-tab,
+.lead-tab {
+  padding: 0 0 12px !important;
+  margin: 0 22px 0 0 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--text-3) !important;
+  border-bottom: 2px solid transparent !important;
+}
+.lp-tab.active,
+.lead-tab.active {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  border-bottom-color: var(--cg-900) !important;
+}
+
+/* ─── BODY: 2-col main + right rail ─── */
+.lp-body,
+.lead-body { padding: 0 !important; gap: 0 !important; }
+.lp-center,
+.lead-center { border-right: none !important; }
+.lp-center-body,
+.lead-center-body {
+  padding: 20px 28px !important;
+  max-width: none !important;
+}
+.lp-right,
+.lead-right {
+  width: 320px !important;
+  padding: 20px 28px 20px 0 !important;
+  background: transparent !important;
+  border-left: none !important;
+}
+
+/* Right-rail panels = cards */
+.lp-right > section,
+.lp-right .panel,
+.lead-right > section,
+.lead-right .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-xs);
+}
+
+/* Eyebrow titles in rail */
+.lp-right .lp-section-title,
+.lp-right h3,
+.lead-right h3,
+.lead-right .panel-title {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: 12px !important;
+}
+
+/* Center activity card */
+.lead-overview-card,
+.lp-overview-card,
+.health-trend-card,
+.insights-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-xs);
+}
+
+/* ─── Override v6 stage stepper keyboard hint (removing it; we'll use ← → for companies now) ─── */
+.ld-stage-strip::after,
+.lead-stages::after { content: "" !important; }
+
+/* ════════════════════════════════════════════════════════════════
+   LEAD DETAIL v8 — Fix selectors (real classes are .ld-*)
+   ════════════════════════════════════════════════════════════════ */
+
+/* Page surface */
+#lead-page,
+.lead-page { background: var(--bg) !important; }
+.lp-topbar {
+  height: 56px !important;
+  padding: 0 28px !important;
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.lp-back {
+  padding: 6px 12px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  background: var(--surface) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+}
+
+/* Page nav: prev/next pill with counter — primary affordance for company switching */
+.lp-nav-group {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.lp-nav-btn {
+  width: 30px !important;
+  height: 30px !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--text-2) !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer !important;
+}
+.lp-nav-btn:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+.lp-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.lp-nav-btn svg { width: 13px; height: 13px; }
+.lp-counter {
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-3) !important;
+  font-variant-numeric: tabular-nums !important;
+  border-left: 1px solid var(--border) !important;
+  border-right: 1px solid var(--border) !important;
+  height: 30px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+/* ─── HERO CARD (real class: .ld-hero-card) ─── */
+.ld-hero-card {
+  background: var(--surface) !important;
+  background-image: radial-gradient(circle at 95% 30%, color-mix(in oklab, var(--lime-700) 22%, transparent) 0%, transparent 55%) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  margin: 16px 24px 0 !important;
+  padding: 24px !important;
+  box-shadow: var(--shadow-xs) !important;
+  position: relative;
+  overflow: hidden;
+}
+.ld-hero-card::before,
+.ld-hero-card::after { display: none !important; }
+
+.ld-hero-progress {
+  display: none !important; /* covered by stepper card */
+}
+
+/* Body container */
+.ld-body {
+  background: var(--bg) !important;
+  padding: 0 !important;
+}
+.ld-stepper-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 16px 20px !important;
+  margin: 16px 24px 0 !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.ld-stage-label {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: 12px !important;
+}
+.ld-stages-row { gap: 8px !important; }
+
+/* Stage buttons */
+.ld-stage-btn {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 12px 10px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  color: var(--text-2) !important;
+  position: relative;
+}
+.ld-stage-btn:hover {
+  background: var(--surface) !important;
+  border-color: var(--cg-400) !important;
+  color: var(--text) !important;
+}
+.ld-stage-btn.current {
+  background: var(--lime-200) !important;
+  border-color: var(--lime-700) !important;
+  color: var(--text) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--lime-700) 22%, transparent) !important;
+}
+.ld-stage-btn.past {
+  background: var(--surface-2) !important;
+  color: var(--text-3) !important;
+}
+.ld-stage-btn-sub {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: var(--text-4) !important;
+  opacity: 0.7 !important;
+  margin-top: 3px !important;
+  display: block !important;
+}
+
+/* Main 2-col */
+.ld-main {
+  padding: 0 24px 24px !important;
+  gap: 16px !important;
+}
+.ld-center {
+  background: transparent !important;
+  border-right: none !important;
+}
+.ld-right {
+  width: 320px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-left: none !important;
+}
+
+/* Tabs */
+.ld-tab-bar {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px 14px 0 0 !important;
+  border-bottom: none !important;
+  margin-top: 16px !important;
+  padding: 0 18px !important;
+}
+.ld-tab {
+  padding: 12px 6px !important;
+  margin-right: 22px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-3) !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+}
+.ld-tab.active {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  border-bottom-color: var(--cg-900) !important;
+}
+.ld-tab-cnt {
+  display: inline-flex;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--surface-2);
+  color: var(--text-3);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.ld-tab.active .ld-tab-cnt {
+  background: var(--lime-700);
+  color: #1A2230;
+}
+.ld-tab-content {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0 0 14px 14px !important;
+  padding: 20px !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+
+/* Right rail panels */
+.ld-right .panel,
+.ld-right > div {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-xs);
+}
+.ld-panel-title {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: 10px !important;
+}
+
+/* Add tip on hero */
+.ld-hero-card::after {
+  content: "← / → switch company" !important;
+  display: block !important;
+  position: absolute !important;
+  top: 14px !important;
+  right: 18px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--text-4) !important;
+  pointer-events: none !important;
+  background: none !important;
+  width: auto !important;
+  height: auto !important;
+  border-radius: 0 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEAD DETAIL v9 — Account-detail-style hero with built-in stat strip
+   Hide separate stepper card, fold stage + stats into hero header
+   ════════════════════════════════════════════════════════════════ */
+
+/* Hide the standalone stepper card — stage moves inline to hero */
+body .ld-stepper-card {
+  display: none !important;
+}
+
+/* Hero card upgrade */
+body .ld-hero-card {
+  background: var(--surface) !important;
+  background-image: radial-gradient(circle at 95% 25%, color-mix(in oklab, var(--lime-700) 22%, transparent) 0%, transparent 55%) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  margin: 16px 24px 0 !important;
+  padding: 0 !important;
+  box-shadow: var(--shadow-xs) !important;
+  position: relative;
+  overflow: hidden;
+}
+body .ld-hero-card::before,
+body .ld-hero-card::after { display: none !important; }
+body .ld-hero-card .ld-hero-progress { display: none !important; }
+body .ld-hero-card .ld-hero-inner {
+  padding: 24px 24px 0 24px !important;
+}
+
+/* Inline stat strip — injected by JS into the hero */
+.lead-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  border-top: 1px solid var(--border);
+  margin-top: 18px;
+  padding: 18px 24px 22px;
+  gap: 0;
+}
+.lead-stat-cell {
+  padding: 0 18px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lead-stat-cell:first-child { padding-left: 0; }
+.lead-stat-cell:last-child { border-right: none; padding-right: 0; }
+.lead-stat-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.lead-stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.lead-stat-sub {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+/* Tabs directly under hero, full width like Customer detail */
+body .ld-main {
+  padding: 0 24px 24px !important;
+}
+body .ld-tab-bar {
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 18px 0 0 !important;
+}
+body .ld-tab {
+  padding: 12px 6px !important;
+  margin: 0 24px 0 0 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--text-3) !important;
+}
+body .ld-tab.active {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  border-bottom-color: var(--cg-900) !important;
+}
+body .ld-tab-content {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 20px 0 !important;
+  box-shadow: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LEAD DETAIL v10 — Customer-Detail layout via renderLdHero rewrite
+   ════════════════════════════════════════════════════════════════ */
+
+/* Hide standalone stepper card — stage chip now lives inline in hero */
+body .ld-stepper-card { display: none !important; }
+
+/* Hero card chrome — soft lime glow on right */
+body .ld-hero-card {
+  background: var(--surface) !important;
+  background-image: radial-gradient(circle at 95% 25%, color-mix(in oklab, var(--lime-700) 22%, transparent) 0%, transparent 55%) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  margin: 16px 24px 0 !important;
+  padding: 0 !important;
+  box-shadow: var(--shadow-xs) !important;
+  position: relative;
+  overflow: hidden;
+}
+body .ld-hero-card .ld-hero-progress { display: none !important; }
+
+/* Tabs row directly below hero, full-width underline */
+body .ld-main { padding: 0 24px 24px !important; }
+body .ld-tab-bar {
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 18px 0 0 !important;
+}
+body .ld-tab {
+  padding: 12px 6px !important;
+  margin: 0 24px 0 0 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--text-3) !important;
+}
+body .ld-tab.active {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  border-bottom-color: var(--cg-900) !important;
+}
+body .ld-tab-content {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 20px 0 !important;
+  box-shadow: none !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DARK MODE polish — covers all v8/v9/v10 surfaces
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* Soften lime so the dark UI doesn't burn */
+  --lime-200: #2C3614;
+}
+
+/* Hero card — kill the light radial glow on dark */
+[data-theme="dark"] body .ld-hero-card {
+  background: var(--surface) !important;
+  background-image: radial-gradient(circle at 95% 25%, rgba(204,237,89,0.10) 0%, transparent 55%) !important;
+  border-color: var(--border) !important;
+}
+
+/* Stat strip dividers / labels */
+[data-theme="dark"] .ld-stat-strip,
+[data-theme="dark"] .ld-stat-cell {
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .ld-stat-strip > * {
+  color: var(--text);
+}
+
+/* Hero meta line text */
+[data-theme="dark"] .ld-hero-meta,
+[data-theme="dark"] .ld-hero-meta * {
+  color: var(--text-2) !important;
+}
+
+/* Chips in hero */
+[data-theme="dark"] .hs-meta-pill,
+[data-theme="dark"] .hs-stage-badge {
+  background: var(--surface-2) !important;
+  color: var(--text-2) !important;
+  border-color: var(--border) !important;
+}
+
+/* Tabs row */
+[data-theme="dark"] body .ld-tab-bar { border-bottom-color: var(--border) !important; }
+[data-theme="dark"] body .ld-tab { color: var(--text-3) !important; }
+[data-theme="dark"] body .ld-tab.active {
+  color: var(--text) !important;
+  border-bottom-color: var(--lime-700) !important;
+}
+[data-theme="dark"] body .ld-tab-content {
+  color: var(--text);
+}
+
+/* Activity / note items */
+[data-theme="dark"] .lp-act,
+[data-theme="dark"] .lead-activity-item,
+[data-theme="dark"] .ld-act-item {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+/* Right rail panels */
+[data-theme="dark"] .lp-right > div,
+[data-theme="dark"] .lead-right > div,
+[data-theme="dark"] .ld-right > div,
+[data-theme="dark"] .ld-right .panel {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+/* Save / day headers */
+[data-theme="dark"] .lead-day-header,
+[data-theme="dark"] .ld-panel-title,
+[data-theme="dark"] .ld-stat-cell > div:first-child {
+  color: var(--text-3) !important;
+}
+
+/* Modals & forms */
+[data-theme="dark"] .modal-bg {
+  background: rgba(0,0,0,0.65) !important;
+  backdrop-filter: blur(8px) !important;
+}
+[data-theme="dark"] .modal {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text);
+}
+[data-theme="dark"] .modal .ui-input,
+[data-theme="dark"] .ui-input {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+[data-theme="dark"] .modal label,
+[data-theme="dark"] .modal .label,
+[data-theme="dark"] .lp-cf-lbl,
+[data-theme="dark"] .hs-cp-field-lbl,
+[data-theme="dark"] .hs-df-lbl {
+  color: var(--text-3) !important;
+}
+
+/* Accounts table parity */
+[data-theme="dark"] .acc-table-wrap {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .acc-table thead th {
+  background: var(--surface) !important;
+  color: var(--text-3) !important;
+  border-bottom-color: var(--border) !important;
+}
+[data-theme="dark"] .acc-table tbody td {
+  background: transparent !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--border) !important;
+}
+[data-theme="dark"] .acc-table tbody tr:hover td {
+  background: var(--surface-2) !important;
+}
+[data-theme="dark"] .acc-avatar {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+}
+[data-theme="dark"] .acc-search-input,
+[data-theme="dark"] .acc-select,
+[data-theme="dark"] .acc-export-btn {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+/* Sidebar parity */
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .sidebar.collapsed {
+  background: #161B22 !important;
+  border-right-color: var(--border) !important;
+}
+[data-theme="dark"] .sb-brand-name { color: var(--text) !important; display: block !important; }
+[data-theme="dark"] .sb-brand-sub { color: var(--text-3) !important; display: block !important; }
+[data-theme="dark"] .sb-item { color: var(--text-2) !important; }
+[data-theme="dark"] .sb-item:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+[data-theme="dark"] .sb-item.active {
+  background: var(--lime-700) !important;
+  color: #11151B !important;
+}
+[data-theme="dark"] .sb-cnt {
+  background: var(--lime-700) !important;
+  color: #11151B !important;
+}
+[data-theme="dark"] .sb-logo {
+  background: var(--cg-900) !important;
+  color: var(--lime-700) !important;
+}
+[data-theme="dark"] .sb-user-name { color: var(--text) !important; display: block !important; }
+[data-theme="dark"] .sb-user-role { color: var(--text-3) !important; display: block !important; }
+
+/* Pipeline kanban columns */
+[data-theme="dark"] .col {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .col-hdr,
+[data-theme="dark"] .col-footer {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .col-footer { background: var(--surface-2) !important; }
+[data-theme="dark"] .card {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+/* Nav button group on lead detail */
+[data-theme="dark"] .lp-nav-group {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .lp-nav-btn { color: var(--text-2) !important; }
+[data-theme="dark"] .lp-nav-btn:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+[data-theme="dark"] .lp-counter {
+  color: var(--text-3) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .lp-back {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
 </style>
+
+<script>
+(function leadDetailV9() {
+  // Build the inline stat strip from whatever lead data exists.
+  function buildStatStrip(lead) {
+    const cur = (window.STAGES || []).find(s => s.id === (window.gStage ? window.gStage(lead._id) : '')) || { name: '—' };
+    const ownerName = (window.gOwner ? window.gOwner(lead._id) : '') || '—';
+    const since = lead.added || lead.created_at || lead.since || '—';
+    const cells = [
+      { label: 'Stage',     value: cur.name || '—',                      sub: 'current'         },
+      { label: 'Owner',     value: ownerName,                            sub: 'account manager' },
+      { label: 'Source',    value: lead.source || '—',                   sub: lead.medium || '' },
+      { label: 'Campaign',  value: lead.campaign || '—',                 sub: 'attribution'     },
+      { label: 'Industry',  value: lead.industry || lead.industry_manual || '—', sub: '—'        },
+      { label: 'Size',      value: lead.size_manual || lead.size || '—', sub: 'employees'        },
+      { label: 'Added',     value: typeof since === 'string' ? since.split('T')[0] : '—', sub: 'pipeline entry' },
+    ];
+    return '<div class="lead-stat-strip">' + cells.map(c =>
+      '<div class="lead-stat-cell">' +
+      '<span class="lead-stat-lbl">' + c.label + '</span>' +
+      '<span class="lead-stat-val">' + c.value + '</span>' +
+      (c.sub ? '<span class="lead-stat-sub">' + c.sub + '</span>' : '') +
+      '</div>'
+    ).join('') + '</div>';
+  }
+
+  function injectStrip() {
+    const hero = document.querySelector('.ld-hero-card');
+    if (!hero) return;
+    if (hero.querySelector('.lead-stat-strip')) return;
+    const id = window.curId;
+    if (!id || !window.leads) return;
+    const lead = window.leads.find(l => l._id === id);
+    if (!lead) return;
+    hero.insertAdjacentHTML('beforeend', buildStatStrip(lead));
+  }
+
+  function clearStrip() {
+    const old = document.querySelector('.ld-hero-card .lead-stat-strip');
+    if (old) old.remove();
+  }
+
+  // Re-inject after every hero re-render
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      if (m.target.classList && m.target.classList.contains('ld-hero-card')) {
+        clearStrip();
+        injectStrip();
+        return;
+      }
+    }
+    injectStrip();
+  });
+  function start() {
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+    injectStrip();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+
+  // Bulletproof the keyboard nav: disable ANY remaining stage shortcuts; ensure ← / → call navigateLead.
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (['INPUT','TEXTAREA','SELECT'].includes(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
+    const onLeadPage = document.querySelector('#lead-page, .lead-page');
+    if (!onLeadPage) return;
+    const isVisible = onLeadPage.offsetParent !== null;
+    if (!isVisible) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (typeof window.navigateLead === 'function') {
+      window.navigateLead(e.key === 'ArrowLeft' ? -1 : 1);
+    }
+  }, true); // CAPTURE phase, fires before all bubble handlers
+})();
+</script><!-- end v9 layer -->
+
+<script>
+(function leadDetailV7Nav() {
+  // ←/→ now switch between COMPANIES (prev/next lead), not stages.
+  // The file already has a working navigateLead() handler at line ~8534.
+  // We disable our v6/v7 stage handlers below.
+  return;
+  function findNavButtons() {
+    const selectors = [
+      '.lp-nav-prev', '.lp-nav-next',
+      '.lead-nav-prev', '.lead-nav-next',
+      '.lp-prev', '.lp-next',
+      '[data-action="prev-lead"]', '[data-action="next-lead"]',
+      '.ld-prev', '.ld-next',
+    ];
+    const prev = document.querySelector(selectors.filter((_,i)=>i%2===0).join(','));
+    const next = document.querySelector(selectors.filter((_,i)=>i%2===1).join(','));
+    if (prev && next) return { prev, next };
+
+    // Fallback: any two adjacent .lp-nav-btn / .lead-nav-btn elements (counter sits between)
+    const navBtns = document.querySelectorAll('.lp-nav-btn, .lead-nav-btn, .ld-nav-btn');
+    if (navBtns.length >= 2) return { prev: navBtns[0], next: navBtns[navBtns.length - 1] };
+
+    return null;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (['INPUT','TEXTAREA','SELECT'].includes(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
+    const page = document.querySelector('.lead-page.open, .lp-page.open, .lead-detail-page.open');
+    if (!page) return;
+
+    const nav = findNavButtons();
+    if (!nav) return;
+    (e.key === 'ArrowLeft' ? nav.prev : nav.next).click();
+    e.preventDefault();
+  }, true);
+
+  // Tip on hero: "← / → to switch companies"
+  function injectTip() {
+    document.querySelectorAll('.lp-hero, .lead-hero').forEach(hero => {
+      if (hero.querySelector('.company-nav-tip')) return;
+      const tip = document.createElement('div');
+      tip.className = 'company-nav-tip';
+      tip.style.cssText = 'position:absolute;top:14px;right:18px;font-size:10px;font-weight:600;letter-spacing:0.04em;color:var(--text-4);display:flex;gap:6px;align-items:center;text-transform:uppercase;pointer-events:none;';
+      tip.innerHTML = '<kbd style="font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid var(--border-2);color:var(--text-3);background:var(--surface);font-family:ui-monospace,Menlo,monospace;font-weight:700;">←</kbd> <kbd style="font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid var(--border-2);color:var(--text-3);background:var(--surface);font-family:ui-monospace,Menlo,monospace;font-weight:700;">→</kbd> switch company';
+      hero.appendChild(tip);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectTip);
+  else injectTip();
+  new MutationObserver(() => { try { injectTip(); } catch(e){} }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script><!-- end v7 nav layer -->
+
+<script>
+(function leadDetailUX() {
+  // Keyboard ← / → navigation for pipeline stages
+  document.addEventListener('keydown', function(e) {
+    // Only when lead detail page is visible and no input is focused
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (['INPUT','TEXTAREA','SELECT'].includes(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
+    const page = document.querySelector('.lead-page.open, .lp-page.open, .lead-detail-page.open');
+    if (!page) return;
+
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      // Disabled — companies nav handler at line ~8534 owns these keys
+      return;
+      const stages = page.querySelectorAll('.ld-stage-btn, .lead-stage-btn');
+      if (!stages.length) return;
+      let curIdx = 0;
+      stages.forEach((s, i) => {
+        if (s.classList.contains('current') || s.classList.contains('active')) curIdx = i;
+      });
+      const nextIdx = e.key === 'ArrowLeft'
+        ? Math.max(0, curIdx - 1)
+        : Math.min(stages.length - 1, curIdx + 1);
+      if (nextIdx !== curIdx) {
+        stages[nextIdx].click();
+        e.preventDefault();
+      }
+    }
+  });
+
+  // Right-rail collapse toggle — inject a chevron if not already there
+  function ensureRailToggle() {
+    document.querySelectorAll('.lp-right, .lead-right').forEach(rail => {
+      if (rail.querySelector('.rail-toggle')) return;
+      const btn = document.createElement('button');
+      btn.className = 'rail-toggle';
+      btn.setAttribute('title', 'Collapse panel');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+      btn.addEventListener('click', () => {
+        rail.classList.toggle('collapsed');
+        btn.setAttribute('title', rail.classList.contains('collapsed') ? 'Expand panel' : 'Collapse panel');
+      });
+      rail.appendChild(btn);
+    });
+  }
+  // Run after DOM ready and watch for re-renders
+  const _ensure = () => { try { ensureRailToggle(); } catch (e) {} };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _ensure);
+  else _ensure();
+  const obs = new MutationObserver(_ensure);
+  obs.observe(document.documentElement, { childList: true, subtree: true });
+
+  // Group activity items by day — insert ".lead-day-header" labels
+  function groupActivityByDay() {
+    const timelines = document.querySelectorAll('.lp-timeline, .lead-timeline');
+    timelines.forEach(tl => {
+      // Skip if already grouped
+      if (tl.dataset.grouped) return;
+      const items = tl.querySelectorAll('.lp-act, .lead-activity-item');
+      if (!items.length) return;
+      const today = new Date();
+      const todayStr = today.toDateString();
+      const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+      const yestStr = yest.toDateString();
+
+      let lastLabel = null;
+      items.forEach(item => {
+        const timeEl = item.querySelector('.lp-act-time, .lead-activity-time');
+        let label = 'Earlier';
+        if (timeEl) {
+          const txt = timeEl.textContent.toLowerCase();
+          if (txt.includes('just') || txt.includes('m ago') || txt.includes('h ago') || txt === 'today') label = 'Today';
+          else if (txt.includes('1d') || txt.includes('yesterday')) label = 'Yesterday';
+          else if (txt.includes('d ago')) {
+            const d = parseInt(txt);
+            if (d <= 7) label = 'This week';
+            else if (d <= 30) label = 'This month';
+            else label = 'Earlier';
+          }
+        }
+        if (label !== lastLabel) {
+          const hdr = document.createElement('div');
+          hdr.className = 'lead-day-header';
+          hdr.textContent = label;
+          item.parentNode.insertBefore(hdr, item);
+          lastLabel = label;
+        }
+      });
+      tl.dataset.grouped = '1';
+    });
+  }
+  // Watch for activity to render then group
+  const obs2 = new MutationObserver(() => {
+    try { groupActivityByDay(); } catch (e) {}
+  });
+  obs2.observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script><!-- ─── end Lead Detail v6 UX layer ─── -->
 </head>
 <body>
 
@@ -4799,15 +7205,6 @@ td, .metric-val, .ld-act-time {
     <!-- Table in white rounded card -->
     <div class="acc-table-wrap">
       <table class="acc-table">
-        <colgroup>
-          <col style="width:26%">
-          <col style="width:13%">
-          <col style="width:9%">
-          <col style="width:13%">
-          <col style="width:14%">
-          <col style="width:12%">
-          <col style="width:13%">
-        </colgroup>
         <thead>
           <tr>
             <th onclick="accSort('name')" id="acc-th-name">ACCOUNT <span class="sort-icon">↕</span></th>
@@ -4816,7 +7213,7 @@ td, .metric-val, .ld-act-time {
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('created')" id="acc-th-created">SINCE <span class="sort-icon">↕</span></th>
-            <th style="text-align:center;">ACTION</th>
+            <th style="width:120px;text-align:center;">ACTION</th>
           </tr>
         </thead>
         <tbody id="acc-tbody"></tbody>
@@ -5195,7 +7592,7 @@ function fva(l,...keys){
   if(typeof v==='string'&&v.startsWith('["')){try{const a=JSON.parse(v);return Array.isArray(a)?a[0]:v;}catch{}}
   return v;
 }
-const gName=l=>fv(l,'Company Name',cfg.nameField,'company_name','company_name_lowercase','Name','name')||'(Unnamed)';
+const gName=l=>fv(l,cfg.nameField,'Company Name','company_name','full_name','name','Name','company_name_lowercase')||'(Unnamed)';
 // ── Exact Bubble field names (from raw fields panel) ──
 const gEmail=l=>fv(l,'Contact_Email','CONTACT_EMAIL','Contact Email','contact_email','email','Email')||'';
 const gPhone=l=>fv(l,'Contact_Mobile','CONTACT_MOBILE','Contact Phone','contact_phone','phone_number','phone')||'';
@@ -5223,7 +7620,7 @@ const gDescription=l=>fv(l,'WP_Description','Description','description','About',
 const gStatus=l=>fv(l,'Activation','activation','Status','status','Plan Status')||'';
 const gJobs=l=>fv(l,'Active Jobs Count','Active_Jobs_Count','active_jobs_count','Jobs Count')??'';
 const gTrialEnd=l=>fv(l,'Free Trial End Date','Free_Trial_End_Date','free_trial_end_date','Trial End')||'';
-const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created_Date','Created Date','created_date')||'';
+const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created Date','created_date')||'';
 const gInit=n=>n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'??';
 
 function trialStatus(lead){
@@ -5238,9 +7635,8 @@ function trialStatus(lead){
 
 // ─── STATE GETTERS/SETTERS ────────────────────────────
 const gStage=id=>{
-  const ls_val=ls.g('st_'+id);
-  if(ls_val)return ls_val;
-  // Fall back to Supabase stage stored in lead object
+  const v=ls.g('st_'+id);
+  if(v)return v;
   const l=leads.find(x=>x._id===id);
   return l?._sb_stage||'lead';
 };
@@ -5562,53 +7958,32 @@ async function sbFetch() {
     offset += pageSize;
   }
 
-  // Debug: log first record to console so we can see exact field names
-  if (allAccounts.length > 0) {
-    const sample = allAccounts[0];
-    console.log('[CRM DEBUG] Raw Supabase account keys:', Object.keys(sample));
-    console.log('[CRM DEBUG] acc.name:', sample.name);
-    console.log('[CRM DEBUG] acc.stage:', sample.stage);
-    console.log('[CRM DEBUG] acc.am_mail:', sample.am_mail);
-    console.log('[CRM DEBUG] acc.source:', sample.source);
-    console.log('[CRM DEBUG] raw_data keys:', sample.raw_data ? Object.keys(sample.raw_data).slice(0,20) : 'NO RAW_DATA');
-    console.log('[CRM DEBUG] raw_data Company Name:', sample.raw_data?.['Company Name']);
-    console.log('[CRM DEBUG] raw_data Contact_Name:', sample.raw_data?.Contact_Name);
-    console.log('[CRM DEBUG] raw_data Source:', sample.raw_data?.Source);
-    console.log('[CRM DEBUG] Full raw_data sample:', JSON.stringify(sample.raw_data).slice(0, 500));
-  }
-
   // Map Supabase accounts to the lead format the CRM expects
   return allAccounts.map(acc => ({
     _id:              acc.bubble_id || acc.id,
     _supabase_id:     acc.id,
-    // ── Company name: raw_data['Company Name'] is the actual company field from Bubble
-    //    acc.name is set from Contact_Name by the edge function — don't use as company name
+    // Contact fields (from raw_data)
+    'Contact_Name':   acc.raw_data?.Contact_Name  || acc.name || '',
+    'Contact_Email':  acc.raw_data?.Contact_Email || '',
+    'Contact_Mobile': acc.raw_data?.Contact_Mobile || '',
+    // Company Name is the primary display field — fall back to domain, then contact name
     'Company Name':   acc.raw_data?.['Company Name']
                    || acc.raw_data?.company_name
                    || acc.raw_data?.company_name_lowercase
                    || acc.name
                    || '',
-    // ── Contact person fields (separate from company name)
-    'Contact_Name':   acc.raw_data?.Contact_Name  || '',
-    'Contact_Email':  acc.raw_data?.Contact_Email || '',
-    'Contact_Mobile': acc.raw_data?.Contact_Mobile || '',
-    // ── Attribution
-    'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail']  || acc.raw_data?.AM_Mail  || '',
-    'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail']  || acc.raw_data?.RC_Mail  || '',
-    Source:           acc.source   || acc.raw_data?.Source  || '',
+    'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail'] || '',
+    'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail'] || '',
+    Source:           acc.source   || acc.raw_data?.Source || '',
     Campaign:         acc.campaign || acc.raw_data?.Campaign || '',
     Medium:           acc.medium   || acc.raw_data?.Medium   || '',
-    // ── Company details
     WP_Industry:      acc.industry || acc.raw_data?.WP_Industry || '',
     WP_Company_Size:  acc.size     || acc.raw_data?.WP_Company_Size || '',
-    WP_Location:      acc.location || acc.raw_data?.WP_Location || acc.raw_data?.Location || '',
+    WP_Location:      acc.location || acc.raw_data?.WP_Location || '',
     WP_Vacancies:     acc.vacancies || acc.raw_data?.WP_Vacancies || '',
     WP_Company_Headcount: acc.raw_data?.WP_Company_Headcount || '',
     Company_Ref:      acc.raw_data?.Company_Ref || '',
-    // ── Dates: prefer Bubble's Original_Creation_Date, fall back to Supabase created_at
-    Original_Creation_Date: acc.raw_data?.Original_Creation_Date
-                          || acc.raw_data?.['Created Date']
-                          || acc.created_at,
+    Original_Creation_Date: acc.raw_data?.Original_Creation_Date || acc.created_at,
     Created_Date:     acc.created_at,
     Modified_Date:    acc.updated_at,
     // Pipeline state
@@ -5673,21 +8048,13 @@ async function refresh(){
 
 // ─── INIT ─────────────────────────────────────────────
 function init(){
-  // Seed stage, deal value from Supabase data into localStorage cache
+  // Seed stage + deal data from Supabase into localStorage cache
   leads.forEach(l=>{
     const id=l._id;
-    if(l._sb_stage && l._sb_stage!=='lead' && !ls.g('st_'+id)){
-      ls.s('st_'+id, l._sb_stage);
-    }
-    if(l.deal_value && !ls.g('acv_'+id)){
-      ls.s('acv_'+id, String(l.deal_value));
-    }
-    if(l.deal_close_date && !ls.g('close_'+id)){
-      ls.s('close_'+id, l.deal_close_date);
-    }
-    if(l.is_disqualified && !ls.g('disq_'+id)){
-      ls.s('disq_'+id,'1');
-    }
+    if(l._sb_stage&&!ls.g('st_'+id))ls.s('st_'+id,l._sb_stage);
+    if(l.deal_value&&!ls.g('acv_'+id))ls.s('acv_'+id,String(l.deal_value));
+    if(l.deal_close_date&&!ls.g('close_'+id))ls.s('close_'+id,l.deal_close_date);
+    if(l._sb_is_disq&&!ls.g('disq_'+id))ls.s('disq_'+id,'1');
   });
   popFilters();
 
@@ -6107,7 +8474,7 @@ function applyStageChange(id,newSid,oldSid){
   const sbId=l?._supabase_id;
   if(sbId&&window._sbClient){
     window._sbClient.from('accounts').update({stage:newSid}).eq('id',sbId)
-      .then(({error})=>{ if(error)console.warn('[CRM] Stage sync:',error.message); });
+      .then(({error})=>{if(error)console.warn('[CRM] Stage sync:',error.message);});
   }
   renderBoard();
   toast(`Moved to ${newName}`);
@@ -6312,58 +8679,89 @@ function renderLdHero(lead){
     return `<div class="ld-hero-progress-seg" style="background:${isNow?s.color:isPast?'var(--cg-400)':'var(--surface-2)'};opacity:${isNow?1:isPast?0.6:1};"></div>`;
   }).join('');
 
+  // ── Customer-Detail layout: single hero card with all data baked in ──
+  const sourceStr=gSource(lead)||'';
+  const mediumStr=lead.medium||lead.medium_manual||contact.medium||'';
+  const campaignStr=lead.campaign||contact.campaign||'';
+  const sinceStr=lead.added||lead.created_at||contact.created||'';
+  const sinceDisp=sinceStr?new Date(sinceStr).toLocaleDateString('en-US',{month:'short',year:'numeric'}):'—';
+  const acvDisp=acv?esc(acv):'—';
+  const closeDisp=closeDate?new Date(closeDate).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
+  const trialLbl=ts==='active'?'Active':ts==='expired'?'Expired':'No trial';
+  const trialCls=ts==='active'?'ok':ts==='expired'?'bad':'muted';
   el.innerHTML=`
-    <div class="ld-hero-progress">${progressBars}</div>
-    <div class="ld-hero-inner">
-      <div class="ld-hero-top">
-        <div class="ld-hero-avatar" style="background:${logoSrc?'#fff':stageObj.color+'18'};color:${stageObj.color};">
+    <div class="ld-hero-inner" style="padding:24px;">
+      <div class="ld-hero-top" style="display:flex;gap:18px;align-items:flex-start;">
+        <div class="ld-hero-avatar" style="width:56px;height:56px;border-radius:14px;background:${logoSrc?'#fff':'var(--cg-900)'};color:var(--lime-700);font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
           ${logoSrc?logoHtml:initials}
         </div>
-        <div class="ld-hero-info">
-          <div class="ld-hero-name">
+        <div class="ld-hero-info" style="flex:1;min-width:0;">
+          <div class="ld-hero-name" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:22px;font-weight:700;letter-spacing:-0.022em;color:var(--text);line-height:1.15;">
             ${esc(name)}
-            <span class="ld-hero-stage-pill" style="background:${stageObj.color}18;color:${stageObj.color};border:1px solid ${stageObj.color}44;">
-              <span style="width:6px;height:6px;border-radius:50%;background:${stageObj.color};"></span>
-              ${stageObj.name}
+            <span class="ld-hero-stage-pill" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:${stageObj.color}1f;color:${stageObj.color};border:1px solid ${stageObj.color}44;">
+              <span style="width:6px;height:6px;border-radius:50%;background:${stageObj.color};"></span>${stageObj.name}
             </span>
+            <span class="hs-stage-badge" style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface-2);color:var(--text-3);padding:3px 8px;border-radius:999px;border:1px solid var(--border);">LEAD</span>
+            ${eLocation?`<span class="hs-meta-pill" style="font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">🌐 ${esc(eLocation)}</span>`:''}
+            ${eIndustry?`<span class="hs-meta-pill" style="font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">${esc(eIndustry)}</span>`:''}
             ${isDisq?`<span class="ld-chip bad" style="font-size:10px;">Disqualified</span>`:''}
             ${paidCustomerBadge(lead)}
-            ${domainValidationBadge(lead)}
           </div>
-          <div class="ld-hero-meta">
-            ${domain?`<span class="ld-hero-domain" onclick="openCompanySite()">🌐 ${esc(domain)}</span>`:''}
-            ${eIndustry?`<span class="ld-hero-meta-item">${industryIcon(eIndustry)} ${esc(eIndustry)}</span>`:''}
-            ${eLocation?`<span class="ld-hero-meta-item">📍 ${esc(eLocation)}</span>`:''}
-            ${gSource(lead)?`<span class="ld-hero-meta-item">📥 ${esc(gSource(lead))}</span>`:''}
+          <div class="ld-hero-meta" style="display:flex;flex-wrap:wrap;gap:18px;margin-top:12px;color:var(--text-3);font-size:12px;font-weight:500;">
+            ${domain?`<span style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;" onclick="openCompanySite()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>${esc(domain)}</span>`:''}
+            <span style="display:inline-flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Since ${sinceDisp}</span>
+            ${sourceStr?`<span style="display:inline-flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>${esc(sourceStr)}${mediumStr?` · ${esc(mediumStr)}`:''}${campaignStr?` · ${esc(campaignStr)}`:''}</span>`:''}
           </div>
+        </div>
+        <div class="ld-hero-actions" style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="ld-action-btn" onclick="ldQuickLog('call')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .93h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>Call</button>
+          <button class="ld-action-btn" onclick="openEmailModal('${id}')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</button>
+          ${isPreDeal
+            ?`<button class="ld-action-btn" onclick="openDealModal('${id}')" style="background:var(--cg-900);border:1px solid var(--cg-900);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>Make Deal</button>`
+            :`<button class="ld-action-btn" onclick="openDisqModal()" style="background:var(--cg-900);border:1px solid var(--cg-900);color:#fff;padding:8px 10px;border-radius:8px;display:inline-flex;align-items:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>`
+          }
         </div>
       </div>
-      <div class="ld-deal-row">
-        <div class="ld-deal-cell">
-          <div class="ld-deal-lbl">Deal Value</div>
-          ${acv?`<div class="ld-deal-val" onclick="editSnapVal()"><span style="background:var(--lime-200);color:#3a4a00;padding:3px 10px;border-radius:999px;font-size:13px;">${esc(acv)}</span></div>`
-              :`<div class="ld-deal-empty" onclick="editSnapVal()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add value</div>`}
+
+      <!-- 7-cell stat strip — Customer-Detail style -->
+      <div class="ld-stat-strip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;border-top:1px solid var(--border);margin-top:22px;padding-top:18px;">
+        <div class="ld-stat-cell" style="padding:0 18px 0 0;border-right:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Stage</div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-0.018em;margin-top:6px;color:var(--text);">${stageObj.name}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">step ${Math.max(1,stageIdx+1)} of ${STAGES.length}</div>
         </div>
-        <div class="ld-deal-cell">
-          <div class="ld-deal-lbl">Close Date</div>
-          ${closeDate?`<div class="ld-deal-val" onclick="editSnapClose()" style="font-size:13px;">${new Date(closeDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>`
-                    :`<div class="ld-deal-empty" onclick="editSnapClose()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Set date</div>`}
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapVal()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Deal Value</div>
+          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);font-variant-numeric:tabular-nums;">${acvDisp}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">ACV potential</div>
         </div>
-        <div class="ld-deal-cell">
-          <div class="ld-deal-lbl">Owner</div>
-          <div class="ld-deal-val" onclick="editSnapOwner()" style="cursor:pointer;">
-            <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime)'};color:var(--navy);font-size:10px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;">${owner.id}</span>
-            <span style="font-size:13px;">${owner.name}</span>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapClose()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Close Date</div>
+          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);">${closeDisp}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">expected</div>
+        </div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapOwner()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${owner.id}</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${owner.name}</span>
           </div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">account manager</div>
         </div>
-        <div class="ld-deal-cell">
-          <div class="ld-deal-lbl">Trial</div>
-          <div class="ld-deal-val">
-            <span class="ld-chip ${ts==='active'?'ok':ts==='expired'?'bad':'muted'}">
-              <span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>
-              ${ts==='active'?'Active':ts==='expired'?'Expired':'No trial'}
-            </span>
-          </div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Trial</div>
+          <div style="margin-top:8px;"><span class="ld-chip ${trialCls}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:${ts==='active'?'var(--ok-bg)':ts==='expired'?'var(--bad-bg)':'var(--surface-2)'};color:${ts==='active'?'var(--ok)':ts==='expired'?'var(--bad)':'var(--text-3)'};border:1px solid ${ts==='active'?'var(--ok-border)':ts==='expired'?'var(--bad-border)':'var(--border)'};"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>${trialLbl}</span></div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;">free trial</div>
+        </div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Industry</div>
+          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${eIndustry?esc(eIndustry):'—'}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${eLocation?esc(eLocation):'—'}</div>
+        </div>
+        <div class="ld-stat-cell" style="padding:0 0 0 18px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Source</div>
+          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sourceStr?esc(sourceStr):'—'}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${campaignStr?esc(campaignStr):mediumStr?esc(mediumStr):'attribution'}</div>
         </div>
       </div>
       <div class="ld-actions-row">
@@ -7562,7 +9960,7 @@ function switchMainView(view) {
     if (boardView)    { boardView.style.display = 'none'; }
     if (insightsView) { insightsView.style.cssText = 'display:none;'; }
     if (accountsView) {
-      accountsView.style.cssText = 'display:flex;flex-direction:column;position:absolute;top:60px;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;overflow-x:hidden;';
+      accountsView.style.cssText = 'display:flex;flex-direction:column;position:absolute;top:56px;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;overflow-x:hidden;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.add('active'); }
@@ -7608,7 +10006,7 @@ function accFilteredLeads() {
   const fPaid  = document.getElementById('acc-fpaid')?.value  || '';
   const fOwner = document.getElementById('acc-fowner')?.value || '';
 
-  const filtered = leads.filter(lead => {
+  return leads.filter(lead => {
     const id = lead._id;
     if (gDisq(id)) return false;
 
@@ -7643,32 +10041,6 @@ function accFilteredLeads() {
     }
     return true;
   });
-
-  // ── Apply sort ──
-  filtered.sort((a, b) => {
-    const dir = accSortDir === 'asc' ? 1 : -1;
-    switch (accSortCol) {
-      case 'name':
-        return dir * gName(a).localeCompare(gName(b));
-      case 'stage':
-        return dir * (gStage(a._id) || '').localeCompare(gStage(b._id) || '');
-      case 'icp':
-        return dir * (calcIcpScore(a._id) - calcIcpScore(b._id));
-      case 'owner':
-        return dir * (gOwner(a._id) || '').localeCompare(gOwner(b._id) || '');
-      case 'source':
-        return dir * (gSource(a) || '').localeCompare(gSource(b) || '');
-      case 'created': {
-        const ta = new Date(gCreated(a) || 0).getTime();
-        const tb = new Date(gCreated(b) || 0).getTime();
-        return dir * (ta - tb);
-      }
-      default:
-        return 0;
-    }
-  });
-
-  return filtered;
 }
 
 function accSort(col) {
@@ -7757,40 +10129,40 @@ function renderAccountsTable() {
 }
 
 
-// ── ownerFromEmail: build display object from email/id string ──
-const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#06B6D4'];
+// ── ownerFromEmail: build display object from email ──
+const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6'];
 function ownerFromEmail(emailOrId){
   if(!emailOrId)return{id:'?',name:'Unassigned',color:'#969BA1'};
   const found=OWNERS.find(o=>o.id===emailOrId||o.id.toLowerCase()===emailOrId.toLowerCase());
   if(found)return found;
   const local=emailOrId.includes('@')?emailOrId.split('@')[0]:emailOrId;
-  const name=local.replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  const name=local.replace(/[._-]/g,' ').replace(/\w/g,c=>c.toUpperCase());
   const initials=local.split(/[._-]/).map(p=>p[0]||'').join('').slice(0,2).toUpperCase()||local.slice(0,2).toUpperCase();
   let hash=0;for(let i=0;i<emailOrId.length;i++)hash=(hash*31+emailOrId.charCodeAt(i))>>>0;
   return{id:initials,name,color:OWNER_COLORS[hash%OWNER_COLORS.length],email:emailOrId};
 }
 
-// ── accTabSwitch: switch between All / In pipeline / Paid / Prospects ──
-let accActiveTab = 'all';
+// ── accTabSwitch: tab filter switching ──
+let accActiveTab='all';
 function accTabSwitch(btn){
-  accActiveTab = btn.dataset.filter || 'all';
-  document.querySelectorAll('.acc-tab').forEach(t => t.classList.toggle('active', t === btn));
+  accActiveTab=btn.dataset.filter||'all';
+  document.querySelectorAll('.acc-tab').forEach(t=>t.classList.toggle('active',t===btn));
   renderAccountsTable();
 }
 
 // ── exportAccounts: CSV export ──
 function exportAccounts(){
-  const rows = accFilteredLeads();
-  const headers = ['Company','Status','ICP Score','Owner','Source','Created'];
-  const lines = rows.map(l => {
-    const stage = gStage(l._id);
-    const status = isLeadPaidCustomer(l) ? 'Paid' : ['lead','mql'].includes(stage) ? 'Prospect' : stage;
-    return [gName(l), status, calcIcpScore(l._id), gOwner(l._id), gSource(l)||'', gCreated(l)||''].join(',');
+  const rows=accFilteredLeads();
+  const headers=['Company','Status','ICP','Owner','Source','Created'];
+  const lines=rows.map(l=>{
+    const stage=gStage(l._id);
+    const status=isLeadPaidCustomer(l)?'Paid':['lead','mql'].includes(stage)?'Prospect':stage;
+    return [gName(l),status,calcIcpScore(l._id),gOwner(l._id),gSource(l)||'',gCreated(l)||''].join(',');
   });
-  const csv = [headers.join(','), ...lines].join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = 'accounts.csv'; a.click();
+  const csv=[headers.join(','),...lines].join(String.fromCharCode(10));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='accounts.csv';a.click();
 }
 
 function renderAccStats(rows) {
@@ -9070,37 +11442,22 @@ async function submitAddLead() {
     // Build bubble_id as a temp unique id
     const tempBubbleId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
-    // Build raw_data to match the field names the loader expects
-    const rawData = {
-      'Company Name':   name,
-      'AM Mail':        amMail  || '',
-      'RC Mail':        rcMail  || '',
-      Source:           source  || '',
-      Campaign:         campaign|| '',
-      Medium:           medium  || '',
-      WP_Industry:      industry|| '',
-      WP_Company_Size:  size    || '',
-      Contact_Name:     cName   || '',
-      Contact_Email:    cEmail  || '',
-      Original_Creation_Date: new Date().toISOString(),
-    };
-
     const row = {
-      name,                    // kept for display fallback
-      stage:     stage || 'lead',
-      source:    source   || null,
-      campaign:  campaign || null,
-      medium:    medium   || null,
-      am_mail:   amMail   || null,
-      rc_mail:   rcMail   || null,
-      industry:  industry || null,
-      size:      size     || null,
+      name,
+      stage,
+      source,
+      campaign,
+      medium,
+      am_mail:   amMail,
+      rc_mail:   rcMail,
+      industry,
+      size,
       bubble_id: tempBubbleId,
-      raw_data:  rawData,
+      raw_data:  {},
     };
 
     // Insert account
-    const { error: accErr } = await sb.from('accounts').insert(row);
+    const { data: newAccount, error: accErr } = await sb.from('accounts').insert(row);
     if (accErr) throw new Error(accErr.message);
 
     // Get the new account id
@@ -9118,41 +11475,37 @@ async function submitAddLead() {
     if (cName || cEmail) {
       await sb.from('contacts').insert({
         account_id: accountId,
-        full_name:  cName  || null,
-        email:      cEmail || null,
-        job_title:  null,
+        full_name:  cName,
+        email:      cEmail,
         is_primary: true,
       });
     }
 
     // Log activity
-    const { data: authData } = await sb.auth.getUser();
+    const { data: { user } } = await sb.auth.getUser();
     await sb.from('activities').insert({
       account_id: accountId,
-      author_id:  authData?.user?.id || null,
+      author_id:  user?.id || null,
       type:       'note',
       text:       `Lead created manually: ${name}`,
     });
 
-    // Add to local leads array immediately (matches loader field mapping)
+    // Add to local leads array
     const newLead = {
       _id:          tempBubbleId,
       _supabase_id: accountId,
       name,
-      'Company Name':   name,
-      'Contact_Name':   cName  || name,
-      'Contact_Email':  cEmail || '',
-      'AM Mail':        amMail || '',
-      'RC Mail':        rcMail || '',
-      Source:           source  || '',
-      Campaign:         campaign|| '',
-      Medium:           medium  || '',
-      WP_Industry:      industry|| '',
-      WP_Company_Size:  size    || '',
-      Original_Creation_Date: new Date().toISOString(),
-      _sb_stage:        stage || 'lead',
-      _sb_is_disq:      false,
-      raw_data:         rawData,
+      'Contact_Name': name,
+      'AM Mail':      amMail || '',
+      'RC Mail':      rcMail || '',
+      Source:         source || '',
+      Campaign:       campaign || '',
+      Medium:         medium || '',
+      WP_Industry:    industry || '',
+      WP_Company_Size:size || '',
+      _sb_stage:      stage,
+      _sb_is_disq:    false,
+      raw_data:       {},
     };
     leads.unshift(newLead);
 
@@ -9338,19 +11691,6 @@ async function submitBulkUpload() {
         const stage = VALID_STAGES.includes((r.stage||'lead').toLowerCase()) ? (r.stage||'lead').toLowerCase() : 'lead';
         const tempId = 'bulk_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,6);
 
-        const bulkRawData = {
-          'Company Name':   r.company_name || '',
-          'AM Mail':        r.am_mail    || '',
-          'RC Mail':        r.rc_mail    || '',
-          Source:           r.source     || '',
-          Campaign:         r.campaign   || '',
-          Medium:           r.medium     || '',
-          WP_Industry:      r.industry   || '',
-          WP_Company_Size:  r.size       || '',
-          Contact_Name:     r.contact_name  || '',
-          Contact_Email:    r.contact_email || '',
-          Original_Creation_Date: new Date().toISOString(),
-        };
         const row = {
           name:      r.company_name,
           stage,
@@ -9362,7 +11702,7 @@ async function submitBulkUpload() {
           industry:  r.industry || null,
           size:      r.size     || null,
           bubble_id: tempId,
-          raw_data:  bulkRawData,
+          raw_data:  {},
         };
 
         const { error: accErr } = await sb.from('accounts').insert(row);
