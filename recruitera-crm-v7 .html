@@ -10050,7 +10050,7 @@ function switchMainView(view) {
     if (boardView)    { boardView.style.cssText = 'display:none;'; }
     if (insightsView) { insightsView.style.cssText = 'display:none;'; }
     if (accountsView) {
-      accountsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
+      accountsView.style.cssText = 'display:block;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.add('active'); }
