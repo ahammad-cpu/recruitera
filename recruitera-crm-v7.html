@@ -5562,6 +5562,21 @@ async function sbFetch() {
     offset += pageSize;
   }
 
+  // Debug: log first record to console so we can see exact field names
+  if (allAccounts.length > 0) {
+    const sample = allAccounts[0];
+    console.log('[CRM DEBUG] Raw Supabase account keys:', Object.keys(sample));
+    console.log('[CRM DEBUG] acc.name:', sample.name);
+    console.log('[CRM DEBUG] acc.stage:', sample.stage);
+    console.log('[CRM DEBUG] acc.am_mail:', sample.am_mail);
+    console.log('[CRM DEBUG] acc.source:', sample.source);
+    console.log('[CRM DEBUG] raw_data keys:', sample.raw_data ? Object.keys(sample.raw_data).slice(0,20) : 'NO RAW_DATA');
+    console.log('[CRM DEBUG] raw_data Company Name:', sample.raw_data?.['Company Name']);
+    console.log('[CRM DEBUG] raw_data Contact_Name:', sample.raw_data?.Contact_Name);
+    console.log('[CRM DEBUG] raw_data Source:', sample.raw_data?.Source);
+    console.log('[CRM DEBUG] Full raw_data sample:', JSON.stringify(sample.raw_data).slice(0, 500));
+  }
+
   // Map Supabase accounts to the lead format the CRM expects
   return allAccounts.map(acc => ({
     _id:              acc.bubble_id || acc.id,
