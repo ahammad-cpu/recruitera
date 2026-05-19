@@ -324,7 +324,7 @@ input,select,textarea{
 .btn-xs{padding:4px 9px;font-size:11.5px;font-weight:500;}
 
 /* CONTENT */
-.content{flex:1;overflow:visible;padding:0;background:var(--bg);position:relative;display:flex;flex-direction:column;}
+.content{flex:1;overflow:hidden;padding:0;background:var(--bg);position:relative;display:flex;flex-direction:column;min-height:0;}
 
 /* PAGE HEADER */
 .page-hdr{margin-bottom:22px;}
@@ -7087,7 +7087,7 @@ body .ld-tab-content {
       
 
 <!-- Board view (hidden when lead detail is open) -->
-      <div id="board-view" style="display:none;flex:1;overflow:auto;padding:20px 24px 32px;">
+      <div id="board-view" style="display:flex;flex-direction:column;flex:1;overflow:auto;padding:20px 24px 32px;">
       <div class="pipeline-tabs">
         <div class="pipeline-tab active" id="tab-qualified" onclick="switchPipelineTab('qualified')">
           Qualified
