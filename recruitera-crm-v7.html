@@ -7620,7 +7620,7 @@ const gDescription=l=>fv(l,'WP_Description','Description','description','About',
 const gStatus=l=>fv(l,'Activation','activation','Status','status','Plan Status')||'';
 const gJobs=l=>fv(l,'Active Jobs Count','Active_Jobs_Count','active_jobs_count','Jobs Count')??'';
 const gTrialEnd=l=>fv(l,'Free Trial End Date','Free_Trial_End_Date','free_trial_end_date','Trial End')||'';
-const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created Date','created_date')||'';
+const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created_Date','Created Date','created_date')||'';
 const gInit=n=>n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'??';
 
 function trialStatus(lead){
@@ -10006,7 +10006,7 @@ function accFilteredLeads() {
   const fPaid  = document.getElementById('acc-fpaid')?.value  || '';
   const fOwner = document.getElementById('acc-fowner')?.value || '';
 
-  return leads.filter(lead => {
+  const filtered = leads.filter(lead => {
     const id = lead._id;
     if (gDisq(id)) return false;
 
@@ -10041,6 +10041,31 @@ function accFilteredLeads() {
     }
     return true;
   });
+
+  // Apply sort
+  filtered.sort((a, b) => {
+    const dir = accSortDir === 'asc' ? 1 : -1;
+    switch (accSortCol) {
+      case 'name':
+        return dir * gName(a).localeCompare(gName(b));
+      case 'stage':
+        return dir * (gStage(a._id)||'').localeCompare(gStage(b._id)||'');
+      case 'icp':
+        return dir * (calcIcpScore(a._id) - calcIcpScore(b._id));
+      case 'owner':
+        return dir * (gOwner(a._id)||'').localeCompare(gOwner(b._id)||'');
+      case 'source':
+        return dir * (gSource(a)||'').localeCompare(gSource(b)||'');
+      case 'created': {
+        const ta = new Date(gCreated(a)||0).getTime();
+        const tb = new Date(gCreated(b)||0).getTime();
+        return dir * (ta - tb);
+      }
+      default: return 0;
+    }
+  });
+
+  return filtered;
 }
 
 function accSort(col) {
