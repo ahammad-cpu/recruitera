@@ -10047,10 +10047,10 @@ function switchMainView(view) {
     if (topbarTitle)  topbarTitle.innerHTML = `Sales Pipeline <span class="tb-badge" id="tb-record-count">${leads.length} leads</span>`;
     renderBoard(); kpis();
   } else if (view === 'accounts') {
-    if (boardView)    { boardView.style.display = 'none'; }
+    if (boardView)    { boardView.style.cssText = 'display:none;'; }
     if (insightsView) { insightsView.style.cssText = 'display:none;'; }
     if (accountsView) {
-      accountsView.style.cssText = 'display:flex;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
+      accountsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.add('active'); }
@@ -10059,10 +10059,10 @@ function switchMainView(view) {
     initAccountsFilters();
     requestAnimationFrame(() => renderAccountsTable());
   } else if (view === 'insights') {
-    if (boardView)    { boardView.style.display = 'none'; }
+    if (boardView)    { boardView.style.cssText = 'display:none;'; }
     if (accountsView) { accountsView.style.cssText = 'display:none;'; }
     if (insightsView) {
-      insightsView.style.cssText = 'display:flex;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;';
+      insightsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.remove('active'); }
