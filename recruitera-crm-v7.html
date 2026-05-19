@@ -9007,22 +9007,37 @@ async function submitAddLead() {
     // Build bubble_id as a temp unique id
     const tempBubbleId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
+    // Build raw_data to match the field names the loader expects
+    const rawData = {
+      'Company Name':   name,
+      'AM Mail':        amMail  || '',
+      'RC Mail':        rcMail  || '',
+      Source:           source  || '',
+      Campaign:         campaign|| '',
+      Medium:           medium  || '',
+      WP_Industry:      industry|| '',
+      WP_Company_Size:  size    || '',
+      Contact_Name:     cName   || '',
+      Contact_Email:    cEmail  || '',
+      Original_Creation_Date: new Date().toISOString(),
+    };
+
     const row = {
-      name,
-      stage,
-      source,
-      campaign,
-      medium,
-      am_mail:   amMail,
-      rc_mail:   rcMail,
-      industry,
-      size,
+      name,                    // kept for display fallback
+      stage:     stage || 'lead',
+      source:    source   || null,
+      campaign:  campaign || null,
+      medium:    medium   || null,
+      am_mail:   amMail   || null,
+      rc_mail:   rcMail   || null,
+      industry:  industry || null,
+      size:      size     || null,
       bubble_id: tempBubbleId,
-      raw_data:  {},
+      raw_data:  rawData,
     };
 
     // Insert account
-    const { data: newAccount, error: accErr } = await sb.from('accounts').insert(row);
+    const { error: accErr } = await sb.from('accounts').insert(row);
     if (accErr) throw new Error(accErr.message);
 
     // Get the new account id
@@ -9040,37 +9055,41 @@ async function submitAddLead() {
     if (cName || cEmail) {
       await sb.from('contacts').insert({
         account_id: accountId,
-        full_name:  cName,
-        email:      cEmail,
+        full_name:  cName  || null,
+        email:      cEmail || null,
+        job_title:  null,
         is_primary: true,
       });
     }
 
     // Log activity
-    const { data: { user } } = await sb.auth.getUser();
+    const { data: authData } = await sb.auth.getUser();
     await sb.from('activities').insert({
       account_id: accountId,
-      author_id:  user?.id || null,
+      author_id:  authData?.user?.id || null,
       type:       'note',
       text:       `Lead created manually: ${name}`,
     });
 
-    // Add to local leads array
+    // Add to local leads array immediately (matches loader field mapping)
     const newLead = {
       _id:          tempBubbleId,
       _supabase_id: accountId,
       name,
-      'Contact_Name': name,
-      'AM Mail':      amMail || '',
-      'RC Mail':      rcMail || '',
-      Source:         source || '',
-      Campaign:       campaign || '',
-      Medium:         medium || '',
-      WP_Industry:    industry || '',
-      WP_Company_Size:size || '',
-      _sb_stage:      stage,
-      _sb_is_disq:    false,
-      raw_data:       {},
+      'Company Name':   name,
+      'Contact_Name':   cName  || name,
+      'Contact_Email':  cEmail || '',
+      'AM Mail':        amMail || '',
+      'RC Mail':        rcMail || '',
+      Source:           source  || '',
+      Campaign:         campaign|| '',
+      Medium:           medium  || '',
+      WP_Industry:      industry|| '',
+      WP_Company_Size:  size    || '',
+      Original_Creation_Date: new Date().toISOString(),
+      _sb_stage:        stage || 'lead',
+      _sb_is_disq:      false,
+      raw_data:         rawData,
     };
     leads.unshift(newLead);
 
@@ -9256,6 +9275,19 @@ async function submitBulkUpload() {
         const stage = VALID_STAGES.includes((r.stage||'lead').toLowerCase()) ? (r.stage||'lead').toLowerCase() : 'lead';
         const tempId = 'bulk_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,6);
 
+        const bulkRawData = {
+          'Company Name':   r.company_name || '',
+          'AM Mail':        r.am_mail    || '',
+          'RC Mail':        r.rc_mail    || '',
+          Source:           r.source     || '',
+          Campaign:         r.campaign   || '',
+          Medium:           r.medium     || '',
+          WP_Industry:      r.industry   || '',
+          WP_Company_Size:  r.size       || '',
+          Contact_Name:     r.contact_name  || '',
+          Contact_Email:    r.contact_email || '',
+          Original_Creation_Date: new Date().toISOString(),
+        };
         const row = {
           name:      r.company_name,
           stage,
@@ -9267,7 +9299,7 @@ async function submitBulkUpload() {
           industry:  r.industry || null,
           size:      r.size     || null,
           bubble_id: tempId,
-          raw_data:  {},
+          raw_data:  bulkRawData,
         };
 
         const { error: accErr } = await sb.from('accounts').insert(row);
