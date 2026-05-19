@@ -7655,6 +7655,43 @@ function renderAccountsTable() {
   };
 }
 
+
+// ── ownerFromEmail: build display object from email/id string ──
+const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#06B6D4'];
+function ownerFromEmail(emailOrId){
+  if(!emailOrId)return{id:'?',name:'Unassigned',color:'#969BA1'};
+  const found=OWNERS.find(o=>o.id===emailOrId||o.id.toLowerCase()===emailOrId.toLowerCase());
+  if(found)return found;
+  const local=emailOrId.includes('@')?emailOrId.split('@')[0]:emailOrId;
+  const name=local.replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  const initials=local.split(/[._-]/).map(p=>p[0]||'').join('').slice(0,2).toUpperCase()||local.slice(0,2).toUpperCase();
+  let hash=0;for(let i=0;i<emailOrId.length;i++)hash=(hash*31+emailOrId.charCodeAt(i))>>>0;
+  return{id:initials,name,color:OWNER_COLORS[hash%OWNER_COLORS.length],email:emailOrId};
+}
+
+// ── accTabSwitch: switch between All / In pipeline / Paid / Prospects ──
+let accActiveTab = 'all';
+function accTabSwitch(btn){
+  accActiveTab = btn.dataset.filter || 'all';
+  document.querySelectorAll('.acc-tab').forEach(t => t.classList.toggle('active', t === btn));
+  renderAccountsTable();
+}
+
+// ── exportAccounts: CSV export ──
+function exportAccounts(){
+  const rows = accFilteredLeads();
+  const headers = ['Company','Status','ICP Score','Owner','Source','Created'];
+  const lines = rows.map(l => {
+    const stage = gStage(l._id);
+    const status = isLeadPaidCustomer(l) ? 'Paid' : ['lead','mql'].includes(stage) ? 'Prospect' : stage;
+    return [gName(l), status, calcIcpScore(l._id), gOwner(l._id), gSource(l)||'', gCreated(l)||''].join(',');
+  });
+  const csv = [headers.join(','), ...lines].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'accounts.csv'; a.click();
+}
+
 function renderAccStats(rows) {
   const bar = document.getElementById('acc-stats-bar');
   if (!bar) return;
