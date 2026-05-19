@@ -5181,6 +5181,20 @@ const gOwner=id=>{
   return CURRENT_USER.email||CURRENT_USER.id||'unknown';
 };
 const sOwner=(id,v)=>ls.s('owner_'+id,v);
+
+// Build a display-ready owner object from any email or id string
+const OWNER_COLORS=['#C8E60A','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#06B6D4'];
+function ownerFromEmail(emailOrId){
+  if(!emailOrId)return{id:'?',name:'Unassigned',color:'#969BA1'};
+  const found=OWNERS.find(o=>o.id===emailOrId||o.id.toLowerCase()===emailOrId.toLowerCase());
+  if(found)return found;
+  const local=emailOrId.includes('@')?emailOrId.split('@')[0]:emailOrId;
+  const name=local.replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  const initials=local.split(/[._-]/).map(p=>p[0]||'').join('').slice(0,2).toUpperCase()||local.slice(0,2).toUpperCase();
+  let hash=0;for(let i=0;i<emailOrId.length;i++)hash=(hash*31+emailOrId.charCodeAt(i))>>>0;
+  const color=OWNER_COLORS[hash%OWNER_COLORS.length];
+  return{id:initials,name,color,email:emailOrId};
+}
 const gLog=id=>ls.g('log_'+id)||[];
 const sLog=(id,v)=>ls.s('log_'+id,v);
 const gIcp=id=>ls.g('icp_'+id)||{};
