@@ -5195,7 +5195,7 @@ function fva(l,...keys){
   if(typeof v==='string'&&v.startsWith('["')){try{const a=JSON.parse(v);return Array.isArray(a)?a[0]:v;}catch{}}
   return v;
 }
-const gName=l=>fv(l,cfg.nameField,'Company Name','company_name','full_name','name','Name','company_name_lowercase')||'(Unnamed)';
+const gName=l=>fv(l,'Company Name',cfg.nameField,'company_name','company_name_lowercase','Name','name')||'(Unnamed)';
 // ── Exact Bubble field names (from raw fields panel) ──
 const gEmail=l=>fv(l,'Contact_Email','CONTACT_EMAIL','Contact Email','contact_email','email','Email')||'';
 const gPhone=l=>fv(l,'Contact_Mobile','CONTACT_MOBILE','Contact Phone','contact_phone','phone_number','phone')||'';
@@ -5223,7 +5223,7 @@ const gDescription=l=>fv(l,'WP_Description','Description','description','About',
 const gStatus=l=>fv(l,'Activation','activation','Status','status','Plan Status')||'';
 const gJobs=l=>fv(l,'Active Jobs Count','Active_Jobs_Count','active_jobs_count','Jobs Count')??'';
 const gTrialEnd=l=>fv(l,'Free Trial End Date','Free_Trial_End_Date','free_trial_end_date','Trial End')||'';
-const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created Date','created_date')||'';
+const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created_Date','Created Date','created_date')||'';
 const gInit=n=>n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'??';
 
 function trialStatus(lead){
@@ -5556,24 +5556,34 @@ async function sbFetch() {
   return allAccounts.map(acc => ({
     _id:              acc.bubble_id || acc.id,
     _supabase_id:     acc.id,
-    // Contact fields (from raw_data)
-    'Contact_Name':   acc.raw_data?.Contact_Name  || acc.name || '',
+    // ── Company name: raw_data['Company Name'] is the actual company field from Bubble
+    //    acc.name is set from Contact_Name by the edge function — don't use as company name
+    'Company Name':   acc.raw_data?.['Company Name']
+                   || acc.raw_data?.company_name
+                   || acc.raw_data?.company_name_lowercase
+                   || acc.name
+                   || '',
+    // ── Contact person fields (separate from company name)
+    'Contact_Name':   acc.raw_data?.Contact_Name  || '',
     'Contact_Email':  acc.raw_data?.Contact_Email || '',
     'Contact_Mobile': acc.raw_data?.Contact_Mobile || '',
-    // Company Name is the primary display field — fall back to domain, then contact name
-    'Company Name':   acc.raw_data?.['Company Name'] || (acc.domain ? acc.domain.split('.')[0] : '') || acc.raw_data?.Contact_Name || acc.name || '',
-    'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail'] || '',
-    'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail'] || '',
-    Source:           acc.source   || acc.raw_data?.Source || '',
+    // ── Attribution
+    'AM Mail':        acc.am_mail  || acc.raw_data?.['AM Mail']  || acc.raw_data?.AM_Mail  || '',
+    'RC Mail':        acc.rc_mail  || acc.raw_data?.['RC Mail']  || acc.raw_data?.RC_Mail  || '',
+    Source:           acc.source   || acc.raw_data?.Source  || '',
     Campaign:         acc.campaign || acc.raw_data?.Campaign || '',
     Medium:           acc.medium   || acc.raw_data?.Medium   || '',
+    // ── Company details
     WP_Industry:      acc.industry || acc.raw_data?.WP_Industry || '',
     WP_Company_Size:  acc.size     || acc.raw_data?.WP_Company_Size || '',
-    WP_Location:      acc.location || acc.raw_data?.WP_Location || '',
+    WP_Location:      acc.location || acc.raw_data?.WP_Location || acc.raw_data?.Location || '',
     WP_Vacancies:     acc.vacancies || acc.raw_data?.WP_Vacancies || '',
     WP_Company_Headcount: acc.raw_data?.WP_Company_Headcount || '',
     Company_Ref:      acc.raw_data?.Company_Ref || '',
-    Original_Creation_Date: acc.raw_data?.Original_Creation_Date || acc.created_at,
+    // ── Dates: prefer Bubble's Original_Creation_Date, fall back to Supabase created_at
+    Original_Creation_Date: acc.raw_data?.Original_Creation_Date
+                          || acc.raw_data?.['Created Date']
+                          || acc.created_at,
     Created_Date:     acc.created_at,
     Modified_Date:    acc.updated_at,
     // Pipeline state
