@@ -324,7 +324,7 @@ input,select,textarea{
 .btn-xs{padding:4px 9px;font-size:11.5px;font-weight:500;}
 
 /* CONTENT */
-.content{flex:1;overflow:hidden;padding:0;background:var(--bg);position:relative;display:flex;flex-direction:column;}
+.content{flex:1;overflow:visible;padding:0;background:var(--bg);position:relative;display:flex;flex-direction:column;}
 
 /* PAGE HEADER */
 .page-hdr{margin-bottom:22px;}
@@ -4356,11 +4356,28 @@ button { user-select: none; -webkit-user-select: none; }
     position: fixed;
     left: -240px;
     top: 0; bottom: 0;
+    width: 240px !important;
     z-index: 200;
     transition: left 240ms cubic-bezier(0.4,0,0.2,1);
     box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+    align-items: flex-start !important;
+    padding: 0 !important;
   }
   .sidebar.mobile-open { left: 0; }
+  .sidebar.mobile-open .sb-label { display: block !important; }
+  .sidebar.mobile-open .sb-brand-text { display: block !important; }
+  .sidebar.mobile-open .sb-nav { width: 100%; padding: 8px 12px; }
+  .sidebar.mobile-open .sb-item { 
+    width: 100%; 
+    justify-content: flex-start !important; 
+    padding: 10px 16px !important; 
+    gap: 12px !important;
+    border-radius: 10px !important;
+  }
+  .sidebar.mobile-open .sb-section-label { display: block !important; padding-left: 16px !important; }
+  .sidebar.mobile-open .sb-badge { display: inline-flex !important; }
+  .sidebar.mobile-open .sb-user { width: 100%; padding: 12px 16px; justify-content: flex-start !important; gap: 12px !important; }
+  .sidebar.mobile-open .sb-user-info { display: flex !important; }
   .sidebar-backdrop {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.5);
@@ -7070,7 +7087,7 @@ body .ld-tab-content {
       
 
 <!-- Board view (hidden when lead detail is open) -->
-      <div id="board-view" style="flex:1;overflow:auto;padding:20px 24px 32px;">
+      <div id="board-view" style="display:none;flex:1;overflow:auto;padding:20px 24px 32px;">
       <div class="pipeline-tabs">
         <div class="pipeline-tab active" id="tab-qualified" onclick="switchPipelineTab('qualified')">
           Qualified
@@ -7144,7 +7161,7 @@ body .ld-tab-content {
   
 
   <!-- ─── ACCOUNTS VIEW ─── -->
-  <div id="accounts-view" style="display:none;flex-direction:column;flex:1;min-height:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;">
+  <div id="accounts-view" style="display:none;flex-direction:column;position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;overflow-x:hidden;">
 
     <!-- Page header: title + subtitle + actions -->
     <div class="acc-page-header">
@@ -7244,7 +7261,7 @@ body .ld-tab-content {
 
 
   <!-- ─── INSIGHTS VIEW ─── -->
-  <div id="insights-view" style="display:none;flex-direction:column;flex:1;min-height:0;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;">
+  <div id="insights-view" style="display:none;flex-direction:column;position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;padding:20px 24px 40px;">
     <div style="max-width:1200px;margin:0 auto;width:100%;">
       <h2 style="font-size:20px;font-weight:500;letter-spacing:-0.02em;margin:0 0 4px;color:var(--text);">Insights</h2>
       <p style="font-size:13px;color:var(--text-3);margin:0 0 20px;">Forecast, win/loss analysis, journey, and team activity</p>
@@ -8759,14 +8776,7 @@ function renderLdHero(lead){
             ${sourceStr?`<span style="display:inline-flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>${esc(sourceStr)}${mediumStr?` · ${esc(mediumStr)}`:''}${campaignStr?` · ${esc(campaignStr)}`:''}</span>`:''}
           </div>
         </div>
-        <div class="ld-hero-actions" style="display:flex;gap:8px;flex-shrink:0;">
-          <button class="ld-action-btn" onclick="ldQuickLog('call')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .93h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>Call</button>
-          <button class="ld-action-btn" onclick="openEmailModal('${id}')" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</button>
-          ${isPreDeal
-            ?`<button class="ld-action-btn" onclick="openDealModal('${id}')" style="background:var(--cg-900);border:1px solid var(--cg-900);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>Make Deal</button>`
-            :`<button class="ld-action-btn" onclick="openDisqModal()" style="background:var(--cg-900);border:1px solid var(--cg-900);color:#fff;padding:8px 10px;border-radius:8px;display:inline-flex;align-items:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>`
-          }
-        </div>
+
       </div>
 
       <!-- 7-cell stat strip — Customer-Detail style -->
@@ -9176,7 +9186,7 @@ function renderLdRight(lead){
         </div>
         <button onclick="ldAddTag('${id}')" style="font-size:10px;font-weight:600;padding:3px 8px;background:transparent;border:1px dashed var(--border-2);border-radius:6px;color:var(--text-3);cursor:pointer;font-family:inherit;">+ Add</button>
       </div>
-      <div id="ld-tags-panel" style="display:flex;flex-wrap:wrap;gap:6px;">\${renderLdTags(id)}</div>
+      <div id="ld-tags-panel" style="display:flex;flex-wrap:wrap;gap:6px;">${renderLdTags(id)}</div>
     </div>
 
     <div class="ld-panel-card">
@@ -10050,7 +10060,7 @@ function switchMainView(view) {
   if (insightsView) insightsView.style.display = 'none';
 
   if (view === 'pipeline') {
-    if (boardView)    { boardView.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;'; }
+    if (boardView)    { boardView.style.cssText = 'display:flex;flex:1;overflow:auto;padding:20px 24px 32px;'; }
     if (accountsView) { accountsView.style.cssText = 'display:none;'; }
     if (insightsView) { insightsView.style.cssText = 'display:none;'; }
     if (pipelineItem) { pipelineItem.classList.add('active'); }
@@ -10062,7 +10072,7 @@ function switchMainView(view) {
     if (boardView)    { boardView.style.display = 'none'; }
     if (insightsView) { insightsView.style.cssText = 'display:none;'; }
     if (accountsView) {
-      accountsView.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
+      accountsView.style.cssText = 'display:flex;flex-direction:column;position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;overflow-x:hidden;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.add('active'); }
@@ -10074,7 +10084,7 @@ function switchMainView(view) {
     if (boardView)    { boardView.style.display = 'none'; }
     if (accountsView) { accountsView.style.cssText = 'display:none;'; }
     if (insightsView) {
-      insightsView.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;';
+      insightsView.style.cssText = 'display:flex;flex-direction:column;position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:5;overflow-y:auto;padding:20px 24px 40px;';
     }
     if (pipelineItem) { pipelineItem.classList.remove('active'); }
     if (accountsItem) { accountsItem.classList.remove('active'); }
