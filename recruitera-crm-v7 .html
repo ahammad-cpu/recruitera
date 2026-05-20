@@ -8792,14 +8792,13 @@ function renderLdHero(lead){
           ${logoSrc?logoHtml:initials}
         </div>
         <div class="ld-hero-info" style="flex:1;min-width:0;">
-          <div class="ld-hero-name" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:22px;font-weight:700;letter-spacing:-0.022em;color:var(--text);line-height:1.15;">
+          <div class="ld-hero-name" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:26px;font-weight:700;letter-spacing:-0.024em;color:var(--text);line-height:1.15;">
             ${esc(name)}
             <span class="ld-hero-stage-pill" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:${stageObj.color}1f;color:${stageObj.color};border:1px solid ${stageObj.color}44;">
               <span style="width:6px;height:6px;border-radius:50%;background:${stageObj.color};"></span>${stageObj.name}
             </span>
             <span class="hs-stage-badge" style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface-2);color:var(--text-3);padding:3px 8px;border-radius:999px;border:1px solid var(--border);">LEAD</span>
             ${eLocation?`<span class="hs-meta-pill" style="font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">🌐 ${esc(eLocation)}</span>`:''}
-            ${eIndustry?`<span class="hs-meta-pill" style="font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">${esc(eIndustry)}</span>`:''}
             ${isDisq?`<span class="ld-chip bad" style="font-size:10px;">Disqualified</span>`:''}
             ${paidCustomerBadge(lead)}
           </div>
@@ -8859,24 +8858,6 @@ function renderLdHero(lead){
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${campaignStr?esc(campaignStr):mediumStr?esc(mediumStr):'attribution'}</div>
         </div>
       </div>
-      ${(()=>{
-        const _sv=gSource(lead)||'';
-        const _med=lead.medium||lead.medium_manual||contact.medium||'';
-        const _cam=lead.campaign||contact.campaign||'';
-        const _ftRaw=lead.raw_data?.First_Touch_Date||contact.first_touch||'';
-        const _ftStr=_ftRaw?new Date(_ftRaw).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
-        const _rcm=lead.am_mail||contact.rc_mail||'';
-        const _amm=contact.am_mail||lead.raw_data?.AM_Mail||'';
-        if(!_sv&&!_med&&!_cam&&!_ftStr&&!_rcm&&!_amm)return '';
-        return `<div style="display:flex;flex-wrap:wrap;gap:20px;border-top:1px solid var(--border);padding:14px 0 0;margin-top:18px;">
-          ${_sv?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Source</div><span style="font-size:12px;font-weight:500;padding:2px 9px;border-radius:20px;background:#E3ECF7;color:#2C5BA8;border:1px solid #B5D4F4;">${esc(_sv)}</span></div>`:''}
-          ${_med?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Medium</div><span style="font-size:12px;font-weight:500;color:var(--text);font-family:'DM Mono',monospace;">${esc(_med)}</span></div>`:''}
-          ${_cam?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Campaign</div><span style="font-size:12px;font-weight:500;color:var(--text);font-family:'DM Mono',monospace;">${esc(_cam)}</span></div>`:''}
-          ${_ftStr?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">First Touch</div><span style="font-size:12px;font-weight:500;color:var(--text);">${esc(_ftStr)}</span></div>`:''}
-          ${_rcm?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">RC Mail</div><a href="mailto:${esc(_rcm)}" style="font-size:12px;font-weight:500;color:var(--info);text-decoration:none;">${esc(_rcm)}</a></div>`:''}
-          ${_amm?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">AM Mail</div><a href="mailto:${esc(_amm)}" style="font-size:12px;font-weight:500;color:var(--info);text-decoration:none;">${esc(_amm)}</a></div>`:''}
-        </div>`;
-      })()}
       </div>`;
 } catch(e) { console.error('[renderLdHero] ERROR:', e); }
 }
