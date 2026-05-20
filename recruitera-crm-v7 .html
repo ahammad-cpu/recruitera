@@ -9184,27 +9184,24 @@ function renderLdRight(lead){
     </div>
 
     <div class="ld-panel-card">
-      <div class="ld-panel-head">
-        <div class="ld-panel-title">
-          🏢
-          Company Details
+      <div class="ld-panel-head" style="background:transparent;border-bottom:none;padding-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+        <div class="ld-panel-title" style="color:var(--text-3);font-weight:700;letter-spacing:0.08em;">
+          <span style="font-size:14px;">🏢</span>
+          COMPANY DETAILS
         </div>
-        ${(contact.industry_detected||cached)?`<span style="font-size:10px;font-weight:500;padding:2px 6px;border-radius:4px;background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);">Auto</span>`:''}
+        ${(contact.industry_detected||cached)?`<span style="font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:transparent;color:var(--ok);border:1px solid var(--ok);letter-spacing:0.08em;text-transform:uppercase;">Auto</span>`:''}
       </div>
-      <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:7px;">
+      <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:0;padding-top:6px;">
         ${[
-          {id:'cf-industry', lbl:'INDUSTRY', val:eIndustry, ph:'e.g. Construction'},
-          {id:'cf-size',     lbl:'SIZE',     val:eSize,     ph:'e.g. 51–200 employees'},
-          {id:'cf-location', lbl:'LOCATION', val:eLocation, ph:'e.g. Cairo, Egypt'},
-          {id:'cf-vacancies',lbl:'VACANCIES (12mo)',val:eVac,ph:'e.g. 50–100 roles'},
-        ].map(f=>`<div style="display:flex;flex-direction:column;gap:3px;">
-          <div style="font-size:10px;font-weight:500;letter-spacing:0.07em;color:var(--text-4);">${f.lbl}</div>
-          <input id="${f.id}" style="height:32px;padding:0 10px;border:1px solid var(--border-2);border-radius:8px;font-size:12.5px;font-family:inherit;background:#F7F6F3;color:#1C2333;" value="${esc(f.val)}" placeholder="${f.ph}" />
+          {id:'cf-industry', lbl:'INDUSTRY',         val:eIndustry, ph:'e.g. Construction'},
+          {id:'cf-size',     lbl:'SIZE',             val:eSize,     ph:'e.g. 51–200 employees'},
+          {id:'cf-location', lbl:'LOCATION',         val:eLocation, ph:'e.g. Cairo, Egypt'},
+          {id:'cf-vacancies',lbl:'VACANCIES (12mo)', val:eVac,      ph:'e.g. 50–100 roles'},
+        ].map((f,i,arr)=>`<div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border);':''}">
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;color:var(--text-3);text-transform:uppercase;">${f.lbl}</div>
+          <input id="${f.id}" onblur="saveContactCompany()" style="height:28px;padding:0;border:none;background:transparent;font-size:14px;font-weight:500;font-family:inherit;color:var(--text);outline:none;width:100%;" value="${esc(f.val)}" placeholder="${f.ph}" />
         </div>`).join('')}
-        ${eDesc?`<div style="font-size:12px;color:var(--text-3);line-height:1.55;padding:6px 0;">${esc(eDesc.slice(0,160))}${eDesc.length>160?'…':''}</div>`:''}
-        <button onclick="saveContactCompany()" style="padding:8px;background:var(--cg-900);color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Save changes
-        </button>
+        ${eDesc?`<div style="font-size:12px;color:var(--text-3);line-height:1.55;padding:10px 0 0;border-top:1px solid var(--border);margin-top:0;">${esc(eDesc.slice(0,160))}${eDesc.length>160?'…':''}</div>`:''}
       </div>
     </div>
 
