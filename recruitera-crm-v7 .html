@@ -8617,15 +8617,19 @@ function navigateLead(dir){
   const idx=fl.findIndex(l=>l._id===curId);
   const next=fl[idx+dir];
   if(!next)return;
-  // Animate out then in
-  const modal=document.getElementById('hs-modal');
-  modal.style.transition='opacity 100ms';
-  modal.style.opacity='0.4';
-  setTimeout(()=>{
-    openDrawer(next._id);
-    modal.style.opacity='1';
-    setTimeout(()=>modal.style.transition='',120);
-  },100);
+  const page=document.getElementById('lead-page');
+  const target=page||document.getElementById('hs-modal');
+  if(target){
+    target.style.transition='opacity 100ms';
+    target.style.opacity='0.4';
+    setTimeout(()=>{
+      openDrawer(next._id, drawerOpenedFrom);
+      target.style.opacity='1';
+      setTimeout(()=>{target.style.transition='';},120);
+    },100);
+  } else {
+    openDrawer(next._id, drawerOpenedFrom);
+  }
 }
 
 let drawerOpenedFrom='pipeline';
