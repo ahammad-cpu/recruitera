@@ -6601,6 +6601,61 @@ body .ld-tab-content {
   border-color: var(--border) !important;
 }
 
+/* ─── DASHBOARD — DARK MODE FIXES ─── */
+[data-theme="dark"] #dashboard-view .dsh-card,
+[data-theme="dark"] #dashboard-view .dsh-kpi {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] #dashboard-view .dsh-hero {
+  background: linear-gradient(135deg, #1F2840 0%, #2B345A 100%) !important;
+  border: 1px solid var(--border) !important;
+}
+/* Brighten purple — the original navy is invisible on dark surfaces */
+[data-theme="dark"] #dashboard-view .dsh-kpi.purple { border-top-color: #8B7CE6 !important; }
+[data-theme="dark"] #dashboard-view svg [stroke="#392396"],
+[data-theme="dark"] #dashboard-view svg path[stroke="#392396"] { stroke: #8B7CE6 !important; }
+[data-theme="dark"] #dashboard-view svg path[fill="#392396"] { fill: #8B7CE6 !important; }
+/* Chart grid lines — light hex stays light, swap to border color */
+[data-theme="dark"] #dashboard-view svg line[stroke="#EAEBEC"] { stroke: var(--border) !important; }
+/* Axis labels stay readable */
+[data-theme="dark"] #dashboard-view svg text[fill="#81878E"] { fill: var(--text-3) !important; }
+/* Funnel rows: use dark surface-2 instead of light grey */
+[data-theme="dark"] #dashboard-view .dsh-funnel-row {
+  background: var(--surface-2) !important;
+}
+[data-theme="dark"] #dashboard-view .dsh-funnel-stage,
+[data-theme="dark"] #dashboard-view .dsh-funnel-count { color: var(--text) !important; }
+[data-theme="dark"] #dashboard-view .dsh-funnel-conv { color: var(--text-3) !important; }
+/* Source bars: bump cg-900 (would blend with bg) and purple */
+[data-theme="dark"] #dashboard-view .dsh-bar { background: var(--surface-2) !important; }
+[data-theme="dark"] #dashboard-view .dsh-bar i[style*="var(--cg-900)"] { background: var(--text-2) !important; }
+[data-theme="dark"] #dashboard-view .dsh-bar i[style*="var(--purple-700)"] { background: #8B7CE6 !important; }
+/* Filter bar inputs/selects */
+[data-theme="dark"] #dashboard-view select {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+/* KPI label / value contrast */
+[data-theme="dark"] #dashboard-view .dsh-kpi .lbl { color: var(--text-3) !important; }
+[data-theme="dark"] #dashboard-view .dsh-kpi .val { color: var(--text) !important; }
+[data-theme="dark"] #dashboard-view .dsh-kpi .sub { color: var(--text-3) !important; }
+[data-theme="dark"] #dashboard-view .dsh-kpi.ok .val { color: #4DAA7A !important; }
+[data-theme="dark"] #dashboard-view .dsh-kpi.bad .val { color: #D46060 !important; }
+/* Section titles + page header */
+[data-theme="dark"] #dashboard-view .dsh-sec-title,
+[data-theme="dark"] #dashboard-view .dsh-sub { color: var(--text-3) !important; }
+[data-theme="dark"] #dashboard-view .dsh-title { color: var(--text) !important; }
+/* Time-range toggle group */
+[data-theme="dark"] #dashboard-view .dsh-card button[onclick*="dshSetRange"] {
+  color: var(--text-3) !important;
+}
+[data-theme="dark"] #dashboard-view .dsh-card button[style*="background:var(--cg-900)"] {
+  background: #CCED59 !important;
+  color: #1A2230 !important;
+}
+
 /* Tabs row */
 [data-theme="dark"] body .ld-tab-bar { border-bottom-color: var(--border) !important; }
 [data-theme="dark"] body .ld-tab { color: var(--text-3) !important; }
