@@ -7152,6 +7152,7 @@ body .ld-tab-content {
               <button class="ld-tab active" data-tab="activity" onclick="ldSwitchTab(this)">Activity</button>
               <button class="ld-tab" data-tab="notes" onclick="ldSwitchTab(this)">Notes</button>
               <button class="ld-tab" data-tab="tasks" onclick="ldSwitchTab(this)">Tasks</button>
+              <button class="ld-tab" data-tab="contacts" onclick="ldSwitchTab(this)">Contacts</button>
             </div>
             <!-- Center: tab content -->
             <div class="ld-center">
@@ -7251,10 +7252,6 @@ body .ld-tab-content {
         <button class="acc-add-btn" onclick="openAddLeadModal()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
           Add account
-        </button>
-        <button onclick="openMergeModal()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:0.5px solid rgba(239,68,68,0.30);background:#FFFFFF;color:#B83A3A;font-size:13px;font-weight:400;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all 110ms;" onmouseover="this.style.background='#FCEBEB'" onmouseout="this.style.background='#FFFFFF'">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20L4 4M4 20L20 4"/></svg>
-          Merge duplicates
         </button>
       </div>
     </div>
@@ -8196,6 +8193,8 @@ function init(){
   const sbAcc=document.getElementById('sb-acc-count');
   if(sbAcc)sbAcc.textContent=leads.length;
   setTimeout(autoEnrichAll,800);
+  // Auto-merge duplicate accounts (silently, after data settles)
+  setTimeout(() => { try { autoMergeAll(); } catch(e) { console.error('autoMerge failed', e); } }, 1500);
   // Boot into Dashboard view
   switchMainView('dashboard');
 }
@@ -8734,13 +8733,43 @@ function ldSwitchTab(el){
 }
 function updateLdTabCounts(lead){
   const id=lead._id;const logs=gLog(id);
-  const counts={activity:logs.length,notes:logs.filter(l=>l.type==='note').length,tasks:logs.filter(l=>l.type==='task').length};
+  const merged=gMergedContacts(id);
+  const primary=gContact(id);
+  const primaryHas=!!(primary.full_name||gContactName(lead)||primary.email||gEmail(lead));
+  const contactsCount=(primaryHas?1:0)+merged.length;
+  const counts={activity:logs.length,notes:logs.filter(l=>l.type==='note').length,tasks:logs.filter(l=>l.type==='task').length,contacts:contactsCount};
   document.querySelectorAll('.ld-tab').forEach(t=>{
     const tab=t.dataset.tab;const cnt=counts[tab];
     const existing=t.querySelector('.ld-tab-cnt');
     if(cnt>0){if(existing)existing.textContent=cnt;else t.innerHTML+=`<span class="ld-tab-cnt">${cnt}</span>`;}
     else if(existing)existing.remove();
   });
+}
+// Merged-contact helpers (localStorage-backed)
+function gMergedContacts(id){
+  try{return JSON.parse(localStorage.getItem('rcrm_merged_contacts_'+id)||'[]');}catch{return[];}
+}
+function sMergedContacts(id,arr){
+  try{localStorage.setItem('rcrm_merged_contacts_'+id,JSON.stringify(arr));}catch{}
+}
+function addMergedContact(primaryId, fromLead, domain){
+  const c=gContact(fromLead._id);
+  const name=c.full_name||gContactName(fromLead)||gName(fromLead);
+  const email=c.email||gEmail(fromLead)||'';
+  if(!name && !email) return;
+  const arr=gMergedContacts(primaryId);
+  // Avoid duplicates within merged list
+  if(arr.find(x=>(x.email&&x.email===email)||(x.name===name&&x.title===(c.job_title||gJobTitle(fromLead)||''))))return;
+  arr.push({
+    name,
+    title:c.job_title||gJobTitle(fromLead)||'',
+    email,
+    phone:c.phone||gPhone(fromLead)||'',
+    from_lead:gName(fromLead),
+    from_domain:domain||'',
+    merged_at:new Date().toISOString()
+  });
+  sMergedContacts(primaryId,arr);
 }
 
 function renderLdStepper(lead){
@@ -8929,6 +8958,56 @@ function renderLdTabContent(tab,lead){
   if(tab==='activity') renderLdActivity(lead,el);
   else if(tab==='notes') renderLdNotes(lead,el);
   else if(tab==='tasks') renderLdTasks(lead,el);
+  else if(tab==='contacts') renderLdContacts(lead,el);
+}
+
+function renderLdContacts(lead,el){
+  const id=lead._id;
+  const primary=gContact(id);
+  const pName=primary.full_name||gContactName(lead)||'';
+  const pTitle=primary.job_title||gJobTitle(lead)||'';
+  const pEmail=primary.email||gEmail(lead)||'';
+  const pPhone=primary.phone||gPhone(lead)||'';
+  const rows=[];
+  if(pName||pEmail){
+    rows.push({name:pName||'(no name)',title:pTitle,email:pEmail,phone:pPhone,isPrimary:true,lastTs:Date.now(),from:''});
+  }
+  gMergedContacts(id).forEach(c=>rows.push({
+    name:c.name,title:c.title||'',email:c.email||'',phone:c.phone||'',
+    isPrimary:false,lastTs:new Date(c.merged_at).getTime()||0,from:c.from_lead||''
+  }));
+  if(!rows.length){
+    el.innerHTML=`<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">👥</div><div>No contacts yet</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">Contacts you add here or pull in from merged duplicates will appear here</div></div>`;
+    return;
+  }
+  const initOf=n=>(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'?';
+  el.innerHTML=`<div class="ld-panel-card" style="padding:0;overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Name</th>
+          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Role</th>
+          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Email</th>
+          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Last touched</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r=>`<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:14px 18px;font-size:13px;font-weight:500;vertical-align:middle;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:30px;height:30px;border-radius:50%;background:${r.isPrimary?'var(--cg-900)':'var(--surface-2)'};color:${r.isPrimary?'var(--lime-700)':'var(--text-2)'};display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initOf(r.name)}</div>
+              <span style="color:var(--text);">${esc(r.name)}</span>
+              ${r.isPrimary?`<span style="font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--lime-200);color:#4F5E1B;font-weight:700;letter-spacing:0.04em;">Champion</span>`:''}
+              ${r.from?`<span style="font-size:10px;color:var(--text-4);font-style:italic;">via ${esc(r.from)}</span>`:''}
+            </div>
+          </td>
+          <td style="padding:14px 18px;font-size:13px;color:var(--text-2);vertical-align:middle;">${esc(r.title||'—')}</td>
+          <td style="padding:14px 18px;font-size:13px;vertical-align:middle;">${r.email?`<a href="mailto:${esc(r.email)}" style="color:var(--info);text-decoration:none;">${esc(r.email)}</a>`:'<span style="color:var(--text-4);">—</span>'}</td>
+          <td style="padding:14px 18px;font-size:13px;color:var(--text-3);vertical-align:middle;">${r.lastTs?fmtT(r.lastTs):'—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 
@@ -12450,6 +12529,107 @@ function buildMergeGroups() {
         calcIcpScore(l._id) > calcIcpScore(best._id) ? l : best, arr[0])._id
     }))
     .sort((a, b) => b.leads.length - a.leads.length);
+}
+
+// ─── AUTO-MERGE ────────────────────────────────────────
+// Runs after data loads. Groups leads by domain, picks the
+// highest-ICP record as the primary, moves child rows on the
+// other duplicates over, then deletes the duplicate accounts.
+// Also stashes the merged contact info to localStorage so the
+// new "Contacts" tab can list everyone.
+let _autoMergeRan = false;
+async function autoMergeAll() {
+  if (_autoMergeRan) return;
+  _autoMergeRan = true;
+  const groups = buildMergeGroups();
+  if (!groups.length) return;
+  console.log('[auto-merge] processing', groups.length, 'duplicate group(s)');
+  const sb = window._sbClient;
+  let merged = 0;
+
+  for (const group of groups) {
+    const primaryId = group.defaultPrimary;
+    const primaryLead = group.leads.find(l => l._id === primaryId);
+    if (!primaryLead) continue;
+    const duplicates = group.leads.filter(l => l._id !== primaryId);
+
+    for (const dup of duplicates) {
+      try {
+        // 1) Preserve dup's contact info on the primary BEFORE we delete it
+        addMergedContact(primaryId, dup, group.domain);
+
+        // 2) Re-parent + delete in Supabase
+        if (sb) {
+          let primarySbId = primaryLead._supabase_id;
+          let dupSbId     = dup._supabase_id;
+          if (!primarySbId) {
+            const { data: pa } = await sb.from('accounts').select('id').eq('bubble_id', primaryLead._id).single();
+            primarySbId = pa?.id;
+          }
+          if (!dupSbId) {
+            const { data: da } = await sb.from('accounts').select('id').eq('bubble_id', dup._id).single();
+            dupSbId = da?.id;
+          }
+          if (dupSbId && primarySbId) {
+            await sb.from('activities')   .update({ account_id: primarySbId }).eq('account_id', dupSbId);
+            await sb.from('contacts')     .update({ account_id: primarySbId, is_primary: false }).eq('account_id', dupSbId);
+            await sb.from('files')        .update({ account_id: primarySbId }).eq('account_id', dupSbId);
+            await sb.from('stage_history').update({ account_id: primarySbId }).eq('account_id', dupSbId);
+
+            const { data: { user } } = await sb.auth.getUser();
+            await sb.from('activities').insert({
+              account_id: primarySbId,
+              author_id:  user?.id || null,
+              type:       'note',
+              text:       'Auto-merged duplicate: ' + gName(dup) + ' (' + group.domain + ')',
+            });
+
+            // Fill missing fields on primary from duplicate
+            const updates = {};
+            const { data: keeper } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', primarySbId).single();
+            const { data: dupRow  } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', dupSbId).single();
+            if (keeper && dupRow) {
+              if (!keeper.am_mail    && dupRow.am_mail)    updates.am_mail    = dupRow.am_mail;
+              if (!keeper.source     && dupRow.source)     updates.source     = dupRow.source;
+              if (!keeper.campaign   && dupRow.campaign)   updates.campaign   = dupRow.campaign;
+              if (!keeper.medium     && dupRow.medium)     updates.medium     = dupRow.medium;
+              if (!keeper.deal_value && dupRow.deal_value) updates.deal_value = dupRow.deal_value;
+            }
+            if (Object.keys(updates).length) await sb.from('accounts').update(updates).eq('id', primarySbId);
+
+            await sb.from('accounts').delete().eq('id', dupSbId);
+          }
+        }
+
+        // 3) Merge localStorage logs
+        const dupLogs = gLog(dup._id);
+        if (dupLogs.length > 0) {
+          const combined = [...gLog(primaryId), ...dupLogs.map(l => ({...l, text: '[from ' + gName(dup) + '] ' + l.text}))];
+          combined.sort((a,b) => b.ts - a.ts);
+          sLog(primaryId, combined);
+        }
+
+        // 4) Drop dup from in-memory leads
+        const dupIdx = leads.findIndex(l => l._id === dup._id);
+        if (dupIdx >= 0) leads.splice(dupIdx, 1);
+
+        merged++;
+      } catch (e) {
+        console.error('[auto-merge] error for', group.domain, e);
+      }
+    }
+  }
+
+  if (merged > 0) {
+    console.log('[auto-merge] merged', merged, 'duplicate(s)');
+    try { showToast && showToast('Auto-merged ' + merged + ' duplicate' + (merged===1?'':'s'), 'info'); } catch {}
+    try { renderBoard && renderBoard(); } catch {}
+    try { renderAccountsTable && renderAccountsTable(); } catch {}
+    try {
+      const dashView = document.getElementById('dashboard-view');
+      if (dashView && dashView.style.display !== 'none') renderDashboard && renderDashboard();
+    } catch {}
+  }
 }
 
 function openMergeModal() {
