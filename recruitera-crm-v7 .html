@@ -7513,8 +7513,8 @@ const STAGES=[
   {id:'won',      name:'Deal Won',      color:'#2F8F5C'},
   {id:'lost',     name:'Deal Lost',     color:'#B83A3A'},
 ];
-// Kanban shows only deal stages (SQL onwards) — Lead & MQL live in Accounts table
-const KANBAN_STAGES = STAGES.filter(s => !['lead','mql'].includes(s.id));
+// Kanban shows MQL onwards — pure Leads (untouched) stay in Accounts table
+const KANBAN_STAGES = STAGES.filter(s => s.id !== 'lead');
 
 // ─── ICP CRITERIA ─────────────────────────────────────
 const ICP_CRITERIA=[
@@ -8251,8 +8251,8 @@ function filtered(){
     if(!hasRealData(l)) return false;
     if(showingDisqualified) return !!gDisq(l._id);
     if(gDisq(l._id)) return false;
-    // Lead & MQL live in Accounts table, not kanban
-    if(['lead','mql'].includes(gStage(l._id))) return false;
+    // Pure Lead stage stays in Accounts table; MQL onwards lives in kanban
+    if(gStage(l._id)==='lead') return false;
     if(q){
       const t=`${gName(l)} ${gEmail(l)} ${gIndustry(l)} ${gSource(l)} ${gContact(l._id).enriched_name||''}`.toLowerCase();
       if(!t.includes(q))return false;
@@ -10153,9 +10153,9 @@ function accFilteredLeads() {
     if (gDisq(id)) return false;
 
     // Tab filter
-    if (accActiveTab === 'deal' && ['lead','mql'].includes(gStage(id))) return false;
+    if (accActiveTab === 'deal' && gStage(id)==='lead') return false;
     if (accActiveTab === 'paid' && !isLeadPaidCustomer(lead)) return false;
-    if (accActiveTab === 'prospect' && !['lead','mql'].includes(gStage(id))) return false;
+    if (accActiveTab === 'prospect' && !gStage(id)==='lead') return false;
 
     if (q) {
       const name    = gName(lead).toLowerCase();
@@ -10241,9 +10241,9 @@ function renderAccountsTable() {
 
   // Update tab counts
   const all   = leads.filter(l => hasRealData(l) && !gDisq(l._id));
-  const inDeal = all.filter(l => !['lead','mql'].includes(gStage(l._id)));
+  const inDeal = all.filter(l => !gStage(l._id)==='lead');
   const paid  = all.filter(l => isLeadPaidCustomer(l));
-  const prosp = all.filter(l => ['lead','mql'].includes(gStage(l._id)));
+  const prosp = all.filter(l => gStage(l._id)==='lead');
   const el_all  = document.getElementById('acc-tab-all-count');
   const el_deal = document.getElementById('acc-tab-deal-count');
   const el_paid = document.getElementById('acc-tab-paid-count');
@@ -10340,7 +10340,7 @@ function renderAccStats(rows) {
   const bar = document.getElementById('acc-stats-bar');
   if (!bar) return;
   const total  = rows.length;
-  const inDeal = rows.filter(l => !['lead','mql'].includes(gStage(l._id))).length;
+  const inDeal = rows.filter(l => !gStage(l._id)==='lead').length;
   const scored = rows.filter(l => Object.keys(gIcp(l._id)).length > 0);
   const avgIcp = scored.length
     ? Math.round(scored.reduce((s,l) => s + calcIcpScore(l._id), 0) / scored.length)
