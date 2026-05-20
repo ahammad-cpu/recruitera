@@ -9035,7 +9035,7 @@ function renderLdHero(lead){
   const eIndustry=contact.industry_manual||contact.industry_detected||(domain?enrichCache[domain]?.industry:'')||gIndustry(lead)||'';
   const eLocation=contact.location_manual||contact.location_detected||(domain?enrichCache[domain]?.location:'')||gRegion(lead)||'';
   const acv=gAcv(id);const closeDate=gClose(id);
-  const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
+  const owner=ownerFromEmail(gOwner(id));
   const ts=trialStatus(lead);
   // Use real paid_status from Supabase column
   const realPaidStatus = lead.paid_status || null;
@@ -9736,7 +9736,7 @@ function renderSnapBar(lead){
   const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
   const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
   const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
-  const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
+  const owner=ownerFromEmail(gOwner(id));
   const acv=gAcv(id);const closeDate=gClose(id);
   const editIcon=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const valEl=document.getElementById('snap-val-display');
@@ -9872,7 +9872,7 @@ function renderLeftKeyInfo(lead){
   const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
   const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
   const trialLabel=ts==='active'?'🟢 Active':ts==='expired'?'🔴 Expired':'No trial';
-  const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
+  const owner=ownerFromEmail(gOwner(id));
   const lostData=gLost(id);
 
   const body=document.getElementById('left-body-keyinfo');if(!body)return;
@@ -9922,7 +9922,7 @@ function renderCenterOverview(lead,body){
   const eFounded=contact.founded_detected||cached?.founded||'';
   const stageObj=STAGES.find(s=>s.id===gStage(id))||STAGES[0];
   const ts_=trialStatus(lead);
-  const owner=OWNERS.find(o=>o.id===gOwner(id))||OWNERS[0];
+  const owner=ownerFromEmail(gOwner(id));
   const icpScore=calcIcpScore(id);
   const icpG=icpGrade(icpScore);
   const hasIcp=Object.keys(gIcp(id)).length>0;
@@ -11042,7 +11042,7 @@ If you're ready to continue, I can send over the contract today.
 ];
 function renderEmailTemplate(tpl, lead) {
   const contact = gContact(lead._id);
-  const owner   = OWNERS.find(o => o.id === gOwner(lead._id)) || OWNERS[0];
+  const owner   = ownerFromEmail(gOwner(lead._id));
   const vars = {
     name:    (contact.full_name || gContactName(lead) || 'there').split(' ')[0],
     company: gName(lead),
