@@ -10481,10 +10481,10 @@ function accFilteredLeads() {
       if (gDisq(id)) return false;
     }
 
-    // Tab filter
-    if (accActiveTab === 'deal' && gStage(id) === 'lead') return false;
-    if (accActiveTab === 'paid' && !isLeadPaidCustomer(lead)) return false;
-    if (accActiveTab === 'prospect' && gStage(id) !== 'lead') return false;
+    // Tab filter — disjoint: Paid is paying customers (any stage); Prospects/In pipeline are non-paying split by stage
+    if (accActiveTab === 'paid'     && !isLeadPaidCustomer(lead)) return false;
+    if (accActiveTab === 'prospect' && (isLeadPaidCustomer(lead) || gStage(id) !== 'lead')) return false;
+    if (accActiveTab === 'deal'     && (isLeadPaidCustomer(lead) || gStage(id) === 'lead')) return false;
 
     if (q) {
       const name    = gName(lead).toLowerCase();
@@ -10576,12 +10576,13 @@ function renderAccountsTable() {
     }
   }
 
-  // Update tab counts (fixed !== precedence bug; added Disqualified)
+  // Tab counts — disjoint partition: All = Prospects + In pipeline + Paid
+  // Paid is paying customers (any stage). The other two are non-paying, split by stage.
   const realData = leads.filter(l => hasRealData(l));
   const all   = realData.filter(l => !gDisq(l._id));
-  const inDeal= all.filter(l => gStage(l._id) !== 'lead');
   const paid  = all.filter(l => isLeadPaidCustomer(l));
-  const prosp = all.filter(l => gStage(l._id) === 'lead');
+  const prosp = all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) === 'lead');
+  const inDeal= all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) !== 'lead');
   const disq  = realData.filter(l => !!gDisq(l._id));
   const el_all   = document.getElementById('acc-tab-all-count');
   const el_deal  = document.getElementById('acc-tab-deal-count');
