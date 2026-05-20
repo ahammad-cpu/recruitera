@@ -9166,22 +9166,21 @@ function renderLdRight(lead){
 
   el.innerHTML=`
     <div class="ld-panel-card">
-      <div class="ld-panel-head">
-        <div class="ld-panel-title">
-          👤
-          Contact Person
+      <div class="ld-panel-head" style="background:transparent;border-bottom:none;padding-bottom:4px;">
+        <div class="ld-panel-title" style="color:var(--text-3);font-weight:700;letter-spacing:0.08em;">
+          <span style="font-size:14px;">👤</span>
+          CONTACT PERSON
         </div>
-        <button onclick="ldSaveContact()" style="font-size:11px;font-weight:500;padding:4px 10px;background:var(--lime-700);color:#1A2230;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">Save</button>
       </div>
-      <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:7px;">
+      <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:0;padding-top:6px;">
         ${[
-          {id:'lcp-name',  lbl:'NAME',  val:cName,  ph:'Contact name'},
-          {id:'lcp-title', lbl:'TITLE', val:cTitle, ph:'HR Director, TA Manager…'},
-          {id:'lcp-email', lbl:'EMAIL', val:cEmail, ph:'name@company.com'},
-          {id:'lcp-phone', lbl:'PHONE', val:cPhone, ph:'+20 10 XXXX XXXX'},
-        ].map(f=>`<div style="display:flex;flex-direction:column;gap:3px;">
-          <div style="font-size:10px;font-weight:500;letter-spacing:0.07em;color:var(--text-4);">${f.lbl}</div>
-          <input id="${f.id}" style="height:32px;padding:0 10px;border:1px solid var(--border-2);border-radius:8px;font-size:12.5px;font-family:inherit;background:#F7F6F3;color:#1C2333;" value="${esc(f.val)}" placeholder="${f.ph}" />
+          {id:'lcp-name',  lbl:'NAME',  val:cName,  ph:'Contact name',                type:'text'},
+          {id:'lcp-title', lbl:'TITLE', val:cTitle, ph:'HR Director, TA Manager…',   type:'text'},
+          {id:'lcp-email', lbl:'EMAIL', val:cEmail, ph:'name@company.com',           type:'email'},
+          {id:'lcp-phone', lbl:'PHONE', val:cPhone, ph:'+20 10 XXXX XXXX',           type:'tel'},
+        ].map((f,i,arr)=>`<div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border);':''}">
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;color:var(--text-3);text-transform:uppercase;">${f.lbl}</div>
+          <input id="${f.id}" type="${f.type}" onblur="ldSaveContact()" style="height:28px;padding:0;border:none;background:transparent;font-size:14px;font-weight:500;font-family:inherit;color:${f.id==='lcp-email'&&f.val?'var(--info)':'var(--text)'};${f.id==='lcp-email'&&f.val?'text-decoration:underline;':''}outline:none;width:100%;" value="${esc(f.val)}" placeholder="${f.ph}" />
         </div>`).join('')}
       </div>
     </div>
