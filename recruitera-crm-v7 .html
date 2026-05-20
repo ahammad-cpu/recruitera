@@ -4953,13 +4953,19 @@ td, .metric-val, .ld-act-time {
 /* ════════════════════════════════════════════════════════════════
    SIDEBAR — match Recruitera dashboard (expanded with labels)
    ════════════════════════════════════════════════════════════════ */
-.sidebar,
-.sidebar.collapsed {
-  width: 232px !important;
+.sidebar {
+  width: 240px !important;
   padding: 20px 14px !important;
   align-items: stretch !important;
   background: var(--surface) !important;
   border-right: 1px solid var(--border) !important;
+  transition: width 240ms cubic-bezier(0.4,0,0.2,1) !important;
+  overflow: hidden !important;
+}
+.sidebar.collapsed {
+  width: 64px !important;
+  padding: 20px 8px !important;
+  align-items: center !important;
 }
 
 /* Brand block at top */
@@ -8416,7 +8422,10 @@ function ddr(e,sid){
 // ─── SIDEBAR COLLAPSE ─────────────────────────────────
 let sidebarCollapsed=false;
 function toggleSidebar(){
-  // Icon-rail sidebar — always 64px, no toggle
+  const sb=document.querySelector('.sidebar');
+  if(!sb)return;
+  const isCollapsed=sb.classList.toggle('collapsed');
+  localStorage.setItem('rcrm_sb_collapsed',isCollapsed?'1':'0');
 }
 (function(){
   try{if(localStorage.getItem('rcrm_sb_collapsed')==='1'){sidebarCollapsed=true;const sb=document.getElementById('sidebar');if(sb)sb.classList.add('collapsed');}}catch{}
@@ -8776,6 +8785,12 @@ function renderLdHero(lead){
             ${sourceStr?`<span style="display:inline-flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>${esc(sourceStr)}${mediumStr?` · ${esc(mediumStr)}`:''}${campaignStr?` · ${esc(campaignStr)}`:''}</span>`:''}
           </div>
         </div>
+        <div style="flex-shrink:0;align-self:flex-start;margin-top:4px;">
+          <button onclick="openDisqModal()" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid ${isDisq?'var(--purple-700)':'var(--border)'};border-radius:8px;background:${isDisq?'var(--purple-100)':'var(--surface-2)'};color:${isDisq?'var(--purple-700)':'var(--text-3)'};font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all 110ms;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            ${isDisq?'Restore':'Disqualify'}
+          </button>
+        </div>
 
       </div>
 
@@ -8786,14 +8801,14 @@ function renderLdHero(lead){
           <div style="font-size:18px;font-weight:700;letter-spacing:-0.018em;margin-top:6px;color:var(--text);">${stageObj.name}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">step ${Math.max(1,stageIdx+1)} of ${STAGES.length}</div>
         </div>
-        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapVal()">
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editStatVal()">
           <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Deal Value</div>
-          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);font-variant-numeric:tabular-nums;">${acvDisp}</div>
+          <div id="ld-stat-val" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);font-variant-numeric:tabular-nums;">${acvDisp}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">ACV potential</div>
         </div>
-        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapClose()">
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editStatClose()">
           <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Close Date</div>
-          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);">${closeDisp}</div>
+          <div id="ld-stat-close" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);">${closeDisp}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">expected</div>
         </div>
         <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapOwner()">
@@ -8809,9 +8824,9 @@ function renderLdHero(lead){
           <div style="margin-top:8px;">${trialHtml}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;">free trial</div>
         </div>
-        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);">
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editStatIndustry()">
           <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Industry</div>
-          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${eIndustry?esc(eIndustry):'—'}</div>
+          <div id="ld-stat-industry" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${eIndustry?esc(eIndustry):'—'}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${eLocation?esc(eLocation):'—'}</div>
         </div>
         <div class="ld-stat-cell" style="padding:0 0 0 18px;">
@@ -8820,6 +8835,24 @@ function renderLdHero(lead){
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${campaignStr?esc(campaignStr):mediumStr?esc(mediumStr):'attribution'}</div>
         </div>
       </div>
+      ${(()=>{
+        const _sv=gSource(lead)||'';
+        const _med=lead.medium||lead.medium_manual||contact.medium||'';
+        const _cam=lead.campaign||contact.campaign||'';
+        const _ftRaw=lead.raw_data?.First_Touch_Date||contact.first_touch||'';
+        const _ftStr=_ftRaw?new Date(_ftRaw).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+        const _rcm=lead.am_mail||contact.rc_mail||'';
+        const _amm=contact.am_mail||lead.raw_data?.AM_Mail||'';
+        if(!_sv&&!_med&&!_cam&&!_ftStr&&!_rcm&&!_amm)return '';
+        return `<div style="display:flex;flex-wrap:wrap;gap:20px;border-top:1px solid var(--border);padding:14px 0 0;margin-top:18px;">
+          ${_sv?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Source</div><span style="font-size:12px;font-weight:500;padding:2px 9px;border-radius:20px;background:#E3ECF7;color:#2C5BA8;border:1px solid #B5D4F4;">${esc(_sv)}</span></div>`:''}
+          ${_med?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Medium</div><span style="font-size:12px;font-weight:500;color:var(--text);font-family:'DM Mono',monospace;">${esc(_med)}</span></div>`:''}
+          ${_cam?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Campaign</div><span style="font-size:12px;font-weight:500;color:var(--text);font-family:'DM Mono',monospace;">${esc(_cam)}</span></div>`:''}
+          ${_ftStr?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">First Touch</div><span style="font-size:12px;font-weight:500;color:var(--text);">${esc(_ftStr)}</span></div>`:''}
+          ${_rcm?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">RC Mail</div><a href="mailto:${esc(_rcm)}" style="font-size:12px;font-weight:500;color:var(--info);text-decoration:none;">${esc(_rcm)}</a></div>`:''}
+          ${_amm?`<div><div style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">AM Mail</div><a href="mailto:${esc(_amm)}" style="font-size:12px;font-weight:500;color:var(--info);text-decoration:none;">${esc(_amm)}</a></div>`:''}
+        </div>`;
+      })()}
       </div>`;
 } catch(e) { console.error('[renderLdHero] ERROR:', e); }
 }
@@ -9124,7 +9157,7 @@ function renderLdRight(lead){
     <div class="ld-panel-card">
       <div class="ld-panel-head">
         <div class="ld-panel-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          👤
           Contact Person
         </div>
         <button onclick="ldSaveContact()" style="font-size:11px;font-weight:500;padding:4px 10px;background:var(--lime-700);color:#1A2230;border:none;border-radius:6px;cursor:pointer;font-family:inherit;">Save</button>
@@ -9145,7 +9178,7 @@ function renderLdRight(lead){
     <div class="ld-panel-card">
       <div class="ld-panel-head">
         <div class="ld-panel-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+          🏢
           Company Details
         </div>
         ${(contact.industry_detected||cached)?`<span style="font-size:10px;font-weight:500;padding:2px 6px;border-radius:4px;background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);">Auto</span>`:''}
@@ -9170,25 +9203,7 @@ function renderLdRight(lead){
     <div class="ld-panel-card">
       <div class="ld-panel-head">
         <div class="ld-panel-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          Attribution
-        </div>
-      </div>
-      <div class="ld-panel-body">
-        ${sourceVal?`<div class="ld-mini-row"><span class="ld-mini-lbl">Source</span><span class="ld-mini-val"><span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:500;background:#E3ECF7;color:#2C5BA8;border:1px solid #B5D4F4;">${esc(sourceVal)}</span></span></div>`:''}
-        ${mRow('Medium',medium?`<span style="font-family:'DM Mono',monospace;font-size:12px;">${esc(medium)}</span>`:'')}
-        ${mRow('Campaign',campaign?`<span style="font-family:'DM Mono',monospace;font-size:12px;">${esc(campaign)}</span>`:'')}
-        ${mRow('First touch',firstTouchStr)}
-        ${mRow('Created',createdStr,'font-size:11.5px;color:var(--text-3);')}
-        ${cRcMail?`<div class="ld-mini-row"><span class="ld-mini-lbl">RC Mail</span><span class="ld-mini-val" style="font-size:11.5px;"><a href="mailto:${esc(cRcMail)}" style="color:var(--info);text-decoration:none;">${esc(cRcMail)}</a></span></div>`:''}
-        ${cAmMail?`<div class="ld-mini-row"><span class="ld-mini-lbl">AM Mail</span><span class="ld-mini-val" style="font-size:11.5px;"><a href="mailto:${esc(cAmMail)}" style="color:var(--info);text-decoration:none;">${esc(cAmMail)}</a></span></div>`:''}
-      </div>
-    </div>
-
-    <div class="ld-panel-card">
-      <div class="ld-panel-head">
-        <div class="ld-panel-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          ◎
           ICP Score
         </div>
         ${hasIcp?`<span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;background:${icpBg(icpG)};color:${icpColor(icpG)};border:1px solid ${icpBorder(icpG)};">Grade ${icpG}</span>`:''}
@@ -9220,7 +9235,7 @@ function renderLdRight(lead){
     <div class="ld-panel-card">
       <div class="ld-panel-head">
         <div class="ld-panel-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          🏷️
           Tags
         </div>
         <button onclick="openTagPicker('${id}')" style="font-size:11px;font-weight:500;padding:3px 8px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;">+ Add</button>
@@ -9238,40 +9253,13 @@ function renderLdRight(lead){
       </div>
     </div>
 
-    <!-- ── FILES ─── -->
-    <div class="ld-panel-card">
-      <div class="ld-panel-head">
-        <div class="ld-panel-title">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          Files
-        </div>
-        <label for="ld-file-upload-${id}" style="font-size:11px;font-weight:500;padding:3px 8px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;">+ Upload</label>
-        <input type="file" id="ld-file-upload-${id}" style="display:none;" onchange="handleFileUpload('${id}', this.files[0])"/>
-      </div>
-      <div class="ld-panel-body">
-        ${gFiles(id).length === 0
-          ? `<div style="font-size:11.5px;color:var(--text-4);font-style:italic;padding:6px 0;">No files attached</div>`
-          : `<div style="display:flex;flex-direction:column;gap:6px;">
-              ${gFiles(id).map(f => `
-                <div style="display:flex;align-items:center;gap:8px;padding:6px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" style="flex-shrink:0;"><path d="${fileIcon(f.type)}"/></svg>
-                  <div style="flex:1;min-width:0;cursor:pointer;" onclick='downloadFile(${JSON.stringify(f).replace(/'/g, "&#39;")})' title="Download">
-                    <div style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(f.name)}</div>
-                    <div style="font-size:10px;color:var(--text-4);">${fmtFileSize(f.size)} · ${new Date(f.uploadedAt).toLocaleDateString()}</div>
-                  </div>
-                  <button onclick="if(confirm('Delete ${esc(f.name)}?')){deleteFileFromLead('${id}','${f.id}');renderLdRight(leads.find(l=>l._id==='${id}'));}" style="background:none;border:none;color:var(--text-4);cursor:pointer;padding:2px 4px;font-size:14px;" title="Delete">×</button>
-                </div>`).join('')}
-            </div>`}
-      </div>
-    </div>
-
     ${(() => {
       const dupes = getDuplicatesFor(id);
       if (!dupes.length) return '';
       return `<div class="ld-panel-card" style="border-color:var(--warn);">
         <div class="ld-panel-head" style="background:var(--warn-bg);">
           <div class="ld-panel-title" style="color:var(--warn);">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            ⚠️
             Possible Duplicates (${dupes.length})
           </div>
         </div>
@@ -9456,6 +9444,43 @@ function handleStepClick(newSid,id){
 }
 
 function refreshDrawerStepper(id){renderStepper(id);}
+
+// Stat strip inline edit
+function editStatVal(){
+  if(!curId)return;
+  const el=document.getElementById('ld-stat-val');if(!el)return;
+  const cur=gAcv(curId);
+  el.innerHTML=`<input type="text" value="${esc(cur)}" placeholder="e.g. 96000" onblur="saveStatVal(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="border:none;background:transparent;font-size:18px;font-weight:700;color:var(--text);font-family:inherit;width:100%;outline:none;border-bottom:2px solid var(--lime-700);" />`;
+  el.querySelector('input').focus();el.querySelector('input').select();
+}
+function saveStatVal(v){
+  if(!curId)return;sAcv(curId,v);
+  const lead=leads.find(l=>l._id===curId);if(lead)renderLdHero(lead);renderBoard();
+}
+function editStatClose(){
+  if(!curId)return;
+  const el=document.getElementById('ld-stat-close');if(!el)return;
+  const cur=gClose(curId);
+  el.innerHTML=`<input type="date" value="${esc(cur)}" onblur="saveStatClose(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="border:none;background:transparent;font-size:15px;font-weight:700;color:var(--text);font-family:inherit;width:100%;outline:none;border-bottom:2px solid var(--lime-700);" />`;
+  el.querySelector('input').focus();
+}
+function saveStatClose(v){
+  if(!curId)return;sClose(curId,v);
+  const lead=leads.find(l=>l._id===curId);if(lead)renderLdHero(lead);
+}
+function editStatIndustry(){
+  if(!curId)return;
+  const el=document.getElementById('ld-stat-industry');if(!el)return;
+  const contact=gContact(curId);
+  const cur=contact.industry_manual||contact.industry_detected||gIndustry(leads.find(l=>l._id===curId))||'';
+  el.innerHTML=`<input type="text" value="${esc(cur)}" placeholder="e.g. Construction" onblur="saveStatIndustry(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="border:none;background:transparent;font-size:18px;font-weight:700;color:var(--text);font-family:inherit;width:100%;outline:none;border-bottom:2px solid var(--lime-700);" />`;
+  el.querySelector('input').focus();el.querySelector('input').select();
+}
+function saveStatIndustry(v){
+  if(!curId)return;
+  const contact=gContact(curId);contact.industry_manual=v;sContact(curId,contact);
+  const lead=leads.find(l=>l._id===curId);if(lead)renderLdHero(lead);
+}
 
 // Snapshot inline edit
 function editSnapVal(){
