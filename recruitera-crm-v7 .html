@@ -7091,14 +7091,7 @@ body .ld-tab-content {
         <button class="mobile-menu-toggle" onclick="toggleMobileSidebar()" aria-label="Menu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
-      <h1 class="tb-title">
-        Sales Pipeline
-        <span class="tb-badge" id="tb-record-count">0 leads</span>
-      </h1>
-      <div class="tb-search">
-        <svg class="tb-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21L16.65 16.65"/></svg>
-        <input type="text" class="tb-search-input" id="search" placeholder="Search companies, contacts, or emails…" oninput="renderBoard()" />
-      </div>
+      <div style="flex:1;"></div>
       <div class="tb-actions">
         <button class="btn btn-secondary btn-sm" onclick="refresh()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9A9 9 0 0118.36 5.64L23 10M1 14L5.64 18.36A9 9 0 0020.49 15"/></svg>
@@ -8184,7 +8177,8 @@ function init(){
   }
 
   renderBoard();kpis();updateDisqCount();
-  document.getElementById('tb-record-count').textContent=`${leads.length} ${leads.length===1?'lead':'leads'}`;
+  const _trc=document.getElementById('tb-record-count');
+  if(_trc)_trc.textContent=`${leads.length} ${leads.length===1?'lead':'leads'}`;
   // Update accounts count in sidebar
   const accBadge=document.getElementById('acc-count-badge');
   if(accBadge)accBadge.textContent=leads.length;
