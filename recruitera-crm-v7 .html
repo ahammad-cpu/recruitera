@@ -13744,11 +13744,16 @@ function mergeV2Render(){
     const primary = leads.find(l => l._supabase_id === g.primary_id || l._id === g.primary_id);
     const dups    = (g.duplicate_ids || []).map(id => leads.find(l => l._supabase_id === id || l._id === id)).filter(Boolean);
     const dupCount = (g.duplicate_ids || []).length;
-    return `<div class="mergev2-group" data-domain="${esc(g.domain)}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--surface);">
+    const matchLbl = g.match_type === 'domain' ? `domain` : `name`;
+    const matchKey = g.match_key || g.domain || '';
+    return `<div class="mergev2-group" data-key="${esc(matchKey)}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--surface);">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
-        <div>
-          <div style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;color:var(--text);">${esc(g.domain)}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${g.total_count} accounts share this domain · ${dupCount} will be merged into the oldest</div>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(matchKey)}</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${g.match_type==='domain'?'var(--lime-200)':'var(--surface-2)'};color:${g.match_type==='domain'?'#4F5E1B':'var(--text-3)'};border:1px solid ${g.match_type==='domain'?'var(--lime-700)':'var(--border)'};letter-spacing:0.06em;text-transform:uppercase;">match: ${matchLbl}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px;">${g.total_count} accounts · ${dupCount} will be merged into the oldest</div>
         </div>
         <button class="acc-deal-btn" onclick="mergeV2Run(${i})" id="mergev2-btn-${i}">Merge ${dupCount} →</button>
       </div>
