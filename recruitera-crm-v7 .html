@@ -13760,7 +13760,12 @@ function mergeV2Render(){
   body.innerHTML = MERGE_V2.groups.map((g, i) => {
     const allIds = [g.primary_id, ...(g.duplicate_ids || [])];
     const rows = allIds.map(id => leads.find(l => l._supabase_id === id || l._id === id)).filter(Boolean);
-    const matchLbl = g.match_type === 'domain' ? `domain` : `name`;
+    const matchLbl = g.match_type === 'domain' ? 'domain'
+                   : g.match_type === 'contact_email' ? 'contact email'
+                   : 'name';
+    const matchColor = g.match_type === 'domain' ? { bg:'var(--lime-200)', fg:'#4F5E1B', br:'var(--lime-700)' }
+                     : g.match_type === 'contact_email' ? { bg:'var(--info-bg)', fg:'var(--info)', br:'var(--info)' }
+                     : { bg:'var(--surface-2)', fg:'var(--text-3)', br:'var(--border)' };
     const matchKey = g.match_key || g.domain || '';
     const willMerge = rows.length - 1;
     return `<div class="mergev2-group" data-key="${esc(matchKey)}" data-idx="${i}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:var(--surface);">
@@ -13768,7 +13773,7 @@ function mergeV2Render(){
         <div style="min-width:0;flex:1;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;color:var(--text);">${esc(matchKey)}</span>
-            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${g.match_type==='domain'?'var(--lime-200)':'var(--surface-2)'};color:${g.match_type==='domain'?'#4F5E1B':'var(--text-3)'};border:1px solid ${g.match_type==='domain'?'var(--lime-700)':'var(--border)'};letter-spacing:0.06em;text-transform:uppercase;">match: ${matchLbl}</span>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${matchColor.bg};color:${matchColor.fg};border:1px solid ${matchColor.br};letter-spacing:0.06em;text-transform:uppercase;">match: ${matchLbl}</span>
           </div>
           <div style="font-size:11px;color:var(--text-3);margin-top:4px;">${g.total_count} accounts · choose which one to keep ↓</div>
         </div>
