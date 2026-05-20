@@ -7404,6 +7404,9 @@ body .ld-tab-content {
       <button class="acc-tab" data-filter="prospect" onclick="accTabSwitch(this)">
         Prospects <span class="acc-tab-count" id="acc-tab-prospect-count">· 0</span>
       </button>
+      <button class="acc-tab" data-filter="disqualified" onclick="accTabSwitch(this)">
+        Disqualified <span class="acc-tab-count" id="acc-tab-disq-count">· 0</span>
+      </button>
     </div>
 
     <!-- Filter bar: search + dropdowns in a white card -->
@@ -8514,7 +8517,9 @@ function kpis(){
   document.getElementById('k3').textContent=won;
   document.getElementById('k4').textContent=avg!==null?avg+'pts':'—';
   document.getElementById('sb-pipe-count').textContent=open;
-  document.getElementById('sb-acc-count').textContent=leads.length;
+  // sb-acc-count is kept in sync by renderAccountsTable() (matches the All-tab count exactly)
+  const _sbAcc = document.getElementById('sb-acc-count');
+  if (_sbAcc) _sbAcc.textContent = leads.filter(l => hasRealData(l) && !gDisq(l._id)).length;
 }
 
 // ─── BOARD ────────────────────────────────────────────
@@ -10462,12 +10467,18 @@ function accFilteredLeads() {
   const filtered = leads.filter(lead => {
     const id = lead._id;
     if (!hasRealData(lead)) return false;
-    if (gDisq(id)) return false;
+
+    // Disqualified-tab gate: only this tab shows disqualified rows
+    if (accActiveTab === 'disqualified') {
+      if (!gDisq(id)) return false;
+    } else {
+      if (gDisq(id)) return false;
+    }
 
     // Tab filter
-    if (accActiveTab === 'deal' && gStage(id)==='lead') return false;
+    if (accActiveTab === 'deal' && gStage(id) === 'lead') return false;
     if (accActiveTab === 'paid' && !isLeadPaidCustomer(lead)) return false;
-    if (accActiveTab === 'prospect' && !gStage(id)==='lead') return false;
+    if (accActiveTab === 'prospect' && gStage(id) !== 'lead') return false;
 
     if (q) {
       const name    = gName(lead).toLowerCase();
@@ -10559,19 +10570,26 @@ function renderAccountsTable() {
     }
   }
 
-  // Update tab counts
-  const all   = leads.filter(l => hasRealData(l) && !gDisq(l._id));
-  const inDeal = all.filter(l => !gStage(l._id)==='lead');
+  // Update tab counts (fixed !== precedence bug; added Disqualified)
+  const realData = leads.filter(l => hasRealData(l));
+  const all   = realData.filter(l => !gDisq(l._id));
+  const inDeal= all.filter(l => gStage(l._id) !== 'lead');
   const paid  = all.filter(l => isLeadPaidCustomer(l));
-  const prosp = all.filter(l => gStage(l._id)==='lead');
-  const el_all  = document.getElementById('acc-tab-all-count');
-  const el_deal = document.getElementById('acc-tab-deal-count');
-  const el_paid = document.getElementById('acc-tab-paid-count');
-  const el_pro  = document.getElementById('acc-tab-prospect-count');
+  const prosp = all.filter(l => gStage(l._id) === 'lead');
+  const disq  = realData.filter(l => !!gDisq(l._id));
+  const el_all   = document.getElementById('acc-tab-all-count');
+  const el_deal  = document.getElementById('acc-tab-deal-count');
+  const el_paid  = document.getElementById('acc-tab-paid-count');
+  const el_pro   = document.getElementById('acc-tab-prospect-count');
+  const el_disq  = document.getElementById('acc-tab-disq-count');
   if (el_all)  el_all.textContent  = '· ' + all.length;
   if (el_deal) el_deal.textContent = '· ' + inDeal.length;
   if (el_paid) el_paid.textContent = '· ' + paid.length;
   if (el_pro)  el_pro.textContent  = '· ' + prosp.length;
+  if (el_disq) el_disq.textContent = '· ' + disq.length;
+  // Keep sidebar count in sync with the Accounts "All" tab (real-data, non-disqualified)
+  const sbAcc = document.getElementById('sb-acc-count');
+  if (sbAcc) sbAcc.textContent = all.length;
 
   // Update subtitle
   const sub = document.getElementById('acc-page-subtitle');
