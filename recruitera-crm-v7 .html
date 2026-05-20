@@ -5074,17 +5074,24 @@ body .sidebar.collapsed .sb-user {
   font-weight: 500 !important;
   font-size: 13px !important;
 }
-.sb-item:hover { background: var(--cg-900) !important; color: #FFFFFF !important; }
+/* Hover — soft light lime, dark text */
+.sb-item:hover { background: var(--lime-200) !important; color: var(--cg-900) !important; }
 .sb-item:hover .sb-icon { opacity: 1 !important; }
 .sb-item:hover .sb-cnt { background: var(--lime-700) !important; color: var(--cg-900) !important; }
+/* Active — dark navy bg, white text, lime count badge */
 .sb-item.active {
-  background: var(--lime-200) !important;
-  color: var(--cg-900) !important;
+  background: var(--cg-900) !important;
+  color: #FFFFFF !important;
 }
 .sb-item.active .sb-icon { opacity: 1 !important; }
+.sb-item.active .sb-cnt { background: var(--lime-700) !important; color: var(--cg-900) !important; }
 [data-theme="dark"] .sb-item.active {
-  background: rgba(204,237,89,0.18) !important;
-  color: var(--lime-700) !important;
+  background: var(--cg-900) !important;
+  color: #FFFFFF !important;
+}
+[data-theme="dark"] .sb-item:hover {
+  background: rgba(204,237,89,0.12) !important;
+  color: var(--text) !important;
 }
 .sb-item.active::before { display: none !important; }
 .sb-item::after { display: none !important; }
