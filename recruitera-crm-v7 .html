@@ -10962,6 +10962,73 @@ function renderDashboard(){
   const sortedLoss = Object.entries(lossMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const maxLoss = sortedLoss[0]?.[1] || 1;
 
+  // ─── Time-series: ARR & Pipeline over last 30 days ───
+  const now = Date.now();
+  const day = 86400000;
+  const days30 = Array.from({length:31}, (_,i)=>now - (30-i)*day);
+  const arrSeries = days30.map(t => {
+    return active.reduce((s,l) => {
+      const t0 = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      if (t0 && t0 <= t && isLeadPaidCustomer(l)) return s + parseAcv(gAcv(l._id));
+      return s;
+    }, 0);
+  });
+  const pipelineSeries = days30.map(t => {
+    return active.reduce((s,l) => {
+      const t0 = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      const st = gStage(l._id);
+      if (t0 && t0 <= t && !['won','lost'].includes(st) && !isLeadPaidCustomer(l)) return s + parseAcv(gAcv(l._id));
+      return s;
+    }, 0);
+  });
+  const arrMax  = Math.max(1, ...arrSeries);
+  const pipeMax = Math.max(1, ...pipelineSeries);
+  const seriesMax = Math.max(arrMax, pipeMax);
+  const pathFrom = (arr, max) => arr.map((v,i) => {
+    const x = (i/(arr.length-1))*600;
+    const y = 180 - (v/max)*150;
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const arrPath  = pathFrom(arrSeries, seriesMax);
+  const pipePath = pathFrom(pipelineSeries, seriesMax);
+  const arrFill  = `${arrPath} L600,180 L0,180 Z`;
+  const pipeFill = `${pipePath} L600,180 L0,180 Z`;
+
+  // ─── Won vs Lost weekly (last 8 weeks) ───
+  const weeks8 = Array.from({length:8}, (_,i)=>({
+    start: now - (8-i)*7*day,
+    end:   now - (7-i)*7*day,
+  }));
+  const weeklyWonLost = weeks8.map(w => {
+    const wCount = won.filter(l => {
+      const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      return t >= w.start && t < w.end;
+    }).length;
+    const lCount = lost.filter(l => {
+      const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      return t >= w.start && t < w.end;
+    }).length;
+    return { won: wCount, lost: lCount };
+  });
+  const wlMax = Math.max(1, ...weeklyWonLost.flatMap(w=>[w.won,w.lost]));
+
+  // ─── Cycle by source (days from creation to "now" for won deals) ───
+  const cycleBySrc = {};
+  won.forEach(l => {
+    const src = gSource(l) || 'Unknown';
+    const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+    if (!t) return;
+    const days = Math.max(1, Math.round((now - t)/day));
+    if (!cycleBySrc[src]) cycleBySrc[src] = [];
+    cycleBySrc[src].push(days);
+  });
+  const cycleEntries = Object.entries(cycleBySrc)
+    .map(([s,arr]) => [s, Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)])
+    .sort((a,b)=>a[1]-b[1])
+    .slice(0,8);
+  const cycleMax = Math.max(1, ...cycleEntries.map(([,d])=>d));
+  const avgCycle = cycleEntries.length ? Math.round(cycleEntries.reduce((s,[,d])=>s+d,0)/cycleEntries.length) : 0;
+
   // Format helpers
   const fmtK = v => v >= 1000000 ? '$'+(v/1000000).toFixed(2)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(1)+'K' : '$'+Math.round(v);
   const today = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
@@ -11065,6 +11132,60 @@ function renderDashboard(){
       </div>
     </div>
 
+    <!-- Trends over time -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Trends over time</h2></div>
+    <div class="dsh-grid" style="grid-template-columns:1.6fr 1fr;">
+      <div class="dsh-card">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">ARR & Pipeline value</div>
+            <div style="font-size:13px;font-weight:600;margin-top:6px;">Last 30 days</div>
+          </div>
+          <div style="display:flex;gap:14px;font-size:11px;color:var(--text-3);font-weight:600;">
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:2px;background:#CCED59;"></span>ARR</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:2px;background:#392396;"></span>Pipeline</span>
+          </div>
+        </div>
+        <svg width="100%" viewBox="0 0 600 200" preserveAspectRatio="none" style="display:block;">
+          <line x1="0" y1="50" x2="600" y2="50" stroke="#EAEBEC" stroke-dasharray="2 4"/>
+          <line x1="0" y1="100" x2="600" y2="100" stroke="#EAEBEC" stroke-dasharray="2 4"/>
+          <line x1="0" y1="150" x2="600" y2="150" stroke="#EAEBEC" stroke-dasharray="2 4"/>
+          <path d="${pipeFill}" fill="#392396" opacity="0.10"/>
+          <path d="${pipePath}" fill="none" stroke="#392396" stroke-width="2"/>
+          <path d="${arrFill}" fill="#CCED59" opacity="0.30"/>
+          <path d="${arrPath}" fill="none" stroke="#CCED59" stroke-width="2.4"/>
+          <text x="0" y="195" font-size="9" fill="#81878E" font-weight="500">${new Date(days30[0]).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</text>
+          <text x="300" y="195" font-size="9" fill="#81878E" font-weight="500" text-anchor="middle">${new Date(days30[15]).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</text>
+          <text x="600" y="195" font-size="9" fill="#81878E" font-weight="500" text-anchor="end">${new Date(days30[30]).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</text>
+        </svg>
+      </div>
+
+      <div class="dsh-card">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Deals won vs lost</div>
+          <div style="font-size:13px;font-weight:600;margin-top:6px;">Weekly · last 8 weeks</div>
+        </div>
+        <svg width="100%" viewBox="0 0 400 200" preserveAspectRatio="none" style="display:block;">
+          <line x1="0" y1="50" x2="400" y2="50" stroke="#EAEBEC" stroke-dasharray="2 4"/>
+          <line x1="0" y1="100" x2="400" y2="100" stroke="#EAEBEC" stroke-dasharray="2 4"/>
+          <line x1="0" y1="150" x2="400" y2="150" stroke="#EAEBEC" stroke-dasharray="2 4"/>
+          ${weeklyWonLost.map((w,i)=>{
+            const baseX = 10 + i*48;
+            const wH = Math.round((w.won/wlMax)*130);
+            const lH = Math.round((w.lost/wlMax)*130);
+            return `<g>
+              <rect x="${baseX}"      y="${180-wH}" width="18" height="${wH}" fill="#2F8F5C" rx="3"/>
+              <rect x="${baseX+20}"   y="${180-lH}" width="18" height="${lH}" fill="#B83A3A" rx="3" opacity="0.7"/>
+            </g>`;
+          }).join('')}
+        </svg>
+        <div style="display:flex;gap:14px;font-size:11px;color:var(--text-3);font-weight:600;margin-top:10px;justify-content:center;">
+          <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:2px;background:#2F8F5C;"></span>Won</span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:2px;background:#B83A3A;opacity:0.7;"></span>Lost</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Funnel + Sources -->
     <div class="dsh-sec"><h2 class="dsh-sec-title">Acquisition</h2></div>
     <div class="dsh-grid" style="grid-template-columns:1.4fr 1fr;">
@@ -11121,6 +11242,31 @@ function renderDashboard(){
           }).join('') : '<div style="color:var(--text-3);font-size:12px;">No source data yet</div>'}
         </div>
       </div>
+    </div>
+
+    <!-- Cycle by source -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Cycle by source</h2></div>
+    <div class="dsh-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Days from MQL → Won</div>
+          <div style="font-size:13px;font-weight:600;margin-top:6px;">Average cycle by acquisition source</div>
+        </div>
+        ${cycleEntries.length?`<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:var(--lime-200);color:#4F5E1B;font-variant-numeric:tabular-nums;">avg ${avgCycle}d</span>`:''}
+      </div>
+      ${cycleEntries.length ? `<div style="display:flex;flex-direction:column;gap:12px;">
+        ${cycleEntries.map(([src,days],i)=>{
+          const w = Math.round((days/cycleMax)*100);
+          const colors = ['var(--lime-700)','var(--purple-700)','var(--cg-900)','var(--cg-600)','var(--cg-400)','var(--info)','var(--warn)','var(--bad)'];
+          return `<div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px;">
+              <span>${esc(src)}</span>
+              <span style="font-variant-numeric:tabular-nums;">${days}d</span>
+            </div>
+            <div class="dsh-bar"><i style="width:${w}%;background:${colors[i]||'var(--cg-400)'};"></i></div>
+          </div>`;
+        }).join('')}
+      </div>` : '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:20px;">No won deals yet — close some to see cycle times!</div>'}
     </div>
 
     <!-- Loss reasons -->
