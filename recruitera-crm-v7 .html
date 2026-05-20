@@ -13827,19 +13827,25 @@ async function mergeV2Run(groupIdx){
   const btn = document.getElementById(`mergev2-btn-${groupIdx}`);
   MERGE_V2.busy = true;
   if (btn) { btn.disabled = true; btn.textContent = 'Merging…'; }
-  let merged = 0, failed = 0;
+  let merged = 0, failed = 0, firstErr = '';
   for (const dupId of dupIds) {
     try {
       await _mergeV2Rpc('merge_accounts', { _primary_id: primaryId, _duplicate_id: dupId, _reason: 'admin_ui' });
       merged++;
     } catch (e) {
       console.error('[merge_v2] failed for', dupId, e.message);
+      if (!firstErr) firstErr = e.message;
       failed++;
     }
   }
   MERGE_V2.busy = false;
-  if (btn) { btn.disabled = false; btn.textContent = `Merged ${merged}${failed?` · ${failed} failed`:''}`; btn.style.background='var(--ok)'; btn.style.color='#fff'; }
-  toast(`Merged ${merged} duplicate${merged===1?'':'s'}${failed?` · ${failed} failed`:''}`, failed ? 'error' : 'success');
+  if (btn) { btn.disabled = false; btn.textContent = `Merged ${merged}${failed?` · ${failed} failed`:''}`; btn.style.background=failed?'var(--bad)':'var(--ok)'; btn.style.color='#fff'; }
+  if (failed) {
+    toast(`Merge failed: ${firstErr.slice(0,140)}`, 'error');
+    alert('Merge failed for one or more duplicates.\n\nServer said:\n' + firstErr);
+  } else {
+    toast(`Merged ${merged} duplicate${merged===1?'':'s'}`, 'success');
+  }
   // Re-fetch from server so the leads array is consistent with DB
   try {
     const fresh = await sbFetch();
