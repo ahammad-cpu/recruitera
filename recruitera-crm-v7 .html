@@ -12808,7 +12808,8 @@ function renderActivityFeed(el) {
       <button onclick="mergeV2Close()" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);cursor:pointer;font-size:18px;line-height:1;font-family:inherit;">×</button>
     </div>
     <div id="mergev2-body" style="padding:16px 20px;"></div>
-    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:center;">
+      <button onclick="mergeV2Whoami()" style="height:30px;padding:0 12px;border-radius:7px;border:1px dashed var(--text-4);background:transparent;color:var(--text-3);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;" title="Show what the server sees about your session (debug)">🔧 Debug session</button>
       <button onclick="mergeV2Close()" style="height:34px;padding:0 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;">Close</button>
     </div>
   </div>
@@ -13720,6 +13721,16 @@ async function mergeV2Open(){
   } catch (e) {
     document.getElementById('mergev2-body').innerHTML =
       `<div style="padding:30px;text-align:center;color:var(--bad);font-size:13px;">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+async function mergeV2Whoami(){
+  try {
+    const who = await _mergeV2Rpc('whoami');
+    alert('Server sees:\n' + JSON.stringify(who, null, 2));
+    console.log('[merge_v2] whoami', who);
+  } catch(e) {
+    alert('whoami failed: ' + e.message);
   }
 }
 
