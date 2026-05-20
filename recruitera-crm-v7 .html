@@ -12161,8 +12161,8 @@ function renderDashboard(){
   const totalClosed = won.length + lost.length;
   const winRate = totalClosed ? Math.round((won.length/totalClosed)*100) : 0;
 
-  // Stage funnel counts
-  const stageOrder = ['mql','sql','demo','proposal','negotiation','won','lost'];
+  // Stage funnel counts — dynamic from the STAGES constant (single source of truth)
+  const stageOrder = STAGES.map(s => s.id);
   const stageCounts = {};
   stageOrder.forEach(s => { stageCounts[s] = active.filter(l => gStage(l._id) === s).length; });
 
@@ -12426,28 +12426,20 @@ function renderDashboard(){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div>
             <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Conversion funnel</div>
-            <div style="font-size:13px;font-weight:600;margin-top:6px;">MQL → Customer</div>
+            <div style="font-size:13px;font-weight:600;margin-top:6px;">${STAGES[0]?.name || ''} → ${STAGES.find(s=>s.id==='won')?.name || 'Customer'}</div>
           </div>
           <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:var(--lime-200);color:#4F5E1B;">${winRate}% close rate</span>
         </div>
         <div class="dsh-funnel">
           ${(()=>{
-            const mqlCount = stageCounts.mql || active.length;
-            const funnel = [
-              {id:'mql',         lbl:'MQL',         color:'#969BA1'},
-              {id:'sql',         lbl:'SQL',         color:'#81878E'},
-              {id:'demo',        lbl:'Demo',        color:'#6C737C'},
-              {id:'proposal',    lbl:'Proposal',    color:'#392396'},
-              {id:'negotiation', lbl:'Negotiation', color:'#CCED59'},
-              {id:'won',         lbl:'Deal Won',    color:'#2F8F5C'},
-              {id:'lost',        lbl:'Deal Lost',   color:'#B83A3A'},
-            ];
-            return funnel.map(f => {
-              const c = stageCounts[f.id] || 0;
-              const w = mqlCount ? Math.max(4, Math.round((c/mqlCount)*100)) : 0;
-              const conv = mqlCount ? Math.round((c/mqlCount)*100)+'%' : '—';
-              return `<div class="dsh-funnel-row" style="--w:${w}%;--accent:${f.color};">
-                <span class="dsh-funnel-stage">${f.lbl}</span>
+            // Funnel rows are driven by STAGES — anchor the % on the first stage that has any leads
+            const anchorCount = STAGES.reduce((acc, s) => acc || stageCounts[s.id] || 0, 0) || active.length;
+            return STAGES.map(s => {
+              const c = stageCounts[s.id] || 0;
+              const w = anchorCount ? Math.max(4, Math.round((c/anchorCount)*100)) : 0;
+              const conv = anchorCount ? Math.round((c/anchorCount)*100)+'%' : '—';
+              return `<div class="dsh-funnel-row" style="--w:${w}%;--accent:${s.color};">
+                <span class="dsh-funnel-stage">${esc(s.name)}</span>
                 <span class="dsh-funnel-count">${c}</span>
                 <span class="dsh-funnel-conv">${conv}</span>
               </div>`;
