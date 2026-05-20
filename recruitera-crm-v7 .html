@@ -7000,7 +7000,7 @@ body .ld-tab-content {
 
     <nav class="sb-nav">
       <div class="sb-lbl">Workspace</div>
-      <div class="sb-item" data-label="Dashboard">
+      <div class="sb-item" data-label="Dashboard" id="sb-dashboard-item" onclick="switchMainView('dashboard')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span class="sb-item-label">Dashboard</span>
       </div>
@@ -7286,6 +7286,9 @@ body .ld-tab-content {
 
   </div>
 
+
+  <!-- ─── DASHBOARD VIEW ─── -->
+  <div id="dashboard-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
 
   <!-- ─── INSIGHTS VIEW ─── -->
   <div id="insights-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;">
@@ -10030,52 +10033,61 @@ let accSortDir = 'desc'; // 'asc' | 'desc'
 
 function switchMainView(view) {
   currentMainView = view;
-  const boardView   = document.getElementById('board-view');
-  const accountsView= document.getElementById('accounts-view');
-  const insightsView= document.getElementById('insights-view');
-  const leadPage    = document.getElementById('lead-page');
-  const pipelineItem= document.getElementById('sb-pipeline-item');
-  const accountsItem= document.getElementById('sb-accounts-item');
-  const insightsItem= document.getElementById('sb-insights-item');
-  const topbarTitle = document.querySelector('.tb-title');
+  const boardView    = document.getElementById('board-view');
+  const accountsView = document.getElementById('accounts-view');
+  const insightsView = document.getElementById('insights-view');
+  const dashboardView= document.getElementById('dashboard-view');
+  const leadPage     = document.getElementById('lead-page');
+  const pipelineItem = document.getElementById('sb-pipeline-item');
+  const accountsItem = document.getElementById('sb-accounts-item');
+  const insightsItem = document.getElementById('sb-insights-item');
+  const dashboardItem= document.getElementById('sb-dashboard-item');
+  const topbarTitle  = document.querySelector('.tb-title');
 
   // Close lead detail if open
   if (leadPage) leadPage.classList.remove('open');
-  // Hide all views first
-  if (insightsView) insightsView.style.display = 'none';
+
+  const setActive = (item, on) => { if(item) item.classList.toggle('active', on); };
 
   if (view === 'pipeline') {
-    if (boardView)    { boardView.style.cssText = 'flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;'; }
-    if (accountsView) { accountsView.style.cssText = 'display:none;'; }
-    if (insightsView) { insightsView.style.cssText = 'display:none;'; }
-    if (pipelineItem) { pipelineItem.classList.add('active'); }
-    if (accountsItem) { accountsItem.classList.remove('active'); }
-    if (insightsItem) { insightsItem.classList.remove('active'); }
+    if (boardView)     { boardView.style.cssText = 'flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (insightsView)  { insightsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    setActive(pipelineItem,true); setActive(accountsItem,false); setActive(insightsItem,false); setActive(dashboardItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Sales Pipeline <span class="tb-badge" id="tb-record-count">${leads.length} leads</span>`;
     renderBoard(); kpis();
   } else if (view === 'accounts') {
-    if (boardView)    { boardView.style.cssText = 'display:none;'; }
-    if (insightsView) { insightsView.style.cssText = 'display:none;'; }
-    if (accountsView) {
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (insightsView)  { insightsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    if (accountsView)  {
       accountsView.style.cssText = 'display:block;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
     }
-    if (pipelineItem) { pipelineItem.classList.remove('active'); }
-    if (accountsItem) { accountsItem.classList.add('active'); }
-    if (insightsItem) { insightsItem.classList.remove('active'); }
+    setActive(pipelineItem,false); setActive(accountsItem,true); setActive(insightsItem,false); setActive(dashboardItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Accounts <span class="tb-badge">${leads.length} total</span>`;
     initAccountsFilters();
     requestAnimationFrame(() => renderAccountsTable());
   } else if (view === 'insights') {
-    if (boardView)    { boardView.style.cssText = 'display:none;'; }
-    if (accountsView) { accountsView.style.cssText = 'display:none;'; }
-    if (insightsView) {
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    if (insightsView)  {
       insightsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;';
     }
-    if (pipelineItem) { pipelineItem.classList.remove('active'); }
-    if (accountsItem) { accountsItem.classList.remove('active'); }
-    if (insightsItem) { insightsItem.classList.add('active'); }
+    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(insightsItem,true); setActive(dashboardItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Insights`;
     requestAnimationFrame(() => renderInsights());
+  } else if (view === 'dashboard') {
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (insightsView)  { insightsView.style.cssText = 'display:none;'; }
+    if (dashboardView) {
+      dashboardView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;';
+    }
+    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(insightsItem,false); setActive(dashboardItem,true);
+    if (topbarTitle)  topbarTitle.innerHTML = `Dashboard`;
+    requestAnimationFrame(() => renderDashboard());
   }
 }
 
@@ -10900,6 +10912,234 @@ function switchInsightsTab(el) {
   document.querySelectorAll('.insights-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   renderInsights();
+}
+
+function renderDashboard(){
+  const el = document.getElementById('dashboard-view');
+  if (!el) return;
+
+  // ─── Compute live metrics from leads ──────────────
+  const active   = leads.filter(l => !gDisq(l._id));
+  const customers= active.filter(l => isLeadPaidCustomer(l));
+  const open     = active.filter(l => !customers.includes(l) && gStage(l._id) !== 'lost');
+  const won      = active.filter(l => gStage(l._id) === 'won');
+  const lost     = active.filter(l => gStage(l._id) === 'lost');
+
+  // Pipeline value: sum of ACV across open deals
+  const parseAcv = v => { const n = parseFloat(String(v||'').replace(/[^\d.]/g,'')); return isFinite(n)?n:0; };
+  const pipelineValue = open.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
+  const wonValue      = won.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
+  const lostValue     = lost.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
+
+  // ARR proxy: sum of paid customers' deal value
+  const arr = customers.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
+  const avgArr = customers.length ? arr/customers.length : 0;
+
+  // Trial counts
+  const trialActive = active.filter(l => l.paid_status==='Free Trial' && l.activation_status==='Active').length;
+
+  // Win rate
+  const totalClosed = won.length + lost.length;
+  const winRate = totalClosed ? Math.round((won.length/totalClosed)*100) : 0;
+
+  // Stage funnel counts
+  const stageOrder = ['mql','sql','demo','proposal','negotiation','won','lost'];
+  const stageCounts = {};
+  stageOrder.forEach(s => { stageCounts[s] = active.filter(l => gStage(l._id) === s).length; });
+
+  // Sources distribution
+  const srcMap = {};
+  active.forEach(l => { const s = gSource(l)||'Unknown'; srcMap[s] = (srcMap[s]||0)+1; });
+  const sortedSrcs = Object.entries(srcMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const totalSrc = sortedSrcs.reduce((s,[,c])=>s+c,0) || 1;
+
+  // Loss reasons
+  const lossMap = {};
+  lost.forEach(l => {
+    const r = (gLost(l._id) && gLost(l._id).reason) || 'Other';
+    lossMap[r] = (lossMap[r]||0)+1;
+  });
+  const sortedLoss = Object.entries(lossMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxLoss = sortedLoss[0]?.[1] || 1;
+
+  // Format helpers
+  const fmtK = v => v >= 1000000 ? '$'+(v/1000000).toFixed(2)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(1)+'K' : '$'+Math.round(v);
+  const today = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+  el.innerHTML = `
+    <style>
+      #dashboard-view .dsh-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;}
+      #dashboard-view .dsh-title{font-size:22px;font-weight:700;letter-spacing:-0.02em;margin:0;color:var(--text);}
+      #dashboard-view .dsh-sub{font-size:13px;color:var(--text-3);margin-top:4px;font-weight:500;}
+      #dashboard-view .dsh-sec{display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px;}
+      #dashboard-view .dsh-sec-title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin:0;}
+      #dashboard-view .dsh-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow-xs);}
+      #dashboard-view .dsh-grid{display:grid;gap:14px;}
+      #dashboard-view .dsh-kpi{padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-xs);}
+      #dashboard-view .dsh-kpi .lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);}
+      #dashboard-view .dsh-kpi .val{font-size:22px;font-weight:700;letter-spacing:-0.02em;margin-top:8px;font-variant-numeric:tabular-nums;color:var(--text);}
+      #dashboard-view .dsh-kpi .sub{font-size:11px;color:var(--text-3);margin-top:4px;font-weight:500;}
+      #dashboard-view .dsh-kpi.lime{border-top:3px solid var(--lime-700);}
+      #dashboard-view .dsh-kpi.purple{border-top:3px solid var(--purple-700);}
+      #dashboard-view .dsh-kpi.ok .val{color:var(--ok);}
+      #dashboard-view .dsh-kpi.bad .val{color:var(--bad);}
+      #dashboard-view .dsh-hero{background:var(--cg-900);color:#fff;border-radius:14px;padding:24px 28px;display:flex;align-items:flex-end;gap:32px;justify-content:space-between;box-shadow:var(--shadow-sm);}
+      #dashboard-view .dsh-hero .eb{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:600;}
+      #dashboard-view .dsh-hero .big{font-size:40px;font-weight:700;letter-spacing:-0.02em;color:var(--lime-700);font-variant-numeric:tabular-nums;line-height:1;margin-top:8px;}
+      #dashboard-view .dsh-hero .meta{color:rgba(255,255,255,.65);font-size:12px;margin-top:6px;}
+      #dashboard-view .dsh-hero .stat-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:600;}
+      #dashboard-view .dsh-hero .stat-val{font-size:20px;font-weight:700;margin-top:6px;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;}
+      #dashboard-view .dsh-bar{height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;}
+      #dashboard-view .dsh-bar > i{display:block;height:100%;border-radius:999px;}
+      #dashboard-view .dsh-funnel{display:flex;flex-direction:column;gap:8px;}
+      #dashboard-view .dsh-funnel-row{display:flex;align-items:center;gap:14px;background:var(--surface-2);border-radius:10px;padding:12px 16px;position:relative;overflow:hidden;}
+      #dashboard-view .dsh-funnel-row::before{content:"";position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg, color-mix(in oklab, var(--accent,#CCED59) 20%, transparent), transparent);width:var(--w,100%);}
+      #dashboard-view .dsh-funnel-row > *{position:relative;z-index:1;}
+      #dashboard-view .dsh-funnel-stage{font-size:13px;font-weight:600;flex:1;color:var(--text);text-transform:capitalize;}
+      #dashboard-view .dsh-funnel-count{font-size:18px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
+      #dashboard-view .dsh-funnel-conv{font-size:11px;font-weight:600;color:var(--text-3);min-width:54px;text-align:right;}
+    </style>
+
+    <div class="dsh-head">
+      <div>
+        <h1 class="dsh-title">Dashboard</h1>
+        <div class="dsh-sub">${today} · ${active.length} leads · ${customers.length} paying customers</div>
+      </div>
+    </div>
+
+    <!-- ARR Hero -->
+    <div class="dsh-hero">
+      <div>
+        <div class="eb">Total ARR</div>
+        <div class="big">${fmtK(arr)}</div>
+        <div class="meta">${fmtK(arr/12)} monthly run rate · across ${customers.length} customers</div>
+      </div>
+      <div style="display:flex;gap:32px;">
+        <div><div class="stat-lbl">Avg ARR / Acct</div><div class="stat-val">${fmtK(avgArr)}</div></div>
+        <div><div class="stat-lbl">Pipeline Value</div><div class="stat-val">${fmtK(pipelineValue)}</div></div>
+      </div>
+    </div>
+
+    <!-- Key metrics -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Key metrics</h2></div>
+    <div class="dsh-grid" style="grid-template-columns:repeat(4,1fr);">
+      <div class="dsh-kpi lime">
+        <div class="lbl">Pipeline value</div>
+        <div class="val">${fmtK(pipelineValue)}</div>
+        <div class="sub">${open.length} open leads</div>
+      </div>
+      <div class="dsh-kpi purple">
+        <div class="lbl">Active trials</div>
+        <div class="val">${trialActive}</div>
+        <div class="sub">across all customers</div>
+      </div>
+      <div class="dsh-kpi">
+        <div class="lbl">Demos in pipeline</div>
+        <div class="val">${stageCounts.demo || 0}</div>
+        <div class="sub">currently in demo stage</div>
+      </div>
+      <div class="dsh-kpi ok">
+        <div class="lbl">Win rate</div>
+        <div class="val">${winRate}%</div>
+        <div class="sub">${won.length} won / ${lost.length} lost</div>
+      </div>
+      <div class="dsh-kpi">
+        <div class="lbl">Customers</div>
+        <div class="val">${customers.length}</div>
+        <div class="sub">paying accounts</div>
+      </div>
+      <div class="dsh-kpi ok">
+        <div class="lbl">Won value</div>
+        <div class="val">${fmtK(wonValue)}</div>
+        <div class="sub">closed-won total</div>
+      </div>
+      <div class="dsh-kpi bad">
+        <div class="lbl">Lost value</div>
+        <div class="val">${fmtK(lostValue)}</div>
+        <div class="sub">${lost.length} deals</div>
+      </div>
+      <div class="dsh-kpi">
+        <div class="lbl">Total leads</div>
+        <div class="val">${active.length}</div>
+        <div class="sub">active accounts</div>
+      </div>
+    </div>
+
+    <!-- Funnel + Sources -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Acquisition</h2></div>
+    <div class="dsh-grid" style="grid-template-columns:1.4fr 1fr;">
+      <div class="dsh-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Conversion funnel</div>
+            <div style="font-size:13px;font-weight:600;margin-top:6px;">MQL → Customer</div>
+          </div>
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:var(--lime-200);color:#4F5E1B;">${winRate}% close rate</span>
+        </div>
+        <div class="dsh-funnel">
+          ${(()=>{
+            const mqlCount = stageCounts.mql || active.length;
+            const funnel = [
+              {id:'mql',         lbl:'MQL',         color:'#969BA1'},
+              {id:'sql',         lbl:'SQL',         color:'#81878E'},
+              {id:'demo',        lbl:'Demo',        color:'#6C737C'},
+              {id:'proposal',    lbl:'Proposal',    color:'#392396'},
+              {id:'negotiation', lbl:'Negotiation', color:'#CCED59'},
+              {id:'won',         lbl:'Deal Won',    color:'#2F8F5C'},
+              {id:'lost',        lbl:'Deal Lost',   color:'#B83A3A'},
+            ];
+            return funnel.map(f => {
+              const c = stageCounts[f.id] || 0;
+              const w = mqlCount ? Math.max(4, Math.round((c/mqlCount)*100)) : 0;
+              const conv = mqlCount ? Math.round((c/mqlCount)*100)+'%' : '—';
+              return `<div class="dsh-funnel-row" style="--w:${w}%;--accent:${f.color};">
+                <span class="dsh-funnel-stage">${f.lbl}</span>
+                <span class="dsh-funnel-count">${c}</span>
+                <span class="dsh-funnel-conv">${conv}</span>
+              </div>`;
+            }).join('');
+          })()}
+        </div>
+      </div>
+      <div class="dsh-card">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Sources</div>
+          <div style="font-size:13px;font-weight:600;margin-top:6px;">Where leads come from</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          ${sortedSrcs.length ? sortedSrcs.map(([name,count],i)=>{
+            const pct = Math.round((count/totalSrc)*100);
+            const colors = ['var(--lime-700)','var(--cg-900)','var(--purple-700)','var(--cg-600)','var(--cg-400)','var(--info)'];
+            return `<div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:12px;font-weight:600;">${esc(name)}</span>
+                <span style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;">${pct}%</span>
+              </div>
+              <div class="dsh-bar"><i style="width:${Math.max(2,pct*2)}%;background:${colors[i]||'var(--cg-400)'};"></i></div>
+              <div style="font-size:10px;color:var(--text-3);margin-top:2px;font-weight:500;">${count} leads</div>
+            </div>`;
+          }).join('') : '<div style="color:var(--text-3);font-size:12px;">No source data yet</div>'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Loss reasons -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Why deals don't close</h2></div>
+    <div class="dsh-card">
+      ${sortedLoss.length ? `<div style="display:flex;flex-direction:column;gap:10px;">
+        ${sortedLoss.map(([r,n])=>{
+          const w = Math.round((n/maxLoss)*100);
+          return `<div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:4px;">
+              <span>${esc(r)}</span>
+              <span style="font-variant-numeric:tabular-nums;">${n} deals</span>
+            </div>
+            <div class="dsh-bar"><i style="width:${w}%;background:var(--bad);"></i></div>
+          </div>`;
+        }).join('')}
+      </div>` : '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:20px;">No lost deals yet — keep it up!</div>'}
+    </div>
+  `;
 }
 
 function renderInsights() {
