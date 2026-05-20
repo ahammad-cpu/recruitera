@@ -6316,10 +6316,8 @@ kbd {
 /* Main 2-col */
 .ld-main {
   padding: 0 24px 24px !important;
-  gap: 24px !important;
+  gap: 0 24px !important;
   flex-shrink: 0 !important;
-  border-top: 1px solid var(--border) !important;
-  margin-top: 18px !important;
 }
 .ld-center {
   background: transparent !important;
@@ -6330,7 +6328,6 @@ kbd {
   padding: 0 !important;
   background: transparent !important;
   border-left: none !important;
-  margin-top: 52px !important;
 }
 
 /* Tabs */
@@ -7099,16 +7096,14 @@ body .ld-tab-content {
 
           <!-- Main 2-col content -->
           <div class="ld-main">
-            <!-- Center: tabs + content -->
+            <!-- Full-width tab bar (spans both grid columns; its border-bottom is the single full-width divider) -->
+            <div class="ld-tab-bar" id="ld-tab-bar" style="grid-column:1 / -1;">
+              <button class="ld-tab active" data-tab="activity" onclick="ldSwitchTab(this)">Activity</button>
+              <button class="ld-tab" data-tab="notes" onclick="ldSwitchTab(this)">Notes</button>
+              <button class="ld-tab" data-tab="tasks" onclick="ldSwitchTab(this)">Tasks</button>
+            </div>
+            <!-- Center: tab content -->
             <div class="ld-center">
-              <!-- Tab bar -->
-              <div class="ld-tab-bar" id="ld-tab-bar">
-                <button class="ld-tab active" data-tab="activity" onclick="ldSwitchTab(this)">Activity</button>
-                <button class="ld-tab" data-tab="notes" onclick="ldSwitchTab(this)">Notes</button>
-                <button class="ld-tab" data-tab="tasks" onclick="ldSwitchTab(this)">Tasks</button>
-                
-              </div>
-              <!-- Tab content -->
               <div class="ld-tab-content" id="ld-tab-content"></div>
             </div>
 
