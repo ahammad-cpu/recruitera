@@ -2410,8 +2410,8 @@ input,select,textarea{
 /* Main layout */
 .ld-main {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
   align-items: flex-start;
   flex-shrink: 0;
 }
@@ -6316,7 +6316,7 @@ kbd {
 /* Main 2-col */
 .ld-main {
   padding: 0 24px 24px !important;
-  gap: 16px !important;
+  gap: 24px !important;
   flex-shrink: 0 !important;
 }
 .ld-center {
@@ -6324,7 +6324,7 @@ kbd {
   border-right: none !important;
 }
 .ld-right {
-  width: 320px !important;
+  width: 100% !important;
   padding: 0 !important;
   background: transparent !important;
   border-left: none !important;
