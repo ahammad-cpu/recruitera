@@ -8810,10 +8810,13 @@ function updateDisqButton(id){
 }
 
 function updateDisqCount(){
-  // Exclude empty Bubble syncs (no real name/domain) from both counts so totals line up
-  const realData=leads.filter(l=>hasRealData(l));
-  const disqCnt=realData.filter(l=>!!gDisq(l._id)).length;
-  const qualCnt=realData.filter(l=>!gDisq(l._id)).length;
+  // Counts mirror what actually renders on the board. Pipeline only shows leads
+  // past the 'lead' stage (pure Leads live in Accounts → Prospects), so the
+  // Qualified badge must use the same filter or the number won't match the
+  // visible cards. Empty Bubble syncs are excluded so totals stay consistent.
+  const realData = leads.filter(l => hasRealData(l));
+  const disqCnt  = realData.filter(l => !!gDisq(l._id)).length;
+  const qualCnt  = realData.filter(l => !gDisq(l._id) && gStage(l._id) !== 'lead').length;
   const sbEl=document.getElementById('sb-disq-count');
   if(sbEl)sbEl.textContent=disqCnt;
   const tabDisq=document.getElementById('tab-disq-count');
