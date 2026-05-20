@@ -7000,11 +7000,11 @@ body .ld-tab-content {
 
     <nav class="sb-nav">
       <div class="sb-lbl">Workspace</div>
-      <div class="sb-item" data-label="Dashboard" id="sb-dashboard-item" onclick="switchMainView('dashboard')">
+      <div class="sb-item active" data-label="Dashboard" id="sb-dashboard-item" onclick="switchMainView('dashboard')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span class="sb-item-label">Dashboard</span>
       </div>
-      <div class="sb-item active" data-label="Pipeline" id="sb-pipeline-item" onclick="switchMainView('pipeline')">
+      <div class="sb-item" data-label="Pipeline" id="sb-pipeline-item" onclick="switchMainView('pipeline')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7A2 2 0 005 7V19A2 2 0 007 21H17A2 2 0 0019 19V7A2 2 0 0017 5H15"/><path d="M9 5A2 2 0 0011 3H13A2 2 0 0115 5V7A2 2 0 0113 9H11A2 2 0 019 7V5Z"/></svg>
         <span class="sb-item-label">Sales Pipeline</span>
         <span class="sb-cnt" id="sb-pipe-count">0</span>
@@ -7013,10 +7013,6 @@ body .ld-tab-content {
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         <span class="sb-item-label">Accounts</span>
         <span class="sb-cnt" id="sb-acc-count">0</span>
-      </div>
-      <div class="sb-item" data-label="Insights" id="sb-insights-item" onclick="switchMainView('insights')">
-        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-        <span class="sb-item-label">Insights</span>
       </div>
 
     </nav>
@@ -7290,23 +7286,6 @@ body .ld-tab-content {
   <!-- ─── DASHBOARD VIEW ─── -->
   <div id="dashboard-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
 
-  <!-- ─── INSIGHTS VIEW ─── -->
-  <div id="insights-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;">
-    <div style="max-width:1200px;margin:0 auto;width:100%;">
-      <h2 style="font-size:20px;font-weight:500;letter-spacing:-0.02em;margin:0 0 4px;color:var(--text);">Insights</h2>
-      <p style="font-size:13px;color:var(--text-3);margin:0 0 20px;">Forecast, win/loss analysis, journey, and team activity</p>
-
-      <!-- Tab nav -->
-      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;">
-        <button class="insights-tab active" data-tab="forecast" onclick="switchInsightsTab(this)">Forecast</button>
-        <button class="insights-tab" data-tab="winloss" onclick="switchInsightsTab(this)">Win / Loss</button>
-        <button class="insights-tab" data-tab="journey" onclick="switchInsightsTab(this)">Journey</button>
-        <button class="insights-tab" data-tab="feed" onclick="switchInsightsTab(this)">Activity Feed</button>
-      </div>
-
-      <div id="insights-tab-content"></div>
-    </div>
-  </div>
     </div><!-- /.content -->
 </main>
 </div>
@@ -8157,6 +8136,8 @@ function init(){
   const sbAcc=document.getElementById('sb-acc-count');
   if(sbAcc)sbAcc.textContent=leads.length;
   setTimeout(autoEnrichAll,800);
+  // Boot into Dashboard view
+  switchMainView('dashboard');
 }
 
 function popFilters(){
@@ -10027,7 +10008,7 @@ function toggleDarkMode(){
 // ACCOUNTS TABLE VIEW
 // ═══════════════════════════════════════════════════
 
-let currentMainView = 'pipeline'; // 'pipeline' | 'accounts'
+let currentMainView = 'dashboard'; // 'dashboard' | 'pipeline' | 'accounts'
 let accSortCol = 'created';
 let accSortDir = 'desc'; // 'asc' | 'desc'
 
@@ -10035,12 +10016,10 @@ function switchMainView(view) {
   currentMainView = view;
   const boardView    = document.getElementById('board-view');
   const accountsView = document.getElementById('accounts-view');
-  const insightsView = document.getElementById('insights-view');
   const dashboardView= document.getElementById('dashboard-view');
   const leadPage     = document.getElementById('lead-page');
   const pipelineItem = document.getElementById('sb-pipeline-item');
   const accountsItem = document.getElementById('sb-accounts-item');
-  const insightsItem = document.getElementById('sb-insights-item');
   const dashboardItem= document.getElementById('sb-dashboard-item');
   const topbarTitle  = document.querySelector('.tb-title');
 
@@ -10052,40 +10031,27 @@ function switchMainView(view) {
   if (view === 'pipeline') {
     if (boardView)     { boardView.style.cssText = 'flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;'; }
     if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (insightsView)  { insightsView.style.cssText = 'display:none;'; }
     if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    setActive(pipelineItem,true); setActive(accountsItem,false); setActive(insightsItem,false); setActive(dashboardItem,false);
+    setActive(pipelineItem,true); setActive(accountsItem,false); setActive(dashboardItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Sales Pipeline <span class="tb-badge" id="tb-record-count">${leads.length} leads</span>`;
     renderBoard(); kpis();
   } else if (view === 'accounts') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (insightsView)  { insightsView.style.cssText = 'display:none;'; }
     if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
     if (accountsView)  {
       accountsView.style.cssText = 'display:block;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
     }
-    setActive(pipelineItem,false); setActive(accountsItem,true); setActive(insightsItem,false); setActive(dashboardItem,false);
+    setActive(pipelineItem,false); setActive(accountsItem,true); setActive(dashboardItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Accounts <span class="tb-badge">${leads.length} total</span>`;
     initAccountsFilters();
     requestAnimationFrame(() => renderAccountsTable());
-  } else if (view === 'insights') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    if (insightsView)  {
-      insightsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 40px;';
-    }
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(insightsItem,true); setActive(dashboardItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = `Insights`;
-    requestAnimationFrame(() => renderInsights());
   } else if (view === 'dashboard') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
     if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (insightsView)  { insightsView.style.cssText = 'display:none;'; }
     if (dashboardView) {
       dashboardView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;';
     }
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(insightsItem,false); setActive(dashboardItem,true);
+    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,true);
     if (topbarTitle)  topbarTitle.innerHTML = `Dashboard`;
     requestAnimationFrame(() => renderDashboard());
   }
