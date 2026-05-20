@@ -9418,7 +9418,7 @@ function ldSubmitLog(){
   const text=ta.value.trim();if(!text)return;
   const author=document.getElementById('ld-author')?.value||gOwner(curId);
   pushLog(curId,ldComposerMode,text,author);
-  sOwner(curId,author);ta.value='';
+  ta.value='';
   const lead=leads.find(l=>l._id===curId);
   if(lead){renderLdTabContent('activity',lead);updateLdTabCounts(lead);}
   renderBoard();toast('Logged','success');
@@ -10299,7 +10299,6 @@ function submitLog(){
   const activeBtn=document.querySelector('.al-tb.active,.hs-type-btn.active');
   const type=activeBtn?activeBtn.dataset.type:curLogT||'note';
   pushLog(curId,type,text,author);
-  sOwner(curId,author);
   const lead=leads.find(l=>l._id===curId);
   if(lead){
     renderCenterTab(curHsTab,lead);
