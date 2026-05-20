@@ -5073,7 +5073,9 @@ body .sidebar.collapsed .sb-user {
   font-weight: 500 !important;
   font-size: 13px !important;
 }
-.sb-item:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+.sb-item:hover { background: var(--cg-900) !important; color: #FFFFFF !important; }
+.sb-item:hover .sb-icon { opacity: 1 !important; }
+.sb-item:hover .sb-cnt { background: var(--lime-700) !important; color: var(--cg-900) !important; }
 .sb-item.active {
   background: var(--lime-200) !important;
   color: var(--cg-900) !important;
@@ -6757,7 +6759,9 @@ body .ld-tab-content {
 [data-theme="dark"] .sb-brand-name { color: var(--text) !important; display: block !important; }
 [data-theme="dark"] .sb-brand-sub { color: var(--text-3) !important; display: block !important; }
 [data-theme="dark"] .sb-item { color: var(--text-2) !important; }
-[data-theme="dark"] .sb-item:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+[data-theme="dark"] .sb-item:hover { background: var(--cg-900) !important; color: #FFFFFF !important; }
+.sb-item:hover .sb-icon { opacity: 1 !important; }
+.sb-item:hover .sb-cnt { background: var(--lime-700) !important; color: var(--cg-900) !important; }
 [data-theme="dark"] .sb-item.active {
   background: var(--lime-700) !important;
   color: #11151B !important;
@@ -7062,15 +7066,15 @@ body .ld-tab-content {
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span class="sb-item-label">Dashboard</span>
       </div>
-      <div class="sb-item" data-label="Pipeline" id="sb-pipeline-item" onclick="switchMainView('pipeline')">
-        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7A2 2 0 005 7V19A2 2 0 007 21H17A2 2 0 0019 19V7A2 2 0 0017 5H15"/><path d="M9 5A2 2 0 0011 3H13A2 2 0 0115 5V7A2 2 0 0113 9H11A2 2 0 019 7V5Z"/></svg>
-        <span class="sb-item-label">Sales Pipeline</span>
-        <span class="sb-cnt" id="sb-pipe-count">0</span>
-      </div>
       <div class="sb-item" data-label="Accounts" id="sb-accounts-item" onclick="switchMainView('accounts')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         <span class="sb-item-label">Accounts</span>
         <span class="sb-cnt" id="sb-acc-count">0</span>
+      </div>
+      <div class="sb-item" data-label="Pipeline" id="sb-pipeline-item" onclick="switchMainView('pipeline')">
+        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7A2 2 0 005 7V19A2 2 0 007 21H17A2 2 0 0019 19V7A2 2 0 0017 5H15"/><path d="M9 5A2 2 0 0011 3H13A2 2 0 0115 5V7A2 2 0 0113 9H11A2 2 0 019 7V5Z"/></svg>
+        <span class="sb-item-label">Sales Pipeline</span>
+        <span class="sb-cnt" id="sb-pipe-count">0</span>
       </div>
 
     </nav>
