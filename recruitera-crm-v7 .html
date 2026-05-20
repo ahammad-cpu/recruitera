@@ -10914,12 +10914,51 @@ function switchInsightsTab(el) {
   renderInsights();
 }
 
+let dshFilterRange = '90d';
+let dshFilterOwner = '';
+
+function dshSetRange(r){
+  dshFilterRange = r;
+  renderDashboard();
+}
+function dshSetOwner(v){
+  dshFilterOwner = v;
+  renderDashboard();
+}
+function dshClearFilters(){
+  dshFilterRange = '90d';
+  dshFilterOwner = '';
+  renderDashboard();
+}
+
 function renderDashboard(){
   const el = document.getElementById('dashboard-view');
   if (!el) return;
 
+  // ─── Date range cutoff ──────────────
+  const _now = Date.now();
+  const _day = 86400000;
+  const rangeMs = {
+    '7d':  7*_day,
+    '30d': 30*_day,
+    '90d': 90*_day,
+    'QTD': (() => { const d=new Date(); const q=Math.floor(d.getMonth()/3); const qs=new Date(d.getFullYear(),q*3,1).getTime(); return _now-qs; })(),
+    'YTD': (() => _now - new Date(new Date().getFullYear(),0,1).getTime())(),
+  }[dshFilterRange] || 90*_day;
+  const cutoff = _now - rangeMs;
+
+  // ─── Build owner list ──────────────
+  const ownerEmails = [...new Set(leads.map(l => l.am_mail).filter(Boolean))];
+
+  // ─── Apply filters ──────────────
+  const inRange = (l) => {
+    const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+    return t === 0 || t >= cutoff;
+  };
+  const matchOwner = (l) => !dshFilterOwner || l.am_mail === dshFilterOwner;
+
   // ─── Compute live metrics from leads ──────────────
-  const active   = leads.filter(l => !gDisq(l._id));
+  const active   = leads.filter(l => !gDisq(l._id) && inRange(l) && matchOwner(l));
   const customers= active.filter(l => isLeadPaidCustomer(l));
   const open     = active.filter(l => !customers.includes(l) && gStage(l._id) !== 'lost');
   const won      = active.filter(l => gStage(l._id) === 'won');
@@ -11072,6 +11111,27 @@ function renderDashboard(){
         <h1 class="dsh-title">Dashboard</h1>
         <div class="dsh-sub">${today} · ${active.length} leads · ${customers.length} paying customers</div>
       </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="dsh-card" style="padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-right:4px;">Filters</span>
+      <select onchange="dshSetRange(this.value)" style="height:34px;padding:0 28px 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit;cursor:pointer;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2381878E' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>&quot;);background-repeat:no-repeat;background-position:right 10px center;">
+        <option value="90d"${dshFilterRange==='90d'?' selected':''}>Date: Last 90 days</option>
+        <option value="7d"${dshFilterRange==='7d'?' selected':''}>Last 7 days</option>
+        <option value="30d"${dshFilterRange==='30d'?' selected':''}>Last 30 days</option>
+        <option value="QTD"${dshFilterRange==='QTD'?' selected':''}>QTD</option>
+        <option value="YTD"${dshFilterRange==='YTD'?' selected':''}>YTD</option>
+      </select>
+      <select onchange="dshSetOwner(this.value)" style="height:34px;padding:0 28px 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit;cursor:pointer;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2381878E' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>&quot;);background-repeat:no-repeat;background-position:right 10px center;">
+        <option value="">Owner: All</option>
+        ${ownerEmails.map(e=>`<option value="${esc(e)}"${dshFilterOwner===e?' selected':''}>${esc(ownerFromEmail(e).name||e)}</option>`).join('')}
+      </select>
+      <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:3px;margin-left:8px;">
+        ${['7d','30d','90d','QTD','YTD'].map(r=>`<button onclick="dshSetRange('${r}')" style="padding:5px 12px;font-size:11px;font-weight:600;color:${dshFilterRange===r?'#fff':'var(--text-3)'};background:${dshFilterRange===r?'var(--cg-900)':'transparent'};border:none;border-radius:6px;cursor:pointer;font-family:inherit;">${r}</button>`).join('')}
+      </div>
+      <span style="margin-left:auto;font-size:11px;color:var(--text-3);">Showing <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${active.length}</strong> leads · <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${customers.length}</strong> customers</span>
+      ${(dshFilterRange!=='90d'||dshFilterOwner)?`<button onclick="dshClearFilters()" style="background:transparent;border:none;color:var(--text-3);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;padding:6px 10px;">Clear all</button>`:''}
     </div>
 
     <!-- ARR Hero -->
