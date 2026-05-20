@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <style>
 /* ─── DESIGN TOKENS (Recruitera brand) ─────────────── */
 :root{
@@ -6614,6 +6615,120 @@ body .ld-tab-content {
   border-color: var(--border) !important;
 }
 
+/* ─── UTM GENERATOR MODULE (scoped to #utm-view) ─── */
+#utm-view{font-family:'Montserrat',system-ui,sans-serif;color:var(--text);}
+#utm-view *,#utm-view *::before,#utm-view *::after{box-sizing:border-box;}
+#utm-view .utm-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+#utm-view .utm-tabs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;box-shadow:var(--shadow-xs);}
+#utm-view .utm-tab{padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--text-3);background:transparent;border:none;border-radius:7px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:all 110ms;}
+#utm-view .utm-tab:hover{color:var(--text);background:var(--surface-2);}
+#utm-view .utm-tab.active{background:var(--cg-900);color:#fff;}
+#utm-view .utm-tab .utm-tab-cnt{font-size:10px;background:var(--lime-700);color:var(--cg-900);padding:1px 7px;border-radius:999px;font-weight:700;min-width:18px;text-align:center;}
+#utm-view .utm-tab.active .utm-tab-cnt{background:rgba(255,255,255,0.15);color:#fff;}
+#utm-view .utm-panel{display:none;}
+#utm-view .utm-panel.active{display:block;}
+#utm-view .utm-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-xs);margin-bottom:14px;}
+#utm-view .utm-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px;}
+#utm-view .utm-split{display:grid;grid-template-columns:1fr 420px;gap:18px;align-items:start;}
+@media (max-width:1100px){#utm-view .utm-split{grid-template-columns:1fr;}}
+#utm-view .utm-fstack{display:flex;flex-direction:column;gap:11px;}
+#utm-view .utm-frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+#utm-view .utm-field{display:flex;flex-direction:column;gap:5px;}
+#utm-view .utm-field label{font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;}
+#utm-view .utm-field label .opt{font-weight:400;color:var(--text-3);}
+#utm-view .utm-field input,#utm-view .utm-field select,#utm-view .utm-field textarea{width:100%;padding:10px 12px;font-size:13px;font-family:inherit;border:1px solid var(--border-2);border-radius:8px;background:var(--surface);color:var(--text);outline:none;transition:border-color 120ms,box-shadow 120ms;}
+#utm-view .utm-field input:focus,#utm-view .utm-field select:focus,#utm-view .utm-field textarea:focus{border-color:var(--lime-700);box-shadow:0 0 0 3px color-mix(in oklab,var(--lime-700) 22%,transparent);}
+#utm-view .utm-field input::placeholder,#utm-view .utm-field textarea::placeholder{color:var(--text-4);}
+#utm-view .utm-camp-row{display:flex;gap:8px;align-items:flex-end;}
+#utm-view .utm-camp-row .utm-field{flex:1;}
+#utm-view .utm-sync-btn{padding:0 12px;height:38px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);font-family:inherit;white-space:nowrap;transition:all 110ms;}
+#utm-view .utm-sync-btn:hover{background:var(--lime-200);border-color:var(--lime-700);color:var(--cg-900);}
+#utm-view .utm-sync-btn.spinning svg{animation:utm-spin 0.7s linear infinite;}
+@keyframes utm-spin{to{transform:rotate(360deg);}}
+#utm-view .utm-sync-status{font-size:11px;margin-top:4px;height:14px;color:var(--text-3);}
+#utm-view .utm-sync-status.ok{color:var(--ok);}
+#utm-view .utm-sync-status.err{color:var(--bad);}
+#utm-view .utm-presets{display:flex;flex-wrap:wrap;gap:6px;}
+#utm-view .utm-pbtn{font-size:11.5px;font-weight:600;font-family:inherit;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;white-space:nowrap;transition:all 110ms;}
+#utm-view .utm-pbtn:hover{background:var(--cg-900);color:#fff;border-color:var(--cg-900);}
+#utm-view .utm-output{background:var(--surface);border:1px solid var(--lime-700);border-radius:14px;padding:18px 20px;}
+#utm-view .utm-out-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+#utm-view .utm-out-lbl{font-size:10.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);}
+#utm-view .utm-out-chars{font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:11px;color:var(--text-3);}
+#utm-view .utm-out-url{font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.7;word-break:break-all;min-height:48px;color:var(--text);padding:10px 12px;background:var(--surface-2);border-radius:8px;}
+#utm-view .utm-out-url.empty{color:var(--text-4);font-family:inherit;font-style:italic;font-size:12.5px;}
+#utm-view .utm-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px;}
+#utm-view .utm-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;background:var(--lime-200);border:1px solid color-mix(in oklab,var(--lime-700) 50%,transparent);}
+#utm-view .utm-chip-k{font-size:9.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;}
+#utm-view .utm-chip-v{font-size:11px;font-weight:700;color:var(--cg-900);font-family:'DM Mono',ui-monospace,Menlo,monospace;}
+#utm-view .utm-short-row{display:flex;align-items:center;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--border);}
+#utm-view .utm-short-lbl{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;}
+#utm-view .utm-short-val{font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:12px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#utm-view .utm-short-val.pending{color:var(--text-4);font-family:inherit;font-style:italic;}
+#utm-view .utm-btns{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap;}
+#utm-view .utm-btn-primary{flex:1;min-width:100px;padding:10px 16px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--lime-700);background:var(--lime-700);color:#1A2230;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:all 110ms;}
+#utm-view .utm-btn-primary:hover{background:#bcd944;border-color:#bcd944;}
+#utm-view .utm-btn-primary.ok{background:var(--lime-200);color:#1A2230;}
+#utm-view .utm-btn-sec{padding:10px 14px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all 110ms;}
+#utm-view .utm-btn-sec:hover{background:var(--lime-200);border-color:var(--lime-700);}
+#utm-view .utm-btn-sec.danger{color:var(--bad);border-color:var(--bad);}
+#utm-view .utm-btn-sec.danger:hover{background:var(--bad-bg);border-color:var(--bad);}
+#utm-view .utm-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+#utm-view .utm-empty{padding:36px 20px;text-align:center;color:var(--text-3);font-size:13px;border:1px dashed var(--border-2);border-radius:10px;background:var(--surface-2);}
+#utm-view .utm-hist-list{display:flex;flex-direction:column;gap:8px;}
+#utm-view .utm-hist-item{padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);display:flex;flex-direction:column;gap:8px;}
+#utm-view .utm-hist-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--text-3);align-items:center;}
+#utm-view .utm-hist-pill{padding:2px 8px;border-radius:999px;background:var(--lime-200);color:var(--cg-900);font-weight:600;font-size:10.5px;}
+#utm-view .utm-hist-time{margin-left:auto;font-family:'DM Mono',ui-monospace,Menlo,monospace;color:var(--text-4);}
+#utm-view .utm-hist-url{font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--text-2);word-break:break-all;line-height:1.55;}
+#utm-view .utm-hist-actions{display:flex;gap:6px;flex-wrap:wrap;}
+#utm-view .utm-hist-actions button{padding:4px 10px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);transition:all 110ms;}
+#utm-view .utm-hist-actions button:hover{background:var(--lime-200);color:var(--cg-900);border-color:var(--lime-700);}
+#utm-view .utm-hist-actions button.del:hover{background:var(--bad-bg);color:var(--bad);border-color:var(--bad);}
+#utm-view .utm-lt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+#utm-view .utm-lt-group{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;}
+#utm-view .utm-lt-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;font-weight:600;font-size:13px;border-bottom:1px solid var(--border);}
+#utm-view .utm-lt-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+#utm-view .utm-lt-count{margin-left:auto;font-size:11px;color:var(--text-3);font-weight:500;}
+#utm-view .utm-lt-body{padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px;}
+#utm-view .utm-lt-link{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);}
+#utm-view .utm-lt-link-meta{flex:1;min-width:0;}
+#utm-view .utm-lt-link-label{font-size:12.5px;font-weight:600;color:var(--text);}
+#utm-view .utm-lt-link-sub{font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--text-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#utm-view .utm-lt-color-pick{display:inline-flex;gap:6px;}
+#utm-view .utm-lt-color-dot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
+#utm-view .utm-lt-color-dot.sel{border-color:var(--text);box-shadow:0 0 0 2px var(--surface);}
+#utm-view .utm-lt-new-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+#utm-view .utm-lt-new-row input{flex:1;min-width:200px;}
+#utm-view .utm-bulk-mode{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+#utm-view .utm-bulk-mode button{padding:10px 14px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);transition:all 110ms;display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;}
+#utm-view .utm-bulk-mode button.active{background:var(--cg-900);color:#fff;border-color:var(--cg-900);}
+#utm-view .utm-bulk-mode .sub{font-size:10px;font-weight:500;opacity:0.7;}
+#utm-view .utm-bulk-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+#utm-view .utm-bulk-table th{text-align:left;padding:10px 12px;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;border-bottom:1px solid var(--border);background:var(--surface);}
+#utm-view .utm-bulk-table td{padding:10px 12px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+#utm-view .utm-bulk-table .url{font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:11px;color:var(--text-2);word-break:break-all;}
+#utm-view .utm-bulk-channels{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+#utm-view .utm-bulk-channels label{display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;background:var(--surface);}
+#utm-view .utm-bulk-channels label:hover{border-color:var(--lime-700);background:var(--lime-200);}
+#utm-view .utm-qr-card{padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface);text-align:center;}
+#utm-view .utm-qr-canvas{display:inline-block;padding:12px;background:#fff;border-radius:10px;}
+#utm-view .utm-qr-canvas img,#utm-view .utm-qr-canvas canvas{display:block;}
+#utm-view .utm-qr-row{display:flex;gap:8px;margin-top:12px;justify-content:center;flex-wrap:wrap;}
+#utm-view .utm-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--cg-900);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:all 200ms;z-index:1000;}
+#utm-view .utm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* Dark mode adjustments */
+[data-theme="dark"] #utm-view .utm-output{border-color:rgba(204,237,89,0.4);}
+[data-theme="dark"] #utm-view .utm-chip{background:rgba(204,237,89,0.15);color:var(--lime-700);border-color:rgba(204,237,89,0.3);}
+[data-theme="dark"] #utm-view .utm-chip-v{color:var(--lime-700);}
+[data-theme="dark"] #utm-view .utm-hist-pill{background:rgba(204,237,89,0.15);color:var(--lime-700);}
+[data-theme="dark"] #utm-view .utm-pbtn:hover{background:var(--lime-700);color:var(--cg-900);border-color:var(--lime-700);}
+[data-theme="dark"] #utm-view .utm-sync-btn:hover{background:rgba(204,237,89,0.15);color:var(--lime-700);border-color:var(--lime-700);}
+[data-theme="dark"] #utm-view .utm-tab.active{background:rgba(204,237,89,0.2);color:var(--lime-700);}
+[data-theme="dark"] #utm-view .utm-tab.active .utm-tab-cnt{background:var(--lime-700);color:var(--cg-900);}
+[data-theme="dark"] #utm-view .utm-bulk-mode button.active{background:rgba(204,237,89,0.2);color:var(--lime-700);border-color:rgba(204,237,89,0.4);}
+
 /* ─── DASHBOARD — DARK MODE FIXES ─── */
 [data-theme="dark"] #dashboard-view .dsh-card,
 [data-theme="dark"] #dashboard-view .dsh-kpi {
@@ -7084,6 +7199,10 @@ body .ld-tab-content {
         <span class="sb-item-label">Sales Pipeline</span>
         <span class="sb-cnt" id="sb-pipe-count">0</span>
       </div>
+      <div class="sb-item" data-label="UTM Generator" id="sb-utm-item" onclick="switchMainView('utm')" style="display:none;">
+        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        <span class="sb-item-label">UTM Generator</span>
+      </div>
 
     </nav>
 
@@ -7349,6 +7468,9 @@ body .ld-tab-content {
   <!-- ─── DASHBOARD VIEW ─── -->
   <div id="dashboard-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
 
+  <!-- ─── UTM GENERATOR VIEW ─── -->
+  <div id="utm-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
+
     </div><!-- /.content -->
 </main>
 </div>
@@ -7570,6 +7692,9 @@ window.AUTH_PROFILE = null;
         const initials = (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
         avEl.textContent = initials.toUpperCase();
       }
+      // Reveal admin-only sidebar entries
+      const utmItem = document.getElementById('sb-utm-item');
+      if (utmItem) utmItem.style.display = (p.role === 'admin') ? '' : 'none';
     }catch{}
     // Re-render so admin/owner gates pick up the role
     try{ if(typeof renderBoard==='function') renderBoard(); }catch{}
@@ -10244,43 +10369,64 @@ function switchMainView(view) {
   const boardView    = document.getElementById('board-view');
   const accountsView = document.getElementById('accounts-view');
   const dashboardView= document.getElementById('dashboard-view');
+  const utmView      = document.getElementById('utm-view');
   const leadPage     = document.getElementById('lead-page');
   const pipelineItem = document.getElementById('sb-pipeline-item');
   const accountsItem = document.getElementById('sb-accounts-item');
   const dashboardItem= document.getElementById('sb-dashboard-item');
+  const utmItem      = document.getElementById('sb-utm-item');
   const topbarTitle  = document.querySelector('.tb-title');
 
   // Close lead detail if open
   if (leadPage) leadPage.classList.remove('open');
 
   const setActive = (item, on) => { if(item) item.classList.toggle('active', on); };
+  const hideUtm = () => { if (utmView) utmView.style.cssText = 'display:none;'; };
 
   if (view === 'pipeline') {
     if (boardView)     { boardView.style.cssText = 'flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;'; }
     if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
     if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    setActive(pipelineItem,true); setActive(accountsItem,false); setActive(dashboardItem,false);
+    hideUtm();
+    setActive(pipelineItem,true); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Sales Pipeline <span class="tb-badge" id="tb-record-count">${leads.length} leads</span>`;
     renderBoard(); kpis();
   } else if (view === 'accounts') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
     if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    hideUtm();
     if (accountsView)  {
       accountsView.style.cssText = 'display:block;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
     }
-    setActive(pipelineItem,false); setActive(accountsItem,true); setActive(dashboardItem,false);
+    setActive(pipelineItem,false); setActive(accountsItem,true); setActive(dashboardItem,false); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Accounts <span class="tb-badge">${leads.length} total</span>`;
     initAccountsFilters();
     requestAnimationFrame(() => renderAccountsTable());
   } else if (view === 'dashboard') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
     if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    hideUtm();
     if (dashboardView) {
       dashboardView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;';
     }
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,true);
+    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,true); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Dashboard`;
     requestAnimationFrame(() => renderDashboard());
+  } else if (view === 'utm') {
+    // Admin-only gate (defense in depth — sidebar item is already hidden for non-admins)
+    if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
+      console.warn('[UTM] non-admin tried to open UTM view — blocked');
+      return;
+    }
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    if (utmView) {
+      utmView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;';
+    }
+    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,true);
+    if (topbarTitle)  topbarTitle.innerHTML = `UTM Generator`;
+    requestAnimationFrame(() => { try { renderUTM(); } catch(e){ console.error('renderUTM failed', e); } });
   }
 }
 
@@ -11136,6 +11282,832 @@ function dshClearFilters(){
   dshFilterRange = '90d';
   dshFilterOwner = '';
   renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════
+// UTM GENERATOR MODULE — admin-only campaign URL builder
+// ═══════════════════════════════════════════════════════
+const UTM_STATE = {
+  currentTab: 'gen',
+  campaigns: [],     // from utm_campaigns
+  history:   [],     // from utm_links
+  groups:    [],     // from utm_link_groups (each gets .links populated client-side)
+  newGroupColor: '#CCED59',
+  currentShort:  '',
+  qrVisible:     false,
+  bulkMode:      'campaigns',
+  bulkData:      [],
+};
+
+function _utmEsc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function _utmFetch(path, opts){
+  const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
+  if (!token) { location.replace('./recruitera-login.html'); throw new Error('no token'); }
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...(opts||{}),
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      ...(opts && opts.headers ? opts.headers : {})
+    }
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(()=> '');
+    throw new Error(`${res.status} ${t.slice(0,200)}`);
+  }
+  if (res.status === 204) return null;
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? res.json() : res.text();
+}
+
+function utmToast(msg){
+  let t = document.getElementById('utm-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'utm-toast'; t.className = 'utm-toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tmr);
+  t._tmr = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function utmBuildURL(){
+  const base = (document.getElementById('utm-base-url')?.value || 'https://recruitera.ai/').trim();
+  const s  = (document.getElementById('utm-src')?.value      || '').trim();
+  const m  = (document.getElementById('utm-med')?.value      || '').trim().split(' ')[0];
+  const c  = (document.getElementById('utm-camp')?.value     || '').trim();
+  const co = (document.getElementById('utm-content')?.value  || '').trim();
+  if (!s && !m && !c && !co) return null;
+  const p = new URLSearchParams();
+  if (s)  p.set('utm_source',   s);
+  if (m)  p.set('utm_medium',   m);
+  if (c)  p.set('utm_campaign', c);
+  if (co) p.set('utm_content',  co);
+  return base + (base.includes('?') ? '&' : '?') + p.toString();
+}
+
+function utmGenerate(){
+  const out    = document.getElementById('utm-out');
+  const chips  = document.getElementById('utm-chips');
+  const chars  = document.getElementById('utm-out-chars');
+  const sr     = document.getElementById('utm-short-row');
+  if (!out) return;
+  const url = utmBuildURL();
+  UTM_STATE.currentShort = '';
+  const sv  = document.getElementById('utm-short-val');
+  const scb = document.getElementById('utm-short-copy');
+  if (sv) { sv.textContent='Click Shorten →'; sv.className='utm-short-val pending'; }
+  if (scb) scb.style.display='none';
+  if (!url){
+    out.textContent='Fill in the fields to generate your URL';
+    out.className='utm-out-url empty';
+    if (chips){ chips.style.display='none'; chips.innerHTML=''; }
+    if (chars) chars.textContent='';
+    if (sr) sr.style.display='none';
+    if (UTM_STATE.qrVisible) utmRenderQR();
+    return;
+  }
+  out.textContent = url;
+  out.className   = 'utm-out-url';
+  if (chars) chars.textContent = url.length + ' chars';
+  if (sr) sr.style.display='flex';
+  const s  = (document.getElementById('utm-src')?.value     || '').trim();
+  const m  = (document.getElementById('utm-med')?.value     || '').trim().split(' ')[0];
+  const c  = (document.getElementById('utm-camp')?.value    || '').trim();
+  const co = (document.getElementById('utm-content')?.value || '').trim();
+  let h = '';
+  if (s)  h += `<div class="utm-chip"><span class="utm-chip-k">src</span><span class="utm-chip-v">${_utmEsc(s)}</span></div>`;
+  if (m)  h += `<div class="utm-chip"><span class="utm-chip-k">med</span><span class="utm-chip-v">${_utmEsc(m)}</span></div>`;
+  if (c)  h += `<div class="utm-chip"><span class="utm-chip-k">camp</span><span class="utm-chip-v">${_utmEsc(c)}</span></div>`;
+  if (co) h += `<div class="utm-chip"><span class="utm-chip-k">cnt</span><span class="utm-chip-v">${_utmEsc(co)}</span></div>`;
+  if (chips){ chips.innerHTML = h; chips.style.display = h ? 'flex' : 'none'; }
+  if (UTM_STATE.qrVisible) utmRenderQR();
+}
+
+function utmPreset(s, m, c, co){
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set('utm-src', s);
+  set('utm-med', m);
+  set('utm-camp', c);
+  set('utm-content', co);
+  utmGenerate();
+}
+
+function utmCopyURL(){
+  const url = utmBuildURL();
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(() => {
+    const b = document.getElementById('utm-copy-btn');
+    if (!b) return;
+    const orig = b.innerHTML;
+    b.innerHTML = '✓ Copied!';
+    b.classList.add('ok');
+    setTimeout(() => { b.innerHTML = orig; b.classList.remove('ok'); }, 1800);
+  });
+}
+
+function utmCopyShort(){
+  if (!UTM_STATE.currentShort) return;
+  navigator.clipboard.writeText(UTM_STATE.currentShort).then(() => utmToast('Short URL copied'));
+}
+
+async function utmShorten(){
+  const url = utmBuildURL();
+  if (!url) return;
+  const btn = document.getElementById('utm-shorten-btn');
+  const sv  = document.getElementById('utm-short-val');
+  const scb = document.getElementById('utm-short-copy');
+  if (btn) { btn.disabled = true; btn.textContent = 'Shortening…'; }
+  if (sv) { sv.textContent = 'Generating…'; sv.className = 'utm-short-val pending'; }
+  try {
+    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(url));
+    const short = (await res.text()).trim();
+    if (!short.startsWith('http')) throw new Error('bad response');
+    UTM_STATE.currentShort = short;
+    if (sv) { sv.textContent = short; sv.className = 'utm-short-val'; }
+    if (scb) scb.style.display = '';
+    if (UTM_STATE.qrVisible) utmRenderQR();
+    utmToast('URL shortened');
+  } catch(e) {
+    if (sv) { sv.textContent = 'Could not shorten — check connection'; sv.className = 'utm-short-val pending'; }
+    utmToast('Shorten failed');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Shorten URL'; }
+  }
+}
+
+function utmToggleQR(){
+  const url = utmBuildURL();
+  if (!url) { utmToast('Generate a URL first'); return; }
+  UTM_STATE.qrVisible = !UTM_STATE.qrVisible;
+  const sec = document.getElementById('utm-qr-section');
+  const btn = document.getElementById('utm-qr-toggle');
+  if (sec) sec.style.display = UTM_STATE.qrVisible ? '' : 'none';
+  if (btn) btn.textContent = UTM_STATE.qrVisible ? 'Hide QR Code' : 'Show QR Code';
+  if (UTM_STATE.qrVisible) utmRenderQR();
+}
+
+function utmRenderQR(){
+  const el = document.getElementById('utm-qr-canvas');
+  if (!el) return;
+  el.innerHTML = '';
+  const url = utmBuildURL();
+  const useShort = document.getElementById('utm-qr-use-short')?.checked && UTM_STATE.currentShort;
+  const qrUrl = useShort ? UTM_STATE.currentShort : (url || 'https://recruitera.ai/');
+  const tag = document.getElementById('utm-qr-url-tag');
+  if (tag) tag.textContent = qrUrl;
+  if (typeof QRCode === 'undefined') {
+    el.innerHTML = '<p style="font-size:12px;color:var(--text-3)">QR library loading…</p>';
+    return;
+  }
+  try {
+    new QRCode(el, { text: qrUrl, width: 192, height: 192, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+  } catch(e) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--bad)">QR generation failed</p>';
+  }
+}
+
+function utmDownloadQR(){
+  const wrap = document.getElementById('utm-qr-canvas');
+  if (!wrap) return;
+  const c = wrap.querySelector('canvas') || wrap.querySelector('img');
+  if (!c) return;
+  const a = document.createElement('a');
+  a.download = 'recruitera-qr.png';
+  a.href = c.tagName === 'CANVAS' ? c.toDataURL('image/png') : c.src;
+  a.click();
+}
+
+async function utmSaveLink(){
+  const url = utmBuildURL();
+  if (!url) { utmToast('Generate a URL first'); return; }
+  const btn = document.getElementById('utm-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const row = {
+      base_url: (document.getElementById('utm-base-url')?.value || 'https://recruitera.ai/').trim(),
+      utm_source:   (document.getElementById('utm-src')?.value     || '').trim() || null,
+      utm_medium:   (document.getElementById('utm-med')?.value     || '').trim().split(' ')[0] || null,
+      utm_campaign: (document.getElementById('utm-camp')?.value    || '').trim() || null,
+      utm_content:  (document.getElementById('utm-content')?.value || '').trim() || null,
+      full_url:  url,
+      short_url: UTM_STATE.currentShort || null,
+      created_by: window.AUTH_PROFILE?.id || null,
+    };
+    const created = await _utmFetch('utm_links', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (Array.isArray(created) && created[0]) UTM_STATE.history.unshift(created[0]);
+    utmToast('Saved to history');
+    utmRenderHistory();
+  } catch(e) {
+    console.error('[utm] saveLink', e);
+    utmToast('Save failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+}
+
+function utmResetAll(){
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set('utm-base-url', 'https://recruitera.ai/');
+  set('utm-src', ''); set('utm-med', ''); set('utm-camp', ''); set('utm-content', '');
+  utmGenerate();
+}
+
+async function utmLoadCampaigns(manual){
+  const btn    = document.getElementById('utm-sync-btn');
+  const status = document.getElementById('utm-sync-status');
+  const sel    = document.getElementById('utm-camp');
+  if (btn) btn.classList.add('spinning');
+  if (status){ status.className = 'utm-sync-status'; status.textContent = manual ? 'Syncing…' : 'Loading campaigns…'; }
+  try {
+    const rows = await _utmFetch('utm_campaigns?select=id,name&order=name.asc');
+    UTM_STATE.campaigns = rows || [];
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">— select campaign —</option>' +
+        UTM_STATE.campaigns.map(c => `<option value="${_utmEsc(c.name)}"${c.name===cur?' selected':''}>${_utmEsc(c.name)}</option>`).join('') +
+        '<option value="__new__">+ New campaign…</option>';
+    }
+    if (status){
+      status.className = 'utm-sync-status ok';
+      status.textContent = (UTM_STATE.campaigns.length || 0) + ' campaigns loaded';
+    }
+  } catch(e) {
+    if (status) { status.className = 'utm-sync-status err'; status.textContent = 'Sync failed: ' + e.message; }
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+    setTimeout(() => { if (status) status.textContent = ''; }, 3500);
+  }
+}
+
+async function utmCampaignChanged(){
+  const sel = document.getElementById('utm-camp');
+  if (sel && sel.value === '__new__') {
+    const name = prompt('New campaign name (e.g. q2-recruiters-2026):');
+    sel.value = '';
+    if (!name || !name.trim()) { utmGenerate(); return; }
+    try {
+      const created = await _utmFetch('utm_campaigns', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({ name: name.trim(), created_by: window.AUTH_PROFILE?.id || null }),
+      });
+      await utmLoadCampaigns(false);
+      if (Array.isArray(created) && created[0]) sel.value = created[0].name;
+      utmToast('Campaign created');
+    } catch(e) {
+      utmToast('Could not create: ' + e.message);
+    }
+  }
+  utmGenerate();
+}
+
+async function utmLoadHistory(){
+  try {
+    UTM_STATE.history = await _utmFetch('utm_links?select=*&order=created_at.desc&limit=200') || [];
+  } catch(e) {
+    console.error('[utm] loadHistory', e);
+    UTM_STATE.history = [];
+  }
+  utmRenderHistory();
+}
+
+function utmRenderHistory(){
+  const list  = document.getElementById('utm-hist-list');
+  const empty = document.getElementById('utm-hist-empty');
+  const cntEl = document.getElementById('utm-hist-cnt');
+  if (cntEl) cntEl.textContent = UTM_STATE.history.length;
+  if (!list) return;
+  if (!UTM_STATE.history.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = UTM_STATE.history.map(e => {
+    const time = e.created_at ? new Date(e.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+    return `<div class="utm-hist-item">
+      <div class="utm-hist-meta">
+        ${e.utm_source   ? `<span class="utm-hist-pill">${_utmEsc(e.utm_source)}</span>` : ''}
+        ${e.utm_medium   ? `<span class="utm-hist-pill">${_utmEsc(e.utm_medium)}</span>` : ''}
+        ${e.utm_campaign ? `<span class="utm-hist-pill">${_utmEsc(e.utm_campaign)}</span>` : ''}
+        ${e.utm_content  ? `<span class="utm-hist-pill">${_utmEsc(e.utm_content)}</span>` : ''}
+        <span class="utm-hist-time">${time}</span>
+      </div>
+      <div class="utm-hist-url">${_utmEsc(e.full_url)}</div>
+      <div class="utm-hist-actions">
+        <button onclick="utmCopyHist('${e.id}', this)">Copy</button>
+        <button onclick="utmLoadHist('${e.id}')">Load</button>
+        <button class="del" onclick="utmDeleteHist('${e.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function utmCopyHist(id, btn){
+  const e = UTM_STATE.history.find(x => x.id === id);
+  if (!e) return;
+  navigator.clipboard.writeText(e.full_url).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+function utmLoadHist(id){
+  const e = UTM_STATE.history.find(x => x.id === id);
+  if (!e) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  set('utm-base-url', e.base_url);
+  set('utm-src',  e.utm_source);
+  set('utm-med',  e.utm_medium);
+  set('utm-camp', e.utm_campaign);
+  set('utm-content', e.utm_content);
+  utmGenerate();
+  utmSwitchTab('gen');
+}
+
+async function utmDeleteHist(id){
+  if (!confirm('Delete this saved link?')) return;
+  try {
+    await _utmFetch(`utm_links?id=eq.${id}`, { method: 'DELETE' });
+    UTM_STATE.history = UTM_STATE.history.filter(x => x.id !== id);
+    utmRenderHistory();
+    utmToast('Deleted');
+  } catch(e) { utmToast('Delete failed: ' + e.message); }
+}
+
+async function utmLoadGroups(){
+  try {
+    const groups = await _utmFetch('utm_link_groups?select=*&order=created_at.desc') || [];
+    // Attach links: filter UTM_STATE.history by group_id (history already loaded)
+    if (!UTM_STATE.history.length) {
+      await utmLoadHistory();
+    }
+    groups.forEach(g => {
+      g.links = UTM_STATE.history.filter(l => l.group_id === g.id);
+    });
+    UTM_STATE.groups = groups;
+  } catch(e) {
+    console.error('[utm] loadGroups', e);
+    UTM_STATE.groups = [];
+  }
+  utmRenderGroups();
+}
+
+function utmRenderGroups(){
+  const list = document.getElementById('utm-lt-list');
+  if (!list) return;
+  if (!UTM_STATE.groups.length) {
+    list.innerHTML = '<div class="utm-empty">No groups yet. Create one below.</div>';
+    return;
+  }
+  list.innerHTML = UTM_STATE.groups.map(g => `
+    <div class="utm-lt-group">
+      <div class="utm-lt-hdr">
+        <div class="utm-lt-dot" style="background:${_utmEsc(g.color || '#CCED59')}"></div>
+        <span>${_utmEsc(g.name)}</span>
+        <span class="utm-lt-count">${(g.links||[]).length} link${(g.links||[]).length!==1?'s':''}</span>
+      </div>
+      <div class="utm-lt-body">
+        ${(g.links||[]).length
+          ? (g.links||[]).map(lk => `<div class="utm-lt-link">
+              <div class="utm-lt-link-meta">
+                <div class="utm-lt-link-label">${_utmEsc(lk.utm_campaign || lk.utm_content || 'Untitled link')}</div>
+                <div class="utm-lt-link-sub">${_utmEsc(lk.full_url)}</div>
+              </div>
+              <button class="utm-btn-sec" style="padding:5px 10px;font-size:11px;" onclick="utmLoadHist('${lk.id}')">Load →</button>
+            </div>`).join('')
+          : '<div style="font-size:12px;color:var(--text-3);font-style:italic;">No links in this group yet.</div>'
+        }
+        <div class="utm-lt-new-row" style="margin-top:6px;">
+          <button class="utm-btn-sec" onclick="utmAssignCurrentToGroup('${g.id}')">+ Add current URL</button>
+          <button class="utm-btn-sec danger" style="margin-left:auto;" onclick="utmDeleteGroup('${g.id}')">Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function utmCreateGroup(){
+  const nameEl = document.getElementById('utm-new-group-name');
+  const name = (nameEl?.value || '').trim();
+  if (!name) { utmToast('Enter a group name'); return; }
+  try {
+    await _utmFetch('utm_link_groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, color: UTM_STATE.newGroupColor, created_by: window.AUTH_PROFILE?.id || null }),
+    });
+    nameEl.value = '';
+    await utmLoadGroups();
+    utmToast('Group created');
+  } catch(e) { utmToast('Create failed: ' + e.message); }
+}
+
+async function utmDeleteGroup(id){
+  if (!confirm('Delete this group? Its links will keep existing in History but become un-grouped.')) return;
+  try {
+    await _utmFetch(`utm_link_groups?id=eq.${id}`, { method: 'DELETE' });
+    UTM_STATE.groups = UTM_STATE.groups.filter(g => g.id !== id);
+    utmRenderGroups();
+    utmToast('Group deleted');
+  } catch(e) { utmToast('Delete failed: ' + e.message); }
+}
+
+async function utmAssignCurrentToGroup(groupId){
+  const url = utmBuildURL();
+  if (!url) { utmToast('Generate a URL first on the Generator tab'); return; }
+  try {
+    const row = {
+      base_url: (document.getElementById('utm-base-url')?.value || 'https://recruitera.ai/').trim(),
+      utm_source:   (document.getElementById('utm-src')?.value     || '').trim() || null,
+      utm_medium:   (document.getElementById('utm-med')?.value     || '').trim().split(' ')[0] || null,
+      utm_campaign: (document.getElementById('utm-camp')?.value    || '').trim() || null,
+      utm_content:  (document.getElementById('utm-content')?.value || '').trim() || null,
+      full_url:  url,
+      short_url: UTM_STATE.currentShort || null,
+      group_id:  groupId,
+      created_by: window.AUTH_PROFILE?.id || null,
+    };
+    const created = await _utmFetch('utm_links', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=representation' },
+      body: JSON.stringify(row),
+    });
+    if (Array.isArray(created) && created[0]) UTM_STATE.history.unshift(created[0]);
+    await utmLoadGroups();
+    utmToast('Added to group');
+  } catch(e) { utmToast('Add failed: ' + e.message); }
+}
+
+function utmPickColor(el){
+  UTM_STATE.newGroupColor = el.getAttribute('data-color');
+  document.querySelectorAll('#utm-view .utm-lt-color-dot').forEach(d => d.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function utmSetBulkMode(mode){
+  UTM_STATE.bulkMode = mode;
+  ['campaigns','content','channels'].forEach(m => {
+    const btn = document.getElementById('utm-bmode-' + m);
+    if (btn) btn.classList.toggle('active', m === mode);
+    const fields = document.getElementById('utm-bulk-fields-' + m);
+    if (fields) fields.style.display = m === mode ? '' : 'none';
+  });
+  document.getElementById('utm-bulk-results').style.display = 'none';
+  UTM_STATE.bulkData = [];
+}
+
+function _utmBulkURL(base, src, med, camp, co){
+  base = base || 'https://recruitera.ai/';
+  const p = new URLSearchParams();
+  if (src)  p.set('utm_source',   src);
+  if (med)  p.set('utm_medium',   med);
+  if (camp) p.set('utm_campaign', camp);
+  if (co)   p.set('utm_content',  co);
+  const qs = p.toString();
+  return qs ? base + (base.includes('?') ? '&' : '?') + qs : base;
+}
+
+function utmGenerateBulk(){
+  const gv = id => (document.getElementById(id)?.value || '').trim();
+  const base = gv('utm-bulk-base') || 'https://recruitera.ai/';
+  let theadCols = '';
+  UTM_STATE.bulkData = [];
+  if (UTM_STATE.bulkMode === 'campaigns') {
+    const src = gv('utm-bulk-source'), med = gv('utm-bulk-medium').split(' ')[0], co = gv('utm-bulk-content-a');
+    const cs = (document.getElementById('utm-bulk-campaigns')?.value || '').split('\n').map(c=>c.trim()).filter(Boolean);
+    if (!cs.length) { utmToast('Add at least one campaign name'); return; }
+    UTM_STATE.bulkData = cs.map(c => ({ col1: c, col2: src || '—', url: _utmBulkURL(base, src, med, c, co) }));
+    theadCols = '<th>Campaign</th><th>Source</th>';
+  } else if (UTM_STATE.bulkMode === 'content') {
+    const src = gv('utm-bulk-source-c'), med = gv('utm-bulk-medium-c').split(' ')[0], camp = gv('utm-bulk-camp-fixed');
+    if (!camp) { utmToast('Enter a fixed campaign name'); return; }
+    const cs = (document.getElementById('utm-bulk-contents')?.value || '').split('\n').map(c=>c.trim()).filter(Boolean);
+    if (!cs.length) { utmToast('Add at least one content variant'); return; }
+    UTM_STATE.bulkData = cs.map(co => ({ col1: camp, col2: co, url: _utmBulkURL(base, src, med, camp, co) }));
+    theadCols = '<th>Campaign</th><th>Content variant</th>';
+  } else if (UTM_STATE.bulkMode === 'channels') {
+    const camp = gv('utm-bulk-camp-ch');
+    if (!camp) { utmToast('Enter a campaign name'); return; }
+    const co = gv('utm-bulk-content-ch');
+    const boxes = document.querySelectorAll('#utm-bulk-channels input:checked');
+    if (!boxes.length) { utmToast('Select at least one channel'); return; }
+    boxes.forEach(cb => {
+      const [src, med] = cb.value.split('|');
+      const name = cb.getAttribute('data-name') || src;
+      UTM_STATE.bulkData.push({ col1: name, col2: src + ' / ' + med, url: _utmBulkURL(base, src, med, camp, co) });
+    });
+    theadCols = '<th>Channel</th><th>Source / Medium</th>';
+  }
+  const head = document.getElementById('utm-bulk-thead');
+  const body = document.getElementById('utm-bulk-tbody');
+  const results = document.getElementById('utm-bulk-results');
+  if (head) head.innerHTML = theadCols + '<th>UTM URL</th><th></th>';
+  if (body) {
+    body.innerHTML = UTM_STATE.bulkData.map((r,i) => `<tr>
+      <td>${_utmEsc(r.col1)}</td>
+      <td style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:11px;color:var(--text-3);">${_utmEsc(r.col2)}</td>
+      <td class="url">${_utmEsc(r.url)}</td>
+      <td><button class="utm-btn-sec" style="padding:5px 10px;font-size:11px;" onclick="utmCopyBulkRow(${i}, this)">Copy</button></td>
+    </tr>`).join('');
+  }
+  if (results) results.style.display = '';
+}
+
+function utmCopyBulkRow(i, btn){
+  navigator.clipboard.writeText(UTM_STATE.bulkData[i].url).then(() => {
+    const o = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = o, 1400);
+  });
+}
+
+function utmDownloadBulkCSV(){
+  if (!UTM_STATE.bulkData.length) return;
+  const rows = [['Label','Detail','UTM URL']];
+  UTM_STATE.bulkData.forEach(r => rows.push([r.col1, r.col2, r.url]));
+  const csv = rows.map(r => r.map(c => '"' + String(c||'').replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'recruitera-utm-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+function utmSwitchTab(t){
+  UTM_STATE.currentTab = t;
+  document.querySelectorAll('#utm-view .utm-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('#utm-view .utm-panel').forEach(p => p.classList.toggle('active', p.id === 'utm-panel-' + t));
+  if (t === 'hist') utmLoadHistory();
+  if (t === 'lt')   utmLoadGroups();
+}
+
+function renderUTM(){
+  const el = document.getElementById('utm-view');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="utm-head">
+      <div class="utm-tabs">
+        <button class="utm-tab active" data-tab="gen" onclick="utmSwitchTab('gen')">Generator</button>
+        <button class="utm-tab" data-tab="hist" onclick="utmSwitchTab('hist')">History <span class="utm-tab-cnt" id="utm-hist-cnt">0</span></button>
+        <button class="utm-tab" data-tab="lt" onclick="utmSwitchTab('lt')">Link Groups</button>
+        <button class="utm-tab" data-tab="bulk" onclick="utmSwitchTab('bulk')">Bulk</button>
+      </div>
+    </div>
+
+    <!-- ── GENERATOR ── -->
+    <div class="utm-panel active" id="utm-panel-gen">
+      <div class="utm-split">
+        <div>
+          <div class="utm-card">
+            <div class="utm-eyebrow">Campaign details</div>
+            <div class="utm-fstack">
+              <div class="utm-field"><label>Base URL</label>
+                <input type="url" id="utm-base-url" value="https://recruitera.ai/" placeholder="https://recruitera.ai/"/>
+              </div>
+              <div class="utm-frow">
+                <div class="utm-field"><label>Source</label>
+                  <select id="utm-src">
+                    <option value="">— source —</option>
+                    <option value="google">google</option><option value="facebook">facebook</option>
+                    <option value="instagram">instagram</option><option value="linkedin">linkedin</option>
+                    <option value="tiktok">tiktok</option><option value="youtube">youtube</option>
+                    <option value="whatsapp">whatsapp</option><option value="newsletter">newsletter</option>
+                    <option value="cold-email">cold-email</option>
+                  </select>
+                </div>
+                <div class="utm-field"><label>Medium</label>
+                  <select id="utm-med">
+                    <option value="">— medium —</option>
+                    <option value="cpc">cpc — paid ads</option><option value="organic">organic</option>
+                    <option value="social">social</option><option value="email">email</option>
+                    <option value="display">display</option><option value="referral">referral</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div class="utm-camp-row">
+                  <div class="utm-field" style="flex:1"><label>Campaign name</label>
+                    <select id="utm-camp" onchange="utmCampaignChanged()"><option value="">— loading… —</option></select>
+                  </div>
+                  <button class="utm-sync-btn" id="utm-sync-btn" onclick="utmLoadCampaigns(true)">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 012.5 8M2.5 8A5.5 5.5 0 0113.5 8M13.5 8V5M2.5 8V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    Sync
+                  </button>
+                </div>
+                <div class="utm-sync-status" id="utm-sync-status"></div>
+              </div>
+              <div class="utm-field"><label>Content <span class="opt">(optional)</span></label>
+                <input type="text" id="utm-content" placeholder="e.g. post-v1 / ad-v1"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="utm-card">
+            <div class="utm-eyebrow">Quick presets</div>
+            <div class="utm-presets">
+              <button class="utm-pbtn" onclick="utmPreset('linkedin','organic','','post-v1')">LinkedIn Post</button>
+              <button class="utm-pbtn" onclick="utmPreset('linkedin','cpc','','sponsored-v1')">LinkedIn Ads</button>
+              <button class="utm-pbtn" onclick="utmPreset('google','cpc','','ad-v1')">Google Ads</button>
+              <button class="utm-pbtn" onclick="utmPreset('facebook','cpc','','carousel-v1')">Meta Ads</button>
+              <button class="utm-pbtn" onclick="utmPreset('instagram','organic','','reel-v1')">Instagram</button>
+              <button class="utm-pbtn" onclick="utmPreset('tiktok','organic','','video-v1')">TikTok</button>
+              <button class="utm-pbtn" onclick="utmPreset('whatsapp','social','','message-v1')">WhatsApp</button>
+              <button class="utm-pbtn" onclick="utmPreset('newsletter','email','','cta-button')">Newsletter</button>
+              <button class="utm-pbtn" onclick="utmPreset('cold-email','email','','cta-v1')">Cold Email</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="utm-output">
+            <div class="utm-out-hdr">
+              <div class="utm-out-lbl">Generated URL</div>
+              <div class="utm-out-chars" id="utm-out-chars"></div>
+            </div>
+            <div class="utm-out-url empty" id="utm-out">Fill in the fields to generate your URL</div>
+            <div class="utm-chips" id="utm-chips" style="display:none"></div>
+
+            <div class="utm-short-row" id="utm-short-row" style="display:none">
+              <span class="utm-short-lbl">Short</span>
+              <span class="utm-short-val pending" id="utm-short-val">Click Shorten →</span>
+              <button class="utm-btn-sec" id="utm-short-copy" onclick="utmCopyShort()" style="display:none;padding:5px 10px;font-size:11px;">Copy</button>
+            </div>
+
+            <div class="utm-btns">
+              <button class="utm-btn-primary" id="utm-copy-btn" onclick="utmCopyURL()">Copy URL</button>
+              <button class="utm-btn-sec" id="utm-save-btn" onclick="utmSaveLink()">Save</button>
+              <button class="utm-btn-sec" onclick="utmResetAll()">Reset</button>
+            </div>
+            <div class="utm-btns" style="margin-top:6px;">
+              <button class="utm-btn-sec" id="utm-shorten-btn" onclick="utmShorten()" style="flex:1;">Shorten URL</button>
+              <button class="utm-btn-sec" id="utm-qr-toggle" onclick="utmToggleQR()" style="flex:1;">Show QR Code</button>
+            </div>
+          </div>
+
+          <div class="utm-qr-card" id="utm-qr-section" style="display:none;margin-top:14px;">
+            <div class="utm-eyebrow">QR Code</div>
+            <div class="utm-qr-canvas" id="utm-qr-canvas"></div>
+            <div style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--text-3);margin-top:10px;word-break:break-all;" id="utm-qr-url-tag"></div>
+            <div style="margin-top:10px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                <input type="checkbox" id="utm-qr-use-short" onchange="utmRenderQR()"/> Use shortened URL
+              </label>
+            </div>
+            <div class="utm-qr-row">
+              <button class="utm-btn-sec" onclick="utmDownloadQR()">⬇ Download PNG</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HISTORY ── -->
+    <div class="utm-panel" id="utm-panel-hist">
+      <div class="utm-card">
+        <div class="utm-toolbar">
+          <div class="utm-eyebrow" style="margin-bottom:0;">Saved links</div>
+        </div>
+        <div class="utm-empty" id="utm-hist-empty" style="display:none;">No links saved yet. Generate a URL on the Generator tab and click Save.</div>
+        <div class="utm-hist-list" id="utm-hist-list"></div>
+      </div>
+    </div>
+
+    <!-- ── LINK GROUPS ── -->
+    <div class="utm-panel" id="utm-panel-lt">
+      <div class="utm-card">
+        <div class="utm-eyebrow">Link Groups</div>
+        <p style="font-size:12.5px;color:var(--text-3);margin-bottom:14px;">Organise saved UTM links into groups — by campaign, channel, or event.</p>
+        <div class="utm-lt-grid" id="utm-lt-list"></div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:16px 0;"/>
+        <div class="utm-eyebrow">Create new group</div>
+        <div class="utm-lt-new-row">
+          <input type="text" id="utm-new-group-name" placeholder="Group name e.g. Q2 Webinar Series"/>
+          <div class="utm-lt-color-pick">
+            <div class="utm-lt-color-dot sel" style="background:#CCED59" data-color="#CCED59" onclick="utmPickColor(this)"></div>
+            <div class="utm-lt-color-dot" style="background:#38bdf8" data-color="#38bdf8" onclick="utmPickColor(this)"></div>
+            <div class="utm-lt-color-dot" style="background:#f472b6" data-color="#f472b6" onclick="utmPickColor(this)"></div>
+            <div class="utm-lt-color-dot" style="background:#fb923c" data-color="#fb923c" onclick="utmPickColor(this)"></div>
+            <div class="utm-lt-color-dot" style="background:#a78bfa" data-color="#a78bfa" onclick="utmPickColor(this)"></div>
+          </div>
+          <button class="utm-btn-primary" style="flex:0 0 auto;min-width:120px;" onclick="utmCreateGroup()">+ Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BULK ── -->
+    <div class="utm-panel" id="utm-panel-bulk">
+      <div class="utm-card">
+        <div class="utm-eyebrow">Bulk UTM Generator</div>
+        <div class="utm-bulk-mode">
+          <button class="active" id="utm-bmode-campaigns" onclick="utmSetBulkMode('campaigns')">
+            <span>Many campaigns</span><span class="sub">same channel</span>
+          </button>
+          <button id="utm-bmode-content" onclick="utmSetBulkMode('content')">
+            <span>Many content variants</span><span class="sub">same campaign + channel</span>
+          </button>
+          <button id="utm-bmode-channels" onclick="utmSetBulkMode('channels')">
+            <span>Many channels</span><span class="sub">same campaign</span>
+          </button>
+        </div>
+
+        <div class="utm-field" style="margin-bottom:12px;"><label>Base URL</label>
+          <input type="url" id="utm-bulk-base" value="https://recruitera.ai/" placeholder="https://recruitera.ai/"/>
+        </div>
+
+        <div id="utm-bulk-fields-campaigns">
+          <div class="utm-frow">
+            <div class="utm-field"><label>Source (same for all)</label>
+              <input type="text" id="utm-bulk-source" placeholder="e.g. linkedin"/>
+            </div>
+            <div class="utm-field"><label>Medium (same for all)</label>
+              <input type="text" id="utm-bulk-medium" placeholder="e.g. cpc"/>
+            </div>
+          </div>
+          <div class="utm-field" style="margin-top:10px;"><label>Content <span class="opt">(optional, same for all)</span></label>
+            <input type="text" id="utm-bulk-content-a" placeholder="e.g. carousel-v1"/>
+          </div>
+          <div class="utm-field" style="margin-top:10px;"><label>Campaign names (one per line)</label>
+            <textarea id="utm-bulk-campaigns" rows="6" placeholder="q2-recruiters-2026&#10;q2-employers-2026&#10;q2-events-2026"></textarea>
+          </div>
+        </div>
+
+        <div id="utm-bulk-fields-content" style="display:none;">
+          <div class="utm-frow">
+            <div class="utm-field"><label>Source</label>
+              <input type="text" id="utm-bulk-source-c" placeholder="e.g. linkedin"/>
+            </div>
+            <div class="utm-field"><label>Medium</label>
+              <input type="text" id="utm-bulk-medium-c" placeholder="e.g. cpc"/>
+            </div>
+          </div>
+          <div class="utm-field" style="margin-top:10px;"><label>Campaign name (fixed)</label>
+            <input type="text" id="utm-bulk-camp-fixed" placeholder="e.g. q2-recruiters-2026"/>
+          </div>
+          <div class="utm-field" style="margin-top:10px;"><label>Content variants (one per line)</label>
+            <textarea id="utm-bulk-contents" rows="6" placeholder="carousel-v1&#10;carousel-v2&#10;video-v1"></textarea>
+          </div>
+        </div>
+
+        <div id="utm-bulk-fields-channels" style="display:none;">
+          <div class="utm-field"><label>Campaign name</label>
+            <input type="text" id="utm-bulk-camp-ch" placeholder="e.g. q2-recruiters-2026"/>
+          </div>
+          <div class="utm-field" style="margin-top:10px;"><label>Content <span class="opt">(optional)</span></label>
+            <input type="text" id="utm-bulk-content-ch" placeholder="e.g. cta-v1"/>
+          </div>
+          <div class="utm-field" style="margin-top:10px;"><label>Select channels</label>
+            <div class="utm-bulk-channels" id="utm-bulk-channels">
+              ${[
+                ['linkedin','organic','LinkedIn Organic'],
+                ['linkedin','cpc','LinkedIn Ads'],
+                ['facebook','cpc','Meta Ads'],
+                ['google','cpc','Google Ads'],
+                ['instagram','organic','Instagram Organic'],
+                ['tiktok','organic','TikTok Organic'],
+                ['whatsapp','social','WhatsApp'],
+                ['newsletter','email','Newsletter'],
+                ['cold-email','email','Cold Email'],
+              ].map(([s,m,n]) => `<label><input type="checkbox" value="${s}|${m}" data-name="${n}"/> ${n}</label>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="utm-btns" style="margin-top:14px;">
+          <button class="utm-btn-primary" onclick="utmGenerateBulk()">Generate All</button>
+          <button class="utm-btn-sec" onclick="utmDownloadBulkCSV()">⬇ Download CSV</button>
+        </div>
+
+        <div id="utm-bulk-results" style="display:none;margin-top:16px;overflow-x:auto;">
+          <table class="utm-bulk-table">
+            <thead><tr id="utm-bulk-thead"></tr></thead>
+            <tbody id="utm-bulk-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+  // Wire input listeners
+  ['utm-base-url','utm-content'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', utmGenerate);
+  });
+  ['utm-src','utm-med'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', utmGenerate);
+  });
+  utmLoadCampaigns(false);
+  utmGenerate();
 }
 
 function renderDashboard(){
