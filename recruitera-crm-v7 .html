@@ -229,6 +229,7 @@ input,select,textarea{
   transition:all 130ms;flex-shrink:0;cursor:pointer;border:none;
 }
 .sb-cfg-btn:hover{background:var(--surface-2);color:var(--text-2);}
+.sb-logout-btn:hover{background:var(--bad-bg) !important;color:var(--bad) !important;}
 
 /* ── MAIN ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;transition:all 240ms cubic-bezier(0.4,0,0.2,1);position:relative;}
@@ -7080,13 +7081,16 @@ body .ld-tab-content {
     </nav>
 
     <div class="sb-user">
-      <div class="sb-av">AM</div>
+      <div class="sb-av" id="sb-av">AM</div>
       <div class="sb-user-info">
-        <div class="sb-user-name">Amr Hammad</div>
-        <div class="sb-user-role">PM Lead</div>
+        <div class="sb-user-name" id="sb-user-name">—</div>
+        <div class="sb-user-role" id="sb-user-role">—</div>
       </div>
       <button class="sb-cfg-btn" onclick="openCfg()" title="Settings">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15A1.65 1.65 0 0019.74 16.8L19.8 16.86A2 2 0 1116.97 19.69L16.91 19.63A1.65 1.65 0 0015.11 19.29A1.65 1.65 0 0014.11 20.8V21A2 2 0 1110.11 21V20.9A1.65 1.65 0 008.97 19.4A1.65 1.65 0 007.17 19.74L7.11 19.8A2 2 0 114.28 16.97L4.34 16.91A1.65 1.65 0 004.68 15.11A1.65 1.65 0 003.17 14.11H3A2 2 0 113 10.11H3.1A1.65 1.65 0 004.6 8.97A1.65 1.65 0 004.26 7.17L4.2 7.11A2 2 0 117.03 4.28L7.09 4.34A1.65 1.65 0 008.89 4.68A1.65 1.65 0 009.89 3.17V3A2 2 0 0113.89 3V3.1A1.65 1.65 0 0015.03 4.6A1.65 1.65 0 0016.83 4.26L16.89 4.2A2 2 0 1119.72 7.03L19.66 7.09A1.65 1.65 0 0019.32 8.89A1.65 1.65 0 0020.83 9.89H21A2 2 0 0121 13.89H20.9A1.65 1.65 0 0019.4 15Z"/></svg>
+      </button>
+      <button class="sb-cfg-btn sb-logout-btn" onclick="logout()" title="Sign out" aria-label="Sign out">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
     </div>
   </aside>
@@ -7488,6 +7492,90 @@ const STORAGE_PREFIX='rcrm5_';
 const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
 const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
 const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
+
+// ─── AUTH GATE — runs synchronously before anything else ─────────
+function _getValidAccessToken(){
+  try{
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    const session = parsed?.currentSession || parsed;
+    const token   = session?.access_token;
+    if(!token) return null;
+    let exp = session?.expires_at;
+    if(!exp){
+      try{ exp = JSON.parse(atob(token.split('.')[1]))?.exp; }catch{}
+    }
+    if(!exp) return null;
+    // 60s buffer
+    if(Date.now()/1000 >= exp - 60){
+      localStorage.removeItem(SB_AUTH_KEY);
+      return null;
+    }
+    return token;
+  }catch{ return null; }
+}
+window.AUTH_TOKEN = _getValidAccessToken();
+if(!window.AUTH_TOKEN){
+  // Redirect to login, preserving the requested page so login can come back here
+  const back = encodeURIComponent(location.pathname + location.search + location.hash);
+  location.replace('./recruitera-login.html?back=' + back);
+  // Throw to halt the rest of this script
+  throw new Error('Auth required — redirecting to login');
+}
+
+// Fetch the user profile (role, email, full_name) so role-gated UI works.
+// Fire-and-forget — the rest of init() can run while this resolves; isAdmin checks
+// will re-evaluate on the next render once AUTH_PROFILE is set.
+window.AUTH_PROFILE = null;
+(async function loadProfile(){
+  try{
+    // Decode the JWT for the user id (sub) without external libs
+    const payload = JSON.parse(atob(window.AUTH_TOKEN.split('.')[1]));
+    const uid = payload?.sub;
+    const email = payload?.email;
+    if(!uid){ return; }
+    const res = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${uid}&select=id,email,full_name,role&limit=1`, {
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + window.AUTH_TOKEN,
+      }
+    });
+    if(!res.ok) return;
+    const rows = await res.json();
+    if(rows && rows[0]){
+      window.AUTH_PROFILE = rows[0];
+    } else {
+      // No profile row yet — fall back to JWT claims
+      window.AUTH_PROFILE = { id: uid, email, role: 'user', full_name: email };
+    }
+    // Populate sidebar user block
+    try{
+      const p = window.AUTH_PROFILE;
+      const nameEl = document.getElementById('sb-user-name');
+      const roleEl = document.getElementById('sb-user-role');
+      const avEl   = document.getElementById('sb-av');
+      const fullName = p.full_name || p.email || '';
+      if(nameEl) nameEl.textContent = fullName || '—';
+      if(roleEl) roleEl.textContent = (p.role || 'user').toString();
+      if(avEl){
+        const parts = fullName.trim().split(/\s+/);
+        const initials = (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
+        avEl.textContent = initials.toUpperCase();
+      }
+    }catch{}
+    // Re-render so admin/owner gates pick up the role
+    try{ if(typeof renderBoard==='function') renderBoard(); }catch{}
+    try{ if(typeof renderAccountsTable==='function') renderAccountsTable(); }catch{}
+    try{ if(typeof renderDashboard==='function' && currentMainView==='dashboard') renderDashboard(); }catch{}
+  }catch(e){ console.warn('[auth] profile fetch failed', e); }
+})();
+
+function logout(){
+  try{ localStorage.removeItem(SB_AUTH_KEY); }catch{}
+  location.replace('./recruitera-login.html');
+}
+window.logout = logout;
 const ls={
   g:k=>{try{const v=localStorage.getItem(STORAGE_PREFIX+k);return v?JSON.parse(v):null;}catch{return null;}},
   s:(k,v)=>{try{localStorage.setItem(STORAGE_PREFIX+k,JSON.stringify(v));}catch{}},
@@ -8011,31 +8099,19 @@ function openCfg(){
 
 // ── Load all accounts from Supabase (primary data source) ────────────────
 async function sbFetch() {
-  // Get auth token from localStorage and check expiration
-  let accessToken = null;
-  try {
-    const raw = localStorage.getItem(SB_AUTH_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const session = parsed?.currentSession || parsed;
-      const token   = session?.access_token;
-      const expiresAt = session?.expires_at || (token ? JSON.parse(atob(token.split('.')[1]))?.exp : null);
-      // Only use the token if it's still valid (with 60 sec buffer)
-      if (token && expiresAt && Date.now()/1000 < expiresAt - 60) {
-        accessToken = token;
-      } else if (token) {
-        console.warn('[CRM] Auth token expired, using publishable key for read-only access');
-        // Clear the expired token so other code paths don't try to use it
-        localStorage.removeItem(SB_AUTH_KEY);
-      }
-    }
-  } catch(e) { console.warn('[CRM] Could not parse session:', e.message); }
+  // The auth gate at the top of this script guarantees we have a valid token here.
+  // If it disappeared between page load and now (expired mid-session), redirect to login.
+  const accessToken = _getValidAccessToken();
+  if (!accessToken) {
+    console.warn('[CRM] No valid auth token at fetch time — redirecting to login');
+    location.replace('./recruitera-login.html');
+    return;
+  }
 
   // Supabase REST requires BOTH apikey AND Authorization headers
-  // If logged in with valid token: Authorization = user JWT. Otherwise: Authorization = publishable key
   const headers = {
     'apikey': SB_KEY,
-    'Authorization': 'Bearer ' + (accessToken || SB_KEY),
+    'Authorization': 'Bearer ' + accessToken,
     'Content-Type': 'application/json',
   };
 
@@ -10224,7 +10300,12 @@ function accFilteredLeads() {
   const fIcp   = document.getElementById('acc-ficp')?.value   || '';
   const fPaid   = document.getElementById('acc-fpaid')?.value  || '';
   const fTrial  = document.getElementById('acc-ftrial')?.value || '';
-  const fOwner = document.getElementById('acc-fowner')?.value || '';
+  // Non-admins are forced to their own email; admins free-pick from the dropdown
+  const _isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const _myEmail = window.AUTH_PROFILE?.email || '';
+  const fOwner = _isAdmin
+    ? (document.getElementById('acc-fowner')?.value || '')
+    : _myEmail;
 
   const filtered = leads.filter(lead => {
     const id = lead._id;
@@ -10307,15 +10388,23 @@ function accSort(col) {
 }
 
 function renderAccountsTable() {
-  // Populate owner filter
+  // Populate owner filter (admins only — non-admins are locked to their own email)
+  const _isAdminAcc = window.AUTH_PROFILE?.role === 'admin';
   const ownerSel = document.getElementById('acc-fowner');
-  if (ownerSel && ownerSel.options.length <= 1) {
-    const uniqueOwners = [...new Set(leads.map(l => gAmMail(l)).filter(Boolean))];
-    uniqueOwners.forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e; opt.textContent = ownerFromEmail(e).name;
-      ownerSel.appendChild(opt);
-    });
+  if (ownerSel) {
+    if (!_isAdminAcc) {
+      ownerSel.style.display = 'none';
+      ownerSel.disabled = true;
+    } else if (ownerSel.options.length <= 1) {
+      ownerSel.style.display = '';
+      ownerSel.disabled = false;
+      const uniqueOwners = [...new Set(leads.map(l => gAmMail(l)).filter(Boolean))];
+      uniqueOwners.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e; opt.textContent = ownerFromEmail(e).name;
+        ownerSel.appendChild(opt);
+      });
+    }
   }
 
   // Update tab counts
