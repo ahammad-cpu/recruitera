@@ -7690,6 +7690,18 @@ function fva(l,...keys){
   return v;
 }
 const gName=l=>fv(l,cfg.nameField,'Company Name','company_name','full_name','name','Name','company_name_lowercase')||'(Unnamed)';
+// Treat records with no real name AND no domain/email/contact as empty Bubble syncs (hide them everywhere)
+function hasRealData(l){
+  if(!l) return false;
+  const n=(fv(l,cfg.nameField,'Company Name','company_name','full_name','name','Name','company_name_lowercase')||'').toString().trim().toLowerCase();
+  const looksEmpty = !n || n==='untitled' || n==='(unnamed)' || n==='unnamed' || n==='no name';
+  if(!looksEmpty) return true;
+  // Allow if any of: domain, contact email, contact name
+  const dom = (domainFromBubble(l)||'').trim();
+  const em  = (gEmail(l)||'').trim();
+  const cn  = (gContactName(l)||'').trim();
+  return !!(dom || em || cn);
+}
 // ── Exact Bubble field names (from raw fields panel) ──
 const gEmail=l=>fv(l,'Contact_Email','CONTACT_EMAIL','Contact Email','contact_email','email','Email')||'';
 const gPhone=l=>fv(l,'Contact_Mobile','CONTACT_MOBILE','Contact Phone','contact_phone','phone_number','phone')||'';
@@ -8240,6 +8252,7 @@ function filtered(){
     : myEmail;
 
   let result=leads.filter(l=>{
+    if(!hasRealData(l)) return false;
     if(showingDisqualified) return !!gDisq(l._id);
     if(gDisq(l._id)) return false;
     // Lead & MQL live in Accounts table, not kanban
@@ -10140,6 +10153,7 @@ function accFilteredLeads() {
 
   const filtered = leads.filter(lead => {
     const id = lead._id;
+    if (!hasRealData(lead)) return false;
     if (gDisq(id)) return false;
 
     // Tab filter
@@ -10230,7 +10244,7 @@ function renderAccountsTable() {
   }
 
   // Update tab counts
-  const all   = leads.filter(l => !gDisq(l._id));
+  const all   = leads.filter(l => hasRealData(l) && !gDisq(l._id));
   const inDeal = all.filter(l => !['lead','mql'].includes(gStage(l._id)));
   const paid  = all.filter(l => isLeadPaidCustomer(l));
   const prosp = all.filter(l => ['lead','mql'].includes(gStage(l._id)));
@@ -10980,7 +10994,7 @@ function renderDashboard(){
   const matchOwner = (l) => !dshFilterOwner || l.am_mail === dshFilterOwner;
 
   // ─── Compute live metrics from leads ──────────────
-  const active   = leads.filter(l => !gDisq(l._id) && inRange(l) && matchOwner(l));
+  const active   = leads.filter(l => hasRealData(l) && !gDisq(l._id) && inRange(l) && matchOwner(l));
   const customers= active.filter(l => isLeadPaidCustomer(l));
   const open     = active.filter(l => !customers.includes(l) && gStage(l._id) !== 'lost');
   const won      = active.filter(l => gStage(l._id) === 'won');
