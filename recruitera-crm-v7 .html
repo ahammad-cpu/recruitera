@@ -7690,17 +7690,13 @@ function fva(l,...keys){
   return v;
 }
 const gName=l=>fv(l,cfg.nameField,'Company Name','company_name','full_name','name','Name','company_name_lowercase')||'(Unnamed)';
-// Treat records with no real name AND no domain/email/contact as empty Bubble syncs (hide them everywhere)
+// Treat records with no real company name as empty Bubble syncs (hide them everywhere)
 function hasRealData(l){
   if(!l) return false;
   const n=(fv(l,cfg.nameField,'Company Name','company_name','full_name','name','Name','company_name_lowercase')||'').toString().trim().toLowerCase();
-  const looksEmpty = !n || n==='untitled' || n==='(unnamed)' || n==='unnamed' || n==='no name';
-  if(!looksEmpty) return true;
-  // Allow if any of: domain, contact email, contact name
-  const dom = (domainFromBubble(l)||'').trim();
-  const em  = (gEmail(l)||'').trim();
-  const cn  = (gContactName(l)||'').trim();
-  return !!(dom || em || cn);
+  if(!n) return false;
+  if(n==='untitled'||n==='(unnamed)'||n==='unnamed'||n==='no name'||n==='untitled company'||n==='unknown') return false;
+  return true;
 }
 // ── Exact Bubble field names (from raw fields panel) ──
 const gEmail=l=>fv(l,'Contact_Email','CONTACT_EMAIL','Contact Email','contact_email','email','Email')||'';
