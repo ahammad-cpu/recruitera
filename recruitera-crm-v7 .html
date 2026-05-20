@@ -7379,6 +7379,10 @@ body .ld-tab-content {
     <!-- Page header: title + subtitle + actions -->
     <div class="acc-page-header">
       <div class="acc-page-actions" style="margin-left:auto;">
+        <button class="acc-export-btn" id="acc-find-dupes-btn" onclick="mergeV2Open()" style="display:none;" title="Admin only — find and merge duplicate companies">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2"/><rect x="8" y="8" width="12" height="12" rx="2"/></svg>
+          Find duplicates
+        </button>
         <button class="acc-export-btn" onclick="exportAccounts()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
@@ -7695,9 +7699,11 @@ window.AUTH_PROFILE = null;
         const initials = (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
         avEl.textContent = initials.toUpperCase();
       }
-      // Reveal admin-only sidebar entries
+      // Reveal admin-only sidebar entries + buttons
       const utmItem = document.getElementById('sb-utm-item');
       if (utmItem) utmItem.style.display = (p.role === 'admin') ? '' : 'none';
+      const dupBtn = document.getElementById('acc-find-dupes-btn');
+      if (dupBtn) dupBtn.style.display = (p.role === 'admin') ? '' : 'none';
     }catch{}
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
@@ -8262,8 +8268,9 @@ async function sbFetch() {
 
   while (true) {
     const res = await fetch(
-      // Fetch ALL accounts (including disqualified) — filtering happens client-side per-tab
-      `${SB_URL}/rest/v1/accounts?select=*&order=created_at.asc&limit=${pageSize}&offset=${offset}`,
+      // Fetch ALL non-merged accounts (including disqualified) — merged duplicates
+      // never load. Disqualified filtering happens client-side per-tab.
+      `${SB_URL}/rest/v1/accounts?select=*&order=created_at.asc&limit=${pageSize}&offset=${offset}&merged_into=is.null`,
       { headers }
     );
     if (!res.ok) {
@@ -12790,6 +12797,23 @@ function renderActivityFeed(el) {
 })();
 </script>
 
+<!-- ─── MERGE V2 MODAL (admin: find + merge duplicates) ─── -->
+<div id="mergev2-modal-bg" onclick="if(event.target===this)mergeV2Close()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:2000;align-items:flex-start;justify-content:center;padding:48px 24px;overflow-y:auto;">
+  <div style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow-sm);max-width:680px;width:100%;border:1px solid var(--border);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">Merge Duplicate Companies</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">Grouped by domain · oldest record kept · contacts preserved on Contacts tab</div>
+      </div>
+      <button onclick="mergeV2Close()" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);cursor:pointer;font-size:18px;line-height:1;font-family:inherit;">×</button>
+    </div>
+    <div id="mergev2-body" style="padding:16px 20px;"></div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">
+      <button onclick="mergeV2Close()" style="height:34px;padding:0 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ─── MAKE A DEAL MODAL ─── -->
 <div class="deal-modal-bg" id="deal-modal-bg" onclick="if(event.target===this)cancelDealModal()">
   <div class="deal-modal">
@@ -13649,105 +13673,135 @@ function buildMergeGroups() {
     .sort((a, b) => b.leads.length - a.leads.length);
 }
 
-// ─── AUTO-MERGE ────────────────────────────────────────
-// Runs after data loads. Groups leads by domain, picks the
-// highest-ICP record as the primary, moves child rows on the
-// other duplicates over, then deletes the duplicate accounts.
-// Also stashes the merged contact info to localStorage so the
-// new "Contacts" tab can list everyone.
-let _autoMergeRan = false;
-async function autoMergeAll() {
-  if (_autoMergeRan) return;
-  _autoMergeRan = true;
-  const groups = buildMergeGroups();
-  if (!groups.length) return;
-  console.log('[auto-merge] processing', groups.length, 'duplicate group(s)');
-  const sb = window._sbClient;
-  let merged = 0;
+// ─── AUTO-MERGE (REMOVED) ──────────────────────────────
+// The old in-memory auto-merge has been replaced by server-side merge_v2:
+//   • Supabase function public.merge_accounts(primary, duplicate, reason)
+//   • Soft delete via accounts.merged_into → never deletes data
+//   • Audited in public.merge_log
+//   • Admin-triggered via the "Find duplicates" button (mergeV2Open)
+// Detection helpers buildMergeGroups / getDuplicatesFor are kept above for
+// the lead-detail "Possible Duplicates" panel.
 
-  for (const group of groups) {
-    const primaryId = group.defaultPrimary;
-    const primaryLead = group.leads.find(l => l._id === primaryId);
-    if (!primaryLead) continue;
-    const duplicates = group.leads.filter(l => l._id !== primaryId);
+// ═══════════════════════════════════════════════════════
+// MERGE V2 — server-side, atomic, soft-delete, admin-only
+// ═══════════════════════════════════════════════════════
+const MERGE_V2 = { groups: [], busy: false };
 
-    for (const dup of duplicates) {
-      try {
-        // 1) Preserve dup's contact info on the primary BEFORE we delete it
-        addMergedContact(primaryId, dup, group.domain);
+async function _mergeV2Rpc(path, body) {
+  const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
+  if (!token) { location.replace('./recruitera-login.html'); throw new Error('no token'); }
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/${path}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : '{}',
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${res.status} ${text.slice(0,200)}`);
+  return text ? JSON.parse(text) : null;
+}
 
-        // 2) Re-parent + delete in Supabase
-        if (sb) {
-          let primarySbId = primaryLead._supabase_id;
-          let dupSbId     = dup._supabase_id;
-          if (!primarySbId) {
-            const { data: pa } = await sb.from('accounts').select('id').eq('bubble_id', primaryLead._id).single();
-            primarySbId = pa?.id;
-          }
-          if (!dupSbId) {
-            const { data: da } = await sb.from('accounts').select('id').eq('bubble_id', dup._id).single();
-            dupSbId = da?.id;
-          }
-          if (dupSbId && primarySbId) {
-            await sb.from('activities')   .update({ account_id: primarySbId }).eq('account_id', dupSbId);
-            await sb.from('contacts')     .update({ account_id: primarySbId, is_primary: false }).eq('account_id', dupSbId);
-            await sb.from('files')        .update({ account_id: primarySbId }).eq('account_id', dupSbId);
-            await sb.from('stage_history').update({ account_id: primarySbId }).eq('account_id', dupSbId);
+async function mergeV2Open(){
+  if (window.AUTH_PROFILE?.role !== 'admin') { toast('Admin only', 'error'); return; }
+  const bg = document.getElementById('mergev2-modal-bg');
+  if (!bg) return;
+  bg.classList.add('open');
+  bg.style.display = 'flex';
+  document.getElementById('mergev2-body').innerHTML =
+    '<div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;">Loading duplicate groups…</div>';
+  try {
+    const rows = await _mergeV2Rpc('find_duplicate_groups');
+    MERGE_V2.groups = rows || [];
+    mergeV2Render();
+  } catch (e) {
+    document.getElementById('mergev2-body').innerHTML =
+      `<div style="padding:30px;text-align:center;color:var(--bad);font-size:13px;">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
 
-            const { data: { user } } = await sb.auth.getUser();
-            await sb.from('activities').insert({
-              account_id: primarySbId,
-              author_id:  user?.id || null,
-              type:       'note',
-              text:       'Auto-merged duplicate: ' + gName(dup) + ' (' + group.domain + ')',
-            });
+function mergeV2Close(){
+  const bg = document.getElementById('mergev2-modal-bg');
+  if (bg) { bg.classList.remove('open'); bg.style.display = 'none'; }
+  MERGE_V2.groups = [];
+}
 
-            // Fill missing fields on primary from duplicate
-            const updates = {};
-            const { data: keeper } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', primarySbId).single();
-            const { data: dupRow  } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', dupSbId).single();
-            if (keeper && dupRow) {
-              if (!keeper.am_mail    && dupRow.am_mail)    updates.am_mail    = dupRow.am_mail;
-              if (!keeper.source     && dupRow.source)     updates.source     = dupRow.source;
-              if (!keeper.campaign   && dupRow.campaign)   updates.campaign   = dupRow.campaign;
-              if (!keeper.medium     && dupRow.medium)     updates.medium     = dupRow.medium;
-              if (!keeper.deal_value && dupRow.deal_value) updates.deal_value = dupRow.deal_value;
-            }
-            if (Object.keys(updates).length) await sb.from('accounts').update(updates).eq('id', primarySbId);
+function mergeV2Render(){
+  const body = document.getElementById('mergev2-body');
+  if (!body) return;
+  if (!MERGE_V2.groups.length) {
+    body.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-3);">
+      <div style="font-size:32px;margin-bottom:10px;">✨</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);">No duplicate companies found</div>
+      <div style="font-size:12px;margin-top:6px;">All ${leads.length} accounts have unique domains.</div>
+    </div>`;
+    return;
+  }
+  body.innerHTML = MERGE_V2.groups.map((g, i) => {
+    const primary = leads.find(l => l._supabase_id === g.primary_id || l._id === g.primary_id);
+    const dups    = (g.duplicate_ids || []).map(id => leads.find(l => l._supabase_id === id || l._id === id)).filter(Boolean);
+    const dupCount = (g.duplicate_ids || []).length;
+    return `<div class="mergev2-group" data-domain="${esc(g.domain)}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div>
+          <div style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;color:var(--text);">${esc(g.domain)}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${g.total_count} accounts share this domain · ${dupCount} will be merged into the oldest</div>
+        </div>
+        <button class="acc-deal-btn" onclick="mergeV2Run(${i})" id="mergev2-btn-${i}">Merge ${dupCount} →</button>
+      </div>
+      <div style="background:var(--lime-200);border:1px solid var(--lime-700);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:#4F5E1B;margin-bottom:4px;">Keeping (oldest)</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${esc(primary ? gName(primary) : g.primary_id)}</div>
+      </div>
+      ${dups.length ? `<div style="font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;">Merging in</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${dups.map(d => `<div style="font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text-2);">${esc(gName(d))}</div>`).join('')}
+        </div>` : ''}
+    </div>`;
+  }).join('');
+}
 
-            await sb.from('accounts').delete().eq('id', dupSbId);
-          }
-        }
-
-        // 3) Merge localStorage logs
-        const dupLogs = gLog(dup._id);
-        if (dupLogs.length > 0) {
-          const combined = [...gLog(primaryId), ...dupLogs.map(l => ({...l, text: '[from ' + gName(dup) + '] ' + l.text}))];
-          combined.sort((a,b) => b.ts - a.ts);
-          sLog(primaryId, combined);
-        }
-
-        // 4) Drop dup from in-memory leads
-        const dupIdx = leads.findIndex(l => l._id === dup._id);
-        if (dupIdx >= 0) leads.splice(dupIdx, 1);
-
-        merged++;
-      } catch (e) {
-        console.error('[auto-merge] error for', group.domain, e);
-      }
+async function mergeV2Run(groupIdx){
+  if (MERGE_V2.busy) return;
+  const g = MERGE_V2.groups[groupIdx];
+  if (!g) return;
+  const btn = document.getElementById(`mergev2-btn-${groupIdx}`);
+  MERGE_V2.busy = true;
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Merging…'; }
+  let merged = 0, failed = 0;
+  for (const dupId of (g.duplicate_ids || [])) {
+    try {
+      await _mergeV2Rpc('merge_accounts', { _primary_id: g.primary_id, _duplicate_id: dupId, _reason: 'admin_ui' });
+      merged++;
+    } catch (e) {
+      console.error('[merge_v2] failed for', dupId, e.message);
+      failed++;
     }
   }
-
-  if (merged > 0) {
-    console.log('[auto-merge] merged', merged, 'duplicate(s)');
-    try { showToast && showToast('Auto-merged ' + merged + ' duplicate' + (merged===1?'':'s'), 'info'); } catch {}
-    try { renderBoard && renderBoard(); } catch {}
-    try { renderAccountsTable && renderAccountsTable(); } catch {}
-    try {
+  MERGE_V2.busy = false;
+  if (btn) { btn.disabled = false; btn.textContent = `Merged ${merged}${failed?` · ${failed} failed`:''}`; btn.style.background='var(--ok)'; btn.style.color='#fff'; }
+  toast(`Merged ${merged} duplicate${merged===1?'':'s'}${failed?` · ${failed} failed`:''}`, failed ? 'error' : 'success');
+  // Re-fetch from server so the leads array is consistent with DB
+  try {
+    const fresh = await sbFetch();
+    if (Array.isArray(fresh)) {
+      leads = fresh;
+      renderBoard();
+      renderAccountsTable();
       const dashView = document.getElementById('dashboard-view');
-      if (dashView && dashView.style.display !== 'none') renderDashboard && renderDashboard();
-    } catch {}
-  }
+      if (dashView && dashView.style.display !== 'none') renderDashboard();
+    }
+  } catch(e) { console.warn('[merge_v2] re-fetch failed', e); }
+  // Refresh the modal list so the merged group disappears
+  try {
+    const rows = await _mergeV2Rpc('find_duplicate_groups');
+    MERGE_V2.groups = rows || [];
+    mergeV2Render();
+  } catch{}
 }
 
 function openMergeModal() {
