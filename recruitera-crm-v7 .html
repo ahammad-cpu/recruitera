@@ -13576,6 +13576,25 @@ function getLeadEmailDomain(lead) {
   return domain;
 }
 
+// Earliest creation timestamp for a lead — prefers Bubble's original date, then Supabase row date.
+// Returns +Infinity when no date is known so those leads sort to the end (never picked as primary).
+function _leadCreatedTs(l) {
+  const cand = l.bubble_created_at || l.created_at || l.added_at || l.raw_data?.Original_Creation_Date || null;
+  if (!cand) return Infinity;
+  const t = new Date(cand).getTime();
+  return isFinite(t) ? t : Infinity;
+}
+
+// Deterministic primary picker: oldest creation date wins; ties broken by _id (stable across reloads).
+function _pickPrimary(arr) {
+  return arr.slice().sort((a, b) => {
+    const ta = _leadCreatedTs(a);
+    const tb = _leadCreatedTs(b);
+    if (ta !== tb) return ta - tb;
+    return String(a._id).localeCompare(String(b._id));
+  })[0]._id;
+}
+
 function buildMergeGroups() {
   const byDomain = {};
   leads.forEach(l => {
@@ -13590,8 +13609,7 @@ function buildMergeGroups() {
     .map(([domain, arr]) => ({
       domain,
       leads: arr,
-      defaultPrimary: arr.reduce((best, l) =>
-        calcIcpScore(l._id) > calcIcpScore(best._id) ? l : best, arr[0])._id
+      defaultPrimary: _pickPrimary(arr),
     }))
     .sort((a, b) => b.leads.length - a.leads.length);
 }
