@@ -45,8 +45,8 @@ body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
       <p class="text-sm text-slate-400 mt-1.5 text-center" id="subtitle">Sign in with your email and password.</p>
     </div>
 
-    <!-- Form -->
-    <div class="flex flex-col gap-3">
+    <!-- Sign-in form -->
+    <div id="signin-form" class="flex flex-col gap-3">
       <div>
         <label class="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Email address</label>
         <input type="email" id="email" class="ui-input" autocomplete="email" autofocus placeholder="you@company.com"/>
@@ -60,8 +60,23 @@ body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
       </button>
     </div>
 
+    <!-- Reset-password form (hidden by default; shown when ?type=recovery comes back from email link) -->
+    <div id="reset-form" class="flex flex-col gap-3" style="display:none;">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">New password</label>
+        <input type="password" id="new-password" class="ui-input" autocomplete="new-password" placeholder="At least 8 characters" minlength="8"/>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Confirm new password</label>
+        <input type="password" id="confirm-password" class="ui-input" autocomplete="new-password" placeholder="Re-enter password" minlength="8"/>
+      </div>
+      <button id="btn-reset" onclick="handleReset()" class="w-full h-11 rounded-xl font-bold text-sm transition-all mt-1" style="background:#C8E60A;color:#1E2535;box-shadow:0 4px 16px rgba(200,230,10,0.25);" onmouseover="this.style.background='#B3CF09'" onmouseout="this.style.background='#C8E60A'">
+        Set new password
+      </button>
+    </div>
+
     <!-- Toggle mode -->
-    <div class="text-center mt-4">
+    <div class="text-center mt-4" id="forgot-row">
       <button onclick="forgotPassword()" id="forgot-pw" class="text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">
         Forgot password?
       </button>
@@ -80,8 +95,38 @@ body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
 const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
 const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
 const STORAGE_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
-// Check if already signed in
+// In-memory only — never persisted unless the reset succeeds
+let RECOVERY_TOKEN = null;
+let RECOVERY_REFRESH = null;
+
+// Parse a recovery link first; if it's a recovery, swap UI and stop.
+(function checkRecoveryHash(){
+  const hash = window.location.hash || '';
+  if (!hash || !hash.includes('access_token')) return false;
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const type = params.get('type');
+  const access_token = params.get('access_token');
+  const refresh_token = params.get('refresh_token');
+  if (type === 'recovery' && access_token) {
+    RECOVERY_TOKEN   = access_token;
+    RECOVERY_REFRESH = refresh_token || null;
+    // Show reset form, hide sign-in
+    document.getElementById('signin-form').style.display = 'none';
+    document.getElementById('reset-form').style.display = '';
+    const forgotRow = document.getElementById('forgot-row');
+    if (forgotRow) forgotRow.style.display = 'none';
+    document.getElementById('subtitle').textContent = 'Choose a new password for your account.';
+    // Clear the hash so the token doesn't linger in the address bar / history
+    try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch {}
+    setTimeout(() => document.getElementById('new-password')?.focus(), 0);
+    return true;
+  }
+  return false;
+})();
+
+// If we're NOT in recovery mode and already signed in, show the open-CRM banner
 (async () => {
+  if (RECOVERY_TOKEN) return;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -97,6 +142,52 @@ const STORAGE_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
     }
   } catch(e) {}
 })();
+
+async function handleReset() {
+  const pw1 = document.getElementById('new-password').value;
+  const pw2 = document.getElementById('confirm-password').value;
+  const btn = document.getElementById('btn-reset');
+  if (!RECOVERY_TOKEN) {
+    showStatus('error', 'Recovery session expired. Click "Forgot password?" again to send a fresh email.');
+    return;
+  }
+  if (!pw1 || pw1.length < 8) { showStatus('error', 'Password must be at least 8 characters.'); return; }
+  if (pw1 !== pw2)            { showStatus('error', 'Passwords do not match.'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(`${SB_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + RECOVERY_TOKEN,
+      },
+      body: JSON.stringify({ password: pw1 }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok) {
+      showStatus('error', data.msg || data.error_description || 'Could not update password.');
+      btn.disabled = false; btn.textContent = 'Set new password';
+      return;
+    }
+    // Persist the session (recovery token is now a regular access token after password update)
+    let exp;
+    try { exp = JSON.parse(atob(RECOVERY_TOKEN.split('.')[1]))?.exp; } catch {}
+    const session = {
+      access_token:  RECOVERY_TOKEN,
+      refresh_token: RECOVERY_REFRESH,
+      expires_at:    exp,
+      user:          data || null,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    showStatus('success', '✅ Password updated! Redirecting…');
+    setTimeout(() => window.location.href = './recruitera-crm-v7%20.html', 700);
+  } catch(e) {
+    showStatus('error', e.message);
+    btn.disabled = false; btn.textContent = 'Set new password';
+  }
+}
 
 async function handleSubmit() {
   const email = document.getElementById('email').value.trim();
