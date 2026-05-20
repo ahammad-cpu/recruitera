@@ -9205,37 +9205,6 @@ function renderLdRight(lead){
       </div>
     </div>
 
-    <div class="ld-panel-card">
-      <div class="ld-panel-head">
-        <div class="ld-panel-title">
-          ◎
-          ICP Score
-        </div>
-        ${hasIcp?`<span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;background:${icpBg(icpG)};color:${icpColor(icpG)};border:1px solid ${icpBorder(icpG)};">Grade ${icpG}</span>`:''}
-      </div>
-      <div class="ld-panel-body">
-        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
-          <span style="font-size:38px;font-weight:500;letter-spacing:-0.04em;line-height:1;color:${hasIcp?icpColor(icpG):'var(--text-4)'};">${icpScore}</span>
-          <span style="font-size:14px;color:var(--text-4);">/ 100</span>
-        </div>
-        ${hasIcp?`<div class="ld-bar" style="margin-bottom:14px;"><div class="ld-bar-fill" style="width:${icpScore}%;background:${icpColor(icpG)};"></div></div>`:''}
-        ${ICP_CRITERIA.map(c=>{const cur=gIcp(id)[c.id]!==undefined?gIcp(id)[c.id]:'';
-          return `<div style="display:grid;grid-template-columns:1fr 30px 72px;gap:6px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
-            <div>
-              <div style="font-size:11.5px;font-weight:500;color:var(--text);">${c.name}</div>
-              <div style="font-size:10px;color:var(--text-4);margin-top:1px;">${c.sub}</div>
-            </div>
-            <div style="font-size:10px;font-weight:500;color:var(--text-4);text-align:right;">${c.weight}pt</div>
-            <select style="height:27px;padding:0 20px 0 7px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:inherit;appearance:none;cursor:pointer;background:var(--surface-2);" id="icp_${c.id}" onchange="updateIcpLive()">
-              <option value="">—</option>
-              ${c.options.map(o=>`<option value="${o.pts}"${String(cur)===String(o.pts)?' selected':''}>${o.pts}pt</option>`).join('')}
-            </select>
-          </div>`;
-        }).join('')}
-        <button onclick="saveIcpScores()" style="width:100%;padding:8px;margin-top:10px;background:var(--lime-700);color:#1A2230;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;">Save ICP scores</button>
-      </div>
-    </div>
-
     <!-- ── TAGS ─── -->
     <div class="ld-panel-card">
       <div class="ld-panel-head">
