@@ -8257,7 +8257,8 @@ async function sbFetch() {
 
   while (true) {
     const res = await fetch(
-      `${SB_URL}/rest/v1/accounts?select=*&order=created_at.asc&limit=${pageSize}&offset=${offset}&is_disqualified=eq.false`,
+      // Fetch ALL accounts (including disqualified) — filtering happens client-side per-tab
+      `${SB_URL}/rest/v1/accounts?select=*&order=created_at.asc&limit=${pageSize}&offset=${offset}`,
       { headers }
     );
     if (!res.ok) {
@@ -8792,8 +8793,10 @@ function updateDisqButton(id){
 }
 
 function updateDisqCount(){
-  const disqCnt=leads.filter(l=>!!gDisq(l._id)).length;
-  const qualCnt=leads.filter(l=>!gDisq(l._id)).length;
+  // Exclude empty Bubble syncs (no real name/domain) from both counts so totals line up
+  const realData=leads.filter(l=>hasRealData(l));
+  const disqCnt=realData.filter(l=>!!gDisq(l._id)).length;
+  const qualCnt=realData.filter(l=>!gDisq(l._id)).length;
   const sbEl=document.getElementById('sb-disq-count');
   if(sbEl)sbEl.textContent=disqCnt;
   const tabDisq=document.getElementById('tab-disq-count');
@@ -10403,7 +10406,10 @@ function switchMainView(view) {
       accountsView.style.cssText = 'display:block;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
     }
     setActive(pipelineItem,false); setActive(accountsItem,true); setActive(dashboardItem,false); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = `Accounts <span class="tb-badge">${leads.length} total</span>`;
+    if (topbarTitle) {
+      const accTotal = leads.filter(l => hasRealData(l) && !gDisq(l._id)).length;
+      topbarTitle.innerHTML = `Accounts <span class="tb-badge">${accTotal} total</span>`;
+    }
     initAccountsFilters();
     requestAnimationFrame(() => renderAccountsTable());
   } else if (view === 'dashboard') {
