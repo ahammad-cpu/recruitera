@@ -72,7 +72,7 @@ body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
 
     <!-- Footer -->
     <div class="mt-6 pt-5 border-t border-white/5 text-center text-xs text-slate-600">
-      Already signed in? <a href="./recruitera-crm-v7.html" class="font-bold transition-colors" style="color:#C8E60A;">Open CRM →</a>
+      Already signed in? <a href="./recruitera-crm-v7%20.html" class="font-bold transition-colors" style="color:#C8E60A;">Open CRM →</a>
     </div>
   </div>
 
@@ -90,7 +90,7 @@ const STORAGE_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
       if (session?.access_token) {
         const exp = session.expires_at || session.user?.exp;
         if (!exp || Date.now()/1000 < exp - 60) {
-          showStatus('success', '✅ Already signed in! <a href="./recruitera-crm-v7.html" style="color:inherit;font-weight:700;text-decoration:underline;">Open CRM →</a>');
+          showStatus('success', '✅ Already signed in! <a href="./recruitera-crm-v7%20.html" style="color:inherit;font-weight:700;text-decoration:underline;">Open CRM →</a>');
           return;
         }
       }
@@ -135,7 +135,7 @@ async function handleSubmit() {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     showStatus('success', '✅ Signed in! Redirecting…');
-    setTimeout(() => window.location.href = './recruitera-crm-v7.html', 600);
+    setTimeout(() => window.location.href = './recruitera-crm-v7%20.html', 600);
   } catch(e) {
     showStatus('error', e.message);
     btn.disabled=false; btn.textContent='Sign in';
