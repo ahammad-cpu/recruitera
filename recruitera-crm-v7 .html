@@ -8783,33 +8783,33 @@ function renderLdHero(lead){
     const cl=hasTrial?(trialActive?'var(--ok)':trialExpired?'var(--bad)':'var(--warn)'):'var(--text-3)';
     const br=hasTrial?(trialActive?'var(--ok-border)':trialExpired?'var(--bad-border)':'var(--warn-border)'):'var(--border)';
     const lbl=hasTrial?(trialActive?'Active':trialExpired?'Expired':(realPaidStatus||'Trial')):'No trial';
-    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:${bg};color:${cl};border:1px solid ${br};"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>${lbl}</span>`;
+    return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:${bg};color:${cl};border:1px solid ${br};"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>${lbl}</span>`;
   })();
   el.innerHTML=`
-    <div class="ld-hero-inner" style="padding:20px 24px;">
+    <div class="ld-hero-inner" style="padding:24px;border-radius:16px;">
       <div class="ld-hero-top" style="display:flex;gap:18px;align-items:flex-start;">
-        <div class="ld-hero-avatar" style="width:60px;height:60px;border-radius:14px;background:${logoSrc?'#fff':'var(--cg-900)'};color:var(--lime-700);font-size:22px;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+        <div class="ld-hero-avatar" style="width:56px;height:56px;border-radius:14px;background:${logoSrc?'#fff':'var(--cg-900)'};color:var(--lime-700);font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
           ${logoSrc?logoHtml:initials}
         </div>
         <div class="ld-hero-info" style="flex:1;min-width:0;">
-          <div class="ld-hero-name" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:26px;font-weight:700;letter-spacing:-0.026em;color:var(--text);line-height:1.1;">
+          <div class="ld-hero-name" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:22px;font-weight:700;letter-spacing:-0.022em;color:var(--text);line-height:1.15;">
             ${esc(name)}
-            <span class="ld-hero-stage-pill" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:${stageObj.color}1f;color:${stageObj.color};border:1px solid ${stageObj.color}44;">
+            <span class="ld-hero-stage-pill" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:${stageObj.color}1f;color:${stageObj.color};border:1px solid ${stageObj.color}44;">
               <span style="width:6px;height:6px;border-radius:50%;background:${stageObj.color};"></span>${stageObj.name}
             </span>
-            <span class="hs-stage-badge" style="font-size:10.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface-2);color:var(--text-3);padding:4px 9px;border-radius:999px;border:1px solid var(--border);">LEAD</span>
-            ${eLocation?`<span class="hs-meta-pill" style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:4px 10px;border-radius:999px;border:1px solid var(--border);">🌐 ${esc(eLocation)}</span>`:''}
+            <span class="hs-stage-badge" style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface-2);color:var(--text-3);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">LEAD</span>
+            ${eLocation?`<span class="hs-meta-pill" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">🌐 ${esc(eLocation)}</span>`:''}
             ${isDisq?`<span class="ld-chip bad" style="font-size:10px;">Disqualified</span>`:''}
             ${paidCustomerBadge(lead)}
           </div>
-          <div class="ld-hero-meta" style="display:flex;flex-wrap:wrap;align-items:center;gap:0;margin-top:8px;color:var(--text-2);font-size:12.5px;font-weight:500;">
-            ${domain?`<span style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;" onclick="openCompanySite()">🔗 ${esc(domain)}</span><span style="color:var(--text-4);margin:0 10px;">•</span>`:''}
-            <span style="display:inline-flex;align-items:center;gap:5px;">📅 Since ${sinceDisp}</span>
-            ${sourceStr?`<span style="color:var(--text-4);margin:0 10px;">•</span><span style="display:inline-flex;align-items:center;gap:5px;">🏷 ${esc(sourceStr)}${mediumStr?` · ${esc(mediumStr)}`:''}${campaignStr?` · ${esc(campaignStr)}`:''}</span>`:''}
+          <div class="ld-hero-meta" style="display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-top:12px;color:var(--text-2);font-size:12px;font-weight:500;">
+            ${domain?`<span style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;" onclick="openCompanySite()">🔗 ${esc(domain)}</span>`:''}
+            <span style="display:inline-flex;align-items:center;gap:6px;">📅 Since ${sinceDisp}</span>
+            ${sourceStr?`<span style="display:inline-flex;align-items:center;gap:6px;">🏷 ${esc(sourceStr)}${mediumStr?` · ${esc(mediumStr)}`:''}${campaignStr?` · ${esc(campaignStr)}`:''}</span>`:''}
           </div>
         </div>
-        <div style="flex-shrink:0;align-self:flex-start;margin-top:4px;">
-          <button onclick="openDisqModal()" style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border:1px solid ${isDisq?'var(--purple-700)':'var(--text-3)'};border-radius:9px;background:${isDisq?'var(--purple-100)':'var(--surface)'};color:${isDisq?'var(--purple-700)':'var(--text)'};font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 110ms;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+        <div style="flex-shrink:0;align-self:flex-start;display:flex;gap:8px;margin-top:4px;">
+          <button onclick="openDisqModal()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid ${isDisq?'var(--purple-700)':'var(--text-3)'};border-radius:8px;background:${isDisq?'var(--purple-100)':'var(--surface)'};color:${isDisq?'var(--purple-700)':'var(--text)'};font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 110ms;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
             ${isDisq?'Restore':'Disqualify'}
           </button>
@@ -8817,40 +8817,45 @@ function renderLdHero(lead){
 
       </div>
 
-      <!-- 6-cell stat strip — equal-width grid -->
-      <div class="ld-stat-strip" style="display:grid;grid-template-columns:repeat(6,1fr);gap:24px;border-top:1px solid var(--border);margin-top:16px;padding-top:16px;">
-        <div class="ld-stat-cell" style="cursor:pointer;" onclick="editStatVal()">
-          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);">Deal Value</div>
-          <div id="ld-stat-val" style="font-size:26px;font-weight:800;letter-spacing:-0.025em;margin-top:6px;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1;">${acvDisp}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;">ACV potential</div>
+      <!-- 7-cell metrics grid — spec-aligned -->
+      <div class="ld-stat-strip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;border-top:1px solid var(--border);margin-top:22px;padding-top:18px;">
+        <div class="ld-stat-cell" style="padding:0 18px 0 0;border-right:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Stage</div>
+          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);line-height:1.15;">${stageObj.name}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">step ${Math.max(1,stageIdx+1)} of ${STAGES.length}</div>
         </div>
-        <div class="ld-stat-cell" style="cursor:pointer;" onclick="editStatClose()">
-          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);">Close Date</div>
-          <div id="ld-stat-close" style="font-size:20px;font-weight:700;letter-spacing:-0.02em;margin-top:6px;color:var(--text);line-height:1.15;">${closeDisp}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;">expected</div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editStatVal()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Deal Value</div>
+          <div id="ld-stat-val" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.15;">${acvDisp}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">ACV potential</div>
         </div>
-        <div class="ld-stat-cell" style="cursor:pointer;" onclick="editSnapOwner()">
-          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);">Owner</div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editStatClose()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Close Date</div>
+          <div id="ld-stat-close" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);line-height:1.15;">${closeDisp}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">expected</div>
+        </div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapOwner()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner</div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-            <span style="width:24px;height:24px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${owner.id}</span>
-            <span style="font-size:15px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${owner.name}</span>
+            <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${owner.id}</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${owner.name}</span>
           </div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;">account manager</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">account manager</div>
         </div>
-        <div class="ld-stat-cell">
-          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);">Trial</div>
-          <div style="margin-top:7px;">${trialHtml}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:4px;">free trial</div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Trial</div>
+          <div style="margin-top:6px;">${trialHtml}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">free trial</div>
         </div>
-        <div class="ld-stat-cell" style="cursor:pointer;" onclick="editStatIndustry()">
-          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);">Industry</div>
-          <div id="ld-stat-industry" style="font-size:20px;font-weight:700;letter-spacing:-0.02em;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${eIndustry?esc(eIndustry):'—'}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;">${eLocation?esc(eLocation):'—'}</div>
+        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editStatIndustry()">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Industry</div>
+          <div id="ld-stat-industry" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${eIndustry?esc(eIndustry):'—'}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${eLocation?esc(eLocation):'—'}</div>
         </div>
-        <div class="ld-stat-cell">
-          <div style="font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);">Source</div>
-          <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${sourceStr?esc(sourceStr):'—'}</div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:3px;">${campaignStr?esc(campaignStr):mediumStr?esc(mediumStr):'attribution'}</div>
+        <div class="ld-stat-cell" style="padding:0 0 0 18px;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Source</div>
+          <div style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${sourceStr?esc(sourceStr):'—'}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">${campaignStr?esc(campaignStr):mediumStr?esc(mediumStr):'attribution'}</div>
         </div>
       </div>
       </div>`;
