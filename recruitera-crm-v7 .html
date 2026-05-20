@@ -9005,26 +9005,32 @@ function renderLdActivity(lead,el){
   const id=lead._id;const logs=gLog(id);
   const typeIcons={call:'📞',email:'✉️',note:'📝',demo:'🗓️',task:'✅',stage:'⇄'};
   const compTabs=[
-    {id:'note',l:'Note',path:'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z'},
-    {id:'call',l:'Log call',path:'M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .93h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z'},
-    {id:'email',l:'Log email',path:'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6'},
-    {id:'demo',l:'Meeting',path:'M3 4h18v14a2 2 0 01-2 2H5a2 2 0 01-2-2V4zM16 2v4M8 2v4M3 10h18'},
-    {id:'task',l:'Task',path:'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11'},
+    {id:'note', l:'Note',      icon:'📝'},
+    {id:'call', l:'Log call',  icon:'📞'},
+    {id:'email',l:'Log email', icon:'✉️'},
+    {id:'demo', l:'Meeting',   icon:'📅'},
+    {id:'task', l:'Task',      icon:'✅'},
   ];
   const ownerSel=OWNERS.map(o=>`<option value="${o.id}"${o.id===gOwner(id)?' selected':''}>${o.name}</option>`).join('');
   el.innerHTML=`
     <div class="ld-composer">
       <div class="ld-composer-tabs">
         ${compTabs.map(t=>`<button class="ld-composer-tab${ldComposerMode===t.id?' active':''}" data-type="${t.id}" onclick="ldPickComposer(this)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="${t.path}"/></svg>${t.l}
+          <span style="font-size:14px;line-height:1;">${t.icon}</span>${t.l}
         </button>`).join('')}
         <select style="margin-left:auto;height:28px;padding:0 22px 0 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--surface);appearance:none;cursor:pointer;" id="ld-author">${ownerSel}</select>
       </div>
       <div class="ld-composer-body">
-        <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="${ldComposerMode==='note'?'Write a note…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…'}"></textarea>
-        <div style="font-size:10.5px;color:var(--text-4);margin-top:6px;padding:0 4px;display:flex;align-items:center;gap:4px;">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-          Tip: Type <strong style="font-weight:500;color:var(--info);">@</strong> to mention a teammate · Ctrl+Enter to send
+        <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="${ldComposerMode==='note'?'Write a note for the team…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…'}"></textarea>
+        <div style="font-size:11px;color:var(--text-4);margin-top:8px;padding:0 4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:13px;line-height:1;">💡</span>
+          <span>Tip: Type</span>
+          <kbd style="font-size:10.5px;padding:2px 6px;border:1px solid var(--border-2);border-radius:5px;font-family:inherit;background:var(--surface-2);color:var(--info);font-weight:600;">@</kbd>
+          <span>to mention a teammate ·</span>
+          <kbd style="font-size:10.5px;padding:2px 6px;border:1px solid var(--border-2);border-radius:5px;font-family:inherit;background:var(--surface-2);">Ctrl</kbd>
+          <span>+</span>
+          <kbd style="font-size:10.5px;padding:2px 6px;border:1px solid var(--border-2);border-radius:5px;font-family:inherit;background:var(--surface-2);">Enter</kbd>
+          <span>to send</span>
         </div>
         <div class="ld-composer-footer">
           <span style="font-size:11px;color:var(--text-4);display:flex;align-items:center;gap:5px;">
@@ -9062,7 +9068,7 @@ function ldPickComposer(btn){
   document.querySelectorAll('.ld-composer-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');ldComposerMode=btn.dataset.type;
   const ta=document.getElementById('ld-ta');
-  if(ta)ta.placeholder=ldComposerMode==='note'?'Write a note…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…';
+  if(ta)ta.placeholder=ldComposerMode==='note'?'Write a note for the team…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…';
 }
 
 function ldSubmitLog(){
