@@ -13740,47 +13740,86 @@ function mergeV2Render(){
     </div>`;
     return;
   }
+  // Default the chosen primary to whatever the server proposed (oldest)
+  if (!MERGE_V2.choice) MERGE_V2.choice = {};
+  MERGE_V2.groups.forEach((g, i) => {
+    if (MERGE_V2.choice[i] == null) MERGE_V2.choice[i] = g.primary_id;
+  });
+
   body.innerHTML = MERGE_V2.groups.map((g, i) => {
-    const primary = leads.find(l => l._supabase_id === g.primary_id || l._id === g.primary_id);
-    const dups    = (g.duplicate_ids || []).map(id => leads.find(l => l._supabase_id === id || l._id === id)).filter(Boolean);
-    const dupCount = (g.duplicate_ids || []).length;
+    const allIds = [g.primary_id, ...(g.duplicate_ids || [])];
+    const rows = allIds.map(id => leads.find(l => l._supabase_id === id || l._id === id)).filter(Boolean);
     const matchLbl = g.match_type === 'domain' ? `domain` : `name`;
     const matchKey = g.match_key || g.domain || '';
-    return `<div class="mergev2-group" data-key="${esc(matchKey)}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--surface);">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+    const willMerge = rows.length - 1;
+    return `<div class="mergev2-group" data-key="${esc(matchKey)}" data-idx="${i}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:var(--surface);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
         <div style="min-width:0;flex:1;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(matchKey)}</span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-family:'DM Mono',ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;color:var(--text);">${esc(matchKey)}</span>
             <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${g.match_type==='domain'?'var(--lime-200)':'var(--surface-2)'};color:${g.match_type==='domain'?'#4F5E1B':'var(--text-3)'};border:1px solid ${g.match_type==='domain'?'var(--lime-700)':'var(--border)'};letter-spacing:0.06em;text-transform:uppercase;">match: ${matchLbl}</span>
           </div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:4px;">${g.total_count} accounts · ${dupCount} will be merged into the oldest</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:4px;">${g.total_count} accounts · choose which one to keep ↓</div>
         </div>
-        <button class="acc-deal-btn" onclick="mergeV2Run(${i})" id="mergev2-btn-${i}">Merge ${dupCount} →</button>
+        <button class="acc-deal-btn" onclick="mergeV2Run(${i})" id="mergev2-btn-${i}">Merge ${willMerge} →</button>
       </div>
-      <div style="background:var(--lime-200);border:1px solid var(--lime-700);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:#4F5E1B;margin-bottom:4px;">Keeping (oldest)</div>
-        <div style="font-size:13px;font-weight:600;color:var(--text);">${esc(primary ? gName(primary) : g.primary_id)}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${rows.map(l => {
+          const sbId    = l._supabase_id || l._id;
+          const isPrim  = MERGE_V2.choice[i] === sbId;
+          const name    = gName(l) || '—';
+          const dom     = (l.domain || l.website || '').toString();
+          const am      = (l.am_mail || gAmMail(l) || '').toString();
+          const contact = gContactName(l) || '';
+          const email   = gEmail(l) || '';
+          const source  = gSource(l) || '';
+          const stage   = (l.stage || gStage(l._id) || '').toString();
+          const dateRaw = l.bubble_created_at || l.created_at || '';
+          const dateStr = dateRaw ? new Date(dateRaw).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+          return `<label style="display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border:1.5px solid ${isPrim?'var(--lime-700)':'var(--border)'};border-radius:9px;background:${isPrim?'var(--lime-200)':'var(--surface)'};cursor:pointer;transition:all 110ms;">
+            <input type="radio" name="mergev2-primary-${i}" value="${esc(sbId)}" ${isPrim?'checked':''} onchange="mergeV2Pick(${i},'${esc(sbId)}')" style="margin-top:3px;accent-color:var(--cg-900);cursor:pointer;flex-shrink:0;"/>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:600;color:var(--text);">${esc(name)}</span>
+                ${isPrim?'<span style="font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--cg-900);color:var(--lime-700);letter-spacing:0.06em;text-transform:uppercase;">Keep</span>':''}
+                ${stage?`<span style="font-size:10px;padding:1px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border);">${esc(stage)}</span>`:''}
+              </div>
+              <div style="margin-top:5px;font-size:11.5px;color:var(--text-3);display:flex;flex-wrap:wrap;gap:4px 14px;line-height:1.55;">
+                ${dom    ?`<span>🌐 ${esc(dom)}</span>`:''}
+                ${contact?`<span>👤 ${esc(contact)}</span>`:''}
+                ${email  ?`<span style="color:var(--info);">✉️ ${esc(email)}</span>`:''}
+                ${am     ?`<span>🎯 ${esc(am)}</span>`:''}
+                ${source ?`<span>🏷 ${esc(source)}</span>`:''}
+                ${dateStr?`<span style="font-family:'DM Mono',ui-monospace,Menlo,monospace;">📅 ${esc(dateStr)}</span>`:''}
+              </div>
+            </div>
+          </label>`;
+        }).join('')}
       </div>
-      ${dups.length ? `<div style="font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;">Merging in</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          ${dups.map(d => `<div style="font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text-2);">${esc(gName(d))}</div>`).join('')}
-        </div>` : ''}
     </div>`;
   }).join('');
+}
+
+function mergeV2Pick(groupIdx, sbId){
+  MERGE_V2.choice[groupIdx] = sbId;
+  mergeV2Render();
 }
 
 async function mergeV2Run(groupIdx){
   if (MERGE_V2.busy) return;
   const g = MERGE_V2.groups[groupIdx];
   if (!g) return;
+  const allIds = [g.primary_id, ...(g.duplicate_ids || [])];
+  const primaryId = MERGE_V2.choice?.[groupIdx] || g.primary_id;
+  const dupIds    = allIds.filter(id => id !== primaryId);
+  if (!dupIds.length) { toast('Nothing to merge — choose at least 2 rows', 'error'); return; }
   const btn = document.getElementById(`mergev2-btn-${groupIdx}`);
   MERGE_V2.busy = true;
-  const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Merging…'; }
   let merged = 0, failed = 0;
-  for (const dupId of (g.duplicate_ids || [])) {
+  for (const dupId of dupIds) {
     try {
-      await _mergeV2Rpc('merge_accounts', { _primary_id: g.primary_id, _duplicate_id: dupId, _reason: 'admin_ui' });
+      await _mergeV2Rpc('merge_accounts', { _primary_id: primaryId, _duplicate_id: dupId, _reason: 'admin_ui' });
       merged++;
     } catch (e) {
       console.error('[merge_v2] failed for', dupId, e.message);
@@ -13805,6 +13844,7 @@ async function mergeV2Run(groupIdx){
   try {
     const rows = await _mergeV2Rpc('find_duplicate_groups');
     MERGE_V2.groups = rows || [];
+    MERGE_V2.choice = {};
     mergeV2Render();
   } catch{}
 }
