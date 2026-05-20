@@ -7699,10 +7699,15 @@ window.AUTH_PROFILE = null;
       const utmItem = document.getElementById('sb-utm-item');
       if (utmItem) utmItem.style.display = (p.role === 'admin') ? '' : 'none';
     }catch{}
-    // Re-render so admin/owner gates pick up the role
-    try{ if(typeof renderBoard==='function') renderBoard(); }catch{}
-    try{ if(typeof renderAccountsTable==='function') renderAccountsTable(); }catch{}
-    try{ if(typeof renderDashboard==='function' && currentMainView==='dashboard') renderDashboard(); }catch{}
+    // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
+    // If profile resolves before sbFetch, leads is still empty and a re-render would
+    // flash zeros over the loading state. The bootstrap IIFE calls init() (which
+    // renders everything) once sbFetch resolves, so skipping here is safe.
+    if (Array.isArray(window.leads) && window.leads.length > 0) {
+      try{ if(typeof renderBoard==='function') renderBoard(); }catch{}
+      try{ if(typeof renderAccountsTable==='function') renderAccountsTable(); }catch{}
+      try{ if(typeof renderDashboard==='function' && currentMainView==='dashboard') renderDashboard(); }catch{}
+    }
   }catch(e){ console.warn('[auth] profile fetch failed', e); }
 })();
 
@@ -8410,7 +8415,12 @@ function init(){
   if(sbAcc)sbAcc.textContent=leads.length;
   setTimeout(autoEnrichAll,800);
   // Auto-merge duplicate accounts (silently, after data settles)
-  setTimeout(() => { try { autoMergeAll(); } catch(e) { console.error('autoMerge failed', e); } }, 1500);
+  // [disabled] autoMergeAll silently shrinks the in-memory leads[] array (line 13722
+  // splices unconditionally) but skips Supabase writes because window._sbClient is
+  // never initialized in this codebase. Result: dashboard numbers dropped ~1.5s after
+  // load and duplicates came back on every refresh. Re-enable once auto-merge is
+  // rewritten against the same REST fetch path the rest of the app uses.
+  // setTimeout(() => { try { autoMergeAll(); } catch(e) { console.error('autoMerge failed', e); } }, 1500);
   // Boot into Dashboard view
   switchMainView('dashboard');
 }
