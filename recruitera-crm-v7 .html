@@ -7590,6 +7590,9 @@ body .ld-tab-content {
       <button class="acc-tab" data-filter="paid" onclick="accTabSwitch(this)">
         Paid <span class="acc-tab-count" id="acc-tab-paid-count">· 0</span>
       </button>
+      <button class="acc-tab" data-filter="without-charge" onclick="accTabSwitch(this)">
+        Without Charge <span class="acc-tab-count" id="acc-tab-wc-count">· 0</span>
+      </button>
       <button class="acc-tab" data-filter="prospect" onclick="accTabSwitch(this)">
         MQL <span class="acc-tab-count" id="acc-tab-prospect-count">· 0</span>
       </button>
@@ -10909,11 +10912,16 @@ function accFilteredLeads() {
       if (gDisq(id)) return false;
     }
 
-    // Tab filter — disjoint: Paid is paying customers (any stage); Prospects/In pipeline are non-paying split by stage
-    if (accActiveTab === 'paid'        && !isLeadPaidCustomer(lead)) return false;
-    if (accActiveTab === 'prospect'    && (isLeadPaidCustomer(lead) || gStage(id) !== 'mql')) return false;
-    if (accActiveTab === 'deal'        && (isLeadPaidCustomer(lead) || gStage(id) === 'mql')) return false;
-    if (accActiveTab === 'unreachable' && !lead.is_unreachable) return false;
+    // Tab filter — disjoint partition.
+    // Paid          = paid_status = Paid + active (real revenue)
+    // Without Charge= paid_status = Without Charge + active (comped/free)
+    // Prospect (MQL)= non-paying at MQL stage
+    // In pipeline   = non-paying past MQL
+    if (accActiveTab === 'paid'           && !isLeadRealPaid(lead)) return false;
+    if (accActiveTab === 'without-charge' && !isLeadWithoutCharge(lead)) return false;
+    if (accActiveTab === 'prospect'       && (isLeadPaidCustomer(lead) || gStage(id) !== 'mql')) return false;
+    if (accActiveTab === 'deal'           && (isLeadPaidCustomer(lead) || gStage(id) === 'mql')) return false;
+    if (accActiveTab === 'unreachable'    && !lead.is_unreachable) return false;
 
     if (q) {
       const name    = gName(lead).toLowerCase();
@@ -11007,11 +11015,12 @@ function renderAccountsTable() {
     }
   }
 
-  // Tab counts — disjoint partition: All = Prospects + In pipeline + Paid
-  // Paid is paying customers (any stage). The other two are non-paying, split by stage.
+  // Tab counts — disjoint partition: All = Prospects + In pipeline + Paid + Without Charge
+  // Paid = real paying customers. Without Charge = comped/free active. Others non-paying split by stage.
   const realData = leads.filter(l => hasRealData(l));
   const all   = realData.filter(l => !gDisq(l._id));
-  const paid  = all.filter(l => isLeadPaidCustomer(l));
+  const paid  = all.filter(l => isLeadRealPaid(l));
+  const wc    = all.filter(l => isLeadWithoutCharge(l));
   const prosp = all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) === 'mql');
   const inDeal= all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) !== 'mql');
   const disq    = realData.filter(l => !!gDisq(l._id));
@@ -11019,12 +11028,14 @@ function renderAccountsTable() {
   const el_all     = document.getElementById('acc-tab-all-count');
   const el_deal    = document.getElementById('acc-tab-deal-count');
   const el_paid    = document.getElementById('acc-tab-paid-count');
+  const el_wc      = document.getElementById('acc-tab-wc-count');
   const el_pro     = document.getElementById('acc-tab-prospect-count');
   const el_disq    = document.getElementById('acc-tab-disq-count');
   const el_unreach = document.getElementById('acc-tab-unreach-count');
   if (el_all)     el_all.textContent     = '· ' + all.length;
   if (el_deal)    el_deal.textContent    = '· ' + inDeal.length;
   if (el_paid)    el_paid.textContent    = '· ' + paid.length;
+  if (el_wc)      el_wc.textContent      = '· ' + wc.length;
   if (el_pro)     el_pro.textContent     = '· ' + prosp.length;
   if (el_disq)    el_disq.textContent    = '· ' + disq.length;
   if (el_unreach) el_unreach.textContent = '· ' + unreach.length;
@@ -11034,7 +11045,7 @@ function renderAccountsTable() {
 
   // Update subtitle
   const sub = document.getElementById('acc-page-subtitle');
-  if (sub) sub.textContent = `${all.length} companies · ${paid.length} paid · ${prosp.length} prospects`;
+  if (sub) sub.textContent = `${all.length} companies · ${paid.length} paid · ${wc.length} without charge · ${prosp.length} prospects`;
 
   const rows   = accFilteredLeads();
   const tbody  = document.getElementById('acc-tbody');
@@ -11552,11 +11563,15 @@ function buildAccountRow(lead) {
   const avatarBg = logoSrc ? '#fff' : 'var(--cg-800)';
   const avatarColor = logoSrc ? stageObj.color : '#FFFFFF';
 
-  // Status pill: Paid = green, Lead/MQL/Freemium = purple outline, deal stages = blue
+  // Status pill: Paid = green (revenue). Without Charge = amber (comped, looks different).
+  // MQL/Lead = purple outline (prospect). Deal stages = blue/stage color.
   let statusBg, statusColor, statusBorder, statusDot, statusLabel;
-  const isPaid = paidCustomerBadge(lead).includes('Paid') || isLeadPaidCustomer(lead);
-  if (isPaid) {
+  const isRealPaid = isLeadRealPaid(lead);
+  const isWC = isLeadWithoutCharge(lead);
+  if (isRealPaid) {
     statusBg = '#EAF3DE'; statusColor = '#27500A'; statusBorder = '#97C459'; statusDot = '#3B6D11'; statusLabel = 'Paid';
+  } else if (isWC) {
+    statusBg = '#FFF4E5'; statusColor = '#8A4B00'; statusBorder = '#F0C58A'; statusDot = '#D97706'; statusLabel = 'Without Charge';
   } else if (['lead','mql'].includes(stage)) {
     statusBg = '#EDEBFB'; statusColor = '#392396'; statusBorder = '#C4B8F5'; statusDot = '#392396'; statusLabel = 'Prospect';
   } else {
@@ -14884,6 +14899,16 @@ async function loadPaidCustomers() {
   }
 }
 
+// "Without Charge" customers — active but free / comped accounts.
+// Distinct from real paying customers so the Accounts table can split them.
+function isLeadWithoutCharge(lead){
+  return lead.paid_status === 'Without Charge' && lead.activation_status === 'Active';
+}
+// "Real" paying customers — paid_status === 'Paid' AND active.
+function isLeadRealPaid(lead){
+  return lead.paid_status === 'Paid' && lead.activation_status === 'Active';
+}
+
 // Check if a lead is a paid customer
 function isLeadPaidCustomer(lead) {
   // Primary: use paid_status column from Supabase (most accurate)
@@ -14914,8 +14939,13 @@ const OBVIOUSLY_INVALID = /^(test|example|fake|dummy|none|na|n\/a|temp|noemail)\
 
 // Safe helper — returns HTML string, no nested backticks inside template literals
 function paidCustomerBadge(lead) {
-  if (!isLeadPaidCustomer(lead)) return '';
-  return '<span class="paid-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Paid Customer</span>';
+  if (isLeadRealPaid(lead)) {
+    return '<span class="paid-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Paid Customer</span>';
+  }
+  if (isLeadWithoutCharge(lead)) {
+    return '<span class="paid-badge" style="background:rgba(217,119,6,0.12);color:#8A4B00;border-color:rgba(217,119,6,0.3);"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Without Charge</span>';
+  }
+  return '';
 }
 
 function domainValidationBadge(lead) {
