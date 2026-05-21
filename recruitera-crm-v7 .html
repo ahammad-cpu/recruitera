@@ -3637,10 +3637,11 @@ button { user-select: none; -webkit-user-select: none; }
 .acc-search-input::placeholder { color: #8F98AC; }
 .acc-search-icon {
   position: absolute;
-  left: 0; top: 50%;
+  left: 12px; top: 50%;
   transform: translateY(-50%);
   color: #8F98AC;
   pointer-events: none;
+  z-index: 1;
 }
 .acc-filter-sep {
   width: 0.5px;
@@ -4928,10 +4929,13 @@ td, .metric-val, .ld-act-time {
   background: var(--surface-2) !important;
   border: 1px solid var(--border) !important;
   border-radius: 8px !important;
-  height: 34px !important;
+  height: 36px !important;
   font-size: 13px !important;
   color: var(--text) !important;
+  padding: 0 12px 0 36px !important; /* left pad clears the inset search icon */
+  width: 100% !important;
 }
+.acc-search-input:hover { border-color: var(--border-2) !important; }
 .acc-search-input:focus {
   background: var(--surface) !important;
   border-color: var(--lime-700) !important;
