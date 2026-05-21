@@ -3680,22 +3680,23 @@ button { user-select: none; -webkit-user-select: none; }
   font-size: 13px;
   table-layout: fixed; /* keeps Action column on screen instead of overflowing */
 }
-.acc-table colgroup col.col-account { width: 22%; }
-.acc-table colgroup col.col-status  { width: 9%;  }
-.acc-table colgroup col.col-email   { width: 18%; }
+.acc-table colgroup col.col-account { width: 24%; }
+.acc-table colgroup col.col-status  { width: 10%; }
+.acc-table colgroup col.col-email   { width: 19%; }
 .acc-table colgroup col.col-health  { width: 7%;  }
 .acc-table colgroup col.col-owner   { width: 7%;  }
-.acc-table colgroup col.col-source  { width: 10%; }
-.acc-table colgroup col.col-since   { width: 9%;  }
+.acc-table colgroup col.col-source  { width: 5%;  }
+.acc-table colgroup col.col-since   { width: 10%; }
 .acc-table colgroup col.col-action  { width: 18%; }
 .acc-table .acc-email-cell { font-size: 12.5px; }
 .acc-table .acc-email-cell a { color: var(--info); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .acc-table .acc-email-cell a:hover { text-decoration: underline; }
-/* Disqualified row — soft red background + red name accent */
-.acc-table tbody tr.acc-row-disq { background: var(--bad-bg); }
-.acc-table tbody tr.acc-row-disq:hover { background: color-mix(in oklab, var(--bad-bg) 70%, var(--bad) 12%); }
+/* Disqualified row — visibly red by default with a left accent strip */
+.acc-table tbody tr.acc-row-disq { background: color-mix(in oklab, var(--bad-bg) 60%, var(--bad) 14%) !important; }
+.acc-table tbody tr.acc-row-disq:hover { background: color-mix(in oklab, var(--bad-bg) 35%, var(--bad) 22%) !important; }
+.acc-table tbody tr.acc-row-disq td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
 .acc-table tbody tr.acc-row-disq .acc-name span:first-child { color: var(--bad); }
-.acc-table tbody tr.acc-row-disq td { border-color: color-mix(in oklab, var(--bad) 25%, transparent); }
+.acc-table tbody tr.acc-row-disq td { border-color: color-mix(in oklab, var(--bad) 35%, transparent); }
 .acc-row-disq-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; font-size:10.5px; font-weight:700; letter-spacing:0.04em; border-radius:999px; background:var(--bad); color:#fff; text-transform:uppercase; }
 .acc-table tbody td { vertical-align: middle; }
 /* Force long cell content to wrap or truncate so the layout stays put */
@@ -5032,10 +5033,42 @@ body .sidebar.collapsed .sb-user-role,
 body .sidebar.collapsed .sb-toggle {
   display: none !important;
 }
+/* Let the right-side tooltip escape the sidebar's overflow:hidden */
+body .sidebar.collapsed { overflow: visible !important; }
+body .sidebar.collapsed .sb-nav { overflow: visible !important; }
 body .sidebar.collapsed .sb-item {
   justify-content: center !important;
   padding: 9px !important;
   gap: 0 !important;
+  position: relative !important;
+}
+/* Tooltip: when sidebar is collapsed, hovering an item shows its label
+   floating to the right. Uses the data-label attribute already on every
+   sb-item. */
+body .sidebar.collapsed .sb-item::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  padding: 6px 10px;
+  background: var(--cg-900);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 1000;
+  letter-spacing: 0;
+  text-transform: none;
+}
+body .sidebar.collapsed .sb-item:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 body .sidebar.collapsed .sb-brand {
   justify-content: center !important;
