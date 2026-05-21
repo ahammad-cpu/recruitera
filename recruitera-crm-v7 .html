@@ -3665,6 +3665,21 @@ button { user-select: none; -webkit-user-select: none; }
 }
 .acc-select:focus { outline: none; border-color: rgba(28,35,51,0.25); }
 .acc-select:hover { border-color: var(--border-2); background-color: #F7F6F3; }
+.acc-filter-reset {
+  height: 36px;
+  padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bad-bg);
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  font-size: 12.5px; font-weight: 600; font-family: inherit;
+  color: var(--bad);
+  cursor: pointer;
+  transition: all 110ms;
+  white-space: nowrap;
+}
+.acc-filter-reset:hover { background: var(--bad); color: #fff; }
+.acc-filter-reset svg { width: 13px; height: 13px; flex-shrink: 0; }
 
 /* ── Table wrapper ── */
 .acc-table-wrap {
@@ -7546,6 +7561,10 @@ body .ld-tab-content {
         <option value="yes">Has Trial</option>
         <option value="no">No Trial</option>
       </select>
+      <button class="acc-filter-reset" onclick="resetAccountsFilters()" title="Reset all filters" style="display:none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>
+        Reset filters
+      </button>
     </div>
 
     <!-- Stats bar (hidden, kept for JS compat) -->
@@ -10642,6 +10661,33 @@ function initAccountsFilters() {
   }
 }
 
+// Reset every Accounts filter back to default (All / empty search) and re-render.
+function resetAccountsFilters(){
+  const ids = ['acc-search','acc-fpaid','acc-fstage','acc-fsrc','acc-ficp','acc-fowner','acc-ftrial'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.disabled) return; // non-admin owner filter is locked to their email — don't touch
+    el.value = '';
+  });
+  try { renderAccountsTable(); } catch {}
+  try { toast('Filters cleared', 'success'); } catch {}
+}
+
+// Show/hide the Reset button based on whether any filter is non-default.
+function _accSyncResetVisibility(){
+  const btn = document.querySelector('.acc-filter-reset');
+  if (!btn) return;
+  const ids = ['acc-search','acc-fpaid','acc-fstage','acc-fsrc','acc-ficp','acc-ftrial'];
+  const _isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  if (_isAdmin) ids.push('acc-fowner'); // non-admin's owner filter is locked, doesn't count
+  const anyActive = ids.some(id => {
+    const el = document.getElementById(id);
+    return el && !el.disabled && (el.value || '').trim() !== '';
+  });
+  btn.style.display = anyActive ? '' : 'none';
+}
+
 function accFilteredLeads() {
   const q      = (document.getElementById('acc-search')?.value || '').toLowerCase().trim();
   const fSrc   = document.getElementById('acc-fsrc')?.value   || '';
@@ -10743,6 +10789,8 @@ function accSort(col) {
 }
 
 function renderAccountsTable() {
+  // Sync Reset-filters button visibility every time the table re-renders
+  try { _accSyncResetVisibility(); } catch {}
   // Populate owner filter (admins only — non-admins are locked to their own email)
   const _isAdminAcc = window.AUTH_PROFILE?.role === 'admin';
   const ownerSel = document.getElementById('acc-fowner');
