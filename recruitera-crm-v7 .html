@@ -3875,7 +3875,55 @@ body .acc-table thead th.acc-th-action { text-align: center !important; padding-
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 500;
   flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
 }
+.acc-owner-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.acc-owner-av.editable:hover { box-shadow: 0 0 0 2px var(--lime); }
+
+/* ── Owner picker popover ── */
+.owner-pop {
+  width: 260px; max-height: 340px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.owner-pop-search-wrap { padding: 8px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.owner-pop-search {
+  width: 100%; padding: 6px 10px; font-size: 13px;
+  border: 1px solid var(--border, #e5e7eb); border-radius: 6px;
+  outline: none; background: var(--surface-2, #f9fafb); color: var(--text, #1c2333);
+}
+.owner-pop-search:focus { border-color: var(--lime, #CCED59); }
+.owner-pop-list { overflow-y: auto; max-height: 280px; padding: 4px 0; }
+.owner-pop-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; cursor: pointer;
+  font-size: 13px; color: var(--text, #1c2333);
+  position: relative;
+}
+.owner-pop-item:hover { background: var(--surface-2, #f3f4f6); }
+.owner-pop-item.selected { background: rgba(204,237,89,0.15); }
+.owner-pop-av {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600;
+  flex-shrink: 0; overflow: hidden;
+}
+.owner-pop-av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.owner-pop-name { display: flex; flex-direction: column; line-height: 1.2; overflow: hidden; }
+.owner-pop-name strong { font-weight: 500; color: var(--text, #1c2333); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.owner-pop-name small { font-size: 11px; color: var(--text-3, #8f98ac); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.owner-pop-check { margin-left: auto; color: var(--lime, #CCED59); font-weight: 700; }
+[data-theme="dark"] .owner-pop { background: #161b22; border-color: rgba(255,255,255,0.10); }
+[data-theme="dark"] .owner-pop-search { background: #0d1117; border-color: rgba(255,255,255,0.10); color: #e6edf3; }
+[data-theme="dark"] .owner-pop-item:hover { background: rgba(255,255,255,0.05); }
+[data-theme="dark"] .owner-pop-item.selected { background: rgba(204,237,89,0.10); }
+[data-theme="dark"] .owner-pop-name strong { color: #e6edf3; }
+[data-theme="dark"] .owner-pop-name small { color: #8b949e; }
 
 /* ── Source cell ── */
 .acc-source { display: flex; flex-direction: column; gap: 2px; }
@@ -7868,6 +7916,9 @@ window.AUTH_PROFILE = null;
       const pipeExportBtn = document.getElementById('pipe-export-btn');
       if (pipeExportBtn) pipeExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
     }catch{}
+    // Load the full profiles directory (email → photo/name) so owner avatars
+    // across the system can use real user photos. RLS allows authenticated read.
+    try { await loadProfilesDirectory(); } catch(e) { console.warn('[profiles] dir load failed', e); }
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
     // flash zeros over the loading state. The bootstrap IIFE calls init() (which
@@ -10976,6 +11027,13 @@ function renderAccountsTable() {
       if (id) quickDisqualify(id);
       return;
     }
+    const ownAv = e.target.closest('[data-action="open-owner-picker"]');
+    if (ownAv) {
+      e.stopPropagation();
+      const id = ownAv.getAttribute('data-lead-id');
+      if (id) openOwnerPicker(id, ownAv);
+      return;
+    }
     const row = e.target.closest('tr.acc-row-clickable');
     if (row) {
       const id = row.getAttribute('data-lead-id');
@@ -11033,15 +11091,150 @@ async function toggleUnreachable(leadId){
 
 // ── ownerFromEmail: build display object from email ──
 const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6'];
+
+// Profiles directory: email (lowercased) -> profile row. Loaded once after auth.
+window.PROFILES_DIR = [];
+window.PROFILES_BY_EMAIL = {};
+async function loadProfilesDirectory(){
+  const token = await _getValidAccessToken();
+  if(!token) return;
+  const res = await fetch(`${SB_URL}/rest/v1/profiles?select=id,email,full_name,avatar_url,color,active,role&order=full_name.asc.nullslast`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
+  });
+  if(!res.ok) return;
+  const rows = await res.json();
+  window.PROFILES_DIR = Array.isArray(rows) ? rows : [];
+  window.PROFILES_BY_EMAIL = {};
+  window.PROFILES_DIR.forEach(p => { if(p.email) window.PROFILES_BY_EMAIL[p.email.toLowerCase()] = p; });
+  try { if (Array.isArray(window.leads) && window.leads.length) {
+    if (typeof renderAccountsTable === 'function') renderAccountsTable();
+    if (typeof renderBoard === 'function') renderBoard();
+  } } catch {}
+}
 function ownerFromEmail(emailOrId){
   if(!emailOrId)return{id:'?',name:'Unassigned',color:'#969BA1'};
+  // 1) Profiles directory hit → real user with possible avatar_url
+  if(typeof emailOrId === 'string' && emailOrId.includes('@')){
+    const _pdir = (window.PROFILES_BY_EMAIL || {})[emailOrId.toLowerCase()];
+    if(_pdir){
+      const _fullName = _pdir.full_name || _pdir.email || emailOrId;
+      const _parts = String(_fullName).trim().split(/\s+/);
+      const _initials = ((_parts[0]?.[0] || '?') + (_parts[1]?.[0] || '')).toUpperCase();
+      let _hash=0;for(let i=0;i<emailOrId.length;i++)_hash=(_hash*31+emailOrId.charCodeAt(i))>>>0;
+      const _color = _pdir.color || OWNER_COLORS[_hash%OWNER_COLORS.length];
+      return { id:_initials, name:_fullName, color:_color, email:_pdir.email, avatar_url:_pdir.avatar_url||null, profile_id:_pdir.id };
+    }
+  }
   const found=OWNERS.find(o=>o.id===emailOrId||o.id.toLowerCase()===emailOrId.toLowerCase());
   if(found)return found;
   const local=emailOrId.includes('@')?emailOrId.split('@')[0]:emailOrId;
   const name=local.replace(/[._-]/g,' ').replace(/\w/g,c=>c.toUpperCase());
   const initials=local.split(/[._-]/).map(p=>p[0]||'').join('').slice(0,2).toUpperCase()||local.slice(0,2).toUpperCase();
   let hash=0;for(let i=0;i<emailOrId.length;i++)hash=(hash*31+emailOrId.charCodeAt(i))>>>0;
-  return{id:initials,name,color:OWNER_COLORS[hash%OWNER_COLORS.length],email:emailOrId};
+  return{id:initials,name,color:OWNER_COLORS[hash%OWNER_COLORS.length],email:emailOrId,avatar_url:null};
+}
+
+// ── Owner picker popover (admin-only reassign of accounts.am_mail) ──
+function _ownerPickerOutsideClick(e){
+  const pop = document.getElementById('owner-picker-pop');
+  if(pop && !pop.contains(e.target) && !e.target.closest('[data-action="open-owner-picker"]')) closeOwnerPicker();
+}
+function closeOwnerPicker(){
+  const p = document.getElementById('owner-picker-pop');
+  if(p) p.remove();
+  document.removeEventListener('click', _ownerPickerOutsideClick);
+}
+function filterOwnerPicker(q){
+  const ql = (q||'').toLowerCase();
+  document.querySelectorAll('#owner-pop-list .owner-pop-item').forEach(el => {
+    const s = el.dataset.search || '';
+    el.style.display = (!ql || s.includes(ql)) ? '' : 'none';
+  });
+}
+function openOwnerPicker(leadId, anchorEl){
+  if(window.AUTH_PROFILE?.role !== 'admin') return;
+  closeOwnerPicker();
+  const lead = (window.leads||[]).find(l => l._id === leadId);
+  if(!lead) return;
+  const rows = (window.PROFILES_DIR || []).filter(p => p.active !== false);
+  const cur = (lead.am_mail || '').toLowerCase();
+  const rect = anchorEl.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.id = 'owner-picker-pop';
+  pop.className = 'owner-pop';
+  const top = Math.min(window.innerHeight - 360, rect.bottom + 4);
+  const left = Math.min(window.innerWidth - 280, rect.left);
+  pop.style.cssText = `position:fixed;top:${top}px;left:${left}px;z-index:9999;`;
+  const itemHtml = (name, email, color, avatar, initials, sel, payload) =>
+    `<div class="owner-pop-item ${sel?'selected':''}" data-search="${esc(((name||'')+' '+(email||'')).toLowerCase())}" onclick="assignOwner('${leadId}', ${payload})">
+       <div class="owner-pop-av" style="background:${color};color:#fff;">
+         ${avatar ? `<img src="${esc(avatar)}" alt=""/>` : esc(initials)}
+       </div>
+       <div class="owner-pop-name"><strong>${esc(name)}</strong>${email?`<small>${esc(email)}</small>`:''}</div>
+       ${sel?'<span class="owner-pop-check">✓</span>':''}
+     </div>`;
+  pop.innerHTML = `
+    <div class="owner-pop-search-wrap">
+      <input class="owner-pop-search" id="owner-pop-search" placeholder="Search user…" oninput="filterOwnerPicker(this.value)"/>
+    </div>
+    <div class="owner-pop-list" id="owner-pop-list">
+      ${itemHtml('Unassigned','','#969BA1',null,'?', !cur, "''")}
+      ${rows.map(p => {
+        const name = p.full_name || p.email || '';
+        const parts = name.trim().split(/\s+/);
+        const initials = ((parts[0]?.[0] || '?') + (parts[1]?.[0] || '')).toUpperCase();
+        let hash=0;for(let i=0;i<(p.email||'').length;i++)hash=(hash*31+(p.email||'').charCodeAt(i))>>>0;
+        const color = p.color || OWNER_COLORS[hash%OWNER_COLORS.length];
+        const sel = (p.email||'').toLowerCase() === cur;
+        return itemHtml(name, p.email||'', color, p.avatar_url||null, initials, sel, `'${esc(p.email||'')}'`);
+      }).join('')}
+    </div>
+  `;
+  document.body.appendChild(pop);
+  setTimeout(() => {
+    document.addEventListener('click', _ownerPickerOutsideClick);
+    document.getElementById('owner-pop-search')?.focus();
+  }, 0);
+}
+async function assignOwner(leadId, email){
+  if(window.AUTH_PROFILE?.role !== 'admin'){ toast('Admin only','error'); return; }
+  const lead = (window.leads||[]).find(l => l._id === leadId);
+  if(!lead) return;
+  const oldMail = lead.am_mail;
+  const oldOwnerId = lead.owner_id;
+  const profile = email ? (window.PROFILES_BY_EMAIL || {})[email.toLowerCase()] : null;
+  const newOwnerId = profile ? profile.id : null;
+  const newMail = email || null;
+  if((oldMail||'') === (newMail||'')) { closeOwnerPicker(); return; }
+  lead.am_mail = newMail;
+  lead.owner_id = newOwnerId;
+  closeOwnerPicker();
+  try { renderAccountsTable(); } catch {}
+  try { renderBoard(); } catch {}
+  try {
+    const token = await _getValidAccessToken();
+    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${leadId}`, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ am_mail: newMail, owner_id: newOwnerId })
+    });
+    if(!res.ok){
+      const t = await res.text().catch(()=> '');
+      console.warn('[owner] patch failed', res.status, t);
+      lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
+      try { renderAccountsTable(); } catch {}
+      try { renderBoard(); } catch {}
+      toast('Failed to reassign owner','error'); return;
+    }
+    const who = profile?.full_name || newMail || 'Unassigned';
+    toast(`Owner set to ${who}`,'success');
+  } catch(e){
+    console.warn('[owner] assign error', e);
+    lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
+    try { renderAccountsTable(); } catch {}
+    try { renderBoard(); } catch {}
+    toast('Failed to reassign owner','error');
+  }
 }
 
 // ── accTabSwitch: tab filter switching ──
@@ -11312,8 +11505,8 @@ function buildAccountRow(lead) {
         : `<span style="color:#C8CDD8;font-size:13px;">—</span>`}
     </td>
     <td>
-      <div class="acc-owner-cell" title="${esc(ownerObj.name)}${ownerObj.email?' · '+esc(ownerObj.email):''}">
-        <div class="acc-owner-av" style="background:${ownerObj.color||'#1C2333'};color:#FFFFFF;cursor:default;">${ownerObj.id}</div>
+      <div class="acc-owner-cell" title="${esc(ownerObj.name)}${ownerObj.email?' · '+esc(ownerObj.email):''}${window.AUTH_PROFILE?.role==='admin'?' · click to reassign':''}">
+        <div class="acc-owner-av${window.AUTH_PROFILE?.role==='admin'?' editable':''}" ${window.AUTH_PROFILE?.role==='admin'?`data-action="open-owner-picker" data-lead-id="${id}"`:''} style="background:${ownerObj.color||'#1C2333'};color:#FFFFFF;${window.AUTH_PROFILE?.role==='admin'?'cursor:pointer;':'cursor:default;'}">${ownerObj.avatar_url?`<img src="${esc(ownerObj.avatar_url)}" alt="${esc(ownerObj.id)}"/>`:esc(ownerObj.id)}</div>
       </div>
     </td>
     <td>${sourceHtml}</td>
