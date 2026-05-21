@@ -11842,28 +11842,49 @@ function openDealModal(id) {
   // Reset probability selection
   document.querySelectorAll('.deal-prob-btn').forEach(b => b.classList.remove('selected'));
 
-  // Owner — always locked to current user unless admin
+  // Owner — defaults to the ACCOUNT'S existing owner (e.g. Mariam), not the
+  // logged-in user. Admins can override via the toggle.
   const ownerSel    = document.getElementById('deal-owner');
   const ownerLocked = document.getElementById('deal-owner-locked');
   const ownerAv     = document.getElementById('deal-owner-av');
   const ownerName   = document.getElementById('deal-owner-name');
   const adminToggle = document.getElementById('deal-owner-admin-toggle');
 
-  // Show locked state
-  if (ownerAv)   ownerAv.textContent   = CURRENT_USER.id;
-  if (ownerName) ownerName.textContent = CURRENT_USER.name;
+  const ownerObj = (typeof ownerFromEmail === 'function')
+    ? ownerFromEmail(gOwner(id))
+    : { id: '?', name: 'Unassigned', color: '#969BA1' };
+
+  if (ownerAv) {
+    if (ownerObj.avatar_url) {
+      ownerAv.innerHTML = `<img src="${ownerObj.avatar_url}" alt="${ownerObj.id}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`;
+    } else {
+      ownerAv.textContent = ownerObj.id;
+    }
+    if (ownerObj.color) ownerAv.style.background = ownerObj.color;
+  }
+  if (ownerName) ownerName.textContent = ownerObj.name || 'Unassigned';
   if (ownerLocked) ownerLocked.style.display = 'flex';
   if (ownerSel)    ownerSel.style.display    = 'none';
 
-  // Admin toggle visibility
-  if (adminToggle) adminToggle.style.display = CURRENT_USER.role === 'admin' ? 'inline-flex' : 'none';
+  // Admin toggle visibility — uses Supabase auth profile, not the legacy CURRENT_USER
+  const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  if (adminToggle) adminToggle.style.display = isAdmin ? 'inline-flex' : 'none';
 
-  // Populate dropdown (for admin use)
+  // Populate dropdown (admin override) from the live profiles directory
   if (ownerSel) {
-    ownerSel.innerHTML = OWNERS.map(o =>
-      `<option value="${o.id}"${o.id === CURRENT_USER.id ? ' selected' : ''}>${o.name}</option>`
-    ).join('');
+    const dir = (window.PROFILES_DIR || []).filter(p => p.active !== false);
+    const curEmail = (lead.am_mail || '').toLowerCase();
+    ownerSel.innerHTML =
+      `<option value="">Unassigned</option>` +
+      dir.map(p => {
+        const sel = (p.email || '').toLowerCase() === curEmail ? ' selected' : '';
+        return `<option value="${esc(p.email||'')}"${sel}>${esc(p.full_name || p.email || '')}</option>`;
+      }).join('');
   }
+
+  // Re-label the modal sub for clarity
+  const subEl = document.getElementById('deal-owner-sub');
+  if (subEl) subEl.textContent = isAdmin ? 'Account owner · admin can change' : 'Account owner';
 
   // Open modal
   document.getElementById('deal-modal-bg').classList.add('open');
@@ -11907,21 +11928,31 @@ function confirmDealModal() {
 
   const amount    = document.getElementById('deal-amount').value.trim();
   const closeDate = document.getElementById('deal-close-date').value;
-  const ownerId = dealOwnerEditing
-    ? (document.getElementById('deal-owner').value || CURRENT_USER.id)
-    : CURRENT_USER.id;
+  // Owner: default = the account's existing owner. Only override when an admin
+  // explicitly opened the dropdown and picked a different user.
+  const existingOwnerEmail = gOwner(dealModalLeadId) || '';
+  const pickedEmail = dealOwnerEditing
+    ? (document.getElementById('deal-owner').value || '')
+    : existingOwnerEmail;
 
   // Save deal data
   if (amount)    sAcv(dealModalLeadId, 'EGP ' + amount.replace(/^EGP\s*/, ''));
   if (closeDate) sClose(dealModalLeadId, closeDate);
-  if (ownerId)   sOwner(dealModalLeadId, ownerId);
+
+  // If admin actually changed the owner, persist to DB (am_mail + owner_id).
+  if (dealOwnerEditing
+      && pickedEmail !== existingOwnerEmail
+      && window.AUTH_PROFILE?.role === 'admin'
+      && typeof assignOwner === 'function') {
+    assignOwner(dealModalLeadId, pickedEmail);
+  }
 
   // Save probability as a note in the log
   if (dealModalProb) {
     const probLabels = { high: 'High (70–100%)', medium: 'Medium (30–69%)', low: 'Low (<30%)' };
     pushLog(dealModalLeadId, 'note',
       `Deal created — Probability: ${probLabels[dealModalProb]}${amount ? ' · Value: $' + amount : ''}`,
-      ownerId || gOwner(dealModalLeadId)
+      pickedEmail || existingOwnerEmail
     );
   }
 
@@ -13914,8 +13945,8 @@ function renderActivityFeed(el) {
         <div id="deal-owner-locked" class="deal-owner-locked">
           <div class="deal-owner-locked-av" id="deal-owner-av">AM</div>
           <div>
-            <div class="deal-owner-locked-name" id="deal-owner-name">Amr Hammad</div>
-            <div class="deal-owner-locked-role">Current user · auto-assigned</div>
+            <div class="deal-owner-locked-name" id="deal-owner-name">—</div>
+            <div class="deal-owner-locked-role" id="deal-owner-sub">Account owner</div>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;color:var(--text-4);flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
         </div>
