@@ -7491,6 +7491,10 @@ body .ld-tab-content {
           <option value="value_lo">Value low→high</option>
           <option value="icp_hi">ICP score high→low</option>
         </select>
+        <button class="acc-export-btn" id="pipe-export-btn" onclick="exportPipeline()" style="display:none;margin-left:auto;" title="Admin only — export filtered pipeline to CSV">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
       </div>
 
       <div class="board" id="board"></div>
@@ -7507,7 +7511,7 @@ body .ld-tab-content {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2"/><rect x="8" y="8" width="12" height="12" rx="2"/></svg>
           Find duplicates
         </button>
-        <button class="acc-export-btn" onclick="exportAccounts()">
+        <button class="acc-export-btn" id="acc-export-btn" onclick="exportAccounts()" style="display:none;" title="Admin only — export filtered accounts to CSV">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
         </button>
@@ -7846,6 +7850,10 @@ window.AUTH_PROFILE = null;
       if (utmItem) utmItem.style.display = (p.role === 'admin') ? '' : 'none';
       const dupBtn = document.getElementById('acc-find-dupes-btn');
       if (dupBtn) dupBtn.style.display = (p.role === 'admin') ? '' : 'none';
+      const accExportBtn = document.getElementById('acc-export-btn');
+      if (accExportBtn) accExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
+      const pipeExportBtn = document.getElementById('pipe-export-btn');
+      if (pipeExportBtn) pipeExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
     }catch{}
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
@@ -10970,18 +10978,100 @@ function accTabSwitch(btn){
 }
 
 // ── exportAccounts: CSV export ──
+// Robust CSV cell escaping — wraps any value containing commas, quotes, or
+// newlines in double-quotes and escapes embedded quotes.
+function _csvCell(v){
+  const s = (v===null||v===undefined) ? '' : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function _downloadCsv(filename, rows){
+  const csv = rows.map(r => r.map(_csvCell).join(',')).join('\n');
+  // BOM lets Excel detect UTF-8 (Arabic / accented names render correctly)
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+// Admin-only. Comprehensive Accounts CSV — every field a sales rep cares about.
 function exportAccounts(){
-  const rows=accFilteredLeads();
-  const headers=['Company','Status','ICP','Owner','Source','Created'];
-  const lines=rows.map(l=>{
-    const stage=gStage(l._id);
-    const status=isLeadPaidCustomer(l)?'Paid':['lead','mql'].includes(stage)?'Prospect':stage;
-    return [gName(l),status,calcIcpScore(l._id),gOwner(l._id),gSource(l)||'',gCreated(l)||''].join(',');
+  if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
+    toast('Export is admin-only', 'error');
+    return;
+  }
+  const rows = accFilteredLeads();
+  if (!rows.length) { toast('No rows to export', 'error'); return; }
+  const header = [
+    'Company','Domain','Stage','Status','Disqualified','Unreachable',
+    'ICP Score','Owner Email','Source','Medium','Campaign',
+    'Contact Name','Contact Email','Contact Phone','Contact Title',
+    'Industry','Location','Deal Value','Close Date',
+    'Paid Status','Activation Status','Has Trial','Created At'
+  ];
+  const out = [header];
+  rows.forEach(l => {
+    const id = l._id;
+    const stage = gStage(id);
+    const contact = gContact(id);
+    const status = isLeadPaidCustomer(l) ? 'Paid' : (stage === 'mql' ? 'MQL' : stage);
+    out.push([
+      gName(l),
+      domainFromBubble(l) || '',
+      stage,
+      status,
+      gDisq(id) ? 'Yes' : 'No',
+      l.is_unreachable ? 'Yes' : 'No',
+      calcIcpScore(id),
+      gOwner(id),
+      gSource(l) || '',
+      gMedium(l) || '',
+      gCampaign(l) || '',
+      contact.full_name || gContactName(l) || '',
+      contact.email || gEmail(l) || '',
+      contact.phone || gPhone(l) || '',
+      contact.job_title || gJobTitle(l) || '',
+      contact.industry_manual || contact.industry_detected || gIndustry(l) || '',
+      contact.location_manual || contact.location_detected || gRegion(l) || '',
+      gAcv(id) || '',
+      gClose(id) || '',
+      l.paid_status || '',
+      l.activation_status || '',
+      l.has_trial ? 'Yes' : 'No',
+      l.created_at || l.bubble_created_at || ''
+    ]);
   });
-  const csv=[headers.join(','),...lines].join(String.fromCharCode(10));
-  const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='accounts.csv';a.click();
+  const stamp = new Date().toISOString().slice(0,10);
+  _downloadCsv(`recruitera-accounts-${stamp}.csv`, out);
+  toast(`Exported ${rows.length} accounts`, 'success');
+}
+
+// Admin-only. Pipeline export — only deals past MQL, current pipeline filters applied.
+function exportPipeline(){
+  if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
+    toast('Export is admin-only', 'error');
+    return;
+  }
+  const rows = filtered();
+  if (!rows.length) { toast('No deals in pipeline to export', 'error'); return; }
+  const header = ['Company','Stage','Owner','Deal Value','Close Date','Source','Created At'];
+  const out = [header];
+  rows.forEach(l => {
+    const id = l._id;
+    out.push([
+      gName(l),
+      gStage(id),
+      gOwner(id),
+      gAcv(id) || '',
+      gClose(id) || '',
+      gSource(l) || '',
+      l.created_at || l.bubble_created_at || ''
+    ]);
+  });
+  const stamp = new Date().toISOString().slice(0,10);
+  _downloadCsv(`recruitera-pipeline-${stamp}.csv`, out);
+  toast(`Exported ${rows.length} deals`, 'success');
 }
 
 function renderAccStats(rows) {
