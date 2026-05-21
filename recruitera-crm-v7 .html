@@ -216,9 +216,17 @@ input,select,textarea{
   background:var(--cg-900);
   color:#CCED59;font-size:11px;font-weight:500;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  cursor:pointer;
+  cursor:pointer;overflow:hidden;position:relative;
 }
+.sb-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 .sb-av:hover{opacity:0.85;}
+.sb-av:hover::after{
+  content:'Change';position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:600;color:#fff;
+  background:rgba(0,0,0,0.55);border-radius:50%;
+  letter-spacing:0.3px;
+}
 .sb-user-info{display:none;}
 .sidebar.collapsed .sb-user-info{display:none;}
 .sb-user-name{display:none;}
@@ -7331,7 +7339,8 @@ body .ld-tab-content {
     </nav>
 
     <div class="sb-user">
-      <div class="sb-av" id="sb-av">AM</div>
+      <div class="sb-av" id="sb-av" title="Click to change photo" onclick="document.getElementById('sb-av-file').click()">AM</div>
+      <input type="file" id="sb-av-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" onchange="uploadAvatar(this)"/>
       <div class="sb-user-info">
         <div class="sb-user-name" id="sb-user-name">—</div>
         <div class="sb-user-role" id="sb-user-role">—</div>
@@ -7817,7 +7826,7 @@ window.AUTH_PROFILE = null;
     const uid = payload?.sub;
     const email = payload?.email;
     if(!uid){ return; }
-    const res = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${uid}&select=id,email,full_name,role&limit=1`, {
+    const res = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${uid}&select=id,email,full_name,role,avatar_url&limit=1`, {
       headers: {
         'apikey': SB_KEY,
         'Authorization': 'Bearer ' + window.AUTH_TOKEN,
@@ -7841,9 +7850,13 @@ window.AUTH_PROFILE = null;
       if(nameEl) nameEl.textContent = fullName || '—';
       if(roleEl) roleEl.textContent = (p.role || 'user').toString();
       if(avEl){
-        const parts = fullName.trim().split(/\s+/);
-        const initials = (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
-        avEl.textContent = initials.toUpperCase();
+        if (p.avatar_url) {
+          avEl.innerHTML = `<img src="${p.avatar_url}?t=${Date.now()}" alt="avatar"/>`;
+        } else {
+          const parts = fullName.trim().split(/\s+/);
+          const initials = (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
+          avEl.textContent = initials.toUpperCase();
+        }
       }
       // Reveal admin-only sidebar entries + buttons
       const utmItem = document.getElementById('sb-utm-item');
@@ -7866,6 +7879,68 @@ window.AUTH_PROFILE = null;
     }
   }catch(e){ console.warn('[auth] profile fetch failed', e); }
 })();
+
+// Upload a profile photo for the current user.
+// Path: avatars/<uid>/<timestamp>.<ext>  — RLS restricts writes to user's own folder.
+// On success, PATCH profiles.avatar_url with the public URL and update sidebar.
+async function uploadAvatar(input){
+  try{
+    const file = input.files && input.files[0];
+    if(!file) return;
+    if(file.size > 2 * 1024 * 1024){ toast('Image too large (max 2MB)', 'error'); input.value=''; return; }
+    if(!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)){ toast('Use PNG, JPG, WebP, or GIF', 'error'); input.value=''; return; }
+
+    const token = await _getValidAccessToken();
+    if(!token){ toast('Session expired — please sign in again', 'error'); return; }
+    const p = window.AUTH_PROFILE;
+    if(!p || !p.id){ toast('Profile not loaded yet', 'error'); return; }
+
+    toast('Uploading photo…', 'info');
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g,'') || 'png';
+    const objectPath = `${p.id}/${Date.now()}.${ext}`;
+    const upRes = await fetch(`${SB_URL}/storage/v1/object/avatars/${objectPath}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': file.type,
+        'x-upsert': 'true',
+        'Cache-Control': '3600',
+      },
+      body: file,
+    });
+    if(!upRes.ok){
+      const t = await upRes.text().catch(()=> '');
+      console.warn('[avatar] upload failed', upRes.status, t);
+      toast('Upload failed', 'error'); return;
+    }
+    const publicUrl = `${SB_URL}/storage/v1/object/public/avatars/${objectPath}`;
+
+    const patchRes = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${p.id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ avatar_url: publicUrl }),
+    });
+    if(!patchRes.ok){
+      const t = await patchRes.text().catch(()=> '');
+      console.warn('[avatar] profile patch failed', patchRes.status, t);
+      toast('Could not save photo to profile', 'error'); return;
+    }
+    window.AUTH_PROFILE.avatar_url = publicUrl;
+    const avEl = document.getElementById('sb-av');
+    if(avEl) avEl.innerHTML = `<img src="${publicUrl}?t=${Date.now()}" alt="avatar"/>`;
+    input.value = '';
+    toast('Photo updated', 'success');
+  }catch(e){
+    console.warn('[avatar] uploadAvatar error', e);
+    toast('Upload failed', 'error');
+  }
+}
 
 function logout(){
   try{ localStorage.removeItem(SB_AUTH_KEY); }catch{}
