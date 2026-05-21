@@ -3678,7 +3678,22 @@ button { user-select: none; -webkit-user-select: none; }
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed; /* keeps Action column on screen instead of overflowing */
 }
+.acc-table colgroup col.col-account { width: 32%; }
+.acc-table colgroup col.col-status  { width: 10%; }
+.acc-table colgroup col.col-health  { width: 8%;  }
+.acc-table colgroup col.col-owner   { width: 11%; }
+.acc-table colgroup col.col-source  { width: 11%; }
+.acc-table colgroup col.col-since   { width: 10%; }
+.acc-table colgroup col.col-action  { width: 18%; }
+.acc-table tbody td { vertical-align: middle; }
+/* Force long cell content to wrap or truncate so the layout stays put */
+.acc-table .acc-name span:first-child { max-width: 100%; }
+.acc-table .acc-meta, .acc-table .acc-contact { font-size: 11.5px; color: var(--text-3); margin-top: 3px; display: flex; align-items: center; gap: 0; flex-wrap: wrap; row-gap: 3px; }
+.acc-contact-name { color: var(--text-2); font-weight: 500; }
+.acc-contact-link { color: var(--info); text-decoration: none; }
+.acc-contact-link:hover { text-decoration: underline; }
 .acc-table thead th {
   position: sticky;
   top: 0;
@@ -7475,6 +7490,15 @@ body .ld-tab-content {
     <!-- Table in white rounded card -->
     <div class="acc-table-wrap">
       <table class="acc-table">
+        <colgroup>
+          <col class="col-account"/>
+          <col class="col-status"/>
+          <col class="col-health"/>
+          <col class="col-owner"/>
+          <col class="col-source"/>
+          <col class="col-since"/>
+          <col class="col-action"/>
+        </colgroup>
         <thead>
           <tr>
             <th onclick="accSort('name')" id="acc-th-name">ACCOUNT <span class="sort-icon">↕</span></th>
@@ -7483,7 +7507,7 @@ body .ld-tab-content {
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('created')" id="acc-th-created">SINCE <span class="sort-icon">↕</span></th>
-            <th style="width:120px;text-align:center;">ACTION</th>
+            <th style="text-align:center;">ACTION</th>
           </tr>
         </thead>
         <tbody id="acc-tbody"></tbody>
@@ -10889,6 +10913,16 @@ function buildAccountRow(lead) {
     ? metaParts.map((p, i) => i === 0 ? esc(p) : `<span class="acc-meta-dot"></span>${esc(p)}`).join(' ')
     : '';
 
+  // Contact info line (name · phone · email)
+  const cName  = contact.full_name || gContactName(lead) || '';
+  const cPhone = contact.phone     || gPhone(lead)       || '';
+  const cEmail = contact.email     || gEmail(lead)       || '';
+  const contactParts = [];
+  if (cName)  contactParts.push(`<span class="acc-contact-name">👤 ${esc(cName)}</span>`);
+  if (cPhone) contactParts.push(`<a href="tel:${esc(cPhone)}" class="acc-contact-link" onclick="event.stopPropagation()">📞 ${esc(cPhone)}</a>`);
+  if (cEmail) contactParts.push(`<a href="mailto:${esc(cEmail)}" class="acc-contact-link" onclick="event.stopPropagation()">✉️ ${esc(cEmail)}</a>`);
+  const contactHtml = contactParts.length ? `<div class="acc-contact">${contactParts.join('<span class="acc-meta-dot"></span>')}</div>` : '';
+
   // Avatar bg: dark navy circle with white initial (like screenshot)
   const avatarBg = logoSrc ? '#fff' : 'var(--cg-800)';
   const avatarColor = logoSrc ? stageObj.color : '#FFFFFF';
@@ -10920,6 +10954,7 @@ function buildAccountRow(lead) {
             ${unreachable ? `<span class="acc-unreachable-chip" title="Marked as unreachable">⚠ Unreachable</span>` : ''}
           </div>
           ${metaHtml ? `<div class="acc-meta">${metaHtml}</div>` : ''}
+          ${contactHtml}
         </div>
       </div>
     </td>
