@@ -8576,7 +8576,7 @@ function renderBoard(){
   updateDisqCount();
 
   const byStage={};STAGES.forEach(s=>byStage[s.id]=[]);
-  fl.forEach(l=>{const s=gStage(l._id);if(byStage[s])byStage[s].push(l);else byStage.lead.push(l);});
+  fl.forEach(l=>{const s=gStage(l._id);if(byStage[s])byStage[s].push(l);else (byStage.mql=byStage.mql||[]).push(l);});
   board.innerHTML='';
   KANBAN_STAGES.forEach(st=>{
     const stageLeads=byStage[st.id];
