@@ -3903,6 +3903,21 @@ button { user-select: none; -webkit-user-select: none; }
 .acc-unreachable-btn:hover { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
 .acc-unreachable-btn.on { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
 .acc-unreachable-btn.on:hover { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
+
+/* Quick disqualify button on Accounts row (only shown on MQL rows) */
+.acc-disq-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--bad);
+  border-radius: 7px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 110ms;
+  flex-shrink: 0;
+}
+.acc-disq-btn:hover { background: var(--bad); color: #fff; }
 .acc-in-deal {
   display: inline-flex;
   align-items: center;
@@ -7554,7 +7569,7 @@ body .ld-tab-content {
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('created')" id="acc-th-created">SINCE <span class="sort-icon">↕</span></th>
-            <th style="text-align:center;">ACTION</th>
+            <th style="text-align:right;padding-right:14px;">ACTION</th>
           </tr>
         </thead>
         <tbody id="acc-tbody"></tbody>
@@ -10782,6 +10797,13 @@ function renderAccountsTable() {
       if (id) toggleUnreachable(id);
       return;
     }
+    const disqBtn = e.target.closest('[data-action="quick-disqualify"]');
+    if (disqBtn) {
+      e.stopPropagation();
+      const id = disqBtn.getAttribute('data-lead-id');
+      if (id) quickDisqualify(id);
+      return;
+    }
     const row = e.target.closest('tr.acc-row-clickable');
     if (row) {
       const id = row.getAttribute('data-lead-id');
@@ -10790,6 +10812,45 @@ function renderAccountsTable() {
       }
     }
   };
+}
+
+// One-click disqualify from the Accounts row. Asks for a reason, then
+// PATCHes accounts.is_disqualified=true + sets local cache so the row
+// turns red immediately. Optimistic UI w/ rollback on failure.
+async function quickDisqualify(leadId){
+  const lead = leads.find(l => l._id === leadId);
+  if (!lead) return;
+  const sbId = lead._supabase_id;
+  if (!sbId) { toast('Cannot persist — missing Supabase id', 'error'); return; }
+  const reason = prompt('Disqualify "' + (gName(lead) || 'this account') + '"?\n\nOptional reason:', '');
+  if (reason === null) return; // user cancelled
+  // Optimistic flip
+  sDisq(leadId, '1');
+  lead._sb_is_disq = true;
+  if (reason && reason.trim()) { try { sLost(leadId, { reason: reason.trim(), ts: Date.now() }); } catch{} }
+  try { renderAccountsTable(); renderBoard(); updateDisqCount(); } catch {}
+  const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
+  if (!token) { location.replace('./recruitera-login.html'); return; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ is_disqualified: true }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0,160)}`);
+    toast('Disqualified', 'success');
+  } catch(e) {
+    // Roll back
+    rDisq(leadId);
+    lead._sb_is_disq = false;
+    try { renderAccountsTable(); renderBoard(); updateDisqCount(); } catch {}
+    toast('Disqualify failed: ' + e.message, 'error');
+  }
 }
 
 // Toggle accounts.is_unreachable. Optimistic UI: flip in-memory + re-render,
@@ -11031,11 +11092,14 @@ function buildAccountRow(lead) {
     </td>
     <td>${sourceHtml}</td>
     <td><span class="acc-date">${createdStr}</span></td>
-    <td style="text-align:center;">
-      <div style="display:inline-flex;align-items:center;gap:6px;">
+    <td style="text-align:right;padding-right:14px;">
+      <div style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end;">
         <button class="acc-unreachable-btn ${unreachable?'on':''}" data-lead-id="${id}" data-action="toggle-unreachable" title="${unreachable?'Mark as reachable':'Mark as unreachable'}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </button>
+        ${(!isDisqRow && stage === 'mql') ? `<button class="acc-disq-btn" data-lead-id="${id}" data-action="quick-disqualify" title="Disqualify this MQL">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        </button>` : ''}
         ${actionHtml}
       </div>
     </td>
