@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Recruitera CRM</title>
+  <link rel="icon" href="data:,"/>
+  <style>
+    html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d1117;color:#e6edf3;}
+    .wrap{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;}
+    .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.15);border-top-color:#CCED59;border-radius:50%;animation:s 0.7s linear infinite;}
+    @keyframes s{to{transform:rotate(360deg);}}
+    .msg{font-size:13px;color:#8b949e;}
+    a{color:#CCED59;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="spinner"></div>
+    <div class="msg" id="msg">Loading Recruitera…</div>
+    <noscript><a href="./recruitera-login.html">Continue to login</a></noscript>
+  </div>
+  <script>
+    (function(){
+      // Preserve hash (Supabase recovery tokens) and query string when redirecting.
+      var hash = window.location.hash || '';
+      var search = window.location.search || '';
+      // If a Supabase recovery / access token is present → go to login (recovery mode).
+      // Otherwise also go to login; the login page redirects to the CRM if a valid session exists.
+      var target = './recruitera-login.html' + search + hash;
+      // Small delay so the spinner is visible if the redirect is instant.
+      setTimeout(function(){ window.location.replace(target); }, 50);
+    })();
+  </script>
+</body>
+</html>
