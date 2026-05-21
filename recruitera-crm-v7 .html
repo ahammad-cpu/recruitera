@@ -11210,7 +11210,7 @@ function openOwnerPicker(leadId, anchorEl){
   console.log('[owner] openOwnerPicker', { leadId, anchorEl, role: window.AUTH_PROFILE?.role });
   if(window.AUTH_PROFILE?.role !== 'admin'){ console.warn('[owner] not admin, bailing'); return; }
   closeOwnerPicker();
-  const lead = (window.leads||[]).find(l => l._id === leadId);
+  const lead = ((typeof leads !== 'undefined' ? leads : (window.leads||[]))).find(l => l._id === leadId);
   if(!lead){ console.warn('[owner] lead not found in window.leads', leadId); alert('Lead not found in memory: '+leadId); return; }
   const rows = (window.PROFILES_DIR || []).filter(p => p.active !== false);
   console.log('[owner] picker rows', rows.length, rows.map(r => r.email));
@@ -11263,7 +11263,7 @@ async function assignOwner(leadId, email){
     alert('You must be an admin to change the owner. Current role: ' + (window.AUTH_PROFILE?.role||'unknown'));
     return;
   }
-  const lead = (window.leads||[]).find(l => l._id === leadId);
+  const lead = ((typeof leads !== 'undefined' ? leads : (window.leads||[]))).find(l => l._id === leadId);
   if(!lead){ alert('Lead not found in memory: ' + leadId); return; }
   const oldMail = lead.am_mail;
   const oldOwnerId = lead.owner_id;
@@ -13562,6 +13562,7 @@ function renderActivityFeed(el) {
   try{
     console.log('[CRM] Calling sbFetch...');
     leads = await sbFetch();
+    window.leads = leads; // expose for cross-scope lookups (owner picker, etc.)
     console.log('[CRM] sbFetch returned', leads.length, 'accounts');
     hideL();
     document.getElementById('sidebar').style.display='flex';
