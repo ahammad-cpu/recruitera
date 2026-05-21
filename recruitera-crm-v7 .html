@@ -9693,7 +9693,16 @@ function openContractCycleModal(leadId, opts = {}){
   document.getElementById('contract-ends-at').value    = existing?.ends_at    || fmt(oneYear);
   document.getElementById('contract-value').value      = existing?.value ?? '';
   document.getElementById('contract-currency').value   = existing?.currency || 'EGP';
-  document.getElementById('contract-plan').value       = existing?.plan_tier || '';
+  // Plan tier: preserve any legacy/free-form value by injecting it as an option if not in the default list
+  const planSel = document.getElementById('contract-plan');
+  if (planSel) {
+    const want = existing?.plan_tier || '';
+    if (want && !Array.from(planSel.options).some(o => o.value === want)) {
+      const o = document.createElement('option'); o.value = want; o.textContent = want + ' (legacy)';
+      planSel.appendChild(o);
+    }
+    planSel.value = want;
+  }
   document.getElementById('contract-status').value     = existing?.status || 'active';
   document.getElementById('contract-auto-renew').checked = !!existing?.auto_renew;
   document.getElementById('contract-notes').value      = existing?.notes || '';
@@ -13772,7 +13781,12 @@ function renderActivityFeed(el) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Plan tier
-          <input type="text" id="contract-plan" placeholder="e.g. Pro, Enterprise" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+          <select id="contract-plan" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
+            <option value="">— Select —</option>
+            <option value="Basic">Basic</option>
+            <option value="Pro">Pro</option>
+            <option value="Enterprise">Enterprise</option>
+          </select>
         </label>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Status
           <select id="contract-status" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
