@@ -10214,11 +10214,21 @@ function editSnapOwner(){
 
 // Click handler for the lead-detail hero Owner cell. Admin-only; toasts otherwise.
 function ldClickOwner(leadId, anchor){
-  if(window.AUTH_PROFILE?.role !== 'admin'){
-    if(typeof toast === 'function') toast('Only admins can change the owner','error');
+  console.log('[owner] ldClickOwner', { leadId, role: window.AUTH_PROFILE?.role, profilesLoaded: (window.PROFILES_DIR||[]).length });
+  if(!window.AUTH_PROFILE){
+    alert('Profile not loaded yet — try again in a second.');
     return;
   }
-  if(typeof openOwnerPicker === 'function') openOwnerPicker(leadId, anchor);
+  if(window.AUTH_PROFILE.role !== 'admin'){
+    if(typeof toast === 'function') toast('Only admins can change the owner','error');
+    alert('Only admins can change the owner. Your role: ' + window.AUTH_PROFILE.role);
+    return;
+  }
+  if(typeof openOwnerPicker !== 'function'){
+    alert('Owner picker is missing. Hard-refresh the page (⌘+Shift+R).');
+    return;
+  }
+  openOwnerPicker(leadId, anchor);
 }
 function saveSnapOwner(v){if(!curId)return;sOwner(curId,v);const lead=leads.find(l=>l._id===curId);if(lead)renderSnapBar(lead);renderBoard();}
 
@@ -11242,9 +11252,14 @@ function openOwnerPicker(leadId, anchorEl){
   }, 0);
 }
 async function assignOwner(leadId, email){
-  if(window.AUTH_PROFILE?.role !== 'admin'){ toast('Admin only','error'); return; }
+  console.log('[owner] assignOwner called', { leadId, email, role: window.AUTH_PROFILE?.role });
+  if(window.AUTH_PROFILE?.role !== 'admin'){
+    toast('Admin only — your role is "'+(window.AUTH_PROFILE?.role||'unknown')+'"','error');
+    alert('You must be an admin to change the owner. Current role: ' + (window.AUTH_PROFILE?.role||'unknown'));
+    return;
+  }
   const lead = (window.leads||[]).find(l => l._id === leadId);
-  if(!lead) return;
+  if(!lead){ alert('Lead not found in memory: ' + leadId); return; }
   const oldMail = lead.am_mail;
   const oldOwnerId = lead.owner_id;
   const profile = email ? (window.PROFILES_BY_EMAIL || {})[email.toLowerCase()] : null;
@@ -11257,8 +11272,10 @@ async function assignOwner(leadId, email){
   try { renderAccountsTable(); } catch {}
   try { renderBoard(); } catch {}
   try { if (typeof curId !== 'undefined' && curId === leadId && typeof renderLdHero === 'function') renderLdHero(lead); } catch {}
+  try { if (typeof renderSnapBar === 'function' && typeof curId !== 'undefined' && curId === leadId) renderSnapBar(lead); } catch {}
   try {
     const token = await _getValidAccessToken();
+    if(!token){ alert('Session expired — please sign in again.'); lead.am_mail = oldMail; lead.owner_id = oldOwnerId; renderAccountsTable(); renderBoard(); return; }
     const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${leadId}`, {
       method:'PATCH',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'},
@@ -11270,16 +11287,21 @@ async function assignOwner(leadId, email){
       lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
       try { renderAccountsTable(); } catch {}
       try { renderBoard(); } catch {}
-      toast('Failed to reassign owner','error'); return;
+      try { if (typeof curId !== 'undefined' && curId === leadId && typeof renderLdHero === 'function') renderLdHero(lead); } catch {}
+      toast('Failed to reassign owner ('+res.status+')','error');
+      alert('Reassign failed — HTTP '+res.status+'\n\nServer said:\n'+t);
+      return;
     }
     const who = profile?.full_name || newMail || 'Unassigned';
     toast(`Owner set to ${who}`,'success');
+    console.log('[owner] patch ok', who);
   } catch(e){
     console.warn('[owner] assign error', e);
     lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
     try { renderAccountsTable(); } catch {}
     try { renderBoard(); } catch {}
     toast('Failed to reassign owner','error');
+    alert('Reassign error: ' + (e?.message || e));
   }
 }
 
