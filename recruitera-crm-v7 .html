@@ -9887,7 +9887,7 @@ function renderLdActivity(lead,el){
         ${compTabs.map(t=>`<button class="ld-composer-tab${ldComposerMode===t.id?' active':''}" data-type="${t.id}" onclick="ldPickComposer(this)">
           <span style="font-size:14px;line-height:1;">${t.icon}</span>${t.l}
         </button>`).join('')}
-        <select style="margin-left:auto;height:28px;padding:0 22px 0 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--surface);appearance:none;cursor:pointer;" id="ld-author">${ownerSel}</select>
+        <select id="ld-author" style="display:none;">${ownerSel}</select>
       </div>
       <div class="ld-composer-body">
         <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="${ldComposerMode==='note'?'Write a note for the team…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…'}"></textarea>
