@@ -11207,19 +11207,23 @@ function filterOwnerPicker(q){
   });
 }
 function openOwnerPicker(leadId, anchorEl){
-  if(window.AUTH_PROFILE?.role !== 'admin') return;
+  console.log('[owner] openOwnerPicker', { leadId, anchorEl, role: window.AUTH_PROFILE?.role });
+  if(window.AUTH_PROFILE?.role !== 'admin'){ console.warn('[owner] not admin, bailing'); return; }
   closeOwnerPicker();
   const lead = (window.leads||[]).find(l => l._id === leadId);
-  if(!lead) return;
+  if(!lead){ console.warn('[owner] lead not found in window.leads', leadId); alert('Lead not found in memory: '+leadId); return; }
   const rows = (window.PROFILES_DIR || []).filter(p => p.active !== false);
+  console.log('[owner] picker rows', rows.length, rows.map(r => r.email));
+  if(rows.length === 0){ alert('No active profiles in directory — cannot pick a new owner.'); return; }
   const cur = (lead.am_mail || '').toLowerCase();
   const rect = anchorEl.getBoundingClientRect();
+  console.log('[owner] anchor rect', rect);
   const pop = document.createElement('div');
   pop.id = 'owner-picker-pop';
   pop.className = 'owner-pop';
   const top = Math.min(window.innerHeight - 360, rect.bottom + 4);
   const left = Math.min(window.innerWidth - 280, rect.left);
-  pop.style.cssText = `position:fixed;top:${top}px;left:${left}px;z-index:9999;`;
+  pop.style.cssText = `position:fixed;top:${top}px;left:${left}px;z-index:99999;box-shadow:0 0 0 3px #CCED59,0 12px 40px rgba(0,0,0,0.35);`;
   const itemHtml = (name, email, color, avatar, initials, sel, payload) =>
     `<div class="owner-pop-item ${sel?'selected':''}" data-search="${esc(((name||'')+' '+(email||'')).toLowerCase())}" onclick="assignOwner('${leadId}', ${payload})">
        <div class="owner-pop-av" style="background:${color};color:#fff;">
@@ -11246,6 +11250,7 @@ function openOwnerPicker(leadId, anchorEl){
     </div>
   `;
   document.body.appendChild(pop);
+  console.log('[owner] picker appended to body, items=', pop.querySelectorAll('.owner-pop-item').length);
   setTimeout(() => {
     document.addEventListener('click', _ownerPickerOutsideClick);
     document.getElementById('owner-pop-search')?.focus();
