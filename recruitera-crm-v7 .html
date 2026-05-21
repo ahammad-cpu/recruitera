@@ -5217,14 +5217,23 @@ body .sidebar.collapsed .sb-user {
   color: #1A2230 !important;
 }
 
-/* Footer with user */
+/* Footer with user
+   Default (collapsed sidebar, 64px wide) → column so avatar sits above logout.
+   Row layout only when the sidebar is expanded (mobile-open) and we have
+   enough width to show avatar + name + logout side-by-side. */
 .sb-user {
   margin-top: auto !important;
   padding: 12px 4px 4px !important;
   border-top: 1px solid var(--border) !important;
-  flex-direction: row !important;
+  flex-direction: column !important;
   align-items: center !important;
-  gap: 10px !important;
+  gap: 8px !important;
+}
+.sidebar.mobile-open .sb-user {
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding: 12px 16px !important;
 }
 .sb-av {
   width: 30px !important; height: 30px !important;
