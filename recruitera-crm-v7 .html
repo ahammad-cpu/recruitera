@@ -3689,6 +3689,10 @@ button { user-select: none; -webkit-user-select: none; }
 .acc-table colgroup col.col-since   { width: 10%; }
 .acc-table colgroup col.col-action  { width: 18%; }
 .acc-table .acc-email-cell { font-size: 12.5px; }
+/* Action column — header + cell both right-aligned so the label sits over the buttons */
+.acc-table thead th.acc-th-action,
+body .acc-table thead th.acc-th-action { text-align: right !important; padding-right: 14px !important; }
+.acc-table tbody td.acc-td-action { text-align: right !important; padding-right: 14px !important; }
 .acc-table .acc-email-cell a { color: var(--info); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .acc-table .acc-email-cell a:hover { text-decoration: underline; }
 /* Disqualified row — unmistakably red by default (no color-mix dependency
@@ -7569,7 +7573,7 @@ body .ld-tab-content {
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('created')" id="acc-th-created">SINCE <span class="sort-icon">↕</span></th>
-            <th style="text-align:right;padding-right:14px;">ACTION</th>
+            <th class="acc-th-action">ACTION</th>
           </tr>
         </thead>
         <tbody id="acc-tbody"></tbody>
@@ -11090,7 +11094,7 @@ function buildAccountRow(lead) {
     </td>
     <td>${sourceHtml}</td>
     <td><span class="acc-date">${createdStr}</span></td>
-    <td style="text-align:right;padding-right:14px;">
+    <td class="acc-td-action">
       <div style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end;">
         <button class="acc-unreachable-btn ${unreachable?'on':''}" data-lead-id="${id}" data-action="toggle-unreachable" title="${unreachable?'Mark as reachable':'Mark as unreachable'}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
