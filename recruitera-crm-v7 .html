@@ -3849,6 +3849,32 @@ button { user-select: none; -webkit-user-select: none; }
 }
 .acc-deal-btn:hover { background: #1F2840; }
 .acc-deal-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
+
+/* Unreachable quick tag */
+.acc-unreachable-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+  border-radius: 999px;
+  background: var(--bad-bg); color: var(--bad);
+  border: 1px solid var(--bad);
+  white-space: nowrap;
+}
+.acc-unreachable-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-3);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 110ms;
+  flex-shrink: 0;
+}
+.acc-unreachable-btn:hover { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
+.acc-unreachable-btn.on { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
+.acc-unreachable-btn.on:hover { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
 .acc-in-deal {
   display: inline-flex;
   align-items: center;
@@ -7302,13 +7328,13 @@ body .ld-tab-content {
 
 <!-- Board view (hidden when lead detail is open) -->
       <div id="board-view" style="flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;">
-      <div class="pipeline-tabs">
-        <div class="pipeline-tab active" id="tab-qualified" onclick="switchPipelineTab('qualified')">
-          Qualified
+      <!-- Pipeline tabs removed — Sales Pipeline always shows qualified active deals.
+           Disqualified accounts remain accessible via Accounts → Disqualified tab. -->
+      <div class="pipeline-tabs" style="display:none;">
+        <div class="pipeline-tab active" id="tab-qualified">
           <span class="pipeline-tab-badge" id="tab-qualified-count">0</span>
         </div>
-        <div class="pipeline-tab disq-tab" id="tab-disqualified" onclick="switchPipelineTab('disqualified')">
-          Disqualified
+        <div class="pipeline-tab disq-tab" id="tab-disqualified" style="display:none;">
           <span class="pipeline-tab-badge" id="tab-disq-count">0</span>
         </div>
       </div>
@@ -7406,7 +7432,7 @@ body .ld-tab-content {
         Paid <span class="acc-tab-count" id="acc-tab-paid-count">· 0</span>
       </button>
       <button class="acc-tab" data-filter="prospect" onclick="accTabSwitch(this)">
-        Prospects <span class="acc-tab-count" id="acc-tab-prospect-count">· 0</span>
+        MQL <span class="acc-tab-count" id="acc-tab-prospect-count">· 0</span>
       </button>
       <button class="acc-tab" data-filter="disqualified" onclick="accTabSwitch(this)">
         Disqualified <span class="acc-tab-count" id="acc-tab-disq-count">· 0</span>
@@ -7736,7 +7762,6 @@ const enrichCache={};
 
 // ─── PIPELINE STAGES ──────────────────────────────────
 const STAGES=[
-  {id:'lead',     name:'Lead',          color:'#98A2B3'},
   {id:'mql',      name:'MQL',           color:'#969BA1'},
   {id:'sql',      name:'SQL',           color:'#6C737C'},
   {id:'demo',     name:'Demo',          color:'#392396'},
@@ -7744,8 +7769,10 @@ const STAGES=[
   {id:'won',      name:'Deal Won',      color:'#2F8F5C'},
   {id:'lost',     name:'Deal Lost',     color:'#B83A3A'},
 ];
-// Kanban shows MQL onwards — pure Leads (untouched) stay in Accounts table
-const KANBAN_STAGES = STAGES.filter(s => s.id !== 'lead');
+// Kanban (Sales Pipeline) shows SQL onwards — MQL is the intake bucket and lives
+// in the Accounts table where leads can be reviewed and either qualified to SQL
+// or disqualified.
+const KANBAN_STAGES = STAGES.filter(s => s.id !== 'mql');
 
 // ─── ICP CRITERIA ─────────────────────────────────────
 const ICP_CRITERIA=[
@@ -8321,8 +8348,9 @@ async function sbFetch() {
     Created_Date:     acc.bubble_created_at || acc.created_at,
     Modified_Date:    acc.updated_at,
     // Pipeline state
-    _sb_stage:        acc.stage || 'lead',
+    _sb_stage:        acc.stage || 'mql',
     _sb_is_disq:      acc.is_disqualified || false,
+    is_unreachable:   acc.is_unreachable === true,
     is_paid_customer: acc.is_paid_customer || false,
     paid_status:      acc.paid_status || null,
     activation_status: acc.activation_status || null,
@@ -8480,7 +8508,7 @@ function filtered(){
     if(showingDisqualified) return !!gDisq(l._id);
     if(gDisq(l._id)) return false;
     // Pure Lead stage stays in Accounts table; MQL onwards lives in kanban
-    if(gStage(l._id)==='lead') return false;
+    if(gStage(l._id)==='mql') return false;
     if(q){
       const t=`${gName(l)} ${gEmail(l)} ${gIndustry(l)} ${gSource(l)} ${gContact(l._id).enriched_name||''}`.toLowerCase();
       if(!t.includes(q))return false;
@@ -8816,7 +8844,7 @@ function updateDisqCount(){
   // visible cards. Empty Bubble syncs are excluded so totals stay consistent.
   const realData = leads.filter(l => hasRealData(l));
   const disqCnt  = realData.filter(l => !!gDisq(l._id)).length;
-  const qualCnt  = realData.filter(l => !gDisq(l._id) && gStage(l._id) !== 'lead').length;
+  const qualCnt  = realData.filter(l => !gDisq(l._id) && gStage(l._id) !== 'mql').length;
   const sbEl=document.getElementById('sb-disq-count');
   if(sbEl)sbEl.textContent=disqCnt;
   const tabDisq=document.getElementById('tab-disq-count');
@@ -9129,10 +9157,10 @@ function renderLdHero(lead){
           </div>
         </div>
         <div style="flex-shrink:0;align-self:flex-start;display:flex;gap:8px;margin-top:4px;">
-          <button onclick="openDisqModal()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid ${isDisq?'var(--purple-700)':'var(--bad)'};border-radius:8px;background:${isDisq?'var(--purple-100)':'var(--bad-bg)'};color:${isDisq?'var(--purple-700)':'var(--bad)'};font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 110ms;">
+          ${(isDisq || gStage(id) === 'mql') ? `<button onclick="openDisqModal()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid ${isDisq?'var(--purple-700)':'var(--bad)'};border-radius:8px;background:${isDisq?'var(--purple-100)':'var(--bad-bg)'};color:${isDisq?'var(--purple-700)':'var(--bad)'};font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 110ms;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
             ${isDisq?'Restore':'Disqualify'}
-          </button>
+          </button>` : ''}
         </div>
 
       </div>
@@ -10503,8 +10531,8 @@ function accFilteredLeads() {
 
     // Tab filter — disjoint: Paid is paying customers (any stage); Prospects/In pipeline are non-paying split by stage
     if (accActiveTab === 'paid'     && !isLeadPaidCustomer(lead)) return false;
-    if (accActiveTab === 'prospect' && (isLeadPaidCustomer(lead) || gStage(id) !== 'lead')) return false;
-    if (accActiveTab === 'deal'     && (isLeadPaidCustomer(lead) || gStage(id) === 'lead')) return false;
+    if (accActiveTab === 'prospect' && (isLeadPaidCustomer(lead) || gStage(id) !== 'mql')) return false;
+    if (accActiveTab === 'deal'     && (isLeadPaidCustomer(lead) || gStage(id) === 'mql')) return false;
 
     if (q) {
       const name    = gName(lead).toLowerCase();
@@ -10601,8 +10629,8 @@ function renderAccountsTable() {
   const realData = leads.filter(l => hasRealData(l));
   const all   = realData.filter(l => !gDisq(l._id));
   const paid  = all.filter(l => isLeadPaidCustomer(l));
-  const prosp = all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) === 'lead');
-  const inDeal= all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) !== 'lead');
+  const prosp = all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) === 'mql');
+  const inDeal= all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) !== 'mql');
   const disq  = realData.filter(l => !!gDisq(l._id));
   const el_all   = document.getElementById('acc-tab-all-count');
   const el_deal  = document.getElementById('acc-tab-deal-count');
@@ -10654,6 +10682,13 @@ function renderAccountsTable() {
       }
       return;
     }
+    const unreachBtn = e.target.closest('[data-action="toggle-unreachable"]');
+    if (unreachBtn) {
+      e.stopPropagation();
+      const id = unreachBtn.getAttribute('data-lead-id');
+      if (id) toggleUnreachable(id);
+      return;
+    }
     const row = e.target.closest('tr.acc-row-clickable');
     if (row) {
       const id = row.getAttribute('data-lead-id');
@@ -10662,6 +10697,39 @@ function renderAccountsTable() {
       }
     }
   };
+}
+
+// Toggle accounts.is_unreachable. Optimistic UI: flip in-memory + re-render,
+// then PATCH Supabase. On failure, flip back.
+async function toggleUnreachable(leadId){
+  const lead = leads.find(l => l._id === leadId);
+  if (!lead) return;
+  const sbId = lead._supabase_id;
+  if (!sbId) { toast('Cannot persist — missing Supabase id', 'error'); return; }
+  const next = !lead.is_unreachable;
+  lead.is_unreachable = next;
+  try { renderAccountsTable(); } catch {}
+  const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
+  if (!token) { location.replace('./recruitera-login.html'); return; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ is_unreachable: next }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0,160)}`);
+    toast(next ? 'Marked as unreachable' : 'Mark removed', 'success');
+  } catch(e) {
+    // Roll back optimistic flip
+    lead.is_unreachable = !next;
+    try { renderAccountsTable(); } catch {}
+    toast('Save failed: ' + e.message, 'error');
+  }
 }
 
 
@@ -10705,7 +10773,7 @@ function renderAccStats(rows) {
   const bar = document.getElementById('acc-stats-bar');
   if (!bar) return;
   const total  = rows.length;
-  const inDeal = rows.filter(l => !gStage(l._id)==='lead').length;
+  const inDeal = rows.filter(l => gStage(l._id) !== 'mql').length;
   const scored = rows.filter(l => Object.keys(gIcp(l._id)).length > 0);
   const avgIcp = scored.length
     ? Math.round(scored.reduce((s,l) => s + calcIcpScore(l._id), 0) / scored.length)
@@ -10817,14 +10885,18 @@ function buildAccountRow(lead) {
   // ICP health: dot color by score
   const healthDot = icpScore >= 80 ? '#3B6D11' : icpScore >= 60 ? '#C8A400' : icpScore >= 40 ? '#E07B00' : '#A32D2D';
 
+  const unreachable = !!lead.is_unreachable;
   return `<tr data-lead-id="${id}" class="acc-row-clickable">
     <td>
       <div class="acc-cell-account">
         <div class="acc-avatar" style="background:${avatarBg};color:${avatarColor};">
           ${logoHtml || initials}
         </div>
-        <div>
-          <div class="acc-name">${esc(name)}</div>
+        <div style="min-width:0;">
+          <div class="acc-name" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
+            ${unreachable ? `<span class="acc-unreachable-chip" title="Marked as unreachable">⚠ Unreachable</span>` : ''}
+          </div>
           ${metaHtml ? `<div class="acc-meta">${metaHtml}</div>` : ''}
         </div>
       </div>
@@ -10851,7 +10923,14 @@ function buildAccountRow(lead) {
     </td>
     <td>${sourceHtml}</td>
     <td><span class="acc-date">${createdStr}</span></td>
-    <td style="text-align:center;">${actionHtml}</td>
+    <td style="text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:6px;">
+        <button class="acc-unreachable-btn ${unreachable?'on':''}" data-lead-id="${id}" data-action="toggle-unreachable" title="${unreachable?'Mark as reachable':'Mark as unreachable'}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+        ${actionHtml}
+      </div>
+    </td>
   </tr>`;
 }
 
