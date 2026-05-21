@@ -11892,7 +11892,7 @@ function openDealModal(id) {
 }
 
 function toggleDealOwnerEdit() {
-  if (CURRENT_USER.role !== 'admin') return;
+  if (window.AUTH_PROFILE?.role !== 'admin') return;
   dealOwnerEditing = !dealOwnerEditing;
   const ownerLocked = document.getElementById('deal-owner-locked');
   const ownerSel    = document.getElementById('deal-owner');
