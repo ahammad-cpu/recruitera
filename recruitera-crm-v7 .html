@@ -12329,7 +12329,6 @@ function renderDashboard(){
       #dashboard-view .dsh-funnel-stage{font-size:13px;font-weight:600;flex:1;color:var(--text);text-transform:capitalize;}
       #dashboard-view .dsh-funnel-count{font-size:18px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
       #dashboard-view .dsh-funnel-conv{font-size:11px;font-weight:600;color:var(--text-3);min-width:54px;text-align:right;}
-#dashboard-view .dsh-action-btn:hover{background:var(--cg-900) !important;color:#fff !important;border-color:var(--cg-900) !important;}
     </style>
 
     <!-- Filter bar -->
@@ -12411,125 +12410,9 @@ function renderDashboard(){
       </div>
     </div>
 
-    ${(()=>{
-      // ─── ACTION CENTER ──────────────────────────────
-      // Compute queues from `active` (already filtered by date range + owner).
-      // Items disappear automatically when the underlying condition is no
-      // longer true (e.g. you log a note → no longer "stale").
-      const _now = Date.now();
-      const _day = 86400000;
-      const lastActivityTs = l => {
-        const log = (typeof gLog==='function') ? gLog(l._id) : [];
-        if (log && log.length) return Math.max(...log.map(x=>x.ts||0));
-        const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
-        return t || 0;
-      };
-      const inDeal = l => ['mql','sql','demo','proposal'].includes(gStage(l._id));
-
-      // 1) Hot leads: high ICP, no activity yet
-      const hot = active.filter(l => {
-        try {
-          const s = (typeof calcIcpScore==='function') ? calcIcpScore(l._id) : 0;
-          const log = (typeof gLog==='function') ? gLog(l._id) : [];
-          return s >= 70 && (!log || log.length === 0);
-        } catch { return false; }
-      }).slice(0, 8);
-
-      // 2) Stale deals: in MQL/SQL/Demo/Proposal with no activity 14d+
-      const stale = active.filter(l => {
-        if (!inDeal(l)) return false;
-        if (gDisq(l._id)) return false;
-        const ts = lastActivityTs(l);
-        return ts && (_now - ts) >= 14*_day;
-      }).sort((a,b)=>lastActivityTs(a)-lastActivityTs(b)).slice(0, 8);
-
-      // 3) Trials expiring: Free Trial close date in <= 14 days
-      const expiring = active.filter(l => {
-        if (l.paid_status !== 'Free Trial') return false;
-        const c = gClose ? gClose(l._id) : '';
-        if (!c) return false;
-        const t = new Date(c).getTime();
-        if (!isFinite(t)) return false;
-        return t - _now <= 14*_day && t - _now >= -_day;
-      }).sort((a,b)=>{
-        const ta = new Date(gClose(a._id)).getTime();
-        const tb = new Date(gClose(b._id)).getTime();
-        return ta - tb;
-      }).slice(0, 8);
-
-      // 4) Recent wins (last 7 days, by stage_history or created)
-      const recentWins = active.filter(l => {
-        if (gStage(l._id) !== 'won') return false;
-        const ts = lastActivityTs(l);
-        return ts && (_now - ts) <= 7*_day;
-      }).slice(0, 6);
-
-      const totalActions = hot.length + stale.length + expiring.length;
-      if (!totalActions && !recentWins.length) {
-        return `<div class="dsh-sec"><h2 class="dsh-sec-title">Action center</h2></div>
-          <div class="dsh-card" style="text-align:center;padding:40px 20px;color:var(--text-3);">
-            <div style="font-size:34px;margin-bottom:8px;">✨</div>
-            <div style="font-size:14px;font-weight:600;color:var(--text);">Nothing needs your attention right now</div>
-            <div style="font-size:12px;margin-top:6px;">Items appear here when leads go stale, ICPs heat up, or trials approach expiry.</div>
-          </div>`;
-      }
-
-      const renderRow = (l, reason, reasonColor, openLabel='Open') => {
-        const name = (typeof gName==='function' ? gName(l) : l.name) || '—';
-        const initials = (name.trim().split(/\s+/).map(p=>p[0]||'').join('').slice(0,2)||'?').toUpperCase();
-        const stage = gStage(l._id) || '';
-        const stageObj = STAGES.find(s => s.id === stage);
-        return `<div style="display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid var(--border);border-radius:9px;background:var(--surface);transition:all 110ms;">
-          <div style="width:30px;height:30px;border-radius:8px;background:var(--cg-900);color:var(--lime-700);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${esc(initials)}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
-              <span style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
-              ${stageObj ? `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:${stageObj.color}1f;color:${stageObj.color};border:1px solid ${stageObj.color}44;">${esc(stageObj.name)}</span>` : ''}
-            </div>
-            <div style="font-size:11px;color:${reasonColor};margin-top:3px;font-weight:500;">${reason}</div>
-          </div>
-          <button onclick="openDrawer('${esc(l._id)}','dashboard')" class="dsh-action-btn" style="padding:6px 12px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);white-space:nowrap;">${openLabel} →</button>
-        </div>`;
-      };
-
-      const section = (title, count, items, accent, render) => count
-        ? `<div class="dsh-card" style="margin-bottom:12px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-              <div style="display:flex;align-items:center;gap:9px;">
-                <span style="width:8px;height:8px;border-radius:999px;background:${accent};"></span>
-                <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">${title}</span>
-                <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:${accent};color:#fff;">${count}</span>
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:7px;">${items.map(render).join('')}</div>
-          </div>`
-        : '';
-
-      const fmtDays = ts => { const d = Math.round((_now - ts)/_day); return d <= 0 ? 'no contact yet' : `${d}d since last activity`; };
-      const fmtExp  = l => {
-        const t = new Date(gClose(l._id)).getTime();
-        const d = Math.round((t - _now)/_day);
-        return d < 0 ? `expired ${-d}d ago` : d === 0 ? 'expires today' : `expires in ${d}d`;
-      };
-
-      return `<div class="dsh-sec">
-        <h2 class="dsh-sec-title">Action center</h2>
-        <span style="font-size:11px;color:var(--text-3);">${totalActions} item${totalActions===1?'':'s'} need attention${recentWins.length?` · ${recentWins.length} recent win${recentWins.length===1?'':'s'}`:''}</span>
-      </div>
-      ${section('Hot leads — high ICP, no contact yet', hot.length, hot, 'var(--bad)',
-        l => renderRow(l, `ICP ${calcIcpScore(l._id)} · ${fmtDays(lastActivityTs(l))}`, 'var(--bad)'))}
-      ${section('Stale deals — 14+ days quiet', stale.length, stale, 'var(--warn)',
-        l => renderRow(l, fmtDays(lastActivityTs(l)), 'var(--warn)'))}
-      ${section('Trials expiring soon', expiring.length, expiring, 'var(--info)',
-        l => renderRow(l, fmtExp(l), 'var(--info)'))}
-      ${recentWins.length ? section('Recent wins — kick off onboarding 🎉', recentWins.length, recentWins, 'var(--ok)',
-        l => renderRow(l, `won ${Math.round((_now-lastActivityTs(l))/_day)}d ago`, 'var(--ok)', 'Onboard')) : ''}
-      `;
-    })()}
-
-    <!-- Trends over time (kept for reference, hidden by default — uncomment to restore) -->
-    <div class="dsh-sec" style="display:none;"><h2 class="dsh-sec-title">Trends over time</h2></div>
-    <div class="dsh-grid" style="grid-template-columns:1.6fr 1fr;display:none;">
+    <!-- Trends over time -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Trends over time</h2></div>
+    <div class="dsh-grid" style="grid-template-columns:1.6fr 1fr;">
       <div class="dsh-card">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
           <div>
@@ -12581,9 +12464,9 @@ function renderDashboard(){
       </div>
     </div>
 
-    <!-- Funnel + Sources (hidden — was passive viz, no action) -->
-    <div class="dsh-sec" style="display:none;"><h2 class="dsh-sec-title">Acquisition</h2></div>
-    <div class="dsh-grid" style="grid-template-columns:1.4fr 1fr;display:none;">
+    <!-- Funnel + Sources -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Acquisition</h2></div>
+    <div class="dsh-grid" style="grid-template-columns:1.4fr 1fr;">
       <div class="dsh-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div>
@@ -12631,9 +12514,9 @@ function renderDashboard(){
       </div>
     </div>
 
-    <!-- Cycle by source (hidden — was passive viz) -->
-    <div class="dsh-sec" style="display:none;"><h2 class="dsh-sec-title">Cycle by source</h2></div>
-    <div class="dsh-card" style="display:none;">
+    <!-- Cycle by source -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Cycle by source</h2></div>
+    <div class="dsh-card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
         <div>
           <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Days from MQL → Won</div>
@@ -12656,9 +12539,9 @@ function renderDashboard(){
       </div>` : '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:20px;">No won deals yet — close some to see cycle times!</div>'}
     </div>
 
-    <!-- Loss reasons (hidden — was passive viz, no action) -->
-    <div class="dsh-sec" style="display:none;"><h2 class="dsh-sec-title">Why deals don't close</h2></div>
-    <div class="dsh-card" style="display:none;">
+    <!-- Loss reasons -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Why deals don't close</h2></div>
+    <div class="dsh-card">
       ${sortedLoss.length ? `<div style="display:flex;flex-direction:column;gap:10px;">
         ${sortedLoss.map(([r,n])=>{
           const w = Math.round((n/maxLoss)*100);
