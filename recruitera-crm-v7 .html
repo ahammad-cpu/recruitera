@@ -11276,9 +11276,20 @@ async function assignOwner(leadId, email){
   try {
     const token = await _getValidAccessToken();
     if(!token){ alert('Session expired — please sign in again.'); lead.am_mail = oldMail; lead.owner_id = oldOwnerId; renderAccountsTable(); renderBoard(); return; }
-    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${leadId}`, {
+    // _id may be a Bubble id (string like "1777…x614…"); Supabase rows are keyed by UUID.
+    // Use _supabase_id when present and fall back to _id only if it's a UUID-looking value.
+    const sbId = lead._supabase_id || (typeof lead._id === 'string' && /^[0-9a-f-]{36}$/i.test(lead._id) ? lead._id : null);
+    if(!sbId){
+      alert('Cannot reassign — this lead has no Supabase UUID (likely an unsynced Bubble row).');
+      lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
+      try { renderAccountsTable(); } catch {}
+      try { renderBoard(); } catch {}
+      try { if (typeof curId !== 'undefined' && curId === leadId && typeof renderLdHero === 'function') renderLdHero(lead); } catch {}
+      return;
+    }
+    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
       method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'},
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=representation'},
       body: JSON.stringify({ am_mail: newMail, owner_id: newOwnerId })
     });
     if(!res.ok){
@@ -11292,9 +11303,20 @@ async function assignOwner(leadId, email){
       alert('Reassign failed — HTTP '+res.status+'\n\nServer said:\n'+t);
       return;
     }
+    // Verify a row actually changed — empty body means id mismatch or RLS silently rejected.
+    const updated = await res.json().catch(()=> []);
+    if(!Array.isArray(updated) || updated.length === 0){
+      console.warn('[owner] patch returned 0 rows', { sbId, leadId });
+      lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
+      try { renderAccountsTable(); } catch {}
+      try { renderBoard(); } catch {}
+      try { if (typeof curId !== 'undefined' && curId === leadId && typeof renderLdHero === 'function') renderLdHero(lead); } catch {}
+      alert('Reassign no-op: the server reported success but no row matched id='+sbId+'.\n\nThis usually means the lead is missing its Supabase UUID. Tell me which lead it is and I will fix it.');
+      return;
+    }
     const who = profile?.full_name || newMail || 'Unassigned';
     toast(`Owner set to ${who}`,'success');
-    console.log('[owner] patch ok', who);
+    console.log('[owner] patch ok', who, updated[0]);
   } catch(e){
     console.warn('[owner] assign error', e);
     lead.am_mail = oldMail; lead.owner_id = oldOwnerId;
