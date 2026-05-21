@@ -7997,11 +7997,17 @@ function trialStatus(lead){
 }
 
 // ─── STATE GETTERS/SETTERS ────────────────────────────
+// gStage: cached value first, then the row's last-known DB stage, else MQL.
+// 'lead' is no longer a stage — anything still cached as 'lead' is rewritten
+// to 'mql' on read (and re-saved so subsequent calls are clean).
 const gStage=id=>{
-  const v=ls.g('st_'+id);
+  let v=ls.g('st_'+id);
+  if(v==='lead'){ v='mql'; try{ ls.s('st_'+id,'mql'); }catch{} }
   if(v)return v;
   const l=leads.find(x=>x._id===id);
-  return l?._sb_stage||'lead';
+  let s=l?._sb_stage;
+  if(s==='lead') s='mql';
+  return s||'mql';
 };
 const sStage=(id,s)=>ls.s('st_'+id,s);
 const gAcv=id=>{
@@ -8419,13 +8425,29 @@ async function refresh(){
 
 // ─── INIT ─────────────────────────────────────────────
 function init(){
-  // Seed stage + deal data from Supabase into localStorage cache
+  // One-shot migration: anything cached as 'lead' now becomes 'mql'.
+  // Necessary after the DB-side enum/stage migration so old sessions don't
+  // keep treating moved leads as still-in-Lead.
+  let _swept=0;
+  for (let i=localStorage.length-1; i>=0; i--) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(STORAGE_PREFIX+'st_')) continue;
+    try {
+      const raw = localStorage.getItem(k);
+      const v = raw ? JSON.parse(raw) : null;
+      if (v === 'lead') { localStorage.setItem(k, JSON.stringify('mql')); _swept++; }
+    } catch {}
+  }
+  if (_swept) console.log('[init] promoted', _swept, "cached 'lead' → 'mql'");
+
+  // Seed stage + deal data from Supabase into localStorage cache (only if missing)
   leads.forEach(l=>{
     const id=l._id;
-    if(l._sb_stage&&!ls.g('st_'+id))ls.s('st_'+id,l._sb_stage);
-    if(l.deal_value&&!ls.g('acv_'+id))ls.s('acv_'+id,String(l.deal_value));
-    if(l.deal_close_date&&!ls.g('close_'+id))ls.s('close_'+id,l.deal_close_date);
-    if(l._sb_is_disq&&!ls.g('disq_'+id))ls.s('disq_'+id,'1');
+    const sbStage = (l._sb_stage === 'lead') ? 'mql' : l._sb_stage;
+    if(sbStage && !ls.g('st_'+id)) ls.s('st_'+id, sbStage);
+    if(l.deal_value && !ls.g('acv_'+id)) ls.s('acv_'+id, String(l.deal_value));
+    if(l.deal_close_date && !ls.g('close_'+id)) ls.s('close_'+id, l.deal_close_date);
+    if(l._sb_is_disq && !ls.g('disq_'+id)) ls.s('disq_'+id, '1');
   });
   popFilters();
 
