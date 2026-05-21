@@ -7917,6 +7917,10 @@ window.AUTH_PROFILE = null;
       if (pipeExportBtn) pipeExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const cfgBtn = document.getElementById('sb-cfg-btn');
       if (cfgBtn) cfgBtn.style.display = (p.role === 'admin') ? '' : 'none';
+      // Reveal "· change" hint on hero Owner cell for admins
+      if (p.role === 'admin') {
+        document.querySelectorAll('.ld-owner-change-hint').forEach(el => el.style.display = '');
+      }
     }catch{}
     // Load the full profiles directory (email → photo/name) so owner avatars
     // across the system can use real user photos. RLS allows authenticated read.
@@ -9501,8 +9505,8 @@ function renderLdHero(lead){
           <div id="ld-stat-close" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);line-height:1.15;">${closeDisp}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">expected</div>
         </div>
-        <div class="ld-stat-cell ld-owner-cell" data-lead-id="${id}" style="padding:0 18px;border-right:1px solid var(--border);${window.AUTH_PROFILE?.role==='admin'?'cursor:pointer;':''}" ${window.AUTH_PROFILE?.role==='admin'?`onclick="openOwnerPicker('${id}', this)"`:''} title="${window.AUTH_PROFILE?.role==='admin'?'Click to reassign owner (admin only)':''}">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner${window.AUTH_PROFILE?.role==='admin'?' <span style=\"font-size:9px;color:var(--lime-700);font-weight:600;\">· change</span>':''}</div>
+        <div class="ld-stat-cell ld-owner-cell" data-lead-id="${id}" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="ldClickOwner('${id}', this)" title="Reassign owner (admin only)">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner <span class="ld-owner-change-hint" style="font-size:9px;color:var(--lime-700);font-weight:600;display:none;">· change</span></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
             <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${owner.avatar_url?`<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`:owner.id}</span>
             <span style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${owner.name}</span>
@@ -9526,6 +9530,12 @@ function renderLdHero(lead){
         </div>
       </div>
       </div>`;
+  // Reveal "· change" hint on the Owner cell if current user is admin
+  try {
+    if (window.AUTH_PROFILE?.role === 'admin') {
+      document.querySelectorAll('.ld-owner-change-hint').forEach(el => el.style.display = '');
+    }
+  } catch {}
 } catch(e) { console.error('[renderLdHero] ERROR:', e); }
 }
 
@@ -10200,6 +10210,15 @@ function editSnapOwner(){
   if(typeof openOwnerPicker === 'function' && anchor){
     openOwnerPicker(curId, anchor);
   }
+}
+
+// Click handler for the lead-detail hero Owner cell. Admin-only; toasts otherwise.
+function ldClickOwner(leadId, anchor){
+  if(window.AUTH_PROFILE?.role !== 'admin'){
+    if(typeof toast === 'function') toast('Only admins can change the owner','error');
+    return;
+  }
+  if(typeof openOwnerPicker === 'function') openOwnerPicker(leadId, anchor);
 }
 function saveSnapOwner(v){if(!curId)return;sOwner(curId,v);const lead=leads.find(l=>l._id===curId);if(lead)renderSnapBar(lead);renderBoard();}
 
