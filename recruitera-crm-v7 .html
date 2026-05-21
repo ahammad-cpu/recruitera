@@ -9501,10 +9501,10 @@ function renderLdHero(lead){
           <div id="ld-stat-close" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);line-height:1.15;">${closeDisp}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">expected</div>
         </div>
-        <div class="ld-stat-cell" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="editSnapOwner()">
-          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner</div>
+        <div class="ld-stat-cell ld-owner-cell" data-lead-id="${id}" style="padding:0 18px;border-right:1px solid var(--border);${window.AUTH_PROFILE?.role==='admin'?'cursor:pointer;':''}" ${window.AUTH_PROFILE?.role==='admin'?`onclick="openOwnerPicker('${id}', this)"`:''} title="${window.AUTH_PROFILE?.role==='admin'?'Click to reassign owner (admin only)':''}">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner${window.AUTH_PROFILE?.role==='admin'?' <span style=\"font-size:9px;color:var(--lime-700);font-weight:600;\">· change</span>':''}</div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-            <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${owner.id}</span>
+            <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${owner.avatar_url?`<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`:owner.id}</span>
             <span style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${owner.name}</span>
           </div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">account manager</div>
@@ -10192,9 +10192,14 @@ function editSnapClose(){
 function saveSnapClose(v){if(!curId)return;sClose(curId,v);const lead=leads.find(l=>l._id===curId);if(lead)renderSnapBar(lead);}
 function editSnapOwner(){
   if(!curId)return;
-  const el=document.getElementById('snap-owner-display');
-  el.innerHTML=`<select onblur="saveSnapOwner(this.value)" onchange="saveSnapOwner(this.value)" style="border:none;background:transparent;font-size:15px;font-weight:500;color:#fff;font-family:inherit;width:100%;border-bottom:2px solid var(--lime);">${OWNERS.map(o=>`<option value="${o.id}"${o.id===gOwner(curId)?' selected':''}>${o.name}</option>`).join('')}</select>`;
-  el.querySelector('select').focus();
+  if(window.AUTH_PROFILE?.role !== 'admin'){
+    if(typeof toast === 'function') toast('Only admins can change the owner','error');
+    return;
+  }
+  const anchor = document.getElementById('snap-owner-display') || document.querySelector(`.ld-owner-cell[data-lead-id="${curId}"]`);
+  if(typeof openOwnerPicker === 'function' && anchor){
+    openOwnerPicker(curId, anchor);
+  }
 }
 function saveSnapOwner(v){if(!curId)return;sOwner(curId,v);const lead=leads.find(l=>l._id===curId);if(lead)renderSnapBar(lead);renderBoard();}
 
@@ -11232,6 +11237,7 @@ async function assignOwner(leadId, email){
   closeOwnerPicker();
   try { renderAccountsTable(); } catch {}
   try { renderBoard(); } catch {}
+  try { if (typeof curId !== 'undefined' && curId === leadId && typeof renderLdHero === 'function') renderLdHero(lead); } catch {}
   try {
     const token = await _getValidAccessToken();
     const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${leadId}`, {
