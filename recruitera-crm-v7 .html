@@ -1566,98 +1566,6 @@ input,select,textarea{
 .btn-danger:hover{background:#8C2020;transform:translateY(-1px);}
 
 /* CONFIG */
-.cfg-ov{
-  position:fixed;inset:0;
-  background:rgba(16,24,40,0.65);
-  backdrop-filter:blur(8px);
-  z-index:200;
-  display:none;align-items:center;justify-content:center;
-  padding:24px;
-}
-.cfg-ov.open{display:flex;}
-.cfg-modal{
-  background:linear-gradient(165deg,var(--navy) 0%,var(--navy-2) 100%);
-  color:#fff;
-  width:100%;max-width:480px;
-  border-radius:20px;
-  padding:32px;
-  position:relative;
-  overflow:hidden;
-  box-shadow:var(--shadow-2xl);
-}
-.cfg-modal::before{
-  content:'';position:absolute;top:-100px;right:-100px;
-  width:300px;height:300px;
-  background:radial-gradient(circle,rgba(200,230,10,0.12),transparent 60%);
-  pointer-events:none;
-}
-.cfg-modal-logo{
-  width:54px;height:54px;
-  background:var(--lime);border-radius:14px;
-  display:flex;align-items:center;justify-content:center;
-  margin-bottom:18px;
-  box-shadow:var(--shadow-xs);
-}
-.cfg-title{
-  font-size:24px;font-weight:500;letter-spacing:-0.025em;color:#fff;
-  margin-bottom:6px;
-}
-.cfg-sub{
-  font-size:13.5px;color:rgba(255,255,255,0.55);
-  margin-bottom:22px;line-height:1.5;
-}
-.cfg-field{margin-bottom:14px;position:relative;z-index:1;}
-.cfg-lbl{
-  font-size:11.5px;font-weight:500;letter-spacing:-0.005em;
-  color:rgba(255,255,255,0.85);
-  margin-bottom:6px;display:flex;align-items:center;gap:6px;
-}
-.cfg-input{
-  width:100%;height:40px;
-  padding:0 14px;
-  background:rgba(255,255,255,0.06);
-  border:1px solid rgba(255,255,255,0.10);
-  border-radius:9px;
-  color:#fff;font-size:13.5px;
-  transition:all 140ms;
-}
-.cfg-input::placeholder{color:rgba(255,255,255,0.30);}
-.cfg-input:focus{
-  background:rgba(255,255,255,0.10);
-  border-color:var(--lime);
-  box-shadow:var(--shadow-xs);
-}
-.cfg-hint{
-  font-size:11px;color:rgba(255,255,255,0.40);
-  margin-top:4px;
-}
-.cfg-divider{
-  margin:20px 0 16px;
-  padding-top:16px;
-  border-top:1px solid rgba(255,255,255,0.08);
-}
-.cfg-divider-lbl{
-  font-size:10px;font-weight:500;color:rgba(255,255,255,0.35);
-}
-.cfg-btn{
-  width:100%;
-  height:44px;
-  background:var(--lime);color:var(--navy);
-  border-radius:10px;
-  font-size:14px;font-weight:500;
-  margin-top:8px;
-  box-shadow:var(--shadow-xs);
-  transition:all 140ms;
-}
-.cfg-btn:hover{background:var(--lime-bright);transform:translateY(-1px);}
-.cfg-err{
-  display:none;
-  font-size:12.5px;color:var(--bad);
-  background:rgba(240,68,56,0.10);
-  border:1px solid rgba(240,68,56,0.20);
-  border-radius:8px;
-  padding:9px 12px;margin-bottom:14px;
-}
 
 /* LOADER */
 .loader-ov{
@@ -7393,9 +7301,6 @@ body .ld-tab-content {
         <div class="sb-user-name" id="sb-user-name">—</div>
         <div class="sb-user-role" id="sb-user-role">—</div>
       </div>
-      <button class="sb-cfg-btn" id="sb-cfg-btn" onclick="openCfg()" title="Settings (admin only)" style="display:none;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15A1.65 1.65 0 0019.74 16.8L19.8 16.86A2 2 0 1116.97 19.69L16.91 19.63A1.65 1.65 0 0015.11 19.29A1.65 1.65 0 0014.11 20.8V21A2 2 0 1110.11 21V20.9A1.65 1.65 0 008.97 19.4A1.65 1.65 0 007.17 19.74L7.11 19.8A2 2 0 114.28 16.97L4.34 16.91A1.65 1.65 0 004.68 15.11A1.65 1.65 0 003.17 14.11H3A2 2 0 113 10.11H3.1A1.65 1.65 0 004.6 8.97A1.65 1.65 0 004.26 7.17L4.2 7.11A2 2 0 117.03 4.28L7.09 4.34A1.65 1.65 0 008.89 4.68A1.65 1.65 0 009.89 3.17V3A2 2 0 0113.89 3V3.1A1.65 1.65 0 0015.03 4.6A1.65 1.65 0 0016.83 4.26L16.89 4.2A2 2 0 1119.72 7.03L19.66 7.09A1.65 1.65 0 0019.32 8.89A1.65 1.65 0 0020.83 9.89H21A2 2 0 0121 13.89H20.9A1.65 1.65 0 0019.4 15Z"/></svg>
-      </button>
       <button class="sb-cfg-btn sb-logout-btn" onclick="logout()" title="Sign out" aria-label="Sign out">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
@@ -7763,54 +7668,6 @@ body .ld-tab-content {
   </div>
 </div>
 
-<!-- ─── CONFIG MODAL ─── -->
-<div class="cfg-ov" id="cfg-ov">
-  <div class="cfg-modal">
-    <div class="cfg-modal-logo">
-      <svg viewBox="0 0 100 100" width="32" height="32">
-        <path d="M35 80 L35 32 Q35 22 45 22 Q60 22 60 35 Q60 48 47 50 L60 80" stroke="#1C2333" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
-    <div class="cfg-title">Connect Recruitera CRM</div>
-    <div class="cfg-sub">Link your Bubble Data API to load leads. Enrichment uses Brandfetch (free 100/day) for logos, industry, size & location.</div>
-
-    <div class="cfg-err" id="cfg-err"></div>
-
-    <div class="cfg-field">
-      <label class="cfg-lbl">Bubble App Name</label>
-      <input class="cfg-input" id="capp" placeholder="vccicareer" />
-      <div class="cfg-hint">The subdomain of your bubbleapps.io URL</div>
-    </div>
-    <div class="cfg-field">
-      <label class="cfg-lbl">Bubble Data API Key</label>
-      <input class="cfg-input" id="ckey" type="password" placeholder="••••••••" />
-      <div class="cfg-hint">From Bubble → Settings → API</div>
-    </div>
-    <div class="cfg-field">
-      <label class="cfg-lbl">Data Type</label>
-      <input class="cfg-input" id="ctype" placeholder="company" />
-      <div class="cfg-hint">e.g. company, lead, contact</div>
-    </div>
-    <div class="cfg-field">
-      <label class="cfg-lbl">Name Field</label>
-      <input class="cfg-input" id="cname" placeholder="Company Name" />
-      <div class="cfg-hint">The Bubble field that holds the company name</div>
-    </div>
-
-    <div class="cfg-divider">
-      <div class="cfg-divider-lbl">AI Enrichment (Optional)</div>
-    </div>
-
-    <div class="cfg-field">
-      <label class="cfg-lbl">Brandfetch API Key <span style="color:rgba(255,255,255,0.35);font-weight:400;">— logos + company data</span></label>
-      <input class="cfg-input" id="cbrandfetchkey" type="password" placeholder="••••••••" />
-      <div class="cfg-hint">brandfetch.com/developers · 100 free lookups/day</div>
-    </div>
-
-    <button class="cfg-btn" onclick="connect()">Connect & Load</button>
-  </div>
-</div>
-
 <!-- ─── LOADER ─── -->
 <div class="loader-ov" id="loader-ov">
   <div class="loader-card">
@@ -7918,8 +7775,6 @@ window.AUTH_PROFILE = null;
       if (accExportBtn) accExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const pipeExportBtn = document.getElementById('pipe-export-btn');
       if (pipeExportBtn) pipeExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
-      const cfgBtn = document.getElementById('sb-cfg-btn');
-      if (cfgBtn) cfgBtn.style.display = (p.role === 'admin') ? '' : 'none';
       // Reveal "· change" hint on hero Owner cell for admins
       if (p.role === 'admin') {
         document.querySelectorAll('.ld-owner-change-hint').forEach(el => el.style.display = '');
@@ -8013,7 +7868,6 @@ const ls={
   r:k=>localStorage.removeItem(STORAGE_PREFIX+k),
 };
 
-let cfg=ls.g('cfg')||{};
 let leads=[];
 let dragId=null;
 let logT='note';
@@ -8059,6 +7913,12 @@ const OWNERS=[
   {id:'SR',name:'Sara',color:'#392396'},
   {id:'OM',name:'Omar',color:'#2F8F5C'},
 ];
+
+// Empty cfg placeholder — the legacy Connect-to-Bubble modal was removed for
+// security/cleanup. A few helpers (gName, enrichment guard) still reference
+// `cfg.nameField` / `cfg.brandfetchKey`; keeping `cfg` as an empty object means
+// those references fall back to their hardcoded defaults without throwing.
+const cfg = {};
 
 
 // ─── TAGS SYSTEM ─────────────────────────────────
@@ -8525,21 +8385,6 @@ function autoEnrichAll(){
   filtered().slice(0,15).forEach(l=>queueEnrich(l));
 }
 
-// ─── CONFIG ───────────────────────────────────────────
-function loadCfg(){const c=ls.g('cfg');if(c){cfg=c;return true;}return false;}
-function saveCfg(c){ls.s('cfg',c);cfg=c;}
-function openCfg(){
-  if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
-    if (typeof toast === 'function') toast('Settings are admin-only', 'error');
-    return;
-  }
-  document.getElementById('cfg-ov').classList.add('open');
-  if(cfg.appName)document.getElementById('capp').value=cfg.appName;
-  if(cfg.apiKey)document.getElementById('ckey').value=cfg.apiKey;
-  if(cfg.dataType)document.getElementById('ctype').value=cfg.dataType;
-  if(cfg.nameField)document.getElementById('cname').value=cfg.nameField;
-  if(cfg.brandfetchKey)document.getElementById('cbrandfetchkey').value=cfg.brandfetchKey;
-}
 
 // ── Load all accounts from Supabase (primary data source) ────────────────
 async function sbFetch() {
@@ -8640,39 +8485,6 @@ async function sbFetch() {
   }));
 }
 
-async function bFetch(app,key,type,cur=0,acc=[]){
-  const url=`https://${app}.bubbleapps.io/api/1.1/obj/${type}?api_token=${key}&cursor=${cur}&limit=100`;
-  const r=await fetch(url);
-  if(!r.ok){const t=await r.text();throw new Error(`Bubble ${r.status}: ${t.slice(0,180)}`);}
-  const d=await r.json();
-  const res=d.response?.results||[];
-  const rem=d.response?.remaining??0;
-  acc=[...acc,...res];
-  if(rem>0)return bFetch(app,key,type,cur+res.length,acc);
-  return acc;
-}
-
-async function connect(){
-  const app=document.getElementById('capp').value.trim();
-  const key=document.getElementById('ckey').value.trim();
-  const type=document.getElementById('ctype').value.trim()||'company';
-  const nf=document.getElementById('cname').value.trim()||'Company Name';
-  const bf=document.getElementById('cbrandfetchkey').value.trim();
-  const err=document.getElementById('cfg-err');
-  err.style.display='none';
-  if(!app||!key){err.textContent='App name and API key required.';err.style.display='block';return;}
-  showL('Connecting to Bubble…','Loading records');
-  try{
-    const data=await bFetch(app,key,type);
-    saveCfg({appName:app,apiKey:key,dataType:type,nameField:nf,brandfetchKey:bf});
-    leads=data;hideL();
-    document.getElementById('cfg-ov').classList.remove('open');
-    document.getElementById('sidebar').style.display='flex';
-    document.getElementById('main').style.display='flex';
-    init();
-    toast(`Loaded ${data.length} records${bf?' · Enrichment active':''}`);
-  }catch(e){hideL();err.textContent=e.message;err.style.display='block';}
-}
 
 async function refresh(){
   showL('Refreshing…','Fetching latest from Supabase');
@@ -8717,6 +8529,11 @@ function init(){
     _ownerSwept++;
   }
   if (_ownerSwept) console.log('[init] wiped', _ownerSwept, 'stale owner_* localStorage entries');
+
+  // Wipe legacy rcrm5_cfg (Bubble/Brandfetch credentials from the now-removed
+  // Connect modal). Anyone who typed creds into that modal had them stored
+  // here in plain JSON; clear once to remove that residue.
+  try { localStorage.removeItem(STORAGE_PREFIX+'cfg'); } catch {}
 
   // Seed stage + deal data from Supabase into localStorage cache (only if missing)
   leads.forEach(l=>{
