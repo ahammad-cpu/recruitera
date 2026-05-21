@@ -3680,13 +3680,23 @@ button { user-select: none; -webkit-user-select: none; }
   font-size: 13px;
   table-layout: fixed; /* keeps Action column on screen instead of overflowing */
 }
-.acc-table colgroup col.col-account { width: 32%; }
-.acc-table colgroup col.col-status  { width: 10%; }
-.acc-table colgroup col.col-health  { width: 8%;  }
-.acc-table colgroup col.col-owner   { width: 11%; }
-.acc-table colgroup col.col-source  { width: 11%; }
-.acc-table colgroup col.col-since   { width: 10%; }
+.acc-table colgroup col.col-account { width: 22%; }
+.acc-table colgroup col.col-status  { width: 9%;  }
+.acc-table colgroup col.col-email   { width: 18%; }
+.acc-table colgroup col.col-health  { width: 7%;  }
+.acc-table colgroup col.col-owner   { width: 7%;  }
+.acc-table colgroup col.col-source  { width: 10%; }
+.acc-table colgroup col.col-since   { width: 9%;  }
 .acc-table colgroup col.col-action  { width: 18%; }
+.acc-table .acc-email-cell { font-size: 12.5px; }
+.acc-table .acc-email-cell a { color: var(--info); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.acc-table .acc-email-cell a:hover { text-decoration: underline; }
+/* Disqualified row — soft red background + red name accent */
+.acc-table tbody tr.acc-row-disq { background: var(--bad-bg); }
+.acc-table tbody tr.acc-row-disq:hover { background: color-mix(in oklab, var(--bad-bg) 70%, var(--bad) 12%); }
+.acc-table tbody tr.acc-row-disq .acc-name span:first-child { color: var(--bad); }
+.acc-table tbody tr.acc-row-disq td { border-color: color-mix(in oklab, var(--bad) 25%, transparent); }
+.acc-row-disq-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; font-size:10.5px; font-weight:700; letter-spacing:0.04em; border-radius:999px; background:var(--bad); color:#fff; text-transform:uppercase; }
 .acc-table tbody td { vertical-align: middle; }
 /* Force long cell content to wrap or truncate so the layout stays put */
 .acc-table .acc-name span:first-child { max-width: 100%; }
@@ -7493,6 +7503,7 @@ body .ld-tab-content {
         <colgroup>
           <col class="col-account"/>
           <col class="col-status"/>
+          <col class="col-email"/>
           <col class="col-health"/>
           <col class="col-owner"/>
           <col class="col-source"/>
@@ -7503,6 +7514,7 @@ body .ld-tab-content {
           <tr>
             <th onclick="accSort('name')" id="acc-th-name">ACCOUNT <span class="sort-icon">↕</span></th>
             <th onclick="accSort('stage')" id="acc-th-stage">STATUS <span class="sort-icon">↕</span></th>
+            <th>EMAIL</th>
             <th onclick="accSort('icp')" id="acc-th-icp">HEALTH <span class="sort-icon">↕</span></th>
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
@@ -10913,15 +10925,18 @@ function buildAccountRow(lead) {
     ? metaParts.map((p, i) => i === 0 ? esc(p) : `<span class="acc-meta-dot"></span>${esc(p)}`).join(' ')
     : '';
 
-  // Contact info line (name · phone · email)
+  // Contact info — name + phone inline under account name; email gets its own column
   const cName  = contact.full_name || gContactName(lead) || '';
   const cPhone = contact.phone     || gPhone(lead)       || '';
   const cEmail = contact.email     || gEmail(lead)       || '';
   const contactParts = [];
   if (cName)  contactParts.push(`<span class="acc-contact-name">👤 ${esc(cName)}</span>`);
   if (cPhone) contactParts.push(`<a href="tel:${esc(cPhone)}" class="acc-contact-link" onclick="event.stopPropagation()">📞 ${esc(cPhone)}</a>`);
-  if (cEmail) contactParts.push(`<a href="mailto:${esc(cEmail)}" class="acc-contact-link" onclick="event.stopPropagation()">✉️ ${esc(cEmail)}</a>`);
   const contactHtml = contactParts.length ? `<div class="acc-contact">${contactParts.join('<span class="acc-meta-dot"></span>')}</div>` : '';
+  const emailCellHtml = cEmail
+    ? `<a href="mailto:${esc(cEmail)}" onclick="event.stopPropagation()" title="${esc(cEmail)}">${esc(cEmail)}</a>`
+    : `<span style="color:var(--text-4);font-size:12px;">—</span>`;
+  const isDisqRow = !!gDisq(id);
 
   // Avatar bg: dark navy circle with white initial (like screenshot)
   const avatarBg = logoSrc ? '#fff' : 'var(--cg-800)';
@@ -10942,7 +10957,7 @@ function buildAccountRow(lead) {
   const healthDot = icpScore >= 80 ? '#3B6D11' : icpScore >= 60 ? '#C8A400' : icpScore >= 40 ? '#E07B00' : '#A32D2D';
 
   const unreachable = !!lead.is_unreachable;
-  return `<tr data-lead-id="${id}" class="acc-row-clickable">
+  return `<tr data-lead-id="${id}" class="acc-row-clickable${isDisqRow?' acc-row-disq':''}">
     <td>
       <div class="acc-cell-account">
         <div class="acc-avatar" style="background:${avatarBg};color:${avatarColor};">
@@ -10951,6 +10966,7 @@ function buildAccountRow(lead) {
         <div style="min-width:0;">
           <div class="acc-name" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
+            ${isDisqRow ? `<span class="acc-row-disq-chip" title="Disqualified">⛔ Disqualified</span>` : ''}
             ${unreachable ? `<span class="acc-unreachable-chip" title="Marked as unreachable">⚠ Unreachable</span>` : ''}
           </div>
           ${metaHtml ? `<div class="acc-meta">${metaHtml}</div>` : ''}
@@ -10964,6 +10980,7 @@ function buildAccountRow(lead) {
         ${statusLabel}
       </span>
     </td>
+    <td class="acc-email-cell">${emailCellHtml}</td>
     <td>
       ${hasIcp
         ? `<div class="acc-icp-cell">
@@ -10973,9 +10990,8 @@ function buildAccountRow(lead) {
         : `<span style="color:#C8CDD8;font-size:13px;">—</span>`}
     </td>
     <td>
-      <div class="acc-owner-cell">
-        <div class="acc-owner-av" style="background:${ownerObj.color||'#1C2333'};color:#FFFFFF;">${ownerObj.id}</div>
-        <span style="font-size:13px;color:#1C2333;">${ownerObj.name.split(' ')[0]}</span>
+      <div class="acc-owner-cell" title="${esc(ownerObj.name)}${ownerObj.email?' · '+esc(ownerObj.email):''}">
+        <div class="acc-owner-av" style="background:${ownerObj.color||'#1C2333'};color:#FFFFFF;cursor:default;">${ownerObj.id}</div>
       </div>
     </td>
     <td>${sourceHtml}</td>
