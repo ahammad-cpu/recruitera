@@ -8272,11 +8272,13 @@ const gClose=id=>ls.g('close_'+id)||'';
 const sClose=(id,v)=>ls.s('close_'+id,v);
 // gOwner: reads from localStorage override first, then falls back to AM Mail field
 const gOwner=id=>{
-  const lv=ls.g('owner_'+id); if(lv) return lv;
+  // DB truth (accounts.am_mail) always wins. localStorage is only a fallback
+  // for the rare case where am_mail is missing — historically used for
+  // offline edits before the in-CRM admin reassign flow PATCHed Supabase.
   const l=leads.find(x=>x._id===id);
-  // Use AM Mail email as the owner identifier
   const amMail=gAmMail(l)||'';
   if(amMail) return amMail;
+  const lv=ls.g('owner_'+id); if(lv) return lv;
   return CURRENT_USER.email||CURRENT_USER.id||'unknown';
 };
 const sOwner=(id,v)=>ls.s('owner_'+id,v);
@@ -8695,6 +8697,19 @@ function init(){
     } catch {}
   }
   if (_swept) console.log('[init] promoted', _swept, "cached 'lead' → 'mql'");
+
+  // One-shot sweep: wipe stale rcrm5_owner_* localStorage overrides. The owner
+  // is now always read from accounts.am_mail (DB truth) — any local override
+  // is leftover from earlier optimistic reassignment writes and just confuses
+  // the UI after server-side ownership changes.
+  let _ownerSwept = 0;
+  for (let i=localStorage.length-1; i>=0; i--) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(STORAGE_PREFIX+'owner_')) continue;
+    localStorage.removeItem(k);
+    _ownerSwept++;
+  }
+  if (_ownerSwept) console.log('[init] wiped', _ownerSwept, 'stale owner_* localStorage entries');
 
   // Seed stage + deal data from Supabase into localStorage cache (only if missing)
   leads.forEach(l=>{
