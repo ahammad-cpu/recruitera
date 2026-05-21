@@ -7393,7 +7393,7 @@ body .ld-tab-content {
         <div class="sb-user-name" id="sb-user-name">—</div>
         <div class="sb-user-role" id="sb-user-role">—</div>
       </div>
-      <button class="sb-cfg-btn" onclick="openCfg()" title="Settings">
+      <button class="sb-cfg-btn" id="sb-cfg-btn" onclick="openCfg()" title="Settings (admin only)" style="display:none;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15A1.65 1.65 0 0019.74 16.8L19.8 16.86A2 2 0 1116.97 19.69L16.91 19.63A1.65 1.65 0 0015.11 19.29A1.65 1.65 0 0014.11 20.8V21A2 2 0 1110.11 21V20.9A1.65 1.65 0 008.97 19.4A1.65 1.65 0 007.17 19.74L7.11 19.8A2 2 0 114.28 16.97L4.34 16.91A1.65 1.65 0 004.68 15.11A1.65 1.65 0 003.17 14.11H3A2 2 0 113 10.11H3.1A1.65 1.65 0 004.6 8.97A1.65 1.65 0 004.26 7.17L4.2 7.11A2 2 0 117.03 4.28L7.09 4.34A1.65 1.65 0 008.89 4.68A1.65 1.65 0 009.89 3.17V3A2 2 0 0113.89 3V3.1A1.65 1.65 0 0015.03 4.6A1.65 1.65 0 0016.83 4.26L16.89 4.2A2 2 0 1119.72 7.03L19.66 7.09A1.65 1.65 0 0019.32 8.89A1.65 1.65 0 0020.83 9.89H21A2 2 0 0121 13.89H20.9A1.65 1.65 0 0019.4 15Z"/></svg>
       </button>
       <button class="sb-cfg-btn sb-logout-btn" onclick="logout()" title="Sign out" aria-label="Sign out">
@@ -7915,6 +7915,8 @@ window.AUTH_PROFILE = null;
       if (accExportBtn) accExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const pipeExportBtn = document.getElementById('pipe-export-btn');
       if (pipeExportBtn) pipeExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
+      const cfgBtn = document.getElementById('sb-cfg-btn');
+      if (cfgBtn) cfgBtn.style.display = (p.role === 'admin') ? '' : 'none';
     }catch{}
     // Load the full profiles directory (email → photo/name) so owner avatars
     // across the system can use real user photos. RLS allows authenticated read.
@@ -8518,6 +8520,10 @@ function autoEnrichAll(){
 function loadCfg(){const c=ls.g('cfg');if(c){cfg=c;return true;}return false;}
 function saveCfg(c){ls.s('cfg',c);cfg=c;}
 function openCfg(){
+  if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
+    if (typeof toast === 'function') toast('Settings are admin-only', 'error');
+    return;
+  }
   document.getElementById('cfg-ov').classList.add('open');
   if(cfg.appName)document.getElementById('capp').value=cfg.appName;
   if(cfg.apiKey)document.getElementById('ckey').value=cfg.apiKey;
