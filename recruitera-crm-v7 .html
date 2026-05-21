@@ -8915,24 +8915,50 @@ function openDisqModal(){
 function cancelDisq(){
   document.getElementById('disq-modal-bg').classList.remove('open');
 }
-function confirmDisq(){
+async function confirmDisq(){
   if(!curId)return;
-  const isDisq=!!gDisq(curId);
-  if(isDisq){
+  const wasDisq=!!gDisq(curId);
+  const lead = leads.find(l => l._id === curId);
+  let reason = '';
+  if(wasDisq){
     rDisq(curId);
+    if(lead) lead._sb_is_disq = false;
     pushLog(curId,'note','Disqualified flag removed — restored to pipeline',gOwner(curId));
     toast('Restored to pipeline','success');
   } else {
-    const reason=document.getElementById('disq-reason-select').value||'Not a real company';
+    reason=document.getElementById('disq-reason-select').value||'Not a real company';
     sDisq(curId,{reason,ts:Date.now()});
+    if(lead) lead._sb_is_disq = true;
     pushLog(curId,'note',`Disqualified: ${reason}`,gOwner(curId));
     toast('Company disqualified','success');
   }
   document.getElementById('disq-modal-bg').classList.remove('open');
-  updateDisqButton(curId);
-  const ld=leads.find(l=>l._id===curId);if(ld){renderLeftKeyInfo(ld);}
+  try{ updateDisqButton(curId); }catch{}
+  try{ const ld=leads.find(l=>l._id===curId);if(ld){renderLeftKeyInfo(ld);} }catch{}
   renderBoard();
+  try{ renderAccountsTable(); }catch{}
   updateDisqCount();
+
+  // Persist to Supabase (was localStorage-only before — that's why dashboards
+  // didn't reflect the change and a fresh browser saw the row as still active)
+  const sbId = lead?._supabase_id;
+  if (!sbId) return;
+  const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
+  if (!token) return;
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+      method: 'PATCH',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ is_disqualified: !wasDisq }),
+    });
+    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0,140)}`);
+  } catch(e) {
+    // Roll back local state on failure
+    if (wasDisq) { sDisq(curId, '1'); if (lead) lead._sb_is_disq = true; }
+    else         { rDisq(curId);     if (lead) lead._sb_is_disq = false; }
+    try { renderAccountsTable(); renderBoard(); updateDisqCount(); } catch {}
+    toast('Save to server failed: ' + e.message, 'error');
+  }
 }
 
 function updateDisqButton(id){
@@ -10814,43 +10840,15 @@ function renderAccountsTable() {
   };
 }
 
-// One-click disqualify from the Accounts row. Asks for a reason, then
-// PATCHes accounts.is_disqualified=true + sets local cache so the row
-// turns red immediately. Optimistic UI w/ rollback on failure.
-async function quickDisqualify(leadId){
+// Quick-disqualify from the Accounts row. Reuses the existing reason-picker
+// modal (openDisqModal/confirmDisq) which lives in the lead-detail page —
+// we just point curId at the target lead, open the modal, and let the
+// existing flow do the work. confirmDisq now also PATCHes Supabase.
+function quickDisqualify(leadId){
   const lead = leads.find(l => l._id === leadId);
   if (!lead) return;
-  const sbId = lead._supabase_id;
-  if (!sbId) { toast('Cannot persist — missing Supabase id', 'error'); return; }
-  const reason = prompt('Disqualify "' + (gName(lead) || 'this account') + '"?\n\nOptional reason:', '');
-  if (reason === null) return; // user cancelled
-  // Optimistic flip
-  sDisq(leadId, '1');
-  lead._sb_is_disq = true;
-  if (reason && reason.trim()) { try { sLost(leadId, { reason: reason.trim(), ts: Date.now() }); } catch{} }
-  try { renderAccountsTable(); renderBoard(); updateDisqCount(); } catch {}
-  const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
-  if (!token) { location.replace('./recruitera-login.html'); return; }
-  try {
-    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify({ is_disqualified: true }),
-    });
-    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0,160)}`);
-    toast('Disqualified', 'success');
-  } catch(e) {
-    // Roll back
-    rDisq(leadId);
-    lead._sb_is_disq = false;
-    try { renderAccountsTable(); renderBoard(); updateDisqCount(); } catch {}
-    toast('Disqualify failed: ' + e.message, 'error');
-  }
+  curId = leadId;
+  try { openDisqModal(); } catch(e) { console.error('openDisqModal failed', e); toast('Could not open disqualify dialog', 'error'); }
 }
 
 // Toggle accounts.is_unreachable. Optimistic UI: flip in-memory + re-render,
