@@ -9505,7 +9505,7 @@ function renderLdHero(lead){
           <div id="ld-stat-close" style="font-size:18px;font-weight:700;margin-top:6px;color:var(--text);line-height:1.15;">${closeDisp}</div>
           <div style="font-size:10.5px;color:var(--text-3);margin-top:2px;">expected</div>
         </div>
-        <div class="ld-stat-cell ld-owner-cell" data-lead-id="${id}" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;" onclick="ldClickOwner('${id}', this)" title="Reassign owner (admin only)">
+        <div class="ld-stat-cell ld-owner-cell" data-lead-id="${id}" data-action="open-owner-picker" style="padding:0 18px;border-right:1px solid var(--border);cursor:pointer;user-select:none;" title="Reassign owner (admin only)">
           <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);">Owner <span class="ld-owner-change-hint" style="font-size:9px;color:var(--lime-700);font-weight:600;display:none;">· change</span></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
             <span style="width:22px;height:22px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${owner.avatar_url?`<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`:owner.id}</span>
@@ -12023,6 +12023,21 @@ function toggleMobileSidebar() {
     backdrop.classList.toggle('mobile-open');
   }
 }
+// Global delegated handler for the owner picker. Catches clicks on the
+// lead-detail hero Owner cell (and any other future placements) regardless
+// of which render path created the element.
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action="open-owner-picker"]');
+  if (!el) return;
+  // The Accounts table has its own delegated handler on tbody — let that one
+  // win there. This catches every other surface (lead detail hero, etc.).
+  if (el.closest('.acc-table tbody')) return;
+  const id = el.getAttribute('data-lead-id');
+  if (!id) return;
+  e.stopPropagation();
+  if (typeof ldClickOwner === 'function') ldClickOwner(id, el);
+});
+
 // Close mobile sidebar on nav item click
 document.addEventListener('click', e => {
   if (window.innerWidth > 900) return;
