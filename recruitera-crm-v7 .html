@@ -5217,17 +5217,22 @@ body .sidebar.collapsed .sb-user {
   color: #1A2230 !important;
 }
 
-/* Footer with user
-   Default (collapsed sidebar, 64px wide) → column so avatar sits above logout.
-   Row layout only when the sidebar is expanded (mobile-open) and we have
-   enough width to show avatar + name + logout side-by-side. */
+/* Footer with user — default is EXPANDED sidebar = row layout
+   (avatar · name+role · logout side-by-side). Only switch to a stacked
+   column when the .collapsed class is applied (narrow 64px sidebar). */
 .sb-user {
   margin-top: auto !important;
-  padding: 12px 4px 4px !important;
+  padding: 12px 14px !important;
   border-top: 1px solid var(--border) !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.sidebar.collapsed .sb-user {
   flex-direction: column !important;
   align-items: center !important;
   gap: 8px !important;
+  padding: 12px 4px 4px !important;
 }
 .sidebar.mobile-open .sb-user {
   flex-direction: row !important;
@@ -5242,24 +5247,31 @@ body .sidebar.collapsed .sb-user {
   font-size: 11px !important;
   font-weight: 700 !important;
 }
+/* Name + role: visible only when sidebar is expanded (default desktop or
+   mobile-open). Hide when .collapsed to keep the narrow column clean. */
 .sb-user-info,
-.sidebar .sb-user-info,
-.sidebar.collapsed .sb-user-info {
+.sidebar .sb-user-info {
   display: flex !important;
   flex-direction: column !important;
   min-width: 0 !important;
+  flex: 1 1 auto;
 }
+.sidebar.collapsed .sb-user-info { display: none !important; }
+
 .sb-user-name,
-.sidebar .sb-user-name,
-.sidebar.collapsed .sb-user-name {
+.sidebar .sb-user-name {
   display: block !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   color: var(--text) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.sidebar.collapsed .sb-user-name { display: none !important; }
+
 .sb-user-role,
-.sidebar .sb-user-role,
-.sidebar.collapsed .sb-user-role {
+.sidebar .sb-user-role {
   display: block !important;
   font-size: 10px !important;
   color: var(--text-3) !important;
@@ -5267,6 +5279,7 @@ body .sidebar.collapsed .sb-user {
   text-transform: uppercase !important;
   font-weight: 600 !important;
 }
+.sidebar.collapsed .sb-user-role { display: none !important; }
 
 /* ════════════════════════════════════════════════════════════════
    MODAL & FORM SHELL — Add Lead, Bulk Upload, etc.
