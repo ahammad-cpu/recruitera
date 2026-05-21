@@ -7373,6 +7373,7 @@ body .ld-tab-content {
               <button class="ld-tab" data-tab="notes" onclick="ldSwitchTab(this)">Notes</button>
               <button class="ld-tab" data-tab="tasks" onclick="ldSwitchTab(this)">Tasks</button>
               <button class="ld-tab" data-tab="contacts" onclick="ldSwitchTab(this)">Contacts</button>
+              <button class="ld-tab" data-tab="contracts" onclick="ldSwitchTab(this)">Contracts</button>
             </div>
             <!-- Center: tab content -->
             <div class="ld-center">
@@ -9376,6 +9377,7 @@ function renderLdTabContent(tab,lead){
   else if(tab==='notes') renderLdNotes(lead,el);
   else if(tab==='tasks') renderLdTasks(lead,el);
   else if(tab==='contacts') renderLdContacts(lead,el);
+  else if(tab==='contracts') renderLdContracts(lead,el);
 }
 
 function renderLdContacts(lead,el){
@@ -9546,6 +9548,289 @@ function extractMentions(text) {
     if (owner && !ids.includes(owner.id)) ids.push(owner.id);
   }
   return ids;
+}
+
+// ─── CONTRACT CYCLES ─────────────────────────────────────────────────
+// Cache of contract_cycles per supabase account uuid, fetched on demand.
+window.CONTRACT_CACHE = {};
+
+function _contractStatusColor(status){
+  return ({
+    active:      { bg:'#EAF3DE', fg:'#27500A', dot:'#3B6D11' },
+    upcoming:    { bg:'#F0F0F5', fg:'#3D3D5C', dot:'#7878A8' },
+    negotiating: { bg:'#FFF4E5', fg:'#8A4B00', dot:'#D97706' },
+    renewed:     { bg:'#DEEBFF', fg:'#0B3D8E', dot:'#1E5FD7' },
+    churned:     { bg:'#FDECEC', fg:'#7A1A1A', dot:'#C03A3A' },
+    expired:     { bg:'#F3E8FF', fg:'#5A2A8A', dot:'#8B5CF6' },
+  })[status] || { bg:'#EEE', fg:'#444', dot:'#888' };
+}
+
+// Returns { lead, sbId } resolving a lead's Supabase UUID. Returns null if missing.
+function _resolveSbId(lead){
+  if(!lead) return null;
+  const sbId = lead._supabase_id || (typeof lead._id === 'string' && /^[0-9a-f-]{36}$/i.test(lead._id) ? lead._id : null);
+  return sbId;
+}
+
+async function loadContractsForAccount(sbId){
+  if(!sbId) return [];
+  const token = await _getValidAccessToken();
+  if(!token) return [];
+  const res = await fetch(`${SB_URL}/rest/v1/contract_cycles?account_id=eq.${sbId}&select=*&order=started_at.desc`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
+  });
+  if(!res.ok) { console.warn('[contracts] load failed', res.status); return []; }
+  const rows = await res.json();
+  window.CONTRACT_CACHE[sbId] = rows;
+  return rows;
+}
+
+// Returns the soonest-ending active contract for an account, or null.
+function _nextRenewingContract(sbId){
+  const rows = (window.CONTRACT_CACHE || {})[sbId] || [];
+  return rows.filter(c => c.status === 'active').sort((a,b)=> (a.ends_at < b.ends_at ? -1 : 1))[0] || null;
+}
+
+function _daysUntil(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((d - today) / 86400000);
+}
+
+// Renewal alert pill — small chip rendered next to a paying-customer's company name.
+function renewalAlertPillFor(lead){
+  const sbId = _resolveSbId(lead);
+  if(!sbId) return '';
+  const c = _nextRenewingContract(sbId);
+  if(!c) return '';
+  const days = _daysUntil(c.ends_at);
+  if(days === null || days > 30) return '';
+  const isOverdue = days < 0;
+  const label = isOverdue ? `Renewal overdue ${Math.abs(days)}d` : `Renewal in ${days}d`;
+  const bg = isOverdue ? '#FDECEC' : '#FFF4E5';
+  const fg = isOverdue ? '#7A1A1A' : '#8A4B00';
+  const dot = isOverdue ? '#C03A3A' : '#D97706';
+  return `<span title="${esc(c.plan_tier || 'Contract')} ends ${esc(c.ends_at)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:999px;background:${bg};color:${fg};font-size:10px;font-weight:600;margin-left:6px;border:1px solid ${dot}40;">
+    <span style="width:5px;height:5px;border-radius:50%;background:${dot};"></span>${esc(label)}</span>`;
+}
+
+async function renderLdContracts(lead, el){
+  const sbId = _resolveSbId(lead);
+  if(!sbId){
+    el.innerHTML = `<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">🪪</div><div>No Supabase record</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">This lead has no UUID yet — contracts can't be attached.</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="ld-act-empty" id="ld-contracts-loading"><div style="font-size:13px;color:var(--text-3);">Loading contracts…</div></div>`;
+  const rows = await loadContractsForAccount(sbId);
+  const cur = _nextRenewingContract(sbId);
+  const headerSub = cur
+    ? (() => {
+        const d = _daysUntil(cur.ends_at);
+        if(d === null) return `${rows.length} cycle${rows.length===1?'':'s'}`;
+        if(d < 0) return `Active cycle expired ${Math.abs(d)} day${Math.abs(d)===1?'':'s'} ago`;
+        if(d === 0) return `Active cycle ends today`;
+        return `Next renewal in ${d} day${d===1?'':'s'}`;
+      })()
+    : `${rows.length} cycle${rows.length===1?'':'s'}`;
+  el.innerHTML = `
+    <div class="ld-panel-card" style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Contract cycles</div>
+          <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${esc(headerSub)}</div>
+        </div>
+        <button onclick="openContractCycleModal('${esc(lead._id)}')" style="padding:7px 13px;background:var(--lime);border:none;border-radius:7px;font-size:12px;color:var(--navy);cursor:pointer;font-family:inherit;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+          New cycle
+        </button>
+      </div>
+      ${rows.length === 0
+        ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12.5px;">No cycles yet — click <strong>New cycle</strong> to record the first contract.</div>`
+        : `<div style="display:flex;flex-direction:column;gap:8px;">${rows.map(c => {
+            const col = _contractStatusColor(c.status);
+            const d = _daysUntil(c.ends_at);
+            const dLabel = d === null ? '' :
+              c.status === 'active'
+                ? (d < 0 ? `Expired ${Math.abs(d)}d ago` : d === 0 ? 'Ends today' : `${d}d remaining`)
+                : '';
+            const val = c.value != null ? `${esc(c.currency||'EGP')} ${Number(c.value).toLocaleString()}` : '—';
+            return `<div style="border:1px solid var(--border);border-radius:9px;padding:11px 13px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:${col.bg};color:${col.fg};font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
+                <span style="width:6px;height:6px;border-radius:50%;background:${col.dot};"></span>${esc(c.status)}
+              </span>
+              <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:160px;">
+                <div style="font-size:13px;font-weight:600;color:var(--text);">${esc(c.plan_tier || 'Cycle #' + (c.cycle_number||1))}</div>
+                <div style="font-size:11px;color:var(--text-3);">${esc(c.started_at)} → ${esc(c.ends_at)}${dLabel?` · <span style="color:${d<0?'#C03A3A':'#D97706'};font-weight:600;">${esc(dLabel)}</span>`:''}</div>
+              </div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">${val}</div>
+              <button onclick="editContractCycle('${esc(c.id)}')" title="Edit" style="background:transparent;border:none;cursor:pointer;color:var(--text-3);padding:4px;font-family:inherit;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button onclick="deleteContractCycle('${esc(c.id)}')" title="Delete" style="background:transparent;border:none;cursor:pointer;color:#C03A3A;padding:4px;font-family:inherit;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              </button>
+            </div>`;
+          }).join('')}</div>`}
+    </div>`;
+}
+
+let _editingContractId = null;
+function openContractCycleModal(leadId, opts = {}){
+  const lead = leads.find(l => l._id === leadId);
+  if(!lead){ alert('Lead not found'); return; }
+  const sbId = _resolveSbId(lead);
+  if(!sbId){ alert('This lead is missing its Supabase UUID — cannot attach contracts.'); return; }
+  _editingContractId = opts.contractId || null;
+  document.getElementById('contract-modal-title').textContent = _editingContractId ? 'Edit Contract Cycle' : 'New Contract Cycle';
+  document.getElementById('contract-modal-sub').textContent = gName(lead);
+  // Defaults: today → +1 year
+  const today = new Date(); today.setHours(0,0,0,0);
+  const oneYear = new Date(today); oneYear.setFullYear(today.getFullYear()+1);
+  const fmt = d => d.toISOString().slice(0,10);
+  const existing = opts.contract || null;
+  document.getElementById('contract-started-at').value = existing?.started_at || fmt(today);
+  document.getElementById('contract-ends-at').value    = existing?.ends_at    || fmt(oneYear);
+  document.getElementById('contract-value').value      = existing?.value ?? '';
+  document.getElementById('contract-currency').value   = existing?.currency || 'EGP';
+  document.getElementById('contract-plan').value       = existing?.plan_tier || '';
+  document.getElementById('contract-status').value     = existing?.status || 'active';
+  document.getElementById('contract-auto-renew').checked = !!existing?.auto_renew;
+  document.getElementById('contract-notes').value      = existing?.notes || '';
+  document.getElementById('contract-modal-bg').dataset.leadId = leadId;
+  document.getElementById('contract-modal-bg').dataset.sbId = sbId;
+  document.getElementById('contract-modal-bg').classList.add('open');
+}
+
+async function editContractCycle(contractId){
+  const sbId = Object.keys(window.CONTRACT_CACHE).find(k => (window.CONTRACT_CACHE[k]||[]).some(c => c.id === contractId));
+  const c = sbId ? window.CONTRACT_CACHE[sbId].find(x => x.id === contractId) : null;
+  if(!c){ alert('Contract not in memory — refresh and try again.'); return; }
+  const lead = leads.find(l => _resolveSbId(l) === sbId);
+  if(!lead) return;
+  openContractCycleModal(lead._id, { contractId, contract: c });
+}
+
+function closeContractCycleModal(){
+  document.getElementById('contract-modal-bg').classList.remove('open');
+  _editingContractId = null;
+}
+
+async function saveContractCycle(){
+  const bg = document.getElementById('contract-modal-bg');
+  const leadId = bg.dataset.leadId;
+  const sbId = bg.dataset.sbId;
+  const started_at = document.getElementById('contract-started-at').value;
+  const ends_at    = document.getElementById('contract-ends-at').value;
+  if(!started_at || !ends_at){ alert('Start and end dates are required.'); return; }
+  if(ends_at < started_at){ alert('End date must be on or after start date.'); return; }
+  const valueRaw = document.getElementById('contract-value').value.trim();
+  const payload = {
+    account_id: sbId,
+    started_at, ends_at,
+    value: valueRaw === '' ? null : Number(valueRaw),
+    currency: document.getElementById('contract-currency').value || 'EGP',
+    plan_tier: document.getElementById('contract-plan').value.trim() || null,
+    status: document.getElementById('contract-status').value || 'active',
+    auto_renew: document.getElementById('contract-auto-renew').checked,
+    notes: document.getElementById('contract-notes').value.trim() || null,
+    created_by: window.AUTH_PROFILE?.id || null,
+  };
+  // For new cycles, compute cycle_number = existing count + 1
+  if(!_editingContractId){
+    const existing = (window.CONTRACT_CACHE[sbId] || []);
+    payload.cycle_number = existing.length + 1;
+  }
+  try{
+    const token = await _getValidAccessToken();
+    if(!token){ alert('Session expired'); return; }
+    let res;
+    if(_editingContractId){
+      res = await fetch(`${SB_URL}/rest/v1/contract_cycles?id=eq.${_editingContractId}`, {
+        method:'PATCH',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=representation'},
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await fetch(`${SB_URL}/rest/v1/contract_cycles`, {
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=representation'},
+        body: JSON.stringify(payload),
+      });
+    }
+    if(!res.ok){
+      const t = await res.text().catch(()=> '');
+      alert('Save failed: HTTP '+res.status+'\n\n'+t);
+      return;
+    }
+    closeContractCycleModal();
+    // Refresh cache + re-render
+    await loadContractsForAccount(sbId);
+    const lead = leads.find(l => l._id === leadId);
+    if(lead && curId === leadId){
+      const el = document.getElementById('ld-tab-content');
+      if(el) renderLdContracts(lead, el);
+    }
+    try { renderAccountsTable(); } catch {}
+    toast(_editingContractId ? 'Contract updated' : 'Contract cycle created','success');
+  }catch(e){
+    console.warn('[contracts] save error', e);
+    alert('Save error: ' + (e?.message || e));
+  }
+}
+
+async function deleteContractCycle(contractId){
+  if(!confirm('Delete this contract cycle? This cannot be undone.')) return;
+  const sbId = Object.keys(window.CONTRACT_CACHE).find(k => (window.CONTRACT_CACHE[k]||[]).some(c => c.id === contractId));
+  try{
+    const token = await _getValidAccessToken();
+    const res = await fetch(`${SB_URL}/rest/v1/contract_cycles?id=eq.${contractId}`, {
+      method:'DELETE',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token},
+    });
+    if(!res.ok){ alert('Delete failed'); return; }
+    if(sbId){ window.CONTRACT_CACHE[sbId] = (window.CONTRACT_CACHE[sbId]||[]).filter(c => c.id !== contractId); }
+    const lead = sbId ? leads.find(l => _resolveSbId(l) === sbId) : null;
+    if(lead && curId === lead._id){
+      const el = document.getElementById('ld-tab-content');
+      if(el) renderLdContracts(lead, el);
+    }
+    try { renderAccountsTable(); } catch {}
+    toast('Cycle deleted','success');
+  }catch(e){ alert('Delete error: '+(e?.message||e)); }
+}
+
+// Bulk-load contracts for all currently-paying accounts so renewal pills can render
+// in the Accounts table. Fires once after sbFetch.
+async function preloadActiveContractsForAccounts(){
+  try{
+    const sbIds = (leads || [])
+      .filter(l => (typeof isLeadPaidCustomer === 'function') && isLeadPaidCustomer(l))
+      .map(_resolveSbId)
+      .filter(Boolean);
+    if(!sbIds.length) return;
+    const token = await _getValidAccessToken();
+    if(!token) return;
+    // Batch via in() filter
+    const chunkSize = 100;
+    for (let i = 0; i < sbIds.length; i += chunkSize) {
+      const chunk = sbIds.slice(i, i + chunkSize);
+      const list = chunk.map(encodeURIComponent).join(',');
+      const res = await fetch(`${SB_URL}/rest/v1/contract_cycles?account_id=in.(${list})&status=eq.active&select=*`, {
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok) continue;
+      const rows = await res.json();
+      // Group into cache
+      rows.forEach(c => {
+        if(!window.CONTRACT_CACHE[c.account_id]) window.CONTRACT_CACHE[c.account_id] = [];
+        // Don't duplicate
+        if(!window.CONTRACT_CACHE[c.account_id].some(x => x.id === c.id)) window.CONTRACT_CACHE[c.account_id].push(c);
+      });
+    }
+    // Re-render once contracts are in
+    try { renderAccountsTable(); } catch {}
+  }catch(e){ console.warn('[contracts] preload error', e); }
 }
 
 function renderLdActivity(lead,el){
@@ -10896,6 +11181,13 @@ function renderAccountsTable() {
       }
       return;
     }
+    const cycleBtn = e.target.closest('[data-action="new-contract-cycle"]');
+    if (cycleBtn) {
+      e.stopPropagation();
+      const id = cycleBtn.getAttribute('data-lead-id');
+      if (id && typeof openContractCycleModal === 'function') openContractCycleModal(id);
+      return;
+    }
     const unreachBtn = e.target.closest('[data-action="toggle-unreachable"]');
     if (unreachBtn) {
       e.stopPropagation();
@@ -11330,15 +11622,27 @@ function buildAccountRow(lead) {
 
   // Is already in a deal stage (SQL or beyond, not lead/mql)
   const inDeal = !['lead', 'mql'].includes(stage);
-  const actionHtml = inDeal
-    ? `<div class="acc-in-deal">
+  // Paying customers (real-paid or without-charge) get a "New Contract Cycle" CTA
+  // routed to the contract modal instead of the first-time "Make a Deal" flow.
+  const _isPayingCustomer = (typeof isLeadRealPaid === 'function' && isLeadRealPaid(lead))
+                         || (typeof isLeadWithoutCharge === 'function' && isLeadWithoutCharge(lead));
+  let actionHtml;
+  if (_isPayingCustomer) {
+    actionHtml = `<button class="acc-deal-btn" data-lead-id="${id}" data-action="new-contract-cycle" title="Start a new contract / renewal cycle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        New Contract Cycle
+       </button>`;
+  } else if (inDeal) {
+    actionHtml = `<div class="acc-in-deal">
         <span style="width:7px;height:7px;border-radius:50%;background:${stageObj.color};flex-shrink:0;display:inline-block;"></span>
         In ${stageObj.name}
-       </div>`
-    : `<button class="acc-deal-btn" data-lead-id="${id}" data-action="make-deal">
+       </div>`;
+  } else {
+    actionHtml = `<button class="acc-deal-btn" data-lead-id="${id}" data-action="make-deal">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         Make a Deal
        </button>`;
+  }
 
   // ICP display
   const icpHtml = hasIcp
@@ -11410,6 +11714,7 @@ function buildAccountRow(lead) {
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</span>
             ${isDisqRow ? `<span class="acc-row-disq-chip" title="Disqualified">⛔ Disqualified</span>` : ''}
             ${unreachable ? `<span class="acc-unreachable-chip" title="Marked as unreachable">⚠ Unreachable</span>` : ''}
+            ${typeof renewalAlertPillFor === 'function' ? renewalAlertPillFor(lead) : ''}
           </div>
           ${metaHtml ? `<div class="acc-meta">${metaHtml}</div>` : ''}
           ${contactHtml}
@@ -13396,6 +13701,8 @@ function renderActivityFeed(el) {
     leads = await sbFetch();
     window.leads = leads; // expose for cross-scope lookups (owner picker, etc.)
     console.log('[CRM] sbFetch returned', leads.length, 'accounts');
+    // Fire-and-forget: preload active contracts so renewal pills can render on the Accounts table.
+    try { if (typeof preloadActiveContractsForAccounts === 'function') preloadActiveContractsForAccounts(); } catch {}
     hideL();
     document.getElementById('sidebar').style.display='flex';
     document.getElementById('main').style.display='flex';
@@ -13427,6 +13734,68 @@ function renderActivityFeed(el) {
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:center;">
       <button onclick="mergeV2Whoami()" style="height:30px;padding:0 12px;border-radius:7px;border:1px dashed var(--text-4);background:transparent;color:var(--text-3);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;" title="Show what the server sees about your session (debug)">🔧 Debug session</button>
       <button onclick="mergeV2Close()" style="height:34px;padding:0 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── CONTRACT CYCLE MODAL ─── -->
+<div class="deal-modal-bg" id="contract-modal-bg" onclick="if(event.target===this)closeContractCycleModal()">
+  <div class="deal-modal" style="max-width:520px;">
+    <div class="deal-modal-hdr">
+      <div class="deal-modal-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </div>
+      <div style="flex:1;">
+        <div class="deal-modal-title" id="contract-modal-title">New Contract Cycle</div>
+        <div class="deal-modal-sub" id="contract-modal-sub">—</div>
+      </div>
+      <button class="deal-modal-close" onclick="closeContractCycleModal()" aria-label="Close">×</button>
+    </div>
+    <div class="deal-modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Start date
+          <input type="date" id="contract-started-at" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">End date
+          <input type="date" id="contract-ends-at" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Value
+          <input type="number" id="contract-value" placeholder="0" min="0" step="0.01" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Currency
+          <select id="contract-currency" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
+            <option value="EGP">EGP</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="SAR">SAR</option><option value="AED">AED</option>
+          </select>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Plan tier
+          <input type="text" id="contract-plan" placeholder="e.g. Pro, Enterprise" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Status
+          <select id="contract-status" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
+            <option value="active">Active</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="negotiating">Negotiating</option>
+            <option value="renewed">Renewed</option>
+            <option value="churned">Churned</option>
+            <option value="expired">Expired</option>
+          </select>
+        </label>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;">
+        <input type="checkbox" id="contract-auto-renew" style="width:16px;height:16px;cursor:pointer;"/>
+        Auto-renew at end of term
+      </label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Notes
+        <textarea id="contract-notes" rows="3" placeholder="Optional context — discount applied, custom terms, etc." style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);resize:vertical;"></textarea>
+      </label>
+      <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:6px;">
+        <button onclick="closeContractCycleModal()" style="padding:9px 16px;background:transparent;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-2);cursor:pointer;font-family:inherit;">Cancel</button>
+        <button onclick="saveContractCycle()" style="padding:9px 18px;background:var(--lime);border:none;border-radius:8px;font-size:13px;color:var(--navy);cursor:pointer;font-family:inherit;font-weight:600;">Save cycle</button>
+      </div>
     </div>
   </div>
 </div>
