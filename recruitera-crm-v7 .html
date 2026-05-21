@@ -7535,6 +7535,9 @@ body .ld-tab-content {
       <button class="acc-tab" data-filter="disqualified" onclick="accTabSwitch(this)">
         Disqualified <span class="acc-tab-count" id="acc-tab-disq-count">· 0</span>
       </button>
+      <button class="acc-tab" data-filter="unreachable" onclick="accTabSwitch(this)">
+        Unreachable <span class="acc-tab-count" id="acc-tab-unreach-count">· 0</span>
+      </button>
     </div>
 
     <!-- Filter bar: search + dropdowns in a white card -->
@@ -10718,9 +10721,10 @@ function accFilteredLeads() {
     }
 
     // Tab filter — disjoint: Paid is paying customers (any stage); Prospects/In pipeline are non-paying split by stage
-    if (accActiveTab === 'paid'     && !isLeadPaidCustomer(lead)) return false;
-    if (accActiveTab === 'prospect' && (isLeadPaidCustomer(lead) || gStage(id) !== 'mql')) return false;
-    if (accActiveTab === 'deal'     && (isLeadPaidCustomer(lead) || gStage(id) === 'mql')) return false;
+    if (accActiveTab === 'paid'        && !isLeadPaidCustomer(lead)) return false;
+    if (accActiveTab === 'prospect'    && (isLeadPaidCustomer(lead) || gStage(id) !== 'mql')) return false;
+    if (accActiveTab === 'deal'        && (isLeadPaidCustomer(lead) || gStage(id) === 'mql')) return false;
+    if (accActiveTab === 'unreachable' && !lead.is_unreachable) return false;
 
     if (q) {
       const name    = gName(lead).toLowerCase();
@@ -10821,17 +10825,20 @@ function renderAccountsTable() {
   const paid  = all.filter(l => isLeadPaidCustomer(l));
   const prosp = all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) === 'mql');
   const inDeal= all.filter(l => !isLeadPaidCustomer(l) && gStage(l._id) !== 'mql');
-  const disq  = realData.filter(l => !!gDisq(l._id));
-  const el_all   = document.getElementById('acc-tab-all-count');
-  const el_deal  = document.getElementById('acc-tab-deal-count');
-  const el_paid  = document.getElementById('acc-tab-paid-count');
-  const el_pro   = document.getElementById('acc-tab-prospect-count');
-  const el_disq  = document.getElementById('acc-tab-disq-count');
-  if (el_all)  el_all.textContent  = '· ' + all.length;
-  if (el_deal) el_deal.textContent = '· ' + inDeal.length;
-  if (el_paid) el_paid.textContent = '· ' + paid.length;
-  if (el_pro)  el_pro.textContent  = '· ' + prosp.length;
-  if (el_disq) el_disq.textContent = '· ' + disq.length;
+  const disq    = realData.filter(l => !!gDisq(l._id));
+  const unreach = realData.filter(l => !gDisq(l._id) && !!l.is_unreachable);
+  const el_all     = document.getElementById('acc-tab-all-count');
+  const el_deal    = document.getElementById('acc-tab-deal-count');
+  const el_paid    = document.getElementById('acc-tab-paid-count');
+  const el_pro     = document.getElementById('acc-tab-prospect-count');
+  const el_disq    = document.getElementById('acc-tab-disq-count');
+  const el_unreach = document.getElementById('acc-tab-unreach-count');
+  if (el_all)     el_all.textContent     = '· ' + all.length;
+  if (el_deal)    el_deal.textContent    = '· ' + inDeal.length;
+  if (el_paid)    el_paid.textContent    = '· ' + paid.length;
+  if (el_pro)     el_pro.textContent     = '· ' + prosp.length;
+  if (el_disq)    el_disq.textContent    = '· ' + disq.length;
+  if (el_unreach) el_unreach.textContent = '· ' + unreach.length;
   // Keep sidebar count in sync with the Accounts "All" tab (real-data, non-disqualified)
   const sbAcc = document.getElementById('sb-acc-count');
   if (sbAcc) sbAcc.textContent = all.length;
