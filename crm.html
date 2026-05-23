@@ -8142,6 +8142,9 @@ const gInit=n=>n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toU
 // Only when there is NO end date do we fall back to the status flags.
 function trialStatus(lead){
   if(!lead) return 'none';
+  // Paying / comped customers are NOT on a trial — ignore the free-trial date
+  // entirely so a Paid customer never shows as "trial active/expired".
+  if (typeof isLeadPaidCustomer === 'function' && isLeadPaidCustomer(lead)) return 'none';
   const te = gTrialEnd(lead);
   if (te) {
     const end = new Date(te).getTime();
