@@ -13179,8 +13179,26 @@ function renderDashboard(){
     toTs   = Infinity;
   }
 
+  // ─── Human-readable active window (for the filter bar) ──────────────
+  const _fmtWin = ts => (!ts || !isFinite(ts)) ? null
+    : new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  let windowLabel;
+  if (dshFilterRange === 'all') {
+    windowLabel = 'All time';
+  } else {
+    const fromStr = _fmtWin(fromTs) || '—';
+    const toStr   = isFinite(toTs) ? _fmtWin(toTs) : _fmtWin(_now);
+    windowLabel = `${fromStr} → ${toStr}`;
+  }
+
   // ─── Build owner list ──────────────
-  const ownerEmails = [...new Set(leads.map(l => l.am_mail).filter(Boolean))];
+  // Prefer the full team directory (so admins can filter by any user, even one
+  // who currently owns 0 accounts); fall back to owners present in the data.
+  const ownerOptions = (window.PROFILES_DIR && window.PROFILES_DIR.length)
+    ? window.PROFILES_DIR.filter(p => p.active !== false && p.email)
+        .map(p => ({ email: p.email, name: p.full_name || p.email }))
+    : [...new Set(leads.map(l => l.am_mail).filter(Boolean))]
+        .map(e => ({ email: e, name: (ownerFromEmail(e).name || e) }));
 
   // ─── Apply filters ──────────────
   // 'all' → everything. Any window → strict by creation date (undated excluded;
@@ -13361,12 +13379,18 @@ function renderDashboard(){
       </div>
       <select onchange="dshSetOwner(this.value)" style="height:34px;padding:0 28px 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit;cursor:pointer;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2381878E' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>&quot;);background-repeat:no-repeat;background-position:right 10px center;">
         <option value="">Owner: All</option>
-        ${ownerEmails.map(e=>`<option value="${esc(e)}"${dshFilterOwner===e?' selected':''}>${esc(ownerFromEmail(e).name||e)}</option>`).join('')}
+        ${ownerOptions.map(o=>`<option value="${esc(o.email)}"${dshFilterOwner===o.email?' selected':''}>${esc(o.name)}</option>`).join('')}
       </select>
       <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:3px;margin-left:8px;">
         ${['all','7d','30d','90d','QTD','YTD'].map(r=>`<button onclick="dshSetRange('${r}')" style="padding:5px 12px;font-size:11px;font-weight:600;color:${dshFilterRange===r?'#fff':'var(--text-3)'};background:${dshFilterRange===r?'var(--cg-900)':'transparent'};border:none;border-radius:6px;cursor:pointer;font-family:inherit;">${r==='all'?'All':r}</button>`).join('')}
       </div>
-      <span style="margin-left:auto;font-size:11px;color:var(--text-3);">Showing <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${active.length}</strong> leads · <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${customers.length}</strong> customers</span>
+      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:10px;font-size:11px;color:var(--text-3);">
+        <span title="Active date window" style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2);font-weight:600;color:var(--text-2);">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${esc(windowLabel)}
+        </span>
+        <span>Showing <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${active.length}</strong> leads · <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${customers.length}</strong> customers</span>
+      </span>
       ${(dshFilterRange!=='all'||dshFilterOwner)?`<button onclick="dshClearFilters()" style="background:transparent;border:none;color:var(--text-3);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;padding:6px 10px;">Clear all</button>`:''}
     </div>
 
