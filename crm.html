@@ -8511,6 +8511,11 @@ async function sbFetch() {
                           || acc.created_at,
     Created_Date:     acc.bubble_created_at || acc.created_at,
     Modified_Date:    acc.updated_at,
+    // Raw timestamps the dashboard/date-filters read directly.
+    // bubble_created_at = real business creation date (from Bubble).
+    // created_at        = Supabase row insert time (NOT meaningful for filtering).
+    bubble_created_at: acc.bubble_created_at || null,
+    created_at:        acc.created_at || null,
     // Pipeline state
     _sb_stage:        acc.stage || 'mql',
     _sb_is_disq:      acc.is_disqualified || false,
@@ -11580,7 +11585,7 @@ function exportAccounts(){
       l.paid_status || '',
       l.activation_status || '',
       l.has_trial ? 'Yes' : 'No',
-      l.created_at || l.bubble_created_at || ''
+      l.bubble_created_at || l.created_at || ''
     ]);
   });
   const stamp = new Date().toISOString().slice(0,10);
@@ -11607,7 +11612,7 @@ function exportPipeline(){
       gAcv(id) || '',
       gClose(id) || '',
       gSource(l) || '',
-      l.created_at || l.bubble_created_at || ''
+      l.bubble_created_at || l.created_at || ''
     ]);
   });
   const stamp = new Date().toISOString().slice(0,10);
@@ -13224,9 +13229,13 @@ function renderDashboard(){
   // ─── Apply filters ──────────────
   // 'all' → everything. Any window → strict by creation date (undated excluded;
   // in practice every account has a date so this just guarantees accuracy).
+  // Real business creation date = bubble_created_at; created_at is just the
+  // Supabase row-insert time (all rows look "recent") so it's useless for
+  // date filtering and must NOT be the primary signal.
+  const _createdTs = (l) => new Date(l.bubble_created_at || l.created_at || 0).getTime();
   const inRange = (l) => {
     if (dshFilterRange === 'all') return true;
-    const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+    const t = _createdTs(l);
     if (!t) return false;
     return t >= fromTs && t <= toTs;
   };
@@ -13282,14 +13291,14 @@ function renderDashboard(){
   const days30 = Array.from({length:31}, (_,i)=>now - (30-i)*day);
   const arrSeries = days30.map(t => {
     return active.reduce((s,l) => {
-      const t0 = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      const t0 = _createdTs(l);
       if (t0 && t0 <= t && isLeadPaidCustomer(l)) return s + parseAcv(gAcv(l._id));
       return s;
     }, 0);
   });
   const pipelineSeries = days30.map(t => {
     return active.reduce((s,l) => {
-      const t0 = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      const t0 = _createdTs(l);
       const st = gStage(l._id);
       if (t0 && t0 <= t && !['won','lost'].includes(st) && !isLeadPaidCustomer(l)) return s + parseAcv(gAcv(l._id));
       return s;
@@ -13315,11 +13324,11 @@ function renderDashboard(){
   }));
   const weeklyWonLost = weeks8.map(w => {
     const wCount = won.filter(l => {
-      const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      const t = _createdTs(l);
       return t >= w.start && t < w.end;
     }).length;
     const lCount = lost.filter(l => {
-      const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+      const t = _createdTs(l);
       return t >= w.start && t < w.end;
     }).length;
     return { won: wCount, lost: lCount };
@@ -13330,7 +13339,7 @@ function renderDashboard(){
   const cycleBySrc = {};
   won.forEach(l => {
     const src = gSource(l) || 'Unknown';
-    const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
+    const t = _createdTs(l);
     if (!t) return;
     const days = Math.max(1, Math.round((now - t)/day));
     if (!cycleBySrc[src]) cycleBySrc[src] = [];
