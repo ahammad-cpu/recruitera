@@ -7563,8 +7563,9 @@ body .ld-tab-content {
       <select class="acc-select" id="acc-fowner" onchange="renderAccountsTable()"><option value="">Owner: All</option></select>
       <select class="acc-select" id="acc-ftrial" onchange="renderAccountsTable()">
         <option value="">Trial: All</option>
-        <option value="yes">Has Trial</option>
-        <option value="no">No Trial</option>
+        <option value="active">Trial active</option>
+        <option value="expired">Trial expired</option>
+        <option value="none">No trial</option>
       </select>
       <button class="acc-filter-reset" onclick="resetAccountsFilters()" title="Reset all filters" style="display:none;">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>
@@ -8130,17 +8131,32 @@ const gWebsite=l=>fv(l,'WP_Website','Website','website','Domain','domain','url',
 const gDescription=l=>fv(l,'WP_Description','Description','description','About','about')||'';
 const gStatus=l=>fv(l,'Activation','activation','Status','status','Plan Status')||'';
 const gJobs=l=>fv(l,'Active Jobs Count','Active_Jobs_Count','active_jobs_count','Jobs Count')??'';
-const gTrialEnd=l=>fv(l,'Free Trial End Date','Free_Trial_End_Date','free_trial_end_date','Trial End')||'';
+const gTrialEnd=l=>(l&&l.trial_end_date)||fv(l,'Free Trial End Date','Free_Trial_End_Date','free_trial_end_date','Trial End','trial_end_date')||'';
 const gCreated=l=>fv(l,'Original_Creation_Date','ORIGINAL_CREATION_DATE','Created_Date','Created Date','created_date','Created_at','created_at')||'';
 const gInit=n=>n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'??';
 
+// Trial state — driven by the real DB field `trial_end_date` (the company's
+// "Free Trial End" date). The date is the source of truth:
+//   end date in the future  → 'active'  (trial ON)
+//   end date in the past    → 'expired' (trial OFF)
+// Only when there is NO end date do we fall back to the status flags.
 function trialStatus(lead){
-  const st=gStatus(lead).toLowerCase();
-  const te=gTrialEnd(lead);
-  if(!te&&!st.includes('trial')&&!st.includes('active')&&!st.includes('expired'))return 'none';
-  if(st.includes('expired'))return 'expired';
-  if(te&&new Date(te)<new Date())return 'expired';
-  if(te||st.includes('active'))return 'active';
+  if(!lead) return 'none';
+  const te = gTrialEnd(lead);
+  if (te) {
+    const end = new Date(te).getTime();
+    if (isFinite(end)) return end >= Date.now() ? 'active' : 'expired';
+  }
+  // No end date on file — fall back to flags.
+  const ps = (lead.paid_status || '').toLowerCase();
+  const ts = (lead.trial_status || '').toLowerCase();
+  const as = (lead.activation_status || '').toLowerCase();
+  const onTrial = lead.has_trial === true || ps.includes('free trial') || ts.includes('free trial');
+  if (onTrial) {
+    if (as.includes('active'))  return 'active';
+    if (as.includes('expired')) return 'expired';
+    return 'expired';          // has a trial but no end date + not flagged active → treat as ended
+  }
   return 'none';
 }
 
@@ -8500,6 +8516,8 @@ async function sbFetch() {
     paid_status:      acc.paid_status || null,
     activation_status: acc.activation_status || null,
     has_trial:        acc.has_trial || false,
+    trial_end_date:   acc.trial_end_date || acc.raw_data?.['Free Trial End Date'] || acc.raw_data?.free_trial_end_date || null,
+    trial_status:     acc.trial_status || null,
     company_ref:      acc.company_ref || acc.raw_data?.Company_Ref || null,
     utm_source:       acc.utm_source || acc.raw_data?.utm_source || null,
     utm_medium:       acc.utm_medium || acc.raw_data?.utm_medium || null,
@@ -9268,8 +9286,8 @@ function renderLdHero(lead){
   // Use real paid_status from Supabase column
   const realPaidStatus = lead.paid_status || null;
   const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
-  const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
-  const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
+  const trialActive = trialStatus(lead) === 'active';
+  const trialExpired = trialStatus(lead) === 'expired';
   const isDisq=!!gDisq(id);
   const isPreDeal=['lead','mql'].includes(stageObj.id);
   const initials=gInit(name);
@@ -10261,8 +10279,8 @@ function renderSnapBar(lead){
   // Use real paid_status from Supabase column
   const realPaidStatus = lead.paid_status || null;
   const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
-  const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
-  const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
+  const trialActive = trialStatus(lead) === 'active';
+  const trialExpired = trialStatus(lead) === 'expired';
   const owner=ownerFromEmail(gOwner(id));
   const acv=gAcv(id);const closeDate=gClose(id);
   const editIcon=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
@@ -10420,8 +10438,8 @@ function renderLeftKeyInfo(lead){
   // Use real paid_status from Supabase column
   const realPaidStatus = lead.paid_status || null;
   const hasTrial = lead.has_trial || !!lead.company_ref || !!lead.raw_data?.Company_Ref;
-  const trialActive = realPaidStatus === 'Free Trial' && lead.activation_status === 'Active';
-  const trialExpired = realPaidStatus === 'Free Trial' && lead.activation_status === 'Expired';
+  const trialActive = trialStatus(lead) === 'active';
+  const trialExpired = trialStatus(lead) === 'expired';
   const trialLabel=ts==='active'?'🟢 Active':ts==='expired'?'🔴 Expired':'No trial';
   const owner=ownerFromEmail(gOwner(id));
   const lostData=gLost(id);
@@ -11078,8 +11096,8 @@ function accFilteredLeads() {
       if (fPaid === 'prospect' && isLeadPaidCustomer(lead))  return false;
     }
     if (fTrial) {
-      if (fTrial === 'yes' && !lead.has_trial) return false;
-      if (fTrial === 'no'  &&  lead.has_trial) return false;
+      // Driven by trial_end_date via trialStatus(): active / expired / none
+      if (trialStatus(lead) !== fTrial) return false;
     }
     if (fIcp) {
       const score = calcIcpScore(id);
@@ -13229,7 +13247,7 @@ function renderDashboard(){
   const avgArr = customers.length ? arr/customers.length : 0;
 
   // Trial counts
-  const trialActive = active.filter(l => l.paid_status==='Free Trial' && l.activation_status==='Active').length;
+  const trialActive = active.filter(l => trialStatus(l) === 'active').length;
 
   // Win rate
   const totalClosed = won.length + lost.length;
