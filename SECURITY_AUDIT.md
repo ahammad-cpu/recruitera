@@ -1,4 +1,4 @@
-# Recruitera CRM — Security Audit (CTO Review)
+# Recruitera CRM — 
 
 **Date:** 21 May 2026
 **Auditor:** Engineering (automated review against Supabase advisors + manual code/RLS inspection)
