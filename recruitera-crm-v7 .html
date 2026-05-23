@@ -7747,7 +7747,7 @@ window.AUTH_TOKEN = _getValidAccessToken();
 if(!window.AUTH_TOKEN){
   // Redirect to login, preserving the requested page so login can come back here
   const back = encodeURIComponent(location.pathname + location.search + location.hash);
-  location.replace('./recruitera-login.html?back=' + back);
+  location.replace('/login?back=' + back);
   // Throw to halt the rest of this script
   throw new Error('Auth required — redirecting to login');
 }
@@ -7888,7 +7888,7 @@ async function uploadAvatar(input){
 
 function logout(){
   try{ localStorage.removeItem(SB_AUTH_KEY); }catch{}
-  location.replace('./recruitera-login.html');
+  location.replace('/login');
 }
 window.logout = logout;
 const ls={
@@ -8422,7 +8422,7 @@ async function sbFetch() {
   const accessToken = _getValidAccessToken();
   if (!accessToken) {
     console.warn('[CRM] No valid auth token at fetch time — redirecting to login');
-    location.replace('./recruitera-login.html');
+    location.replace('/login');
     return;
   }
 
@@ -11278,7 +11278,7 @@ async function toggleUnreachable(leadId){
   lead.is_unreachable = next;
   try { renderAccountsTable(); } catch {}
   const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
-  if (!token) { location.replace('./recruitera-login.html'); return; }
+  if (!token) { location.replace('/login'); return; }
   try {
     const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
       method: 'PATCH',
@@ -12334,7 +12334,7 @@ function _utmEsc(s){
 
 async function _utmFetch(path, opts){
   const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
-  if (!token) { location.replace('./recruitera-login.html'); throw new Error('no token'); }
+  if (!token) { location.replace('/login'); throw new Error('no token'); }
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
     ...(opts||{}),
     headers: {
@@ -14748,7 +14748,7 @@ const MERGE_V2 = { groups: [], busy: false };
 
 async function _mergeV2Rpc(path, body) {
   const token = (typeof _getValidAccessToken === 'function') ? _getValidAccessToken() : null;
-  if (!token) { location.replace('./recruitera-login.html'); throw new Error('no token'); }
+  if (!token) { location.replace('/login'); throw new Error('no token'); }
   const res = await fetch(`${SB_URL}/rest/v1/rpc/${path}`, {
     method: 'POST',
     headers: {

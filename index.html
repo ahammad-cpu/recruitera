@@ -18,7 +18,7 @@
   <div class="wrap">
     <div class="spinner"></div>
     <div class="msg" id="msg">Loading Recruitera…</div>
-    <noscript><a href="./recruitera-login.html">Continue to login</a></noscript>
+    <noscript><a href="/login">Continue to login</a></noscript>
   </div>
   <script>
     (function(){
@@ -27,7 +27,7 @@
       var search = window.location.search || '';
       // If a Supabase recovery / access token is present → go to login (recovery mode).
       // Otherwise also go to login; the login page redirects to the CRM if a valid session exists.
-      var target = './recruitera-login.html' + search + hash;
+      var target = '/login' + search + hash;
       // Small delay so the spinner is visible if the redirect is instant.
       setTimeout(function(){ window.location.replace(target); }, 50);
     })();

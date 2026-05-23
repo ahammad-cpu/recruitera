@@ -89,7 +89,7 @@ body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
 
     <!-- Footer -->
     <div class="mt-6 pt-5 border-t border-white/5 text-center text-xs text-slate-600">
-      Already signed in? <a href="./recruitera-crm-v7%20.html" class="font-bold transition-colors" style="color:#C8E60A;">Open CRM →</a>
+      Already signed in? <a href="/crm" class="font-bold transition-colors" style="color:#C8E60A;">Open CRM →</a>
     </div>
   </div>
 
@@ -137,7 +137,7 @@ let RECOVERY_REFRESH = null;
       if (session?.access_token) {
         const exp = session.expires_at || session.user?.exp;
         if (!exp || Date.now()/1000 < exp - 60) {
-          showStatus('success', '✅ Already signed in! <a href="./recruitera-crm-v7%20.html" style="color:inherit;font-weight:700;text-decoration:underline;">Open CRM →</a>');
+          showStatus('success', '✅ Already signed in! <a href="/crm" style="color:inherit;font-weight:700;text-decoration:underline;">Open CRM →</a>');
           return;
         }
       }
@@ -184,7 +184,7 @@ async function handleReset() {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     showStatus('success', '✅ Password updated! Redirecting…');
-    setTimeout(() => window.location.href = './recruitera-crm-v7%20.html', 700);
+    setTimeout(() => window.location.href = '/crm', 700);
   } catch(e) {
     showStatus('error', e.message);
     btn.disabled = false; btn.textContent = 'Set new password';
@@ -228,7 +228,7 @@ async function handleSubmit() {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     showStatus('success', '✅ Signed in! Redirecting…');
-    setTimeout(() => window.location.href = './recruitera-crm-v7%20.html', 600);
+    setTimeout(() => window.location.href = '/crm', 600);
   } catch(e) {
     showStatus('error', e.message);
     btn.disabled=false; btn.textContent='Sign in';

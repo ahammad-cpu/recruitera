@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/recruitera-login.html" },
+    { "source": "/login", "destination": "/recruitera-login.html" },
+    { "source": "/crm", "destination": "/recruitera-crm-v7 .html" }
+  ]
+}
