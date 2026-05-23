@@ -141,7 +141,7 @@ button.secondary:hover:not(:disabled) { background: var(--surface); }
   </div>
 
   <div style="text-align: center; padding: 20px;">
-    <a href="./recruitera-crm-v7.html" style="color: var(--lime-700); text-decoration: none; font-weight: 600; font-size: 13px;">← Back to CRM</a>
+    <a href="/crm" style="color: var(--lime-700); text-decoration: none; font-weight: 600; font-size: 13px;">← Back to CRM</a>
   </div>
 </div>
 
@@ -169,13 +169,13 @@ const session = await getValidSession();
 const authEl = document.getElementById('auth-status');
 if (!session) {
   // Redirect to login immediately instead of greying out the page
-  window.location.href = './recruitera-login.html';
+  window.location.href = '/login';
 } else {
   // Check admin
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
   if (profile?.role !== 'admin') {
     authEl.innerHTML = '<span class="pill bad">Admin only</span>';
-    document.querySelector('.wrap').innerHTML = '<div class="card"><div class="card-title">Access denied</div><p style="color:var(--text-3);font-size:13px;">This page is for admins only. <a href="./recruitera-crm-v7.html" style="color:var(--lime-700);">Go back to CRM</a></p></div>';
+    document.querySelector('.wrap').innerHTML = '<div class="card"><div class="card-title">Access denied</div><p style="color:var(--text-3);font-size:13px;">This page is for admins only. <a href="/crm" style="color:var(--lime-700);">Go back to CRM</a></p></div>';
   } else {
     authEl.innerHTML = `<span class="pill ok">✓ Admin · ${profile.full_name}</span>`;
     await loadConfig();

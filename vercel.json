@@ -1,7 +1,9 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/recruitera-login.html" },
-    { "source": "/login", "destination": "/recruitera-login.html" },
-    { "source": "/crm", "destination": "/recruitera-crm-v7 .html" }
+    { "source": "/", "destination": "/login.html" },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/crm", "destination": "/crm.html" },
+    { "source": "/migrate", "destination": "/migrate.html" },
+    { "source": "/sync-admin", "destination": "/sync-admin.html" }
   ]
 }

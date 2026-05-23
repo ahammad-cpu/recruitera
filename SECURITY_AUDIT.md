@@ -42,7 +42,7 @@ $ grep -rE "sb_secret_|service_role|SUPABASE_SERVICE" .
 
 ## 2. Authentication
 
-- **Login**: `recruitera-login.html` — email + password against Supabase Auth. Calls `/auth/v1/token?grant_type=password`. Login page also rejects with "no such user" if the email is not in `profiles`, preventing brute-force account enumeration on stale auth.users rows.
+- **Login**: `login.html` — email + password against Supabase Auth. Calls `/auth/v1/token?grant_type=password`. Login page also rejects with "no such user" if the email is not in `profiles`, preventing brute-force account enumeration on stale auth.users rows.
 - **Session storage**: Standard `sb-rtdrlpnfqjtwtsrwnifn-auth-token` localStorage key (Supabase SDK pattern). Token is a signed JWT (`HS256`), validated at the edge by PostgREST on every request.
 - **Token refresh**: `_getValidAccessToken()` parses JWT `exp`, refreshes via `/auth/v1/token?grant_type=refresh_token` when within 60s of expiry. If refresh fails, user is bounced to login.
 - **Logout**: Clears localStorage and redirects. No server-side session invalidation needed — JWTs are stateless.
@@ -118,7 +118,7 @@ The app uses many `innerHTML = ...` calls for performance (large tables of leads
 ## 9. Git history & secrets
 
 ```bash
-$ git log --all --source -- recruitera-crm-v7\ .html | head
+$ git log --all --source -- crm.html | head
 (clean — no secret keys committed)
 ```
 
@@ -126,9 +126,9 @@ No `.env` files anywhere in the repo. The publishable anon key in the HTML is in
 
 ## 10. Vercel deployment
 
-- **Production**: `https://recruitera.vercel.app/recruitera-crm-v7%20.html` — public, HTTP 200.
+- **Production**: `https://crm.recruitera.ai/crm` — public, HTTP 200.
 - **Preview**: `https://recruitera-ahammad-6875s-projects.vercel.app/*` — gated behind Vercel SSO (HTTP 401 for anon). This is correct behaviour for a private preview.
-- **Recovery redirect**: `index.html` at root forwards the Supabase recovery hash to `recruitera-login.html` so password resets work cleanly.
+- **Recovery redirect**: `index.html` at root forwards the Supabase recovery hash to `login.html` so password resets work cleanly.
 
 ---
 

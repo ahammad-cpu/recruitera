@@ -288,7 +288,7 @@ button.danger { background: var(--bad); color: white; }
 
     <div style="margin-top:14px;display:flex;gap:10px;">
       <button class="secondary" onclick="downloadLog()" id="btn-download-log" style="display:none;">Download log</button>
-      <button onclick="window.location.href='./recruitera-crm-v7.html'" id="btn-open-crm" style="display:none;">Open CRM →</button>
+      <button onclick="window.location.href='/crm'" id="btn-open-crm" style="display:none;">Open CRM →</button>
     </div>
   </div>
 </div>
@@ -337,7 +337,7 @@ if (!signedIn) {
 }
 
 if (!signedIn) {
-  authEl.innerHTML = '<span class="pill bad">Not signed in &mdash; <a href="./recruitera-login.html" style="color:inherit;text-decoration:underline;">login here</a></span>';
+  authEl.innerHTML = '<span class="pill bad">Not signed in &mdash; <a href="/login" style="color:inherit;text-decoration:underline;">login here</a></span>';
   // DON'T auto-redirect - let user see the message and click manually
 }
 
