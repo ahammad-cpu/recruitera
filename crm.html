@@ -12296,20 +12296,35 @@ function switchInsightsTab(el) {
   renderInsights();
 }
 
-let dshFilterRange = '90d';
+let dshFilterRange = 'all';   // 'all' | '7d' | '30d' | '90d' | 'QTD' | 'YTD' | 'custom'
 let dshFilterOwner = '';
+let dshFilterFrom  = '';      // 'YYYY-MM-DD' (only used when range==='custom')
+let dshFilterTo    = '';      // 'YYYY-MM-DD'
 
 function dshSetRange(r){
   dshFilterRange = r;
+  if (r !== 'custom') { dshFilterFrom = ''; dshFilterTo = ''; }
   renderDashboard();
 }
 function dshSetOwner(v){
   dshFilterOwner = v;
   renderDashboard();
 }
+function dshSetCustomFrom(v){
+  dshFilterFrom = v;
+  dshFilterRange = 'custom';
+  renderDashboard();
+}
+function dshSetCustomTo(v){
+  dshFilterTo = v;
+  dshFilterRange = 'custom';
+  renderDashboard();
+}
 function dshClearFilters(){
-  dshFilterRange = '90d';
+  dshFilterRange = 'all';
   dshFilterOwner = '';
+  dshFilterFrom  = '';
+  dshFilterTo    = '';
   renderDashboard();
 }
 
@@ -13145,25 +13160,36 @@ function renderDashboard(){
   const el = document.getElementById('dashboard-view');
   if (!el) return;
 
-  // ─── Date range cutoff ──────────────
+  // ─── Date window [fromTs, toTs] ──────────────
   const _now = Date.now();
   const _day = 86400000;
-  const rangeMs = {
-    '7d':  7*_day,
-    '30d': 30*_day,
-    '90d': 90*_day,
-    'QTD': (() => { const d=new Date(); const q=Math.floor(d.getMonth()/3); const qs=new Date(d.getFullYear(),q*3,1).getTime(); return _now-qs; })(),
-    'YTD': (() => _now - new Date(new Date().getFullYear(),0,1).getTime())(),
-  }[dshFilterRange] || 90*_day;
-  const cutoff = _now - rangeMs;
+  let fromTs = 0, toTs = Infinity;       // 'all' = unbounded
+  if (dshFilterRange === 'custom') {
+    fromTs = dshFilterFrom ? new Date(dshFilterFrom + 'T00:00:00').getTime() : 0;
+    toTs   = dshFilterTo   ? new Date(dshFilterTo   + 'T23:59:59').getTime() : Infinity;
+  } else if (dshFilterRange !== 'all') {
+    const rangeMs = {
+      '7d':  7*_day,
+      '30d': 30*_day,
+      '90d': 90*_day,
+      'QTD': (() => { const d=new Date(); const q=Math.floor(d.getMonth()/3); const qs=new Date(d.getFullYear(),q*3,1).getTime(); return _now-qs; })(),
+      'YTD': (() => _now - new Date(new Date().getFullYear(),0,1).getTime())(),
+    }[dshFilterRange] || 90*_day;
+    fromTs = _now - rangeMs;
+    toTs   = Infinity;
+  }
 
   // ─── Build owner list ──────────────
   const ownerEmails = [...new Set(leads.map(l => l.am_mail).filter(Boolean))];
 
   // ─── Apply filters ──────────────
+  // 'all' → everything. Any window → strict by creation date (undated excluded;
+  // in practice every account has a date so this just guarantees accuracy).
   const inRange = (l) => {
+    if (dshFilterRange === 'all') return true;
     const t = new Date(l.created_at || l.bubble_created_at || 0).getTime();
-    return t === 0 || t >= cutoff;
+    if (!t) return false;
+    return t >= fromTs && t <= toTs;
   };
   const matchOwner = (l) => !dshFilterOwner || l.am_mail === dshFilterOwner;
 
@@ -13320,21 +13346,28 @@ function renderDashboard(){
     <div class="dsh-card" style="padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-right:4px;">Filters</span>
       <select onchange="dshSetRange(this.value)" style="height:34px;padding:0 28px 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit;cursor:pointer;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2381878E' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>&quot;);background-repeat:no-repeat;background-position:right 10px center;">
-        <option value="90d"${dshFilterRange==='90d'?' selected':''}>Date: Last 90 days</option>
+        <option value="all"${dshFilterRange==='all'?' selected':''}>Date: All time</option>
         <option value="7d"${dshFilterRange==='7d'?' selected':''}>Last 7 days</option>
         <option value="30d"${dshFilterRange==='30d'?' selected':''}>Last 30 days</option>
-        <option value="QTD"${dshFilterRange==='QTD'?' selected':''}>QTD</option>
-        <option value="YTD"${dshFilterRange==='YTD'?' selected':''}>YTD</option>
+        <option value="90d"${dshFilterRange==='90d'?' selected':''}>Last 90 days</option>
+        <option value="QTD"${dshFilterRange==='QTD'?' selected':''}>Quarter to date</option>
+        <option value="YTD"${dshFilterRange==='YTD'?' selected':''}>Year to date</option>
+        <option value="custom"${dshFilterRange==='custom'?' selected':''}>Custom range…</option>
       </select>
+      <div style="display:inline-flex;align-items:center;gap:6px;${dshFilterRange==='custom'?'':'display:none;'}">
+        <input type="date" value="${esc(dshFilterFrom)}" max="${esc(dshFilterTo||'')}" onchange="dshSetCustomFrom(this.value)" title="From" style="height:34px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;color:var(--text);font-family:inherit;"/>
+        <span style="font-size:11px;color:var(--text-3);">→</span>
+        <input type="date" value="${esc(dshFilterTo)}" min="${esc(dshFilterFrom||'')}" onchange="dshSetCustomTo(this.value)" title="To" style="height:34px;padding:0 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;color:var(--text);font-family:inherit;"/>
+      </div>
       <select onchange="dshSetOwner(this.value)" style="height:34px;padding:0 28px 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;font-family:inherit;cursor:pointer;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2381878E' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>&quot;);background-repeat:no-repeat;background-position:right 10px center;">
         <option value="">Owner: All</option>
         ${ownerEmails.map(e=>`<option value="${esc(e)}"${dshFilterOwner===e?' selected':''}>${esc(ownerFromEmail(e).name||e)}</option>`).join('')}
       </select>
       <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:3px;margin-left:8px;">
-        ${['7d','30d','90d','QTD','YTD'].map(r=>`<button onclick="dshSetRange('${r}')" style="padding:5px 12px;font-size:11px;font-weight:600;color:${dshFilterRange===r?'#fff':'var(--text-3)'};background:${dshFilterRange===r?'var(--cg-900)':'transparent'};border:none;border-radius:6px;cursor:pointer;font-family:inherit;">${r}</button>`).join('')}
+        ${['all','7d','30d','90d','QTD','YTD'].map(r=>`<button onclick="dshSetRange('${r}')" style="padding:5px 12px;font-size:11px;font-weight:600;color:${dshFilterRange===r?'#fff':'var(--text-3)'};background:${dshFilterRange===r?'var(--cg-900)':'transparent'};border:none;border-radius:6px;cursor:pointer;font-family:inherit;">${r==='all'?'All':r}</button>`).join('')}
       </div>
       <span style="margin-left:auto;font-size:11px;color:var(--text-3);">Showing <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${active.length}</strong> leads · <strong style="color:var(--text);font-variant-numeric:tabular-nums;">${customers.length}</strong> customers</span>
-      ${(dshFilterRange!=='90d'||dshFilterOwner)?`<button onclick="dshClearFilters()" style="background:transparent;border:none;color:var(--text-3);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;padding:6px 10px;">Clear all</button>`:''}
+      ${(dshFilterRange!=='all'||dshFilterOwner)?`<button onclick="dshClearFilters()" style="background:transparent;border:none;color:var(--text-3);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;padding:6px 10px;">Clear all</button>`:''}
     </div>
 
     <!-- ARR Hero -->
