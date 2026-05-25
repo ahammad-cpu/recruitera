@@ -8477,7 +8477,7 @@ async function sbFetch() {
 
   // Map Supabase accounts to the lead format the CRM expects
   return allAccounts.map(acc => ({
-    _id:              acc.bubble_id || acc.id,
+    _id:              acc.external_id || acc.id,
     _supabase_id:     acc.id,
     // Contact fields (from raw_data)
     'Contact_Name':   acc.raw_data?.Contact_Name  || acc.name || '',
@@ -8504,17 +8504,17 @@ async function sbFetch() {
     WP_Vacancies:     acc.vacancies || acc.raw_data?.WP_Vacancies || '',
     WP_Company_Headcount: acc.raw_data?.WP_Company_Headcount || '',
     Company_Ref:      acc.raw_data?.Company_Ref || '',
-    Original_Creation_Date: acc.bubble_created_at
+    Original_Creation_Date: acc.source_created_at
                           || acc.raw_data?.Original_Creation_Date
                           || acc.raw_data?.['Created Date']
                           || acc.raw_data?.created_at
                           || acc.created_at,
-    Created_Date:     acc.bubble_created_at || acc.created_at,
+    Created_Date:     acc.source_created_at || acc.created_at,
     Modified_Date:    acc.updated_at,
     // Raw timestamps the dashboard/date-filters read directly.
-    // bubble_created_at = real business creation date (from Bubble).
+    // source_created_at = real business creation date.
     // created_at        = Supabase row insert time (NOT meaningful for filtering).
-    bubble_created_at: acc.bubble_created_at || null,
+    source_created_at: acc.source_created_at || null,
     created_at:        acc.created_at || null,
     // Pipeline state
     _sb_stage:        acc.stage || 'mql',
@@ -11585,7 +11585,7 @@ function exportAccounts(){
       l.paid_status || '',
       l.activation_status || '',
       l.has_trial ? 'Yes' : 'No',
-      l.bubble_created_at || l.created_at || ''
+      l.source_created_at || l.created_at || ''
     ]);
   });
   const stamp = new Date().toISOString().slice(0,10);
@@ -11612,7 +11612,7 @@ function exportPipeline(){
       gAcv(id) || '',
       gClose(id) || '',
       gSource(l) || '',
-      l.bubble_created_at || l.created_at || ''
+      l.source_created_at || l.created_at || ''
     ]);
   });
   const stamp = new Date().toISOString().slice(0,10);
@@ -13229,10 +13229,10 @@ function renderDashboard(){
   // ─── Apply filters ──────────────
   // 'all' → everything. Any window → strict by creation date (undated excluded;
   // in practice every account has a date so this just guarantees accuracy).
-  // Real business creation date = bubble_created_at; created_at is just the
+  // Real business creation date = source_created_at; created_at is just the
   // Supabase row-insert time (all rows look "recent") so it's useless for
   // date filtering and must NOT be the primary signal.
-  const _createdTs = (l) => new Date(l.bubble_created_at || l.created_at || 0).getTime();
+  const _createdTs = (l) => new Date(l.source_created_at || l.created_at || 0).getTime();
   const inRange = (l) => {
     if (dshFilterRange === 'all') return true;
     const t = _createdTs(l);
@@ -14382,8 +14382,8 @@ async function submitAddLead() {
     const cName    = document.getElementById('al-contact-name').value.trim() || null;
     const cEmail   = document.getElementById('al-contact-email').value.trim() || null;
 
-    // Build bubble_id as a temp unique id
-    const tempBubbleId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    // Build external_id as a temp unique id
+    const tempExternalId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
     const row = {
       name,
@@ -14395,7 +14395,7 @@ async function submitAddLead() {
       rc_mail:   rcMail,
       industry,
       size,
-      bubble_id: tempBubbleId,
+      external_id: tempExternalId,
       raw_data:  {},
     };
 
@@ -14407,7 +14407,7 @@ async function submitAddLead() {
     const { data: inserted, error: fetchErr } = await sb
       .from('accounts')
       .select('id')
-      .eq('bubble_id', tempBubbleId)
+      .eq('external_id', tempExternalId)
       .single();
 
     if (fetchErr || !inserted) throw new Error('Could not retrieve new account');
@@ -14435,7 +14435,7 @@ async function submitAddLead() {
 
     // Add to local leads array
     const newLead = {
-      _id:          tempBubbleId,
+      _id:          tempExternalId,
       _supabase_id: accountId,
       name,
       'Contact_Name': name,
@@ -14457,7 +14457,7 @@ async function submitAddLead() {
     toast(`${name} added to pipeline`, 'success');
 
     // Auto-open the new lead detail
-    setTimeout(() => openDrawer(tempBubbleId), 400);
+    setTimeout(() => openDrawer(tempExternalId), 400);
 
   } catch(e) {
     errEl.textContent = 'Error: ' + e.message;
@@ -14644,7 +14644,7 @@ async function submitBulkUpload() {
           rc_mail:   r.rc_mail  || null,
           industry:  r.industry || null,
           size:      r.size     || null,
-          bubble_id: tempId,
+          external_id: tempId,
           raw_data:  {},
         };
 
@@ -14652,7 +14652,7 @@ async function submitBulkUpload() {
         if (accErr) { failed++; continue; }
 
         // Get inserted ID
-        const { data: ins } = await sb.from('accounts').select('id').eq('bubble_id', tempId).single();
+        const { data: ins } = await sb.from('accounts').select('id').eq('external_id', tempId).single();
         const accountId = ins?.id;
 
         // Insert contact if provided
@@ -14784,7 +14784,7 @@ function getLeadEmailDomain(lead) {
 // Earliest creation timestamp for a lead — prefers Bubble's original date, then Supabase row date.
 // Returns +Infinity when no date is known so those leads sort to the end (never picked as primary).
 function _leadCreatedTs(l) {
-  const cand = l.bubble_created_at || l.created_at || l.added_at || l.raw_data?.Original_Creation_Date || null;
+  const cand = l.source_created_at || l.created_at || l.added_at || l.raw_data?.Original_Creation_Date || null;
   if (!cand) return Infinity;
   const t = new Date(cand).getTime();
   return isFinite(t) ? t : Infinity;
@@ -14935,7 +14935,7 @@ function mergeV2Render(){
           const email   = gEmail(l) || '';
           const source  = gSource(l) || '';
           const stage   = (l.stage || gStage(l._id) || '').toString();
-          const dateRaw = l.bubble_created_at || l.created_at || '';
+          const dateRaw = l.source_created_at || l.created_at || '';
           const dateStr = dateRaw ? new Date(dateRaw).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
           return `<label style="display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border:1.5px solid ${isPrim?'var(--lime-700)':'var(--border)'};border-radius:9px;background:${isPrim?'var(--lime-200)':'var(--surface)'};cursor:pointer;transition:all 110ms;">
             <input type="radio" name="mergev2-primary-${i}" value="${esc(sbId)}" ${isPrim?'checked':''} onchange="mergeV2Pick(${i},'${esc(sbId)}')" style="margin-top:3px;accent-color:var(--cg-900);cursor:pointer;flex-shrink:0;"/>
@@ -15140,16 +15140,16 @@ async function mergeSelected() {
     for (const dup of duplicates) {
       try {
         if (sb) {
-          // Resolve Supabase UUIDs by bubble_id
+          // Resolve Supabase UUIDs by external_id
           let primarySbId = primaryLead._supabase_id;
           let dupSbId     = dup._supabase_id;
 
           if (!primarySbId) {
-            const { data: pa } = await sb.from('accounts').select('id').eq('bubble_id', primaryLead._id).single();
+            const { data: pa } = await sb.from('accounts').select('id').eq('external_id', primaryLead._id).single();
             primarySbId = pa?.id;
           }
           if (!dupSbId) {
-            const { data: da } = await sb.from('accounts').select('id').eq('bubble_id', dup._id).single();
+            const { data: da } = await sb.from('accounts').select('id').eq('external_id', dup._id).single();
             dupSbId = da?.id;
           }
 
