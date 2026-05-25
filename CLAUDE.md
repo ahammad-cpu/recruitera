@@ -107,3 +107,13 @@ File is deployed via Vercel. To update:
 - JS syntax: `node --check` each extracted `<script>` block
 - Layout: open in browser, check Sales Pipeline + Accounts + Insights + Lead Detail render correctly
 - Data: check browser console for `[CRM] sbFetch returned X accounts` — should be 486
+
+## ⚠️ Bubble sync PAUSED (2026-05-24 — security review)
+Per CTO security review, all Bubble→Supabase syncs are paused and the
+Bubble API key removed from everywhere:
+- 3 pg_cron jobs (bubble-sync, sync-paid-customers, merge-duplicates) **unscheduled**
+- `sync_config.api_key` deleted + `enabled = false`
+- `sync-paid-customers` redeployed (v9): hardcoded key removed; now reads
+  `BUBBLE_API_KEY` / `BUBBLE_URL` from Supabase secrets and **no-ops** if absent
+The CRM keeps serving the data already in Supabase; it just won't refresh
+from Bubble until a key is re-added as a secret and the crons are re-scheduled.
