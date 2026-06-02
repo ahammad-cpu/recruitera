@@ -11260,6 +11260,10 @@ function switchMainView(view) {
   // Always hide the renewal view unless we're entering it.
   const renewalViewEl = document.getElementById('renewal-view');
   if (view !== 'renewal' && renewalViewEl) renewalViewEl.style.cssText = 'display:none;';
+  // Clear the active highlight off EVERY sidebar item first; each branch then
+  // re-activates only its own. Prevents stale highlights when navigating
+  // between views (e.g. Renewal staying lit after clicking Accounts).
+  document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
 
   if (view === 'pipeline') {
     if (boardView)     { boardView.style.cssText = 'flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;'; }
