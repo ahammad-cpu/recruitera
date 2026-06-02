@@ -7315,6 +7315,16 @@ body .ld-tab-content {
         <span class="sb-item-label">Sales Pipeline</span>
         <span class="sb-cnt" id="sb-pipe-count">0</span>
       </div>
+      <div class="sb-item" data-label="Disqualified" id="sb-disq-item" onclick="switchMainView('disqualified')">
+        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        <span class="sb-item-label">Disqualified</span>
+        <span class="sb-cnt" id="sb-disq-count">0</span>
+      </div>
+      <div class="sb-item" data-label="Renewal" id="sb-renewal-item" onclick="switchMainView('renewal')">
+        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        <span class="sb-item-label">Renewal</span>
+        <span class="sb-cnt" id="sb-renewal-count">0</span>
+      </div>
       <div class="sb-item" data-label="UTM Generator" id="sb-utm-item" onclick="switchMainView('utm')" style="display:none;">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
         <span class="sb-item-label">UTM Generator</span>
@@ -7619,6 +7629,30 @@ body .ld-tab-content {
   <!-- ─── UTM GENERATOR VIEW ─── -->
   <div id="utm-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
 
+  <!-- ─── DISQUALIFIED VIEW (kanban grouped by stage at time of disq) ─── -->
+  <div id="disqualified-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:3px;">Disqualified leads, grouped by the stage they were in when removed.</div>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-3);">Drag a card back to its column to restore it.</div>
+    </div>
+    <div id="disq-board" style="display:flex;gap:16px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;min-height:0;flex:1;"></div>
+  </div>
+
+  <!-- ─── RENEWAL VIEW (kanban grouped by days-to-end + contract_cycle.status) ─── -->
+  <div id="renewal-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:3px;">Active contracts, bucketed by days remaining until renewal.</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary" onclick="loadRenewalBoard()" style="padding:6px 12px;font-size:12px;">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="renewal-board" style="display:flex;gap:16px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;min-height:0;flex:1;"></div>
+  </div>
+
     </div><!-- /.content -->
 </main>
 </div>
@@ -7697,6 +7731,261 @@ body .ld-tab-content {
     </div>
   </div>
 </div>
+
+<!-- ─── MQL GATE FAILURE MODAL ─── -->
+<div class="disq-modal-bg" id="mql-gate-modal-bg">
+  <div class="disq-modal" style="max-width:480px;">
+    <div class="disq-hdr">
+      <div class="disq-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B83A3A" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Not ready for MQL yet</span>
+      </div>
+      <div class="disq-sub">
+        <b id="mql-gate-company">—</b> doesn't meet the MQL qualification criteria. Fix the items below in the company profile, then try again.
+      </div>
+    </div>
+    <div class="disq-body">
+      <ul id="mql-gate-failures" style="margin:0;padding-left:20px;font-size:13px;line-height:1.5;color:var(--text-2);"></ul>
+      <div style="margin-top:14px;padding:10px 12px;background:var(--bg-2);border-radius:6px;font-size:11.5px;color:var(--text-3);">
+        <b>MQL criteria:</b> Title is CEO / Founder / GM / HR-related · Business email (not gmail/yahoo/etc) · Hiring volume &gt; 10 / year · Valid company name.
+      </div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeMqlGateModal()">OK, I'll fix it</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── BANT MODAL (Lead/MQL → SQL gate) ─── -->
+<div class="disq-modal-bg" id="bant-modal-bg">
+  <div class="disq-modal" style="max-width:560px;">
+    <div class="disq-hdr">
+      <div class="disq-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#392396" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Qualify SQL — BANT</span>
+      </div>
+      <div class="disq-sub">
+        Confirm <b id="bant-company">—</b> meets each BANT pillar. Yes / No / Unknown plus an optional note.
+      </div>
+    </div>
+    <div class="disq-body" style="display:flex;flex-direction:column;gap:14px;">
+      <div data-bant="budget" class="bant-row">
+        <div class="bant-row-hdr"><b>Budget</b><span>— Can they afford / willing to pay?</span></div>
+        <div class="bant-pills"></div>
+        <textarea class="bant-note" placeholder="Optional — e.g. $50k/year confirmed by CFO" rows="1"></textarea>
+      </div>
+      <div data-bant="authority" class="bant-row">
+        <div class="bant-row-hdr"><b>Authority</b><span>— Is our contact the decision maker?</span></div>
+        <div class="bant-pills"></div>
+        <textarea class="bant-note" placeholder="Optional — e.g. CEO signs off, HR Director uses daily" rows="1"></textarea>
+      </div>
+      <div data-bant="need" class="bant-row">
+        <div class="bant-row-hdr"><b>Need</b><span>— Is there a real, urgent pain we solve?</span></div>
+        <div class="bant-pills"></div>
+        <textarea class="bant-note" placeholder="Optional — e.g. losing 30% of candidates mid-funnel" rows="1"></textarea>
+      </div>
+      <div data-bant="timing" class="bant-row">
+        <div class="bant-row-hdr"><b>Timing</b><span>— Looking to buy in &lt; 3 months?</span></div>
+        <div class="bant-pills"></div>
+        <textarea class="bant-note" placeholder="Optional — e.g. Q3 rollout planned" rows="1"></textarea>
+      </div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="cancelBant()">Cancel</button>
+      <button class="btn btn-purple" style="flex:2" onclick="confirmBant()">Save &amp; move to SQL</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .bant-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);}
+  .bant-row-hdr{font-size:12.5px;color:var(--text-2);} .bant-row-hdr b{font-size:13px;color:var(--text-1);margin-right:6px;}
+  .bant-pills{display:flex;gap:6px;}
+  .bant-pill{padding:5px 12px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text-2);transition:all 120ms;}
+  .bant-pill:hover{border-color:var(--text-3);}
+  .bant-pill.on-yes{background:#e7f6ed;border-color:#2F8F5C;color:#2F8F5C;}
+  .bant-pill.on-no{background:#fce8e8;border-color:#B83A3A;color:#B83A3A;}
+  .bant-pill.on-unk{background:#f0eef9;border-color:#7c3aed;color:#7c3aed;}
+  .bant-note{font:inherit;font-size:12px;width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;min-height:28px;background:#fff;color:var(--text-1);}
+</style>
+
+<script>
+// ─── MQL GATE + BANT — added by Phase B3/B4 ───────────
+(function(){
+  const FREE_EMAIL_DOMAINS = new Set([
+    'gmail.com','googlemail.com','yahoo.com','yahoo.co.uk','yahoo.com.eg',
+    'hotmail.com','hotmail.co.uk','outlook.com','live.com','icloud.com',
+    'me.com','msn.com','aol.com','protonmail.com','proton.me','ymail.com',
+    'zoho.com','mail.com','gmx.com','yandex.com','qq.com','163.com',
+    'rediffmail.com','inbox.com','fastmail.com'
+  ]);
+  const TITLE_REGEX = /\b(ceo|coo|cfo|cto|cmo|chro|cpo|chief|founder|co[\- ]?founder|owner|partner|gm\b|general\s*manager|md\b|managing\s*director|country\s*head|country\s*manager|director|vp\b|vice\s*president|head\s*of\s*(?:people|talent|hr|recruiting|recruitment|human)|hr\b|human\s*resources?|talent\s*acquisition|ta\s*lead|ta\s*manager|recruiter|recruiting|recruitment|people\s*ops|people\s*operations|people\s*partner)\b/i;
+  const INVALID_NAMES = new Set(['','untitled','unknown','unnamed','no name','(unnamed)','untitled company','company','test','demo','tbd','n/a','na','-','—']);
+
+  function maxNumberInText(s){
+    if(s==null) return 0;
+    const m = String(s).match(/\d+/g);
+    if(!m) return 0;
+    return Math.max.apply(null, m.map(n => parseInt(n,10)));
+  }
+
+  window.validateMqlGate = function(lead){
+    if(!lead) return { ok:false, failures:[{rule:'Lead', why:'Lead not found'}] };
+    const failures = [];
+    const raw = lead.raw_data || {};
+
+    // 1. Title (primary contact)
+    const title = String(raw.Contact_Title || raw.Job_Title || raw.Title ||
+                         lead.contact_title || lead.job_title || '').trim();
+    if(!title){
+      failures.push({rule:'Title', why:'No contact title on file'});
+    } else if(!TITLE_REGEX.test(title)){
+      failures.push({rule:'Title', why:'Title "'+title+'" is not exec / GM / HR / recruiting'});
+    }
+
+    // 2. Business email
+    const email = String(raw.Contact_Email || raw.Email || lead.email || (typeof gEmail==='function' ? gEmail(lead) : '') || '').toLowerCase().trim();
+    if(!email){
+      failures.push({rule:'Email', why:'No business email on file'});
+    } else if(!email.includes('@')){
+      failures.push({rule:'Email', why:'"'+email+'" is not a valid email'});
+    } else {
+      const domain = email.split('@')[1].trim();
+      if(FREE_EMAIL_DOMAINS.has(domain)){
+        failures.push({rule:'Email', why:domain+' is a personal email — needs a business address'});
+      }
+    }
+
+    // 3. Hiring volume > 10/year
+    const vacRaw = lead.vacancies || raw.WP_Vacancies || raw.Vacancies || '';
+    const vacMax = maxNumberInText(vacRaw);
+    if(!String(vacRaw).trim()){
+      failures.push({rule:'Hiring volume', why:'Annual hiring volume not on file'});
+    } else if(vacMax <= 10){
+      failures.push({rule:'Hiring volume', why:'"'+vacRaw+'" is ≤ 10/year — need > 10'});
+    }
+
+    // 4. Valid company name
+    const name = String((typeof gName==='function' ? gName(lead) : (lead.name||''))).trim();
+    if(name.length < 2 || INVALID_NAMES.has(name.toLowerCase())){
+      failures.push({rule:'Company name', why:'"'+(name||'(empty)')+'" is not a valid company name'});
+    }
+
+    return { ok: failures.length === 0, failures };
+  };
+
+  window.openMqlGateModal = function(failures, lead){
+    const m = document.getElementById('mql-gate-modal-bg'); if(!m) return;
+    document.getElementById('mql-gate-company').textContent = (typeof gName==='function' ? gName(lead) : (lead?.name||'(no name)'));
+    const list = document.getElementById('mql-gate-failures');
+    list.innerHTML = failures.map(function(f){
+      const escFn = (typeof esc==='function') ? esc : (s=>String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]));
+      return '<li style="margin-bottom:8px;"><b style="color:#B83A3A;">'+escFn(f.rule)+':</b> '+escFn(f.why)+'</li>';
+    }).join('');
+    m.classList.add('open');
+  };
+  window.closeMqlGateModal = function(){
+    document.getElementById('mql-gate-modal-bg')?.classList.remove('open');
+  };
+
+  // ─── BANT modal ──────────────────────────────────────
+  let currentBant = { id:null, fields:{} };
+  const PILLARS = [['budget','Budget'],['authority','Authority'],['need','Need'],['timing','Timing']];
+
+  function renderBantPills(){
+    PILLARS.forEach(function(p){
+      const key = p[0];
+      const wrap = document.querySelector('#bant-modal-bg .bant-row[data-bant="'+key+'"] .bant-pills');
+      if(!wrap) return;
+      const cur = currentBant.fields[key+'_yes']; // true / false / null
+      wrap.innerHTML = ''
+        + '<button type="button" class="bant-pill '+(cur===true?'on-yes':'')+'" data-val="yes">Yes</button>'
+        + '<button type="button" class="bant-pill '+(cur===false?'on-no':'')+'" data-val="no">No</button>'
+        + '<button type="button" class="bant-pill '+(cur===null?'on-unk':'')+'" data-val="unk">Unknown</button>';
+      wrap.querySelectorAll('.bant-pill').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const v = btn.getAttribute('data-val');
+          currentBant.fields[key+'_yes'] = v==='yes' ? true : v==='no' ? false : null;
+          renderBantPills();
+        });
+      });
+    });
+  }
+
+  window.openBantModal = function(leadId, presetFromAccount){
+    const lead = leads.find(function(l){return l._id===leadId;});
+    if(!lead){ if(typeof toast==='function') toast('Lead not found','error'); return; }
+    const src = presetFromAccount || lead;
+    currentBant = {
+      id: leadId,
+      fields: {
+        budget_yes:    src.bant_budget_yes    ?? null,
+        budget_note:   src.bant_budget_note   ?? '',
+        authority_yes: src.bant_authority_yes ?? null,
+        authority_note:src.bant_authority_note?? '',
+        need_yes:      src.bant_need_yes      ?? null,
+        need_note:     src.bant_need_note     ?? '',
+        timing_yes:    src.bant_timing_yes    ?? null,
+        timing_note:   src.bant_timing_note   ?? '',
+      }
+    };
+    document.getElementById('bant-company').textContent =
+      (typeof gName==='function' ? gName(lead) : (lead.name||'(no name)'));
+    PILLARS.forEach(function(p){
+      const key = p[0];
+      const ta = document.querySelector('#bant-modal-bg .bant-row[data-bant="'+key+'"] .bant-note');
+      if(ta) ta.value = currentBant.fields[key+'_note'] || '';
+    });
+    renderBantPills();
+    document.getElementById('bant-modal-bg').classList.add('open');
+  };
+
+  window.cancelBant = function(){
+    document.getElementById('bant-modal-bg').classList.remove('open');
+    // Drop the pending move (Lead/MQL → SQL) — user backed out
+    if(typeof pendingStageChange !== 'undefined') pendingStageChange = null;
+    currentBant = { id:null, fields:{} };
+  };
+
+  window.confirmBant = async function(){
+    // Snapshot notes from textareas
+    PILLARS.forEach(function(p){
+      const key = p[0];
+      const ta = document.querySelector('#bant-modal-bg .bant-row[data-bant="'+key+'"] .bant-note');
+      if(ta) currentBant.fields[key+'_note'] = ta.value.trim() || null;
+    });
+
+    const id = currentBant.id;
+    const lead = leads.find(function(l){return l._id===id;});
+    const sbId = lead?._supabase_id;
+    const payload = Object.assign({}, currentBant.fields, {
+      bant_filled_at: new Date().toISOString(),
+      bant_filled_by: (window.AUTH_PROFILE?.id) || null,
+    });
+
+    // Optimistic: mirror onto in-memory lead
+    if(lead) Object.assign(lead, payload);
+
+    // Persist
+    if(sbId && window._sbClient){
+      const { error } = await window._sbClient.from('accounts').update(payload).eq('id', sbId);
+      if(error){ console.warn('[BANT] persist:', error.message); if(typeof toast==='function') toast('BANT saved locally; sync failed','error'); }
+    }
+
+    document.getElementById('bant-modal-bg').classList.remove('open');
+
+    // Apply the queued stage change → SQL
+    if(typeof pendingStageChange !== 'undefined' && pendingStageChange){
+      const { id:pid, newStage, oldStage } = pendingStageChange;
+      pendingStageChange = null;
+      if(typeof applyStageChange === 'function') applyStageChange(pid, newStage, oldStage);
+    }
+
+    if(typeof toast==='function') toast('BANT saved · moved to SQL','success');
+    currentBant = { id:null, fields:{} };
+  };
+})();
+</script>
 
 <!-- ─── LOADER ─── -->
 <div class="loader-ov" id="loader-ov">
@@ -7912,10 +8201,10 @@ const STAGES=[
   {id:'won',      name:'Deal Won',      color:'#2F8F5C'},
   {id:'lost',     name:'Deal Lost',     color:'#B83A3A'},
 ];
-// Kanban (Sales Pipeline) shows SQL onwards — MQL is the intake bucket and lives
-// in the Accounts table where leads can be reviewed and either qualified to SQL
-// or disqualified.
-const KANBAN_STAGES = STAGES.filter(s => s.id !== 'mql');
+// Funnel starts at MQL. Lead is a pre-MQL bucket that lives only in Accounts
+// → Leads tab; companies are promoted to MQL only after passing the MQL gate
+// (validateMqlGate). Kanban therefore renders every STAGES entry as a column.
+const KANBAN_STAGES = STAGES;
 
 // ─── ICP CRITERIA ─────────────────────────────────────
 const ICP_CRITERIA=[
@@ -8165,16 +8454,14 @@ function trialStatus(lead){
 
 // ─── STATE GETTERS/SETTERS ────────────────────────────
 // gStage: cached value first, then the row's last-known DB stage, else MQL.
-// 'lead' is no longer a stage — anything still cached as 'lead' is rewritten
-// to 'mql' on read (and re-saved so subsequent calls are clean).
+// 'lead' is the pre-MQL bucket (Accounts → Leads tab) and is a real stage —
+// no longer rewritten to 'mql'. The MQL gate (validateMqlGate) promotes a
+// Lead to MQL only when the company passes the qualification criteria.
 const gStage=id=>{
-  let v=ls.g('st_'+id);
-  if(v==='lead'){ v='mql'; try{ ls.s('st_'+id,'mql'); }catch{} }
+  const v=ls.g('st_'+id);
   if(v)return v;
   const l=leads.find(x=>x._id===id);
-  let s=l?._sb_stage;
-  if(s==='lead') s='mql';
-  return s||'mql';
+  return l?._sb_stage || 'mql';
 };
 const sStage=(id,s)=>ls.s('st_'+id,s);
 const gAcv=id=>{
@@ -8519,6 +8806,19 @@ async function sbFetch() {
     // Pipeline state
     _sb_stage:        acc.stage || 'mql',
     _sb_is_disq:      acc.is_disqualified || false,
+    disq_stage:       acc.disq_stage || null,
+    disq_reason:      acc.disq_reason || null,
+    vacancies:        acc.vacancies || acc.raw_data?.WP_Vacancies || acc.raw_data?.Vacancies || '',
+    job_title:        acc.raw_data?.Contact_Title || acc.raw_data?.Job_Title || acc.raw_data?.Title || '',
+    bant_budget_yes:    acc.bant_budget_yes ?? null,
+    bant_budget_note:   acc.bant_budget_note || '',
+    bant_authority_yes: acc.bant_authority_yes ?? null,
+    bant_authority_note:acc.bant_authority_note || '',
+    bant_need_yes:      acc.bant_need_yes ?? null,
+    bant_need_note:     acc.bant_need_note || '',
+    bant_timing_yes:    acc.bant_timing_yes ?? null,
+    bant_timing_note:   acc.bant_timing_note || '',
+    bant_filled_at:     acc.bant_filled_at || null,
     is_unreachable:   acc.is_unreachable === true,
     is_paid_customer: acc.is_paid_customer || false,
     paid_status:      acc.paid_status || null,
@@ -8557,20 +8857,8 @@ async function refresh(){
 
 // ─── INIT ─────────────────────────────────────────────
 function init(){
-  // One-shot migration: anything cached as 'lead' now becomes 'mql'.
-  // Necessary after the DB-side enum/stage migration so old sessions don't
-  // keep treating moved leads as still-in-Lead.
-  let _swept=0;
-  for (let i=localStorage.length-1; i>=0; i--) {
-    const k = localStorage.key(i);
-    if (!k || !k.startsWith(STORAGE_PREFIX+'st_')) continue;
-    try {
-      const raw = localStorage.getItem(k);
-      const v = raw ? JSON.parse(raw) : null;
-      if (v === 'lead') { localStorage.setItem(k, JSON.stringify('mql')); _swept++; }
-    } catch {}
-  }
-  if (_swept) console.log('[init] promoted', _swept, "cached 'lead' → 'mql'");
+  // (Removed: lead→mql cache migration. 'lead' is again a real stage as of
+  // the MQL-gate rework — keeping the value as-is in localStorage.)
 
   // One-shot sweep: wipe stale rcrm5_owner_* localStorage overrides. The owner
   // is now always read from accounts.am_mail (DB truth) — any local override
@@ -8593,8 +8881,7 @@ function init(){
   // Seed stage + deal data from Supabase into localStorage cache (only if missing)
   leads.forEach(l=>{
     const id=l._id;
-    const sbStage = (l._sb_stage === 'lead') ? 'mql' : l._sb_stage;
-    if(sbStage && !ls.g('st_'+id)) ls.s('st_'+id, sbStage);
+    if(l._sb_stage && !ls.g('st_'+id)) ls.s('st_'+id, l._sb_stage);
     if(l.deal_value && !ls.g('acv_'+id)) ls.s('acv_'+id, String(l.deal_value));
     if(l.deal_close_date && !ls.g('close_'+id)) ls.s('close_'+id, l.deal_close_date);
     if(l._sb_is_disq && !ls.g('disq_'+id)) ls.s('disq_'+id, '1');
@@ -8679,8 +8966,8 @@ function filtered(){
     if(!hasRealData(l)) return false;
     if(showingDisqualified) return !!gDisq(l._id);
     if(gDisq(l._id)) return false;
-    // Pure Lead stage stays in Accounts table; MQL onwards lives in kanban
-    if(gStage(l._id)==='mql') return false;
+    // Pure Lead stage stays in Accounts table; MQL onwards lives in kanban.
+    if(gStage(l._id)==='lead') return false;
     if(q){
       const t=`${gName(l)} ${gEmail(l)} ${gIndustry(l)} ${gSource(l)} ${gContact(l._id).enriched_name||''}`.toLowerCase();
       if(!t.includes(q))return false;
@@ -8909,15 +9196,31 @@ function ddr(e,sid){
   e.preventDefault();document.getElementById('col-'+sid)?.classList.remove('dov');
   if(!dragId)return;
   const prev=gStage(dragId);
-  if(prev!==sid){
-    if(sid==='lost'){
-      pendingStageChange={id:dragId,newStage:'lost',oldStage:prev};
-      openLostModal();
-    } else {
-      applyStageChange(dragId,sid,prev);
-    }
-  }
+  const id=dragId; // capture before reset
   dragId=null;
+  if(prev===sid) return;
+
+  // MQL gate: must pass title/email/vacancies/name before entering MQL.
+  if(sid==='mql'){
+    const lead=leads.find(l=>l._id===id);
+    const v=validateMqlGate(lead);
+    if(!v.ok){ openMqlGateModal(v.failures, lead); return; }
+  }
+
+  // SQL gate: open BANT modal first; only apply on save.
+  if(sid==='sql'){
+    pendingStageChange={id, newStage:'sql', oldStage:prev};
+    openBantModal(id);
+    return;
+  }
+
+  if(sid==='lost'){
+    pendingStageChange={id, newStage:'lost', oldStage:prev};
+    openLostModal();
+    return;
+  }
+
+  applyStageChange(id, sid, prev);
 }
 
 // ─── SIDEBAR COLLAPSE ─────────────────────────────────
@@ -11006,6 +11309,33 @@ function switchMainView(view) {
     setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,true);
     if (topbarTitle)  topbarTitle.innerHTML = `UTM Generator`;
     requestAnimationFrame(() => { try { renderUTM(); } catch(e){ console.error('renderUTM failed', e); } });
+  } else if (view === 'disqualified') {
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    hideUtm();
+    const disqView    = document.getElementById('disqualified-view');
+    const renewalView = document.getElementById('renewal-view');
+    if (disqView)     disqView.style.cssText    = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;';
+    if (renewalView)  renewalView.style.cssText = 'display:none;';
+    [pipelineItem,accountsItem,dashboardItem,utmItem,document.getElementById('sb-renewal-item')].forEach(it=>setActive(it,false));
+    setActive(document.getElementById('sb-disq-item'),true);
+    const disqCount = leads.filter(l => l._sb_is_disq || (typeof gDisq==='function' && gDisq(l._id))).length;
+    if (topbarTitle) topbarTitle.innerHTML = `Disqualified <span class="tb-badge">${disqCount} total</span>`;
+    requestAnimationFrame(() => renderDisqBoard());
+  } else if (view === 'renewal') {
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    hideUtm();
+    const disqView    = document.getElementById('disqualified-view');
+    const renewalView = document.getElementById('renewal-view');
+    if (disqView)     disqView.style.cssText    = 'display:none;';
+    if (renewalView)  renewalView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;';
+    [pipelineItem,accountsItem,dashboardItem,utmItem,document.getElementById('sb-disq-item')].forEach(it=>setActive(it,false));
+    setActive(document.getElementById('sb-renewal-item'),true);
+    if (topbarTitle) topbarTitle.innerHTML = `Renewal Pipeline`;
+    requestAnimationFrame(() => loadRenewalBoard());
   }
 }
 
@@ -15335,6 +15665,226 @@ window.addEventListener('auth-ready', () => {
     renderBoard(); kpis();
   });
 });
+</script>
+
+<script>
+// ─── DISQUALIFIED + RENEWAL KANBANS (Phase B5/B6) ───
+(function(){
+  // Stages at which a lead can be disqualified — same as the pipeline.
+  const DISQ_COLS = [
+    { id:'lead',     name:'Lead',     color:'#969BA1' },
+    { id:'mql',      name:'MQL',      color:'#969BA1' },
+    { id:'sql',      name:'SQL',      color:'#6C737C' },
+    { id:'demo',     name:'Demo',     color:'#392396' },
+    { id:'proposal', name:'Proposal', color:'#CCED59' },
+    { id:'won',      name:'Won',      color:'#2F8F5C' },
+  ];
+
+  function disqStageOf(lead){
+    return lead?.disq_stage || lead?._sb_disq_stage || lead?._sb_stage || 'lead';
+  }
+  function disqReasonOf(id){
+    try {
+      const v = ls.g('disq_'+id);
+      if (v && typeof v === 'object') return v.reason || '';
+      if (v && typeof v === 'string') return '';
+    } catch {}
+    return '';
+  }
+
+  window.renderDisqBoard = function(){
+    const board = document.getElementById('disq-board');
+    if(!board) return;
+    const disqLeads = leads.filter(l => l._sb_is_disq || (typeof gDisq==='function' && gDisq(l._id)));
+    const byStage = {};
+    DISQ_COLS.forEach(c => byStage[c.id] = []);
+    disqLeads.forEach(l => {
+      const s = disqStageOf(l);
+      if(byStage[s]) byStage[s].push(l); else byStage.lead.push(l);
+    });
+
+    board.innerHTML = '';
+    DISQ_COLS.forEach(col => {
+      const items = byStage[col.id];
+      const colEl = document.createElement('div');
+      colEl.style.cssText = 'min-width:260px;max-width:300px;flex:1;background:var(--bg-2,#F6F7F9);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;max-height:100%;';
+      colEl.innerHTML = ''
+        + '<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">'
+        +   '<span style="width:8px;height:8px;border-radius:50%;background:'+col.color+';"></span>'
+        +   '<span style="font-size:13px;font-weight:600;color:var(--text-1);">'+col.name+'</span>'
+        +   '<span style="margin-left:auto;font-size:12px;font-weight:600;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:1px 8px;color:var(--text-2);">'+items.length+'</span>'
+        + '</div>'
+        + '<div class="disq-col-body" style="padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;"></div>';
+      const body = colEl.querySelector('.disq-col-body');
+      if(items.length === 0){
+        body.innerHTML = '<div style="padding:18px 8px;text-align:center;font-size:11.5px;color:var(--text-4);">No companies disqualified at this stage</div>';
+      } else {
+        items.forEach(l => {
+          const id = l._id;
+          const reason = disqReasonOf(id) || l.disq_reason || '—';
+          const name = (typeof gName==='function' ? gName(l) : (l.name||'(no name)'));
+          const dom  = (typeof domainFromBubble==='function' ? domainFromBubble(l) : '') || '';
+          const escFn = (typeof esc==='function') ? esc : (s=>String(s));
+          const card = document.createElement('div');
+          card.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color 120ms;';
+          card.onmouseover = ()=>card.style.borderColor='var(--text-3)';
+          card.onmouseout  = ()=>card.style.borderColor='var(--border)';
+          card.innerHTML = ''
+            + '<div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:3px;">'+escFn(name)+'</div>'
+            + (dom?'<div style="font-size:11px;color:var(--text-3);margin-bottom:6px;">'+escFn(dom)+'</div>':'')
+            + '<div style="font-size:11px;color:var(--bad);background:var(--bad-bg,#fce8e8);padding:3px 7px;border-radius:6px;display:inline-block;">'+escFn(reason)+'</div>';
+          card.addEventListener('click', () => { try { openDrawer(id, 'pipeline'); } catch {} });
+          body.appendChild(card);
+        });
+      }
+      board.appendChild(colEl);
+    });
+
+    const c = document.getElementById('sb-disq-count');
+    if(c) c.textContent = disqLeads.length;
+  };
+
+  // ─── RENEWAL KANBAN ─────────────────────────────────
+  // Buckets driven by days-to-end_at + status.
+  const RENEWAL_COLS = [
+    { id:'upcoming90', name:'Upcoming 90d', color:'#969BA1', match: c => c.status==='active' && c._daysLeft >= 60 && c._daysLeft < 90 },
+    { id:'in60',       name:'60 days out',  color:'#6C737C', match: c => c.status==='active' && c._daysLeft >= 30 && c._daysLeft < 60 },
+    { id:'in30',       name:'30 days out',  color:'#B8761A', match: c => c.status==='active' && c._daysLeft >= 0  && c._daysLeft < 30 },
+    { id:'overdue',    name:'Overdue',      color:'#B83A3A', match: c => c.status==='active' && c._daysLeft < 0 },
+    { id:'renewed',    name:'Renewed',      color:'#2F8F5C', match: c => c.status==='renewed' },
+    { id:'churned',    name:'Churned',      color:'#392396', match: c => c.status==='churned' },
+  ];
+
+  let _renewalCache = [];
+
+  window.loadRenewalBoard = async function(){
+    const board = document.getElementById('renewal-board');
+    if(!board) return;
+    board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Loading contracts…</div>';
+
+    if(!window._sbClient){
+      board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Supabase client not ready.</div>';
+      return;
+    }
+    const { data, error } = await window._sbClient
+      .from('contract_cycles')
+      .select('id, account_id, plan_tier, value, currency, started_at, ends_at, status, auto_renew, cycle_number')
+      .order('ends_at', { ascending: true });
+    if(error){
+      board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--bad);font-size:12px;">Failed to load contracts: '+esc(error.message)+'</div>';
+      return;
+    }
+    const today = new Date(); today.setHours(0,0,0,0);
+    _renewalCache = (data||[]).map(c => {
+      const end = c.ends_at ? new Date(c.ends_at) : null;
+      const daysLeft = end ? Math.floor((end - today)/(1000*60*60*24)) : null;
+      return Object.assign({}, c, { _daysLeft: daysLeft });
+    });
+    renderRenewalBoard();
+  };
+
+  function renderRenewalBoard(){
+    const board = document.getElementById('renewal-board');
+    if(!board) return;
+    board.innerHTML = '';
+    const accById = {};
+    leads.forEach(l => { if(l._supabase_id) accById[l._supabase_id] = l; });
+
+    let total = 0;
+    RENEWAL_COLS.forEach(col => {
+      const items = _renewalCache.filter(col.match);
+      total += items.length;
+      const colEl = document.createElement('div');
+      colEl.style.cssText = 'min-width:240px;max-width:280px;flex:1;background:var(--bg-2,#F6F7F9);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;max-height:100%;';
+      colEl.dataset.colId = col.id;
+      colEl.innerHTML = ''
+        + '<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">'
+        +   '<span style="width:8px;height:8px;border-radius:50%;background:'+col.color+';"></span>'
+        +   '<span style="font-size:13px;font-weight:600;color:var(--text-1);">'+col.name+'</span>'
+        +   '<span style="margin-left:auto;font-size:12px;font-weight:600;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:1px 8px;color:var(--text-2);">'+items.length+'</span>'
+        + '</div>'
+        + '<div class="renewal-col-body" style="padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;"></div>';
+
+      // Drop to set status
+      colEl.addEventListener('dragover', e => { e.preventDefault(); colEl.style.background = '#eef0fa'; });
+      colEl.addEventListener('dragleave',()=>{ colEl.style.background = 'var(--bg-2,#F6F7F9)'; });
+      colEl.addEventListener('drop', async e => {
+        e.preventDefault(); colEl.style.background = 'var(--bg-2,#F6F7F9)';
+        const cid = e.dataTransfer.getData('text/contract-id');
+        if(!cid) return;
+        const newStatus = (col.id==='renewed' || col.id==='churned') ? col.id : 'active';
+        const row = _renewalCache.find(r => r.id===cid);
+        if(!row) return;
+        const prev = row.status;
+        row.status = newStatus;
+        renderRenewalBoard();
+        const { error } = await window._sbClient.from('contract_cycles').update({ status:newStatus }).eq('id', cid);
+        if(error){ row.status = prev; renderRenewalBoard(); if(typeof toast==='function') toast('Update failed: '+error.message, 'error'); }
+        else if(typeof toast==='function') toast('Marked '+newStatus, 'success');
+      });
+
+      const body = colEl.querySelector('.renewal-col-body');
+      if(items.length === 0){
+        body.innerHTML = '<div style="padding:18px 8px;text-align:center;font-size:11.5px;color:var(--text-4);">No contracts</div>';
+      } else {
+        items.forEach(c => {
+          const acc = accById[c.account_id];
+          const accName = acc ? ((typeof gName==='function')? gName(acc) : (acc.name||'(no name)')) : '(unknown account)';
+          const valStr = (c.value!=null) ? new Intl.NumberFormat('en-US',{maximumFractionDigits:0}).format(c.value) : '—';
+          const cur = c.currency || 'USD';
+          const escFn = (typeof esc==='function') ? esc : (s=>String(s));
+          const endStr = c.ends_at ? new Date(c.ends_at).toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+          let pillBg='#F3F4F6', pillFg='var(--text-2)';
+          if(c.status==='active'){
+            if(c._daysLeft==null){ pillBg='#F3F4F6'; pillFg='var(--text-2)'; }
+            else if(c._daysLeft<0){ pillBg='#fce8e8'; pillFg='#B83A3A'; }
+            else if(c._daysLeft<30){ pillBg='#fff0db'; pillFg='#B8761A'; }
+            else if(c._daysLeft<60){ pillBg='#e8f0fd'; pillFg='#2C5BA8'; }
+            else { pillBg='#eaf6ee'; pillFg='#2F8F5C'; }
+          } else if(c.status==='renewed'){ pillBg='#e7f6ed'; pillFg='#2F8F5C'; }
+          else if(c.status==='churned'){ pillBg='#f0eef9'; pillFg='#392396'; }
+
+          const daysPill = (c.status==='active' && c._daysLeft!=null)
+            ? (c._daysLeft<0 ? Math.abs(c._daysLeft)+' days overdue' : c._daysLeft+' days left')
+            : (c.status==='renewed' ? 'Renewed' : c.status==='churned' ? 'Churned' : '—');
+
+          const card = document.createElement('div');
+          card.draggable = true;
+          card.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:grab;';
+          card.innerHTML = ''
+            + '<div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px;">'+escFn(accName)+'</div>'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;color:var(--text-3);margin-bottom:6px;">'
+            +   '<span>'+escFn(c.plan_tier||'—')+'</span>'
+            +   '<span style="font-family:DM Mono,monospace;color:var(--text-2);">'+escFn(cur)+' '+valStr+'</span>'
+            + '</div>'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+            +   '<span style="font-size:10.5px;color:var(--text-4);">Ends '+endStr+'</span>'
+            +   '<span style="font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:'+pillBg+';color:'+pillFg+';">'+daysPill+'</span>'
+            + '</div>';
+          card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/contract-id', c.id); e.dataTransfer.effectAllowed = 'move'; });
+          card.addEventListener('click', () => { if(acc) { try { openDrawer(acc._id, 'pipeline'); } catch {} } });
+          body.appendChild(card);
+        });
+      }
+      board.appendChild(colEl);
+    });
+
+    const c = document.getElementById('sb-renewal-count');
+    if(c) c.textContent = total;
+  }
+
+  // Make renderDisqBoard available to anywhere that needs to refresh the count
+  // (kanban move → disqualified, etc).
+  const origUpdateDisqCount = window.updateDisqCount;
+  window.updateDisqCount = function(){
+    if(typeof origUpdateDisqCount === 'function'){
+      try { origUpdateDisqCount(); } catch {}
+    }
+    const disqLeads = leads.filter(l => l._sb_is_disq || (typeof gDisq==='function' && gDisq(l._id)));
+    const c = document.getElementById('sb-disq-count');
+    if(c) c.textContent = disqLeads.length;
+  };
+})();
 </script>
 
 </body>
