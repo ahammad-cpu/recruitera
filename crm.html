@@ -16325,7 +16325,7 @@ window.addEventListener('auth-ready', () => {
       panel.innerHTML = '<div style="padding:20px;color:var(--text-3);font-size:13px;">Select or create a role from the left.</div>';
       return;
     }
-    const isAdminRole = role.name.toLowerCase() === 'admin';
+    const isAdminRole = role.type === 'admin';
     const perms = _rolePolicies[role.id] || {};
     const members = _allProfiles.filter(p => p.team_id === role.id);
 
@@ -16396,8 +16396,11 @@ window.addEventListener('auth-ready', () => {
           <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(role.description||'No description')}</div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" onclick="abacRoleRename('${role.id}')" style="padding:6px 12px;font-size:12px;">Rename</button>
-          ${isAdminRole ? '' : `<button class="btn btn-secondary" onclick="abacRoleDelete('${role.id}')" style="padding:6px 12px;font-size:12px;color:var(--bad);border-color:var(--bad);">Delete role</button>`}
+          ${role.is_system
+            ? `<button class="btn btn-secondary" onclick="abacRoleEditDescription('${role.id}')" style="padding:6px 12px;font-size:12px;">Edit description</button>`
+            : `<button class="btn btn-secondary" onclick="abacRoleRename('${role.id}')" style="padding:6px 12px;font-size:12px;">Rename</button>`
+          }
+          ${role.is_system ? '' : `<button class="btn btn-secondary" onclick="abacRoleDelete('${role.id}')" style="padding:6px 12px;font-size:12px;color:var(--bad);border-color:var(--bad);">Delete role</button>`}
         </div>
       </div>
 
@@ -16589,29 +16592,52 @@ window.addEventListener('auth-ready', () => {
   window.abacRoleRename = async function(id){
     const role = _rolesCache.find(r => r.id === id);
     if(!role) return;
+    if(role.is_system){
+      if(typeof toast==='function') toast('System roles cannot be renamed','error');
+      return;
+    }
     const newName = (prompt('Rename role:', role.name) || '').trim();
     if(!newName || newName === role.name) return;
     const newDesc = (prompt('Description:', role.description || '') || '').trim();
     try {
-      await _restWrite(`teams?id=eq.${id}`, 'PATCH', { name:newName, description:newDesc || null });
-      await renderSettingsRoles();
+      await _restWrite(`roles?id=eq.${id}`, 'PATCH', { name:newName, description:newDesc || null });
+      role.name = newName; role.description = newDesc || null;
+      _paintRolesFromCache();
       if(typeof toast==='function') toast('Role updated','success');
     } catch (e) { if(typeof toast==='function') toast('Rename failed: '+e.message,'error'); }
+  };
+
+  window.abacRoleEditDescription = async function(id){
+    const role = _rolesCache.find(r => r.id === id);
+    if(!role) return;
+    const newDesc = (prompt('Edit description:', role.description || '') || '').trim();
+    if(newDesc === (role.description || '')) return;
+    try {
+      await _restWrite(`roles?id=eq.${id}`, 'PATCH', { description: newDesc || null });
+      role.description = newDesc || null;
+      _paintRolesFromCache();
+      if(typeof toast==='function') toast('Description updated','success');
+    } catch (e) { if(typeof toast==='function') toast('Update failed: '+e.message,'error'); }
   };
 
   window.abacRoleDelete = async function(id){
     const role = _rolesCache.find(r => r.id === id);
     if(!role) return;
-    if(!confirm(`Delete role "${role.name}"? Members will lose their team assignment. Toggles you set become inert (policies stay disabled in Advanced).`)) return;
+    if(role.is_system){
+      if(typeof toast==='function') toast('System roles cannot be deleted','error');
+      return;
+    }
+    if(!confirm(`Delete role "${role.name}"? Members will lose their role assignment. Their team assignment is kept. Toggles you set become inert (policies stay disabled in Advanced).`)) return;
     try {
-      // First disable any auto-policies bound to this role so a re-creation doesn't accidentally re-grant.
       const rolePerms = _rolePolicies[id] || {};
       for(const p of Object.values(rolePerms)){
         try { await _restWrite(`abac_policies?id=eq.${p.id}`, 'PATCH', { enabled:false }); } catch {}
       }
-      await _restWrite(`teams?id=eq.${id}`,'DELETE');
+      await _restWrite(`roles?id=eq.${id}`,'DELETE');
       _selectedRoleId = null;
-      await renderSettingsRoles();
+      _rolesCache = _rolesCache.filter(r => r.id !== id);
+      _allProfiles.forEach(p => { if(p.role_id === id) p.role_id = null; });
+      _paintRolesFromCache();
       if(typeof toast==='function') toast('Role deleted','success');
     } catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
   };
