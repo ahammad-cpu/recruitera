@@ -16353,7 +16353,6 @@ window.addEventListener('auth-ready', () => {
 
     // Members panel (when sub-tab = 'members')
     const unassigned = _allProfiles.filter(p => p.team_id !== role.id);
-    const leadId = role.lead_user_id || null;
     const memberRows = members.length === 0
       ? '<div style="padding:30px;text-align:center;color:var(--text-4);font-size:12px;">No members in this role yet. Add some below.</div>'
       : members.map(m => {
@@ -16376,10 +16375,6 @@ window.addEventListener('auth-ready', () => {
           <button class="btn btn-secondary" onclick="abacRoleRemoveMember('${m.id}')" style="padding:4px 10px;font-size:11px;color:var(--bad);border-color:var(--bad);">Remove</button>
         </div>`;
         }).join('');
-
-    const leadExplainer = leadId
-      ? `<div style="padding:10px 12px;background:#fdfbe7;border:1px solid #ecdc66;border-radius:6px;color:#7a5e00;font-size:12px;margin-bottom:12px;line-height:1.45;">👑 <b>${esc((members.find(m=>m.id===leadId)||{}).full_name||'Team Lead')}</b> is the team lead. They can read and update any account owned by anyone in this team — in addition to their own.</div>`
-      : '<div style="padding:10px 12px;background:var(--bg-2);border:1px dashed var(--border);border-radius:6px;color:var(--text-3);font-size:12px;margin-bottom:12px;">No team lead set. A team lead can read + update accounts owned by anyone in the team. Click "Make Lead" on a member to designate.</div>';
 
     const addMemberHtml = unassigned.length === 0
       ? '<div style="padding:10px;text-align:center;color:var(--text-4);font-size:11.5px;">All users are already assigned to a role.</div>'
@@ -16415,7 +16410,6 @@ window.addEventListener('auth-ready', () => {
         ${isAdminRole ? '<div style="padding:10px 12px;background:#f0eef9;border:1px solid #d6d1ee;border-radius:6px;color:#392396;font-size:12px;margin-bottom:14px;">Admin role bypasses every ABAC policy automatically. Toggles are shown for reference but cannot be changed.</div>' : ''}
         ${groupHtml}
       ` : `
-        ${leadExplainer}
         ${memberRows}
         ${addMemberHtml}
       `}`;
@@ -16444,57 +16438,6 @@ window.addEventListener('auth-ready', () => {
       if(typeof toast==='function') toast('Member added','success');
     } catch (e) { if(typeof toast==='function') toast('Add failed: '+e.message,'error'); }
   };
-  // Designate / clear the Team Lead for a role. When a lead is set, we upsert two
-  // auto-policies (read + update) named auto:lead:<team_id>:<action>, whose
-  // subject targets the specific lead's user_id and whose condition matches
-  // accounts where the owner is also in this team.
-  window.abacRoleSetLead = async function(roleId, newLeadId){
-    const role = _rolesCache.find(r => r.id === roleId);
-    if(!role) return;
-    if(newLeadId){
-      const m = _allProfiles.find(p => p.id === newLeadId);
-      const who = m ? (m.full_name||m.email) : 'this user';
-      if(!confirm(`Make ${who} the Team Lead of ${role.name}? They will be able to read + update any account owned by anyone in this team.`)) return;
-    } else {
-      if(!confirm(`Clear the Team Lead designation for ${role.name}? The current lead will lose delegated access to team members' accounts.`)) return;
-    }
-    try {
-      // 1. Persist on teams
-      await _restWrite(`teams?id=eq.${roleId}`, 'PATCH', { lead_user_id: newLeadId });
-      role.lead_user_id = newLeadId;
-
-      // 2. Upsert lead-policies: read + update. condition is account.owner_team_id eq value_from user.team_id.
-      const leadCond = { all: [
-        { field:'account.owner_team_id', op:'eq', value_from:'user.team_id' }
-      ]};
-      for (const action of ['read','update']) {
-        const policyName = 'auto:lead:'+roleId+':'+action;
-        const existing = (await _restGet(`abac_policies?select=*&name=eq.${encodeURIComponent(policyName)}`))[0];
-        if(newLeadId){
-          const payload = {
-            name: policyName,
-            description: `Auto (Team Lead): ${role.name} lead can ${action} accounts owned by anyone in this role.`,
-            resource:'accounts', action, effect:'allow',
-            subject: { user_ids: [newLeadId] },
-            condition: leadCond,
-            priority: 90, enabled: true,
-          };
-          if(existing) await _restWrite(`abac_policies?id=eq.${existing.id}`, 'PATCH', payload);
-          else         await _restWrite('abac_policies', 'POST', payload);
-        } else if(existing){
-          // Disable rather than delete so the audit trail survives.
-          await _restWrite(`abac_policies?id=eq.${existing.id}`, 'PATCH', { enabled: false });
-        }
-      }
-
-      if(typeof toast==='function') toast(newLeadId ? 'Team Lead set' : 'Team Lead cleared', 'success');
-      _paintRolesFromCache();
-    } catch (e) {
-      if(typeof toast==='function') toast('Update failed: '+e.message, 'error');
-      await renderSettingsRoles({force:true});
-    }
-  };
-
   window.abacRoleRemoveMember = async function(uid){
     if(!confirm('Remove this user from the role? They will have no role until you assign them to another.')) return;
     try {
