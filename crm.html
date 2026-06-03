@@ -7651,14 +7651,15 @@ body .ld-tab-content {
 
 <div id="settings-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
   <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);">
-    <div class="settings-tab active" data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Policies <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
-    <div class="settings-tab"        data-tab="teams"     onclick="settingsSwitchTab('teams')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Teams <span class="settings-tab-cnt" id="settings-cnt-teams" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
+    <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Simulator</div>
+    <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
   <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--purple-700,#7c3aed)!important;} .settings-tab.active .settings-tab-cnt{background:var(--purple-100,#f0eef9)!important;color:var(--purple-700,#7c3aed)!important;}</style>
-  <div id="settings-pane-policies"  style="flex:1;min-height:0;"></div>
-  <div id="settings-pane-teams"     style="flex:1;min-height:0;display:none;"></div>
+  <div id="settings-pane-roles"     style="flex:1;min-height:0;"></div>
   <div id="settings-pane-simulator" style="flex:1;min-height:0;display:none;"></div>
+  <div id="settings-pane-policies"  style="flex:1;min-height:0;display:none;"></div>
+  <div id="settings-pane-teams"     style="display:none;"></div>
 </div>
 
     </div><!-- /.content -->
@@ -11418,7 +11419,7 @@ function switchMainView(view) {
     if (settingsView) settingsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;';
     setActive(document.getElementById('sb-settings-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = 'Settings';
-    requestAnimationFrame(() => renderSettingsPolicies());
+    requestAnimationFrame(() => renderSettingsRoles());
   }
 }
 
@@ -16147,19 +16148,243 @@ window.addEventListener('auth-ready', () => {
   window._abacRest = { get: _restGet, write: _restWrite };
   window._abacConsts = { RESOURCE_OPTIONS, ACTION_OPTIONS, OPERATORS, USER_FIELDS, ACCOUNT_FIELDS };
 
-  // ─── Tab switcher (already wired by Task 8 view) ────────
+  // ─── Tab switcher ─────────────────────────────────────
   function settingsSwitchTab(tab){
-    ['policies','teams','simulator'].forEach(function(t){
+    ['roles','policies','teams','simulator'].forEach(function(t){
       var tabEl = document.querySelector('.settings-tab[data-tab="'+t+'"]');
       if (tabEl) tabEl.classList.toggle('active', t === tab);
       var pane = document.getElementById('settings-pane-'+t);
       if (pane) pane.style.display = (t === tab) ? '' : 'none';
     });
+    if (tab === 'roles'     && typeof renderSettingsRoles     === 'function') renderSettingsRoles();
     if (tab === 'policies'  && typeof renderSettingsPolicies  === 'function') renderSettingsPolicies();
     if (tab === 'teams'     && typeof renderSettingsTeams     === 'function') renderSettingsTeams();
     if (tab === 'simulator' && typeof renderSettingsSimulator === 'function') renderSettingsSimulator();
   }
   window.settingsSwitchTab = settingsSwitchTab;
+
+  // ─── Roles & Permissions tab (toggle UI over ABAC policies) ──
+  // Permission catalog: each toggle = one ABAC policy named auto:<role_id>:<action>
+  const PERM_CATALOG = [
+    { group: 'Visibility & Editing', items: [
+      { key:'read',           label:'View accounts',     desc:'See companies in Pipeline, Accounts and Dashboard.' },
+      { key:'update',         label:'Edit accounts',     desc:'Change company info, deal value, stage, BANT fields.' },
+    ]},
+    { group: 'Stage actions', items: [
+      { key:'disqualify',     label:'Disqualify accounts', desc:'Mark companies as bad-fit, duplicate, spam, etc.' },
+      { key:'mark_won_lost',  label:'Mark won / lost',     desc:'Move companies to the Won or Lost terminal stages.' },
+    ]},
+    { group: 'Admin actions', items: [
+      { key:'reassign_owner', label:'Reassign owner',    desc:'Change who owns the account (am_mail / owner_id).' },
+      { key:'delete',         label:'Delete accounts',   desc:'Permanently remove company records.' },
+      { key:'merge',          label:'Merge duplicates',  desc:'Combine duplicate company records.' },
+    ]},
+  ];
+
+  let _rolesCache = [];        // [{id, name, description, user_count}]
+  let _rolePolicies = {};      // { roleId: { action: policyRow } }  (auto-policies only)
+  let _selectedRoleId = null;
+
+  function _policyAutoName(roleId, action){ return 'auto:'+roleId+':'+action; }
+
+  window.renderSettingsRoles = async function(){
+    const root = document.getElementById('settings-pane-roles');
+    if(!root) return;
+    if(window.AUTH_PROFILE?.role !== 'admin'){
+      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Admin only.</div>';
+      return;
+    }
+    root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Loading roles…</div>';
+
+    let teams, profiles, autoPolicies;
+    try {
+      teams        = await _restGet('teams?select=id,name,description,created_at&order=name.asc');
+      profiles     = await _restGet('profiles?select=id,email,full_name,team_id&order=email.asc');
+      autoPolicies = await _restGet('abac_policies?select=*&name=like.auto:*');
+    } catch (e) {
+      root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">${esc(String(e))}</div>`;
+      return;
+    }
+
+    _rolesCache = teams.map(t => Object.assign({}, t, { user_count: profiles.filter(p => p.team_id === t.id).length }));
+    _teamsCache = teams; // keep policy editor in sync
+    _rolePolicies = {};
+    autoPolicies.forEach(p => {
+      const m = (p.name || '').match(/^auto:([0-9a-f-]+):(.+)$/);
+      if(!m) return;
+      const [, rid, action] = m;
+      (_rolePolicies[rid] = _rolePolicies[rid] || {})[action] = p;
+    });
+
+    const cntEl = document.getElementById('settings-cnt-roles');
+    if (cntEl) cntEl.textContent = _rolesCache.length;
+
+    if(!_selectedRoleId || !_rolesCache.find(r => r.id === _selectedRoleId)){
+      _selectedRoleId = _rolesCache[0]?.id || null;
+    }
+
+    root.innerHTML = `
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:100%;">
+        <!-- Roles list -->
+        <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Roles</div>
+            <button class="btn btn-purple" onclick="abacRoleCreate()" style="padding:4px 10px;font-size:11px;">+ Add Role</button>
+          </div>
+          ${_rolesCache.map(r => `
+            <div onclick="abacRoleSelect('${r.id}')" style="border:2px solid ${r.id===_selectedRoleId?'var(--purple-700,#7c3aed)':'var(--border)'};border-radius:8px;padding:10px 12px;cursor:pointer;background:${r.id===_selectedRoleId?'var(--purple-100,#f0eef9)':'#fff'};transition:all 120ms;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="font-size:13px;font-weight:700;color:var(--text-1);">${esc(r.name)}</div>
+                <span style="font-size:11px;color:var(--text-3);background:var(--bg-2);padding:1px 7px;border-radius:999px;">${r.user_count} user${r.user_count===1?'':'s'}</span>
+              </div>
+              ${r.description ? `<div style="font-size:11.5px;color:var(--text-3);line-height:1.35;">${esc(r.description)}</div>` : ''}
+            </div>
+          `).join('')}
+          ${_rolesCache.length === 0 ? '<div style="color:var(--text-4);font-size:12px;padding:18px 4px;text-align:center;">No roles yet. Click + Add Role.</div>' : ''}
+        </div>
+
+        <!-- Permission panel -->
+        <div id="abac-role-detail" style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:18px;overflow-y:auto;"></div>
+      </div>`;
+
+    _renderRoleDetail();
+  };
+
+  function _renderRoleDetail(){
+    const panel = document.getElementById('abac-role-detail');
+    if(!panel) return;
+    const role = _rolesCache.find(r => r.id === _selectedRoleId);
+    if(!role){
+      panel.innerHTML = '<div style="padding:20px;color:var(--text-3);font-size:13px;">Select or create a role from the left.</div>';
+      return;
+    }
+    const isAdminRole = role.name.toLowerCase() === 'admin';
+    const perms = _rolePolicies[role.id] || {};
+
+    const groupHtml = PERM_CATALOG.map(g => `
+      <div style="margin-bottom:18px;">
+        <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;">${esc(g.group)}</div>
+        ${g.items.map(item => {
+          const on = !!(perms[item.key] && perms[item.key].enabled);
+          return `
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border);">
+            <div style="flex:1;padding-right:18px;">
+              <div style="font-size:13.5px;font-weight:600;color:var(--text-1);margin-bottom:2px;">${esc(item.label)}</div>
+              <div style="font-size:12px;color:var(--text-3);line-height:1.4;">${esc(item.desc)}</div>
+            </div>
+            <label class="abac-toggle" style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;margin-top:2px;">
+              <input type="checkbox" ${on?'checked':''} ${isAdminRole?'disabled':''} onchange="abacRoleToggle('${role.id}','${item.key}', this.checked)" style="opacity:0;width:0;height:0;"/>
+              <span style="position:absolute;cursor:${isAdminRole?'not-allowed':'pointer'};inset:0;background:${on?'var(--purple-700,#7c3aed)':'var(--bg-2,#e5e7eb)'};border-radius:999px;transition:background 150ms;${isAdminRole?'opacity:0.55;':''}"></span>
+              <span style="position:absolute;top:2px;left:${on?'22px':'2px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:left 150ms;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></span>
+            </label>
+          </div>`;
+        }).join('')}
+      </div>
+    `).join('');
+
+    const memberRows = []; // optional future feature
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
+        <div>
+          <div style="font-size:20px;font-weight:700;color:var(--text-1);">${esc(role.name)}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(role.description||'No description')}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" onclick="abacRoleRename('${role.id}')" style="padding:6px 12px;font-size:12px;">Rename</button>
+          ${isAdminRole ? '' : `<button class="btn btn-secondary" onclick="abacRoleDelete('${role.id}')" style="padding:6px 12px;font-size:12px;color:var(--bad);border-color:var(--bad);">Delete role</button>`}
+        </div>
+      </div>
+      ${isAdminRole ? '<div style="padding:10px 12px;background:#f0eef9;border:1px solid #d6d1ee;border-radius:6px;color:#392396;font-size:12px;margin-bottom:14px;">Admin role bypasses every ABAC policy automatically. Toggles are shown for reference but cannot be changed.</div>' : ''}
+      ${groupHtml}
+      <div style="margin-top:10px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;">Members</div>
+        ${_renderRoleMembers(role)}
+      </div>`;
+  }
+
+  function _renderRoleMembers(role){
+    return `<div style="font-size:12px;color:var(--text-3);">Manage role assignments in <a href="#" onclick="event.preventDefault();settingsSwitchTab('teams')" style="color:var(--purple-700,#7c3aed);">Advanced · Teams</a> — or use the policy editor for fine-grained subject conditions in <a href="#" onclick="event.preventDefault();settingsSwitchTab('policies')" style="color:var(--purple-700,#7c3aed);">Advanced</a>.</div>`;
+  }
+
+  window.abacRoleSelect = function(id){ _selectedRoleId = id; renderSettingsRoles(); };
+
+  window.abacRoleCreate = async function(){
+    const name = (prompt('Name of the new role?') || '').trim();
+    if(!name) return;
+    const description = (prompt('Short description for this role (optional)?') || '').trim();
+    try {
+      const created = await _restWrite('teams', 'POST', { name, description: description || null });
+      _selectedRoleId = Array.isArray(created) ? created[0]?.id : created.id;
+      await renderSettingsRoles();
+      if(typeof toast==='function') toast('Role created','success');
+    } catch (e) {
+      const msg = String(e.message||e);
+      if(typeof toast==='function') toast(/duplicate|unique/i.test(msg) ? 'Role name already exists' : 'Create failed: '+msg, 'error');
+    }
+  };
+
+  window.abacRoleRename = async function(id){
+    const role = _rolesCache.find(r => r.id === id);
+    if(!role) return;
+    const newName = (prompt('Rename role:', role.name) || '').trim();
+    if(!newName || newName === role.name) return;
+    const newDesc = (prompt('Description:', role.description || '') || '').trim();
+    try {
+      await _restWrite(`teams?id=eq.${id}`, 'PATCH', { name:newName, description:newDesc || null });
+      await renderSettingsRoles();
+      if(typeof toast==='function') toast('Role updated','success');
+    } catch (e) { if(typeof toast==='function') toast('Rename failed: '+e.message,'error'); }
+  };
+
+  window.abacRoleDelete = async function(id){
+    const role = _rolesCache.find(r => r.id === id);
+    if(!role) return;
+    if(!confirm(`Delete role "${role.name}"? Members will lose their team assignment. Toggles you set become inert (policies stay disabled in Advanced).`)) return;
+    try {
+      // First disable any auto-policies bound to this role so a re-creation doesn't accidentally re-grant.
+      const rolePerms = _rolePolicies[id] || {};
+      for(const p of Object.values(rolePerms)){
+        try { await _restWrite(`abac_policies?id=eq.${p.id}`, 'PATCH', { enabled:false }); } catch {}
+      }
+      await _restWrite(`teams?id=eq.${id}`,'DELETE');
+      _selectedRoleId = null;
+      await renderSettingsRoles();
+      if(typeof toast==='function') toast('Role deleted','success');
+    } catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
+  };
+
+  // Toggle a permission for a role: upsert an auto-policy.
+  window.abacRoleToggle = async function(roleId, action, enabled){
+    const role = _rolesCache.find(r => r.id === roleId);
+    if(!role) return;
+    const existing = (_rolePolicies[roleId] || {})[action];
+    try {
+      if(existing){
+        await _restWrite(`abac_policies?id=eq.${existing.id}`, 'PATCH', { enabled });
+        existing.enabled = enabled;
+      } else if (enabled) {
+        const payload = {
+          name: _policyAutoName(roleId, action),
+          description: `Auto: ${role.name} → ${action}. Managed by the Roles & Permissions tab.`,
+          resource: 'accounts',
+          action,
+          effect: 'allow',
+          subject: { team_id: roleId },
+          condition: { all: [] },
+          priority: 100,
+          enabled: true,
+        };
+        const inserted = await _restWrite('abac_policies', 'POST', payload);
+        const row = Array.isArray(inserted) ? inserted[0] : inserted;
+        (_rolePolicies[roleId] = _rolePolicies[roleId] || {})[action] = row;
+      }
+      if(typeof toast==='function') toast(enabled ? 'Granted' : 'Revoked', 'success');
+      _renderRoleDetail();
+    } catch (e) {
+      if(typeof toast==='function') toast('Toggle failed: '+e.message,'error');
+      await renderSettingsRoles();
+    }
+  };
 
   // ─── Policies tab ──────────────────────────────────────
   window.renderSettingsPolicies = async function(){
