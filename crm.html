@@ -16101,6 +16101,26 @@ window.addEventListener('auth-ready', () => {
   </div>
 </div>
 
+<!-- ─── Manage Teams modal ─── -->
+<div class="disq-modal-bg" id="abac-teams-bg" style="z-index:243;">
+  <div class="disq-modal" style="max-width:560px;">
+    <div class="disq-hdr">
+      <div class="disq-title">Manage Teams</div>
+      <div class="disq-sub">Teams are the geographic / functional groups your roles can scope to. Roles like Team Lead and Sales Member reference teams.</div>
+    </div>
+    <div class="disq-body" style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;gap:6px;">
+        <input id="abac-teams-newname" type="text" placeholder="New team name" style="flex:1;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;"/>
+        <button class="btn btn-purple" onclick="abacTeamsCreate()" style="padding:6px 12px;font-size:12px;">+ Create</button>
+      </div>
+      <div id="abac-teams-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="abacTeamsClose()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- ─── ABAC Policy Editor (Task 10) ─── -->
 <div class="disq-modal-bg" id="abac-editor-bg" style="z-index:240;">
   <div class="disq-modal" style="max-width:780px;max-height:90vh;overflow:auto;">
@@ -16232,7 +16252,10 @@ window.addEventListener('auth-ready', () => {
     root.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-size:13px;color:var(--text-3);">${_rolesCache.length} role${_rolesCache.length===1?'':'s'} · ${_allProfiles.length} user${_allProfiles.length===1?'':'s'}</div>
-        <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:6px 14px;font-size:12px;">+ Invite User</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" onclick="abacTeamsOpen()" style="padding:6px 12px;font-size:12px;">Manage Teams</button>
+          <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:6px 14px;font-size:12px;">+ Invite User</button>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100% - 50px);">
         <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
@@ -16455,6 +16478,57 @@ window.addEventListener('auth-ready', () => {
       _paintRolesFromCache();
       if(typeof toast==='function') toast('Team assigned','success');
     } catch (e) { if(typeof toast==='function') toast('Assign failed: '+e.message,'error'); }
+  };
+
+  // ─── Manage Teams sub-modal ──────────────────────────
+  window.abacTeamsOpen = function(){
+    abacTeamsRenderList();
+    document.getElementById('abac-teams-bg').classList.add('open');
+  };
+  window.abacTeamsClose = function(){
+    document.getElementById('abac-teams-bg').classList.remove('open');
+  };
+  function abacTeamsRenderList(){
+    const list = document.getElementById('abac-teams-list');
+    if(!list) return;
+    const memberCount = id => _allProfiles.filter(p => p.team_id === id).length;
+    list.innerHTML = _teamsCache.length === 0
+      ? '<div style="padding:14px;color:var(--text-4);font-size:12px;text-align:center;">No teams yet. Create one above.</div>'
+      : _teamsCache.map(t => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-1);">${esc(t.name)}</div>
+            <div style="font-size:11.5px;color:var(--text-3);">${memberCount(t.id)} member${memberCount(t.id)===1?'':'s'}</div>
+          </div>
+          <button class="btn btn-secondary" onclick="abacTeamsDelete('${t.id}')" style="padding:4px 10px;font-size:11px;color:var(--bad);border-color:var(--bad);">Delete</button>
+        </div>`).join('');
+  }
+  window.abacTeamsCreate = async function(){
+    const inp = document.getElementById('abac-teams-newname');
+    const name = (inp?.value || '').trim();
+    if(!name) return;
+    try {
+      const created = await _restWrite('teams', 'POST', { name });
+      _teamsCache.push(Array.isArray(created) ? created[0] : created);
+      inp.value = '';
+      abacTeamsRenderList();
+      _paintRolesFromCache(); // refresh inline team pickers
+      if(typeof toast==='function') toast('Team created','success');
+    } catch (e) {
+      const msg = String(e.message||e);
+      if(typeof toast==='function') toast(/duplicate|unique/i.test(msg) ? 'Team name already exists' : 'Create failed: '+msg, 'error');
+    }
+  };
+  window.abacTeamsDelete = async function(id){
+    if(!confirm('Delete this team? Members will lose their team assignment.')) return;
+    try {
+      await _restWrite(`teams?id=eq.${id}`, 'DELETE');
+      _teamsCache = _teamsCache.filter(t => t.id !== id);
+      _allProfiles.forEach(p => { if(p.team_id === id) p.team_id = null; });
+      abacTeamsRenderList();
+      _paintRolesFromCache();
+      if(typeof toast==='function') toast('Team deleted','success');
+    } catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
   };
 
   // ─── Invite User flow (calls the invite-user edge function) ───
