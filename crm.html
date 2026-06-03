@@ -16121,7 +16121,7 @@ window.addEventListener('auth-ready', () => {
   const ACTION_OPTIONS   = ['read','update','delete','disqualify','merge','reassign_owner','mark_won_lost'];
   const OPERATORS        = ['eq','ne','lt','lte','gt','gte','in','not_in','is_null','is_not_null','starts_with','contains'];
   const USER_FIELDS      = ['user.id','user.role','user.team_id','user.team_name','user.email','user.full_name'];
-  const ACCOUNT_FIELDS   = ['account.id','account.stage','account.owner_id','account.am_mail','account.deal_value','account.is_disqualified','account.paid_status','account.activation_status','account.has_trial','account.wp_marketing_channel','account.source','account.domain','account.industry','account.size','account.location','account.vacancies','account.company_ref'];
+  const ACCOUNT_FIELDS   = ['account.id','account.stage','account.owner_id','account.am_mail','account.deal_value','account.is_disqualified','account.paid_status','account.activation_status','account.has_trial','account.region','account.wp_marketing_channel','account.source','account.domain','account.industry','account.size','account.location','account.vacancies','account.company_ref'];
 
   async function _restGet(path){
     const token = await _getValidAccessToken();
