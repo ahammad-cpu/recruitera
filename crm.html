@@ -7959,10 +7959,25 @@ body .ld-tab-content {
     // Optimistic: mirror onto in-memory lead
     if(lead) Object.assign(lead, payload);
 
-    // Persist
-    if(sbId && window._sbClient){
-      const { error } = await window._sbClient.from('accounts').update(payload).eq('id', sbId);
-      if(error){ console.warn('[BANT] persist:', error.message); if(typeof toast==='function') toast('BANT saved locally; sync failed','error'); }
+    // Persist via REST (the rest of the CRM uses raw fetch, not supabase-js)
+    if(sbId){
+      const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+      if(token){
+        try {
+          const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+            method: 'PATCH',
+            headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+            body: JSON.stringify(payload)
+          });
+          if(!res.ok){
+            console.warn('[BANT] persist failed', res.status, await res.text());
+            if(typeof toast==='function') toast('BANT saved locally; sync failed','error');
+          }
+        } catch (e) {
+          console.warn('[BANT] persist threw', e);
+          if(typeof toast==='function') toast('BANT saved locally; sync failed','error');
+        }
+      }
     }
 
     document.getElementById('bant-modal-bg').classList.remove('open');
@@ -9370,11 +9385,21 @@ function applyStageChange(id,newSid,oldSid){
   const newName=STAGES.find(s=>s.id===newSid).name;
   const oldName=STAGES.find(s=>s.id===oldSid)?.name||oldSid;
   pushLog(id,'stage',`Stage changed from ${oldName} → ${newName}`,gOwner(id));
-  // Persist to Supabase
+  // Persist to Supabase via REST
   const sbId=l?._supabase_id;
-  if(sbId&&window._sbClient){
-    window._sbClient.from('accounts').update({stage:newSid}).eq('id',sbId)
-      .then(({error})=>{if(error)console.warn('[CRM] Stage sync:',error.message);});
+  if(sbId){
+    (async () => {
+      const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+      if(!token) return;
+      try {
+        const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+          method:'PATCH',
+          headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+          body: JSON.stringify({ stage: newSid })
+        });
+        if(!res.ok) console.warn('[CRM] Stage sync:', res.status, await res.text());
+      } catch (e) { console.warn('[CRM] Stage sync threw', e); }
+    })();
   }
   renderBoard();
   toast(`Moved to ${newName}`);
@@ -15776,22 +15801,31 @@ window.addEventListener('auth-ready', () => {
     if(!board) return;
     board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Loading paid customers + contracts…</div>';
 
-    if(!window._sbClient){
-      board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Supabase client not ready.</div>';
+    // Use the same raw-fetch pattern the rest of the CRM uses against the REST API.
+    const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+    if(!token){
+      board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Session expired — refresh the page.</div>';
       return;
     }
-    const { data: cycles, error } = await window._sbClient
-      .from('contract_cycles')
-      .select('id, account_id, plan_tier, value, currency, started_at, ends_at, status, auto_renew, cycle_number')
-      .order('ends_at', { ascending: true });
-    if(error){
-      board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--bad);font-size:12px;">Failed to load contracts: '+esc(error.message)+'</div>';
+    let cycles = [];
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/contract_cycles?select=id,account_id,plan_tier,value,currency,started_at,ends_at,status,auto_renew,cycle_number&order=ends_at.asc`, {
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
+      });
+      if(!res.ok){
+        const t = await res.text();
+        board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--bad);font-size:12px;">Failed to load contracts: '+esc(t.slice(0,200))+'</div>';
+        return;
+      }
+      cycles = await res.json();
+    } catch (e) {
+      board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--bad);font-size:12px;">Failed to load contracts: '+esc(String(e))+'</div>';
       return;
     }
 
     // Group cycles by account
     const cyclesByAcc = {};
-    (cycles||[]).forEach(c => {
+    cycles.forEach(c => {
       if(!c.account_id) return;
       (cyclesByAcc[c.account_id] = cyclesByAcc[c.account_id] || []).push(c);
     });
@@ -15868,9 +15902,23 @@ window.addEventListener('auth-ready', () => {
         it.cycle.status = newStatus;
         it._status = newStatus;
         renderRenewalBoard();
-        const { error } = await window._sbClient.from('contract_cycles').update({ status:newStatus }).eq('id', cid);
-        if(error){ it.cycle.status = prev; it._status = prev; renderRenewalBoard(); if(typeof toast==='function') toast('Update failed: '+error.message, 'error'); }
-        else if(typeof toast==='function') toast('Marked '+newStatus, 'success');
+        const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+        let ok = false;
+        if(token){
+          try {
+            const res = await fetch(`${SB_URL}/rest/v1/contract_cycles?id=eq.${cid}`, {
+              method: 'PATCH',
+              headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+              body: JSON.stringify({ status: newStatus })
+            });
+            ok = res.ok;
+            if(!ok) console.warn('[renewal] update failed', res.status, await res.text());
+          } catch (e) { console.warn('[renewal] update threw', e); }
+        }
+        if(!ok){
+          it.cycle.status = prev; it._status = prev; renderRenewalBoard();
+          if(typeof toast==='function') toast('Update failed','error');
+        } else if(typeof toast==='function') toast('Marked '+newStatus, 'success');
       });
 
       const body = colEl.querySelector('.renewal-col-body');
