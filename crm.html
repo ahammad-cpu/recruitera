@@ -16448,7 +16448,58 @@ window.addEventListener('auth-ready', () => {
     try { await _restWrite(`profiles?id=eq.${userId}`,'PATCH',{ team_id: teamId || null }); if(typeof toast==='function') toast('Assigned','success'); }
     catch (e) { if(typeof toast==='function') toast('Assign failed: '+e.message,'error'); await renderSettingsTeams(); }
   };
-  window.renderSettingsSimulator = function(){ document.getElementById('settings-pane-simulator').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Simulator — implemented in Task 12.</div>'; };
+  // ─── Simulator tab (Task 12) ───────────────────────
+  window.renderSettingsSimulator = async function(){
+    const root = document.getElementById('settings-pane-simulator');
+    if(!root) return;
+    if(window.AUTH_PROFILE?.role !== 'admin'){
+      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Admin only.</div>';
+      return;
+    }
+    root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Loading…</div>';
+    let profiles, accounts;
+    try {
+      profiles = await _restGet('profiles?select=id,email,full_name&order=email.asc');
+      accounts = await _restGet('accounts?select=id,name,domain&order=name.asc&limit=500');
+    } catch (e) {
+      root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">${esc(String(e))}</div>`;
+      return;
+    }
+    root.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:14px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">User
+          <select id="sim-user" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;">${profiles.map(p=>`<option value="${p.id}">${esc(p.email)}</option>`).join('')}</select></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Action
+          <select id="sim-action" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;">${ACTION_OPTIONS.map(a=>`<option value="${a}">${a}</option>`).join('')}</select></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Account
+          <select id="sim-account" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;">${accounts.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.domain?'· '+esc(a.domain):''}</option>`).join('')}</select></label>
+        <button class="btn btn-purple" onclick="abacRunSimulator()" style="padding:8px 16px;font-size:12px;">Run</button>
+      </div>
+      <div id="sim-result" style="padding:12px;background:var(--bg-2);border-radius:6px;font-size:12.5px;color:var(--text-3);">Pick user / action / account, then click Run.</div>`;
+  };
+  window.abacRunSimulator = async function(){
+    const userId    = document.getElementById('sim-user').value;
+    const action    = document.getElementById('sim-action').value;
+    const accountId = document.getElementById('sim-account').value;
+    const resultEl  = document.getElementById('sim-result');
+    resultEl.textContent = 'Evaluating…';
+    try {
+      const token = await _getValidAccessToken();
+      const res = await fetch(`${SB_URL}/rest/v1/rpc/abac_simulate`, {
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body: JSON.stringify({ p_user_id: userId, p_action: action, p_account_id: accountId })
+      });
+      if(!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      resultEl.innerHTML = `
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px;color:${data.allowed?'#2F8F5C':'#B83A3A'};">${data.allowed?'✓ ALLOW':'⛔ DENY'}</div>
+        <div><b>Matched policy:</b> ${data.policy_name ? esc(data.policy_name) : '<i>none — default</i>'}</div>
+        <div><b>Reason:</b> ${esc(data.reason||'')}</div>`;
+    } catch (e) {
+      resultEl.innerHTML = `<div style="color:var(--bad);">Failed: ${esc(String(e))}</div>`;
+    }
+  };
 })();
 </script>
 
