@@ -16216,53 +16216,28 @@ window.addEventListener('auth-ready', () => {
   let _selectedRoleId = null;
   let _allProfiles = [];       // [{id, email, full_name, team_id}]
   let _roleDetailMode = 'permissions'; // 'permissions' | 'members'
+  let _rolesFetchedAt = 0;     // ms timestamp; treat as fresh for STALENESS_MS after a successful fetch
+  const STALENESS_MS = 30_000; // 30s — long enough to feel instant during a typing/clicking session
 
   function _policyAutoName(roleId, action){ return 'auto:'+roleId+':'+action; }
 
-  window.renderSettingsRoles = async function(){
+  // Re-paint the Roles tab from in-memory caches. Used after local mutations and
+  // for the stale-while-revalidate render path so opening the tab is instant
+  // when we already have data.
+  function _paintRolesFromCache(){
     const root = document.getElementById('settings-pane-roles');
     if(!root) return;
-    if(window.AUTH_PROFILE?.role !== 'admin'){
-      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Admin only.</div>';
-      return;
-    }
-    root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Loading roles…</div>';
-
-    let teams, profiles, autoPolicies;
-    try {
-      teams        = await _restGet('teams?select=id,name,description,created_at&order=name.asc');
-      profiles     = await _restGet('profiles?select=id,email,full_name,role,team_id&order=email.asc');
-      autoPolicies = await _restGet('abac_policies?select=*&name=like.auto:*');
-    } catch (e) {
-      root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">${esc(String(e))}</div>`;
-      return;
-    }
-
-    _allProfiles = profiles;
-    _rolesCache = teams.map(t => Object.assign({}, t, { user_count: profiles.filter(p => p.team_id === t.id).length }));
-    _teamsCache = teams; // keep policy editor in sync
-    _rolePolicies = {};
-    autoPolicies.forEach(p => {
-      const m = (p.name || '').match(/^auto:([0-9a-f-]+):(.+)$/);
-      if(!m) return;
-      const [, rid, action] = m;
-      (_rolePolicies[rid] = _rolePolicies[rid] || {})[action] = p;
-    });
-
     const cntEl = document.getElementById('settings-cnt-roles');
     if (cntEl) cntEl.textContent = _rolesCache.length;
-
     if(!_selectedRoleId || !_rolesCache.find(r => r.id === _selectedRoleId)){
       _selectedRoleId = _rolesCache[0]?.id || null;
     }
-
     root.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-size:13px;color:var(--text-3);">${_rolesCache.length} role${_rolesCache.length===1?'':'s'} · ${_allProfiles.length} user${_allProfiles.length===1?'':'s'}</div>
         <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:6px 14px;font-size:12px;">+ Invite User</button>
       </div>
       <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100% - 50px);">
-        <!-- Roles list -->
         <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Roles</div>
@@ -16279,12 +16254,61 @@ window.addEventListener('auth-ready', () => {
           `).join('')}
           ${_rolesCache.length === 0 ? '<div style="color:var(--text-4);font-size:12px;padding:18px 4px;text-align:center;">No roles yet. Click + Add Role.</div>' : ''}
         </div>
-
-        <!-- Permission panel -->
         <div id="abac-role-detail" style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:18px;overflow-y:auto;"></div>
       </div>`;
-
     _renderRoleDetail();
+  }
+
+  window.renderSettingsRoles = async function(opts){
+    const force = opts && opts.force === true;
+    const root = document.getElementById('settings-pane-roles');
+    if(!root) return;
+    if(window.AUTH_PROFILE?.role !== 'admin'){
+      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Admin only.</div>';
+      return;
+    }
+
+    const haveCache = _rolesCache.length > 0;
+    const fresh     = (Date.now() - _rolesFetchedAt) < STALENESS_MS;
+
+    // Fast path: cache is fresh → paint and skip the fetch entirely.
+    if (haveCache && fresh && !force) { _paintRolesFromCache(); return; }
+
+    // Cache is stale (or empty). Paint cached content immediately if we have any,
+    // then refresh in the background; if we don't, show a loader.
+    if (haveCache) {
+      _paintRolesFromCache();
+    } else {
+      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Loading roles…</div>';
+    }
+
+    let teams, profiles, autoPolicies;
+    try {
+      [teams, profiles, autoPolicies] = await Promise.all([
+        _restGet('teams?select=id,name,description,created_at&order=name.asc'),
+        _restGet('profiles?select=id,email,full_name,role,team_id&order=email.asc'),
+        _restGet('abac_policies?select=*&name=like.auto:*'),
+      ]);
+    } catch (e) {
+      if (!haveCache) {
+        root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">${esc(String(e))}</div>`;
+      }
+      return;
+    }
+
+    _allProfiles = profiles;
+    _rolesCache = teams.map(t => Object.assign({}, t, { user_count: profiles.filter(p => p.team_id === t.id).length }));
+    _teamsCache = teams; // keep policy editor in sync
+    _rolePolicies = {};
+    autoPolicies.forEach(p => {
+      const m = (p.name || '').match(/^auto:([0-9a-f-]+):(.+)$/);
+      if(!m) return;
+      const [, rid, action] = m;
+      (_rolePolicies[rid] = _rolePolicies[rid] || {})[action] = p;
+    });
+
+    _rolesFetchedAt = Date.now();
+    _paintRolesFromCache();
   };
 
   function _renderRoleDetail(){
@@ -16372,13 +16396,20 @@ window.addEventListener('auth-ready', () => {
 
   window.abacRoleSetMode = function(mode){ _roleDetailMode = mode; _renderRoleDetail(); };
 
+  // Local cache mutation: refresh user_count + member list without a fetch.
+  function _recountUsers(){
+    _rolesCache.forEach(r => { r.user_count = _allProfiles.filter(p => p.team_id === r.id).length; });
+  }
   window.abacRoleAddMember = async function(roleId){
     const sel = document.getElementById('abac-add-member-sel');
     const uid = sel?.value;
     if(!uid) return;
     try {
       await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { team_id: roleId });
-      await renderSettingsRoles();
+      const prof = _allProfiles.find(p => p.id === uid);
+      if (prof) prof.team_id = roleId;
+      _recountUsers();
+      _paintRolesFromCache();
       if(typeof toast==='function') toast('Member added','success');
     } catch (e) { if(typeof toast==='function') toast('Add failed: '+e.message,'error'); }
   };
@@ -16386,7 +16417,10 @@ window.addEventListener('auth-ready', () => {
     if(!confirm('Remove this user from the role? They will have no role until you assign them to another.')) return;
     try {
       await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { team_id: null });
-      await renderSettingsRoles();
+      const prof = _allProfiles.find(p => p.id === uid);
+      if (prof) prof.team_id = null;
+      _recountUsers();
+      _paintRolesFromCache();
       if(typeof toast==='function') toast('Member removed','success');
     } catch (e) { if(typeof toast==='function') toast('Remove failed: '+e.message,'error'); }
   };
@@ -16446,7 +16480,8 @@ window.addEventListener('auth-ready', () => {
     }
   };
 
-  window.abacRoleSelect = function(id){ _selectedRoleId = id; renderSettingsRoles(); };
+  // Selecting a role is a UI-only operation — just re-paint from cache, no fetch.
+  window.abacRoleSelect = function(id){ _selectedRoleId = id; _paintRolesFromCache(); };
 
   window.abacRoleCreate = async function(){
     const name = (prompt('Name of the new role?') || '').trim();
@@ -16493,7 +16528,8 @@ window.addEventListener('auth-ready', () => {
     } catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
   };
 
-  // Toggle a permission for a role: upsert an auto-policy.
+  // Toggle a permission for a role: upsert an auto-policy. Cache is mutated
+  // in-place so we can re-render the panel without re-fetching.
   window.abacRoleToggle = async function(roleId, action, enabled){
     const role = _rolesCache.find(r => r.id === roleId);
     if(!role) return;
@@ -16522,7 +16558,8 @@ window.addEventListener('auth-ready', () => {
       _renderRoleDetail();
     } catch (e) {
       if(typeof toast==='function') toast('Toggle failed: '+e.message,'error');
-      await renderSettingsRoles();
+      // Force a fresh fetch only if we hit a real error, to recover from drift.
+      await renderSettingsRoles({force:true});
     }
   };
 
