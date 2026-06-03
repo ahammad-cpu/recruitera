@@ -16073,6 +16073,47 @@ window.addEventListener('auth-ready', () => {
 })();
 </script>
 
+<!-- ─── ABAC Policy Editor (Task 10) ─── -->
+<div class="disq-modal-bg" id="abac-editor-bg" style="z-index:240;">
+  <div class="disq-modal" style="max-width:780px;max-height:90vh;overflow:auto;">
+    <div class="disq-hdr">
+      <div class="disq-title"><span id="abac-editor-title">New policy</span></div>
+      <div class="disq-sub">Define who can do what under which conditions.</div>
+    </div>
+    <div class="disq-body" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Name <input id="abac-ed-name" type="text" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Priority <input id="abac-ed-priority" type="number" value="100" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
+      </div>
+      <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Description <input id="abac-ed-desc" type="text" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Resource <select id="abac-ed-resource" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Action   <select id="abac-ed-action"   style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Effect   <select id="abac-ed-effect"   style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"><option value="allow">✓ allow</option><option value="deny">⛔ deny</option></select></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Enabled  <input  id="abac-ed-enabled" type="checkbox" checked style="margin-top:10px;"/></label>
+      </div>
+      <fieldset style="border:1px solid var(--border);border-radius:6px;padding:8px 12px;">
+        <legend style="font-size:11.5px;font-weight:600;color:var(--text-3);">Applies to (subject)</legend>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <label style="font-size:11.5px;color:var(--text-3);">Role <select id="abac-ed-subj-role" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"><option value="">— any —</option><option value="user">user</option><option value="admin">admin</option></select></label>
+          <label style="font-size:11.5px;color:var(--text-3);">Team <select id="abac-ed-subj-team" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
+        </div>
+      </fieldset>
+      <fieldset style="border:1px solid var(--border);border-radius:6px;padding:8px 12px;">
+        <legend style="font-size:11.5px;font-weight:600;color:var(--text-3);">Condition</legend>
+        <div id="abac-ed-cond-root"></div>
+        <details style="margin-top:8px;"><summary style="font-size:11px;color:var(--text-4);cursor:pointer;">JSON preview</summary>
+          <pre id="abac-ed-cond-json" style="font-size:11px;background:var(--bg-2);padding:8px;border-radius:6px;margin-top:4px;white-space:pre-wrap;"></pre>
+        </details>
+      </fieldset>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="closePolicyEditor()">Cancel</button>
+      <button class="btn btn-purple"    style="flex:2" onclick="savePolicyEditor()">Save policy</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── ABAC — Settings → Policies / Teams / Simulator ────
 (function(){
@@ -16180,8 +16221,162 @@ window.addEventListener('auth-ready', () => {
     catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
   };
 
-  // Stubs replaced in subsequent tasks.
-  window.openPolicyEditor    = function(id){ alert('Policy Editor lands in Task 10'); };
+  // ─── Policy Editor (Task 10) ────────────────────────
+  let _editingPolicy = null;
+  let _editingCond   = { all: [] };
+
+  function _opt(val, label){ return '<option value="'+val+'">'+(label||val)+'</option>'; }
+
+  function _populateEditorSelects(){
+    document.getElementById('abac-ed-resource').innerHTML = RESOURCE_OPTIONS.map(r => _opt(r)).join('');
+    document.getElementById('abac-ed-action').innerHTML   = ACTION_OPTIONS.map(a => _opt(a)).join('');
+    document.getElementById('abac-ed-subj-team').innerHTML = '<option value="">— any —</option>' + _teamsCache.map(t => _opt(t.id, esc(t.name))).join('');
+  }
+
+  function _renderCondNode(cond, path){
+    if(cond.all || cond.any){
+      const groupOp = cond.all ? 'all' : 'any';
+      const children = cond[groupOp] || [];
+      const inner = children.map((c,i) => _renderCondNode(c, path ? path+'.'+i : String(i))).join('');
+      return '<div data-path="'+path+'" style="border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--bg-2);margin-top:6px;">'
+        + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">'
+        +   '<select onchange="condSetGroupOp(\''+path+'\', this.value)" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);">'
+        +     '<option value="all" '+(groupOp==='all'?'selected':'')+'>ALL of</option>'
+        +     '<option value="any" '+(groupOp==='any'?'selected':'')+'>ANY of</option>'
+        +   '</select>'
+        +   '<button type="button" onclick="condAddLeaf(\''+path+'\')"  style="font-size:11px;">+ leaf</button>'
+        +   '<button type="button" onclick="condAddGroup(\''+path+'\')" style="font-size:11px;">+ group</button>'
+        +   (path ? '<button type="button" onclick="condRemove(\''+path+'\')" style="font-size:11px;color:var(--bad);margin-left:auto;">remove</button>' : '')
+        + '</div>'
+        + '<div style="padding-left:12px;">'+(inner || '<div style="color:var(--text-4);font-size:11px;">(empty)</div>')+'</div>'
+      + '</div>';
+    }
+    // Leaf rendering
+    const fields = USER_FIELDS.concat(ACCOUNT_FIELDS);
+    const isValueFrom = ('value_from' in cond);
+    const valStr = isValueFrom ? esc(cond.value_from || '') : esc(cond.value != null ? String(cond.value) : '');
+    return '<div data-path="'+path+'" style="display:flex;gap:6px;align-items:center;margin-top:4px;">'
+      + '<select onchange="condSetLeaf(\''+path+'\',\'field\',this.value)" style="font-size:11.5px;flex:1;padding:3px 6px;border-radius:4px;border:1px solid var(--border);">'
+      +   fields.map(f => '<option value="'+f+'" '+(cond.field===f?'selected':'')+'>'+f+'</option>').join('')
+      + '</select>'
+      + '<select onchange="condSetLeaf(\''+path+'\',\'op\',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:4px;border:1px solid var(--border);">'
+      +   OPERATORS.map(o => '<option value="'+o+'" '+(cond.op===o?'selected':'')+'>'+o+'</option>').join('')
+      + '</select>'
+      + '<select onchange="condSetLeaf(\''+path+'\',\'__valueMode\',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:4px;border:1px solid var(--border);">'
+      +   '<option value="literal"   '+(isValueFrom?'':'selected')+'>literal</option>'
+      +   '<option value="value_from" '+(isValueFrom?'selected':'')+'>field</option>'
+      + '</select>'
+      + '<input type="text" value="'+valStr+'" oninput="condSetLeaf(\''+path+'\',\'__value\',this.value)" style="font-size:11.5px;flex:1;padding:3px 6px;border-radius:4px;border:1px solid var(--border);"/>'
+      + '<button type="button" onclick="condRemove(\''+path+'\')" style="font-size:11px;color:var(--bad);">×</button>'
+    + '</div>';
+  }
+  function _renderCondRoot(){
+    document.getElementById('abac-ed-cond-root').innerHTML = _renderCondNode(_editingCond, '');
+    document.getElementById('abac-ed-cond-json').textContent = JSON.stringify(_editingCond, null, 2);
+  }
+  function _condAt(path){
+    if(!path) return _editingCond;
+    return path.split('.').reduce((node, key) => {
+      const k = parseInt(key,10);
+      if(node && node.all) return node.all[k];
+      if(node && node.any) return node.any[k];
+      return undefined;
+    }, _editingCond);
+  }
+  function _condParent(path){
+    if(!path) return null;
+    const parts = path.split('.');
+    const lastIdx = parseInt(parts.pop(), 10);
+    const parent = _condAt(parts.join('.')) || _editingCond;
+    return { parent, key: parent.all ? 'all' : 'any', idx: lastIdx };
+  }
+  window.condSetGroupOp = function(path, op){
+    const node = _condAt(path); if(!node) return;
+    const children = node.all || node.any; delete node.all; delete node.any; node[op] = children;
+    _renderCondRoot();
+  };
+  window.condAddLeaf  = function(path){ const node = _condAt(path); (node.all||node.any).push({ field:USER_FIELDS[0], op:'eq', value:'' }); _renderCondRoot(); };
+  window.condAddGroup = function(path){ const node = _condAt(path); (node.all||node.any).push({ all:[] }); _renderCondRoot(); };
+  window.condRemove   = function(path){
+    if(!path){ _editingCond = { all:[] }; _renderCondRoot(); return; }
+    const { parent, key, idx } = _condParent(path);
+    parent[key].splice(idx, 1); _renderCondRoot();
+  };
+  window.condSetLeaf = function(path, prop, val){
+    const leaf = _condAt(path); if(!leaf) return;
+    if(prop === '__valueMode'){
+      if(val === 'value_from'){ leaf.value_from = leaf.value!=null?String(leaf.value):''; delete leaf.value; }
+      else { leaf.value = leaf.value_from || ''; delete leaf.value_from; }
+    } else if(prop === '__value'){
+      if('value_from' in leaf) leaf.value_from = val; else leaf.value = val;
+    } else {
+      leaf[prop] = val;
+    }
+    _renderCondRoot();
+  };
+
+  window.openPolicyEditor = async function(id){
+    _populateEditorSelects();
+    if(id){
+      _editingPolicy = _policiesCache.find(p => p.id === id) || null;
+      if(!_editingPolicy) return;
+      document.getElementById('abac-editor-title').textContent = 'Edit policy';
+      document.getElementById('abac-ed-name').value     = _editingPolicy.name || '';
+      document.getElementById('abac-ed-desc').value     = _editingPolicy.description || '';
+      document.getElementById('abac-ed-resource').value = _editingPolicy.resource;
+      document.getElementById('abac-ed-action').value   = _editingPolicy.action;
+      document.getElementById('abac-ed-effect').value   = _editingPolicy.effect;
+      document.getElementById('abac-ed-priority').value = _editingPolicy.priority;
+      document.getElementById('abac-ed-enabled').checked = _editingPolicy.enabled;
+      document.getElementById('abac-ed-subj-role').value = _editingPolicy.subject?.role || '';
+      document.getElementById('abac-ed-subj-team').value = _editingPolicy.subject?.team_id || '';
+      _editingCond = _editingPolicy.condition || { all: [] };
+    } else {
+      _editingPolicy = null;
+      document.getElementById('abac-editor-title').textContent = 'New policy';
+      ['abac-ed-name','abac-ed-desc'].forEach(i => document.getElementById(i).value='');
+      document.getElementById('abac-ed-resource').value = RESOURCE_OPTIONS[0];
+      document.getElementById('abac-ed-action').value   = ACTION_OPTIONS[0];
+      document.getElementById('abac-ed-effect').value   = 'allow';
+      document.getElementById('abac-ed-priority').value = 100;
+      document.getElementById('abac-ed-enabled').checked = true;
+      document.getElementById('abac-ed-subj-role').value = '';
+      document.getElementById('abac-ed-subj-team').value = '';
+      _editingCond = { all: [] };
+    }
+    _renderCondRoot();
+    document.getElementById('abac-editor-bg').classList.add('open');
+  };
+  window.closePolicyEditor = function(){
+    document.getElementById('abac-editor-bg').classList.remove('open');
+    _editingPolicy = null;
+    _editingCond = { all: [] };
+  };
+  window.savePolicyEditor = async function(){
+    const subj = {};
+    const r = document.getElementById('abac-ed-subj-role').value; if (r) subj.role = r;
+    const t = document.getElementById('abac-ed-subj-team').value; if (t) subj.team_id = t;
+    const payload = {
+      name:        document.getElementById('abac-ed-name').value.trim() || 'Untitled',
+      description: document.getElementById('abac-ed-desc').value.trim() || null,
+      resource:    document.getElementById('abac-ed-resource').value,
+      action:      document.getElementById('abac-ed-action').value,
+      effect:      document.getElementById('abac-ed-effect').value,
+      priority:    parseInt(document.getElementById('abac-ed-priority').value, 10) || 100,
+      enabled:     document.getElementById('abac-ed-enabled').checked,
+      subject:     subj,
+      condition:   _editingCond,
+    };
+    try {
+      if (_editingPolicy) await _restWrite(`abac_policies?id=eq.${_editingPolicy.id}`, 'PATCH', payload);
+      else                await _restWrite('abac_policies', 'POST', payload);
+      closePolicyEditor();
+      await renderSettingsPolicies();
+      if(typeof toast==='function') toast(_editingPolicy ? 'Policy updated' : 'Policy created', 'success');
+    } catch (e) {
+      if(typeof toast==='function') toast('Save failed: ' + e.message, 'error');
+    }
+  };
   window.renderSettingsTeams = function(){ document.getElementById('settings-pane-teams').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Teams tab — implemented in Task 11.</div>'; };
   window.renderSettingsSimulator = function(){ document.getElementById('settings-pane-simulator').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Simulator — implemented in Task 12.</div>'; };
 })();
