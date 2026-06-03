@@ -16074,6 +16074,36 @@ window.addEventListener('auth-ready', () => {
 })();
 </script>
 
+<!-- ─── ABAC Invite User modal ─── -->
+<div class="disq-modal-bg" id="abac-invite-bg" style="z-index:245;">
+  <div class="disq-modal" style="max-width:480px;">
+    <div class="disq-hdr">
+      <div class="disq-title">Invite a user</div>
+      <div class="disq-sub">Creates a new login. They'll sign in with the temporary password and should change it on first login.</div>
+    </div>
+    <div class="disq-body" style="display:flex;flex-direction:column;gap:10px;">
+      <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Full name <input id="abac-inv-name" type="text" placeholder="Jane Recruiter" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
+      <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Email <input id="abac-inv-email" type="email" placeholder="jane@company.com" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Role
+          <select id="abac-inv-role" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;">
+            <option value="user">User (subject to ABAC)</option>
+            <option value="admin">Admin (bypasses everything)</option>
+          </select></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Assign to role
+          <select id="abac-inv-team" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
+      </div>
+      <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Temporary password <input id="abac-inv-password" type="text" value="Recruitera@2025" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
+      <div id="abac-inv-error" style="display:none;color:var(--bad);font-size:12px;padding:8px 10px;background:#fce8e8;border-radius:6px;"></div>
+      <div id="abac-inv-success" style="display:none;color:#2F8F5C;font-size:12px;padding:8px 10px;background:#e7f6ed;border-radius:6px;line-height:1.5;"></div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="abacInviteUserClose()">Cancel</button>
+      <button class="btn btn-purple"    style="flex:2" onclick="abacInviteUserSubmit()" id="abac-inv-submit">Create user</button>
+    </div>
+  </div>
+</div>
+
 <!-- ─── ABAC Policy Editor (Task 10) ─── -->
 <div class="disq-modal-bg" id="abac-editor-bg" style="z-index:240;">
   <div class="disq-modal" style="max-width:780px;max-height:90vh;overflow:auto;">
@@ -16184,6 +16214,8 @@ window.addEventListener('auth-ready', () => {
   let _rolesCache = [];        // [{id, name, description, user_count}]
   let _rolePolicies = {};      // { roleId: { action: policyRow } }  (auto-policies only)
   let _selectedRoleId = null;
+  let _allProfiles = [];       // [{id, email, full_name, team_id}]
+  let _roleDetailMode = 'permissions'; // 'permissions' | 'members'
 
   function _policyAutoName(roleId, action){ return 'auto:'+roleId+':'+action; }
 
@@ -16199,13 +16231,14 @@ window.addEventListener('auth-ready', () => {
     let teams, profiles, autoPolicies;
     try {
       teams        = await _restGet('teams?select=id,name,description,created_at&order=name.asc');
-      profiles     = await _restGet('profiles?select=id,email,full_name,team_id&order=email.asc');
+      profiles     = await _restGet('profiles?select=id,email,full_name,role,team_id&order=email.asc');
       autoPolicies = await _restGet('abac_policies?select=*&name=like.auto:*');
     } catch (e) {
       root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">${esc(String(e))}</div>`;
       return;
     }
 
+    _allProfiles = profiles;
     _rolesCache = teams.map(t => Object.assign({}, t, { user_count: profiles.filter(p => p.team_id === t.id).length }));
     _teamsCache = teams; // keep policy editor in sync
     _rolePolicies = {};
@@ -16224,12 +16257,16 @@ window.addEventListener('auth-ready', () => {
     }
 
     root.innerHTML = `
-      <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--text-3);">${_rolesCache.length} role${_rolesCache.length===1?'':'s'} · ${_allProfiles.length} user${_allProfiles.length===1?'':'s'}</div>
+        <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:6px 14px;font-size:12px;">+ Invite User</button>
+      </div>
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100% - 50px);">
         <!-- Roles list -->
         <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Roles</div>
-            <button class="btn btn-purple" onclick="abacRoleCreate()" style="padding:4px 10px;font-size:11px;">+ Add Role</button>
+            <button class="btn btn-secondary" onclick="abacRoleCreate()" style="padding:4px 10px;font-size:11px;">+ Add Role</button>
           </div>
           ${_rolesCache.map(r => `
             <div onclick="abacRoleSelect('${r.id}')" style="border:2px solid ${r.id===_selectedRoleId?'var(--purple-700,#7c3aed)':'var(--border)'};border-radius:8px;padding:10px 12px;cursor:pointer;background:${r.id===_selectedRoleId?'var(--purple-100,#f0eef9)':'#fff'};transition:all 120ms;">
@@ -16260,7 +16297,9 @@ window.addEventListener('auth-ready', () => {
     }
     const isAdminRole = role.name.toLowerCase() === 'admin';
     const perms = _rolePolicies[role.id] || {};
+    const members = _allProfiles.filter(p => p.team_id === role.id);
 
+    // Permissions panel (when sub-tab = 'permissions')
     const groupHtml = PERM_CATALOG.map(g => `
       <div style="margin-bottom:18px;">
         <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;">${esc(g.group)}</div>
@@ -16282,9 +16321,30 @@ window.addEventListener('auth-ready', () => {
       </div>
     `).join('');
 
-    const memberRows = []; // optional future feature
+    // Members panel (when sub-tab = 'members')
+    const unassigned = _allProfiles.filter(p => p.team_id !== role.id);
+    const memberRows = members.length === 0
+      ? '<div style="padding:30px;text-align:center;color:var(--text-4);font-size:12px;">No members in this role yet. Add some below.</div>'
+      : members.map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-1);">${esc(m.full_name||m.email)}</div>
+            <div style="font-size:11.5px;color:var(--text-3);">${esc(m.email)} ${m.role==='admin'?'<span style="margin-left:6px;font-size:10px;background:#f0eef9;color:#7c3aed;padding:1px 7px;border-radius:999px;font-weight:600;">ADMIN</span>':''}</div>
+          </div>
+          <button class="btn btn-secondary" onclick="abacRoleRemoveMember('${m.id}')" style="padding:4px 10px;font-size:11px;color:var(--bad);border-color:var(--bad);">Remove</button>
+        </div>`).join('');
+
+    const addMemberHtml = unassigned.length === 0
+      ? '<div style="padding:10px;text-align:center;color:var(--text-4);font-size:11.5px;">All users are already assigned to a role.</div>'
+      : `<div style="display:flex;gap:6px;margin-top:14px;">
+          <select id="abac-add-member-sel" style="flex:1;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
+            ${unassigned.map(p => `<option value="${p.id}">${esc(p.full_name||p.email)} · ${esc(p.email)}</option>`).join('')}
+          </select>
+          <button class="btn btn-purple" onclick="abacRoleAddMember('${role.id}')" style="padding:6px 14px;font-size:12px;">Add to role</button>
+        </div>`;
+
     panel.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
         <div>
           <div style="font-size:20px;font-weight:700;color:var(--text-1);">${esc(role.name)}</div>
           <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(role.description||'No description')}</div>
@@ -16294,17 +16354,97 @@ window.addEventListener('auth-ready', () => {
           ${isAdminRole ? '' : `<button class="btn btn-secondary" onclick="abacRoleDelete('${role.id}')" style="padding:6px 12px;font-size:12px;color:var(--bad);border-color:var(--bad);">Delete role</button>`}
         </div>
       </div>
-      ${isAdminRole ? '<div style="padding:10px 12px;background:#f0eef9;border:1px solid #d6d1ee;border-radius:6px;color:#392396;font-size:12px;margin-bottom:14px;">Admin role bypasses every ABAC policy automatically. Toggles are shown for reference but cannot be changed.</div>' : ''}
-      ${groupHtml}
-      <div style="margin-top:10px;padding-top:14px;border-top:1px solid var(--border);">
-        <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;">Members</div>
-        ${_renderRoleMembers(role)}
-      </div>`;
+
+      <!-- Permissions / Members sub-tabs -->
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;">
+        <button class="role-subtab" onclick="abacRoleSetMode('permissions')" style="padding:8px 14px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid ${_roleDetailMode==='permissions'?'var(--purple-700,#7c3aed)':'transparent'};color:${_roleDetailMode==='permissions'?'var(--text-1)':'var(--text-3)'};cursor:pointer;">Permissions</button>
+        <button class="role-subtab" onclick="abacRoleSetMode('members')"     style="padding:8px 14px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid ${_roleDetailMode==='members'    ?'var(--purple-700,#7c3aed)':'transparent'};color:${_roleDetailMode==='members'    ?'var(--text-1)':'var(--text-3)'};cursor:pointer;">Members <span style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">${members.length}</span></button>
+      </div>
+
+      ${_roleDetailMode === 'permissions' ? `
+        ${isAdminRole ? '<div style="padding:10px 12px;background:#f0eef9;border:1px solid #d6d1ee;border-radius:6px;color:#392396;font-size:12px;margin-bottom:14px;">Admin role bypasses every ABAC policy automatically. Toggles are shown for reference but cannot be changed.</div>' : ''}
+        ${groupHtml}
+      ` : `
+        ${memberRows}
+        ${addMemberHtml}
+      `}`;
   }
 
-  function _renderRoleMembers(role){
-    return `<div style="font-size:12px;color:var(--text-3);">Manage role assignments in <a href="#" onclick="event.preventDefault();settingsSwitchTab('teams')" style="color:var(--purple-700,#7c3aed);">Advanced · Teams</a> — or use the policy editor for fine-grained subject conditions in <a href="#" onclick="event.preventDefault();settingsSwitchTab('policies')" style="color:var(--purple-700,#7c3aed);">Advanced</a>.</div>`;
-  }
+  window.abacRoleSetMode = function(mode){ _roleDetailMode = mode; _renderRoleDetail(); };
+
+  window.abacRoleAddMember = async function(roleId){
+    const sel = document.getElementById('abac-add-member-sel');
+    const uid = sel?.value;
+    if(!uid) return;
+    try {
+      await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { team_id: roleId });
+      await renderSettingsRoles();
+      if(typeof toast==='function') toast('Member added','success');
+    } catch (e) { if(typeof toast==='function') toast('Add failed: '+e.message,'error'); }
+  };
+  window.abacRoleRemoveMember = async function(uid){
+    if(!confirm('Remove this user from the role? They will have no role until you assign them to another.')) return;
+    try {
+      await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { team_id: null });
+      await renderSettingsRoles();
+      if(typeof toast==='function') toast('Member removed','success');
+    } catch (e) { if(typeof toast==='function') toast('Remove failed: '+e.message,'error'); }
+  };
+
+  // ─── Invite User flow (calls the invite-user edge function) ───
+  window.abacInviteUserOpen = function(){
+    document.getElementById('abac-inv-name').value     = '';
+    document.getElementById('abac-inv-email').value    = '';
+    document.getElementById('abac-inv-password').value = 'Recruitera@2025';
+    document.getElementById('abac-inv-role').value     = 'user';
+    const teamSel = document.getElementById('abac-inv-team');
+    teamSel.innerHTML = '<option value="">— none —</option>' + _rolesCache.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    if (_selectedRoleId) teamSel.value = _selectedRoleId;
+    document.getElementById('abac-inv-error').style.display   = 'none';
+    document.getElementById('abac-inv-success').style.display = 'none';
+    document.getElementById('abac-inv-submit').disabled = false;
+    document.getElementById('abac-inv-submit').textContent = 'Create user';
+    document.getElementById('abac-invite-bg').classList.add('open');
+  };
+  window.abacInviteUserClose = function(){ document.getElementById('abac-invite-bg').classList.remove('open'); };
+
+  window.abacInviteUserSubmit = async function(){
+    const email    = document.getElementById('abac-inv-email').value.trim().toLowerCase();
+    const name     = document.getElementById('abac-inv-name').value.trim();
+    const role     = document.getElementById('abac-inv-role').value;
+    const team_id  = document.getElementById('abac-inv-team').value || null;
+    const password = document.getElementById('abac-inv-password').value || 'Recruitera@2025';
+    const errEl    = document.getElementById('abac-inv-error');
+    const okEl     = document.getElementById('abac-inv-success');
+    const btn      = document.getElementById('abac-inv-submit');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+
+    if(!email || !email.includes('@')){ errEl.textContent='Valid email required'; errEl.style.display='block'; return; }
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    try {
+      const token = await _getValidAccessToken();
+      const res = await fetch(`${SB_URL}/functions/v1/invite-user`, {
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body: JSON.stringify({ email, full_name: name, role, team_id, password })
+      });
+      const data = await res.json().catch(()=>({error:'Invalid JSON response'}));
+      if(!res.ok || !data.ok){
+        errEl.textContent = 'Failed: '+(data.error || res.status);
+        errEl.style.display='block'; btn.disabled=false; btn.textContent='Create user';
+        return;
+      }
+      okEl.innerHTML = `<b>✓ User created.</b><br>Email: <code>${esc(email)}</code><br>Temporary password: <code>${esc(password)}</code><br>Share these with the user and ask them to change the password on first login.`;
+      okEl.style.display='block';
+      btn.textContent='Done — close';
+      btn.onclick = () => { abacInviteUserClose(); btn.onclick = abacInviteUserSubmit; };
+      await renderSettingsRoles();
+    } catch (e) {
+      errEl.textContent = 'Network failure: '+(e.message||String(e));
+      errEl.style.display='block'; btn.disabled=false; btn.textContent='Create user';
+    }
+  };
 
   window.abacRoleSelect = function(id){ _selectedRoleId = id; renderSettingsRoles(); };
 
