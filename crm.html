@@ -16377,7 +16377,77 @@ window.addEventListener('auth-ready', () => {
       if(typeof toast==='function') toast('Save failed: ' + e.message, 'error');
     }
   };
-  window.renderSettingsTeams = function(){ document.getElementById('settings-pane-teams').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Teams tab — implemented in Task 11.</div>'; };
+  // ─── Teams tab (Task 11) ───────────────────────────
+  window.renderSettingsTeams = async function(){
+    const root = document.getElementById('settings-pane-teams');
+    if(!root) return;
+    if(window.AUTH_PROFILE?.role !== 'admin'){
+      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Admin only.</div>';
+      return;
+    }
+    root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Loading teams…</div>';
+    let teams, profiles;
+    try {
+      teams    = await _restGet('teams?select=id,name,created_at&order=name.asc');
+      profiles = await _restGet('profiles?select=id,email,full_name,team_id&order=email.asc');
+    } catch (e) {
+      root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">${esc(String(e))}</div>`;
+      return;
+    }
+    _teamsCache = teams; // keep cache fresh for the policy editor
+    const cntEl = document.getElementById('settings-cnt-teams');
+    if (cntEl) cntEl.textContent = teams.length;
+    const countBy = id => profiles.filter(p => p.team_id === id).length;
+    root.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--text-3);">${teams.length} team${teams.length===1?'':'s'} · ${profiles.length} users</div>
+        <div style="display:flex;gap:6px;">
+          <input id="abac-new-team-name" type="text" placeholder="Team name" style="font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;"/>
+          <button class="btn btn-purple" onclick="abacCreateTeam()" style="padding:6px 12px;font-size:12px;">+ Create</button>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:18px;">
+        <thead><tr style="text-align:left;color:var(--text-3);border-bottom:1px solid var(--border);"><th style="padding:8px 6px;">Team</th><th>Members</th><th></th></tr></thead>
+        <tbody>${teams.map(t=>`<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 6px;font-weight:600;">${esc(t.name)}</td>
+          <td>${countBy(t.id)}</td>
+          <td><a href="#" onclick="event.preventDefault();abacDeleteTeam('${t.id}')" style="color:var(--bad);">Delete</a></td>
+        </tr>`).join('')}${teams.length===0?'<tr><td colspan="3" style="padding:18px;color:var(--text-4);">No teams yet.</td></tr>':''}</tbody>
+      </table>
+      <div style="font-size:11.5px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Members</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="text-align:left;color:var(--text-3);border-bottom:1px solid var(--border);"><th style="padding:8px 6px;">User</th><th>Team</th></tr></thead>
+        <tbody>${profiles.map(p=>`<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 6px;">${esc(p.full_name||p.email)} <span style="color:var(--text-4);font-size:11px;">${esc(p.email)}</span></td>
+          <td><select onchange="abacAssignTeam('${p.id}', this.value)" style="font:inherit;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;"><option value="">— none —</option>${teams.map(t=>`<option value="${t.id}" ${t.id===p.team_id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+  };
+
+  window.abacCreateTeam = async function(){
+    const inp = document.getElementById('abac-new-team-name');
+    const name = (inp?.value || '').trim();
+    if (!name) { if(typeof toast==='function') toast('Team name required','error'); return; }
+    try {
+      await _restWrite('teams', 'POST', { name });
+      if(inp) inp.value='';
+      await renderSettingsTeams();
+      if(typeof toast==='function') toast('Team created','success');
+    } catch (e) {
+      // Handle the case-insensitive unique violation gracefully (Task 1b)
+      const msg = String(e.message||e);
+      if(typeof toast==='function') toast(/duplicate|unique/i.test(msg) ? 'Team name already exists (case-insensitive)' : 'Create failed: '+msg, 'error');
+    }
+  };
+  window.abacDeleteTeam = async function(id){
+    if (!confirm('Delete team? Members will lose their team assignment.')) return;
+    try { await _restWrite(`teams?id=eq.${id}`,'DELETE'); await renderSettingsTeams(); if(typeof toast==='function') toast('Team deleted','success'); }
+    catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
+  };
+  window.abacAssignTeam = async function(userId, teamId){
+    try { await _restWrite(`profiles?id=eq.${userId}`,'PATCH',{ team_id: teamId || null }); if(typeof toast==='function') toast('Assigned','success'); }
+    catch (e) { if(typeof toast==='function') toast('Assign failed: '+e.message,'error'); await renderSettingsTeams(); }
+  };
   window.renderSettingsSimulator = function(){ document.getElementById('settings-pane-simulator').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Simulator — implemented in Task 12.</div>'; };
 })();
 </script>
