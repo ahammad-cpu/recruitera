@@ -9681,7 +9681,7 @@ function renderLdHero(lead){
   const campaignStr=lead.campaign||contact.campaign||'';
   const sinceStr=lead.added||lead.created_at||contact.created||'';
   const sinceDisp=sinceStr?new Date(sinceStr).toLocaleDateString('en-US',{month:'short',year:'numeric'}):'—';
-  const acvDisp=acv?esc(acv):'—';
+  const acvDisp=acv?esc(fmtAcv(acv)):'—';
   const closeDisp=closeDate?new Date(closeDate).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
   const trialLbl=ts==='active'?'Active':ts==='expired'?'Expired':'No trial';
   const trialCls=ts==='active'?'ok':ts==='expired'?'bad':'muted';
@@ -10719,7 +10719,7 @@ function saveStatIndustry(v){
 function editSnapVal(){
   if(!curId)return;
   const el=document.getElementById('snap-val-display');const cur=gAcv(curId);
-  el.innerHTML=`<input type="text" value="${esc(cur)}" placeholder="$0" onblur="saveSnapVal(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="border:none;background:transparent;font-size:15px;font-weight:500;color:#fff;font-family:inherit;width:100%;outline:none;border-bottom:2px solid var(--lime);" />`;
+  el.innerHTML=`<input type="text" value="${esc(cur)}" placeholder="EGP 0" onblur="saveSnapVal(this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="border:none;background:transparent;font-size:15px;font-weight:500;color:#fff;font-family:inherit;width:100%;outline:none;border-bottom:2px solid var(--lime);" />`;
   el.querySelector('input').focus();
 }
 function saveSnapVal(v){if(!curId)return;sAcv(curId,v);const lead=leads.find(l=>l._id===curId);if(lead)renderSnapBar(lead);renderBoard();}
@@ -13749,7 +13749,8 @@ function renderDashboard(){
   const avgCycle = cycleEntries.length ? Math.round(cycleEntries.reduce((s,[,d])=>s+d,0)/cycleEntries.length) : 0;
 
   // Format helpers
-  const fmtK = v => v >= 1000000 ? '$'+(v/1000000).toFixed(2)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(1)+'K' : '$'+Math.round(v);
+  // Dashboard money formatter — same rule as fmtMoney: EGP + thousand separators, no k/M.
+  const fmtK = v => fmtMoney(v);
   const today = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 
   el.innerHTML = `
