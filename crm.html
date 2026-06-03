@@ -16500,6 +16500,41 @@ window.addEventListener('auth-ready', () => {
       resultEl.innerHTML = `<div style="color:var(--bad);">Failed: ${esc(String(e))}</div>`;
     }
   };
+
+  // ─── ABAC client gates (Task 13) ─────────────────────
+  // Single-row check via the batch RPC (simpler and consistent).
+  // Returns Promise<boolean>. Admins short-circuit to true.
+  window.abacCan = async function(action, accountSbId){
+    if(!accountSbId) return false;
+    if(window.AUTH_PROFILE?.role === 'admin') return true;
+    const m = await window.abacCanBatch(action, [accountSbId]);
+    return m.get(accountSbId) === true;
+  };
+
+  // Batch check. Returns Promise<Map<accountSbId, boolean>>.
+  // Admins short-circuit to all-true.
+  window.abacCanBatch = async function(action, accountSbIds){
+    const out = new Map((accountSbIds||[]).map(id => [id, false]));
+    if(window.AUTH_PROFILE?.role === 'admin'){ (accountSbIds||[]).forEach(id => out.set(id, true)); return out; }
+    if(!accountSbIds || !accountSbIds.length) return out;
+    try {
+      const token = await _getValidAccessToken();
+      const res = await fetch(`${SB_URL}/rest/v1/rpc/abac_check_batch`, {
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body: JSON.stringify({ p_action: action, p_account_ids: accountSbIds })
+      });
+      if(res.ok){
+        const rows = await res.json();
+        (rows||[]).forEach(r => out.set(r.account_id, r.allowed === true));
+      } else {
+        console.warn('[abac] check_batch HTTP', res.status, await res.text());
+      }
+    } catch (e) {
+      console.warn('[abac] check_batch threw', e);
+    }
+    return out;
+  };
 })();
 </script>
 
