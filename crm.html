@@ -15755,28 +15755,32 @@ window.addEventListener('auth-ready', () => {
   };
 
   // ─── RENEWAL KANBAN ─────────────────────────────────
-  // Buckets driven by days-to-end_at + status.
+  // One card per PAID CUSTOMER. If the customer has an open contract_cycle
+  // we use it to bucket by days-to-end + status. If they don't have any
+  // contract on file yet, they land in the "Active (no contract)" column so
+  // the team can add one. Items are { lead, cycle?, _daysLeft, _status }.
   const RENEWAL_COLS = [
-    { id:'upcoming90', name:'Upcoming 90d', color:'#969BA1', match: c => c.status==='active' && c._daysLeft >= 60 && c._daysLeft < 90 },
-    { id:'in60',       name:'60 days out',  color:'#6C737C', match: c => c.status==='active' && c._daysLeft >= 30 && c._daysLeft < 60 },
-    { id:'in30',       name:'30 days out',  color:'#B8761A', match: c => c.status==='active' && c._daysLeft >= 0  && c._daysLeft < 30 },
-    { id:'overdue',    name:'Overdue',      color:'#B83A3A', match: c => c.status==='active' && c._daysLeft < 0 },
-    { id:'renewed',    name:'Renewed',      color:'#2F8F5C', match: c => c.status==='renewed' },
-    { id:'churned',    name:'Churned',      color:'#392396', match: c => c.status==='churned' },
+    { id:'no_contract',name:'Active (no contract)', color:'#9CA3AF', match: it => !it.cycle && it._status==='active' },
+    { id:'upcoming90', name:'Upcoming 90d',         color:'#969BA1', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 60 && it._daysLeft < 90 },
+    { id:'in60',       name:'60 days out',          color:'#6C737C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 30 && it._daysLeft < 60 },
+    { id:'in30',       name:'30 days out',          color:'#B8761A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 0  && it._daysLeft < 30 },
+    { id:'overdue',    name:'Overdue',              color:'#B83A3A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft < 0 },
+    { id:'renewed',    name:'Renewed',              color:'#2F8F5C', match: it => it._status==='renewed' },
+    { id:'churned',    name:'Churned',              color:'#392396', match: it => it._status==='churned' },
   ];
 
-  let _renewalCache = [];
+  let _renewalItems = [];
 
   window.loadRenewalBoard = async function(){
     const board = document.getElementById('renewal-board');
     if(!board) return;
-    board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Loading contracts…</div>';
+    board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Loading paid customers + contracts…</div>';
 
     if(!window._sbClient){
       board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);font-size:12px;">Supabase client not ready.</div>';
       return;
     }
-    const { data, error } = await window._sbClient
+    const { data: cycles, error } = await window._sbClient
       .from('contract_cycles')
       .select('id, account_id, plan_tier, value, currency, started_at, ends_at, status, auto_renew, cycle_number')
       .order('ends_at', { ascending: true });
@@ -15784,12 +15788,47 @@ window.addEventListener('auth-ready', () => {
       board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--bad);font-size:12px;">Failed to load contracts: '+esc(error.message)+'</div>';
       return;
     }
-    const today = new Date(); today.setHours(0,0,0,0);
-    _renewalCache = (data||[]).map(c => {
-      const end = c.ends_at ? new Date(c.ends_at) : null;
-      const daysLeft = end ? Math.floor((end - today)/(1000*60*60*24)) : null;
-      return Object.assign({}, c, { _daysLeft: daysLeft });
+
+    // Group cycles by account
+    const cyclesByAcc = {};
+    (cycles||[]).forEach(c => {
+      if(!c.account_id) return;
+      (cyclesByAcc[c.account_id] = cyclesByAcc[c.account_id] || []).push(c);
     });
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const items = [];
+
+    // Every paid customer = 1 card. Pick the "primary" cycle to bucket by:
+    // 1) the most recent active cycle, else
+    // 2) the most recent renewed cycle (so it stays in Renewed column), else
+    // 3) the most recent churned cycle, else
+    // 4) no cycle → "Active (no contract)" column.
+    leads.forEach(lead => {
+      if(typeof isLeadPaidCustomer !== 'function' || !isLeadPaidCustomer(lead)) return;
+      const sbId = lead._supabase_id;
+      const accCycles = (sbId && cyclesByAcc[sbId]) ? cyclesByAcc[sbId].slice() : [];
+      accCycles.sort((a,b) => (new Date(b.ends_at||0)) - (new Date(a.ends_at||0)));
+      const active   = accCycles.find(c => c.status === 'active');
+      const renewed  = accCycles.find(c => c.status === 'renewed');
+      const churned  = accCycles.find(c => c.status === 'churned');
+      const primary  = active || renewed || churned || null;
+
+      let daysLeft = null;
+      if(primary && primary.ends_at){
+        daysLeft = Math.floor((new Date(primary.ends_at) - today)/(1000*60*60*24));
+      }
+      const status = primary ? primary.status : 'active'; // no cycle → treat as active
+
+      items.push({
+        lead,
+        cycle: primary,
+        _daysLeft: daysLeft,
+        _status: status,
+      });
+    });
+
+    _renewalItems = items;
     renderRenewalBoard();
   };
 
@@ -15797,12 +15836,10 @@ window.addEventListener('auth-ready', () => {
     const board = document.getElementById('renewal-board');
     if(!board) return;
     board.innerHTML = '';
-    const accById = {};
-    leads.forEach(l => { if(l._supabase_id) accById[l._supabase_id] = l; });
 
     let total = 0;
     RENEWAL_COLS.forEach(col => {
-      const items = _renewalCache.filter(col.match);
+      const items = _renewalItems.filter(col.match);
       total += items.length;
       const colEl = document.createElement('div');
       colEl.style.cssText = 'min-width:240px;max-width:280px;flex:1;background:var(--bg-2,#F6F7F9);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;max-height:100%;';
@@ -15815,7 +15852,9 @@ window.addEventListener('auth-ready', () => {
         + '</div>'
         + '<div class="renewal-col-body" style="padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;"></div>';
 
-      // Drop to set status
+      // Drop = update the dragged cycle's status. Only meaningful when target
+      // column maps to a status (renewed/churned/active). Cards without a
+      // contract_cycle aren't draggable, so they can't land here.
       colEl.addEventListener('dragover', e => { e.preventDefault(); colEl.style.background = '#eef0fa'; });
       colEl.addEventListener('dragleave',()=>{ colEl.style.background = 'var(--bg-2,#F6F7F9)'; });
       colEl.addEventListener('drop', async e => {
@@ -15823,56 +15862,80 @@ window.addEventListener('auth-ready', () => {
         const cid = e.dataTransfer.getData('text/contract-id');
         if(!cid) return;
         const newStatus = (col.id==='renewed' || col.id==='churned') ? col.id : 'active';
-        const row = _renewalCache.find(r => r.id===cid);
-        if(!row) return;
-        const prev = row.status;
-        row.status = newStatus;
+        const it = _renewalItems.find(i => i.cycle && i.cycle.id===cid);
+        if(!it) return;
+        const prev = it.cycle.status;
+        it.cycle.status = newStatus;
+        it._status = newStatus;
         renderRenewalBoard();
         const { error } = await window._sbClient.from('contract_cycles').update({ status:newStatus }).eq('id', cid);
-        if(error){ row.status = prev; renderRenewalBoard(); if(typeof toast==='function') toast('Update failed: '+error.message, 'error'); }
+        if(error){ it.cycle.status = prev; it._status = prev; renderRenewalBoard(); if(typeof toast==='function') toast('Update failed: '+error.message, 'error'); }
         else if(typeof toast==='function') toast('Marked '+newStatus, 'success');
       });
 
       const body = colEl.querySelector('.renewal-col-body');
       if(items.length === 0){
-        body.innerHTML = '<div style="padding:18px 8px;text-align:center;font-size:11.5px;color:var(--text-4);">No contracts</div>';
+        body.innerHTML = '<div style="padding:18px 8px;text-align:center;font-size:11.5px;color:var(--text-4);">No customers here</div>';
       } else {
-        items.forEach(c => {
-          const acc = accById[c.account_id];
-          const accName = acc ? ((typeof gName==='function')? gName(acc) : (acc.name||'(no name)')) : '(unknown account)';
-          const valStr = (c.value!=null) ? new Intl.NumberFormat('en-US',{maximumFractionDigits:0}).format(c.value) : '—';
-          const cur = c.currency || 'USD';
+        items.forEach(it => {
+          const lead = it.lead;
+          const c = it.cycle;
+          const accName = (typeof gName==='function')? gName(lead) : (lead.name||'(no name)');
           const escFn = (typeof esc==='function') ? esc : (s=>String(s));
-          const endStr = c.ends_at ? new Date(c.ends_at).toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-          let pillBg='#F3F4F6', pillFg='var(--text-2)';
-          if(c.status==='active'){
-            if(c._daysLeft==null){ pillBg='#F3F4F6'; pillFg='var(--text-2)'; }
-            else if(c._daysLeft<0){ pillBg='#fce8e8'; pillFg='#B83A3A'; }
-            else if(c._daysLeft<30){ pillBg='#fff0db'; pillFg='#B8761A'; }
-            else if(c._daysLeft<60){ pillBg='#e8f0fd'; pillFg='#2C5BA8'; }
-            else { pillBg='#eaf6ee'; pillFg='#2F8F5C'; }
-          } else if(c.status==='renewed'){ pillBg='#e7f6ed'; pillFg='#2F8F5C'; }
-          else if(c.status==='churned'){ pillBg='#f0eef9'; pillFg='#392396'; }
 
-          const daysPill = (c.status==='active' && c._daysLeft!=null)
-            ? (c._daysLeft<0 ? Math.abs(c._daysLeft)+' days overdue' : c._daysLeft+' days left')
-            : (c.status==='renewed' ? 'Renewed' : c.status==='churned' ? 'Churned' : '—');
+          let metaLine = '';
+          let footerLine = '';
+          let pillBg='#F3F4F6', pillFg='var(--text-2)';
+          let daysPill = '—';
+
+          if(c){
+            const valStr = (c.value!=null) ? new Intl.NumberFormat('en-US',{maximumFractionDigits:0}).format(c.value) : '—';
+            const cur = c.currency || 'USD';
+            const endStr = c.ends_at ? new Date(c.ends_at).toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+
+            if(it._status==='active'){
+              if(it._daysLeft==null){ pillBg='#F3F4F6'; pillFg='var(--text-2)'; }
+              else if(it._daysLeft<0){ pillBg='#fce8e8'; pillFg='#B83A3A'; }
+              else if(it._daysLeft<30){ pillBg='#fff0db'; pillFg='#B8761A'; }
+              else if(it._daysLeft<60){ pillBg='#e8f0fd'; pillFg='#2C5BA8'; }
+              else { pillBg='#eaf6ee'; pillFg='#2F8F5C'; }
+            } else if(it._status==='renewed'){ pillBg='#e7f6ed'; pillFg='#2F8F5C'; }
+            else if(it._status==='churned'){ pillBg='#f0eef9'; pillFg='#392396'; }
+            daysPill = (it._status==='active' && it._daysLeft!=null)
+              ? (it._daysLeft<0 ? Math.abs(it._daysLeft)+' days overdue' : it._daysLeft+' days left')
+              : (it._status==='renewed' ? 'Renewed' : it._status==='churned' ? 'Churned' : '—');
+
+            metaLine = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;color:var(--text-3);margin-bottom:6px;">'
+                     +   '<span>'+escFn(c.plan_tier||'—')+'</span>'
+                     +   '<span style="font-family:DM Mono,monospace;color:var(--text-2);">'+escFn(cur)+' '+valStr+'</span>'
+                     + '</div>';
+            footerLine = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+                       +   '<span style="font-size:10.5px;color:var(--text-4);">Ends '+endStr+'</span>'
+                       +   '<span style="font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:'+pillBg+';color:'+pillFg+';">'+escFn(daysPill)+'</span>'
+                       + '</div>';
+          } else {
+            // No contract yet — show the paid badge + an inline CTA.
+            const paidStatus = lead.paid_status || (lead.is_paid_customer ? 'Paid' : '');
+            metaLine = '<div style="font-size:11.5px;color:var(--text-3);margin-bottom:6px;">'
+                     +   (paidStatus ? '<span style="display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:#eaf6ee;color:#2F8F5C;">'+escFn(paidStatus)+'</span>' : '')
+                     + '</div>';
+            footerLine = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+                       +   '<span style="font-size:10.5px;color:var(--text-4);">No contract on file</span>'
+                       +   '<span style="font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:#F3F4F6;color:var(--text-2);">Add contract →</span>'
+                       + '</div>';
+          }
 
           const card = document.createElement('div');
-          card.draggable = true;
-          card.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:grab;';
+          card.draggable = !!c;
+          card.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;cursor:'+(c?'grab':'pointer')+';';
           card.innerHTML = ''
             + '<div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px;">'+escFn(accName)+'</div>'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;color:var(--text-3);margin-bottom:6px;">'
-            +   '<span>'+escFn(c.plan_tier||'—')+'</span>'
-            +   '<span style="font-family:DM Mono,monospace;color:var(--text-2);">'+escFn(cur)+' '+valStr+'</span>'
-            + '</div>'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
-            +   '<span style="font-size:10.5px;color:var(--text-4);">Ends '+endStr+'</span>'
-            +   '<span style="font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;background:'+pillBg+';color:'+pillFg+';">'+daysPill+'</span>'
-            + '</div>';
-          card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/contract-id', c.id); e.dataTransfer.effectAllowed = 'move'; });
-          card.addEventListener('click', () => { if(acc) { try { openDrawer(acc._id, 'pipeline'); } catch {} } });
+            + metaLine
+            + footerLine;
+          if(c){
+            card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/contract-id', c.id); e.dataTransfer.effectAllowed = 'move'; });
+          }
+          card.addEventListener('click', () => { try { openDrawer(lead._id, 'pipeline'); } catch {} });
           body.appendChild(card);
         });
       }
