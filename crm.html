@@ -16074,8 +16074,39 @@ window.addEventListener('auth-ready', () => {
 </script>
 
 <script>
-// ─── ABAC — Settings → Policies / Teams / Simulator (Phase 1) ────
+// ─── ABAC — Settings → Policies / Teams / Simulator ────
 (function(){
+  const RESOURCE_OPTIONS = ['accounts'];
+  const ACTION_OPTIONS   = ['read','update','delete','disqualify','merge','reassign_owner','mark_won_lost'];
+  const OPERATORS        = ['eq','ne','lt','lte','gt','gte','in','not_in','is_null','is_not_null','starts_with','contains'];
+  const USER_FIELDS      = ['user.id','user.role','user.team_id','user.team_name','user.email','user.full_name'];
+  const ACCOUNT_FIELDS   = ['account.id','account.stage','account.owner_id','account.am_mail','account.deal_value','account.is_disqualified','account.paid_status','account.activation_status','account.has_trial','account.wp_marketing_channel','account.source','account.domain','account.industry','account.size','account.location','account.vacancies','account.company_ref'];
+
+  async function _restGet(path){
+    const token = await _getValidAccessToken();
+    const res = await fetch(`${SB_URL}/rest/v1/${path}`, { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token} });
+    if(!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+  async function _restWrite(path, method, body){
+    const token = await _getValidAccessToken();
+    const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+      method, headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=representation'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if(!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  // Caches populated by tab renderers; reused by Task 10's editor.
+  let _policiesCache = [];
+  let _teamsCache    = [];
+  window._abacPoliciesCache = function(){ return _policiesCache; };
+  window._abacTeamsCache    = function(){ return _teamsCache; };
+  window._abacRest = { get: _restGet, write: _restWrite };
+  window._abacConsts = { RESOURCE_OPTIONS, ACTION_OPTIONS, OPERATORS, USER_FIELDS, ACCOUNT_FIELDS };
+
+  // ─── Tab switcher (already wired by Task 8 view) ────────
   function settingsSwitchTab(tab){
     ['policies','teams','simulator'].forEach(function(t){
       var tabEl = document.querySelector('.settings-tab[data-tab="'+t+'"]');
@@ -16089,9 +16120,69 @@ window.addEventListener('auth-ready', () => {
   }
   window.settingsSwitchTab = settingsSwitchTab;
 
-  // Placeholder renderers — replaced in Tasks 9, 11, 12.
-  window.renderSettingsPolicies  = function(){ document.getElementById('settings-pane-policies').innerHTML  = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Policies tab — implemented in Task 9.</div>';  };
-  window.renderSettingsTeams     = function(){ document.getElementById('settings-pane-teams').innerHTML     = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Teams tab — implemented in Task 11.</div>'; };
+  // ─── Policies tab ──────────────────────────────────────
+  window.renderSettingsPolicies = async function(){
+    const root = document.getElementById('settings-pane-policies');
+    if(!root) return;
+    if(window.AUTH_PROFILE?.role !== 'admin'){
+      root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Admin only.</div>';
+      return;
+    }
+    root.innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Loading policies…</div>';
+    try {
+      _policiesCache = await _restGet('abac_policies?select=*&order=resource,action,priority.asc');
+      _teamsCache    = await _restGet('teams?select=id,name&order=name.asc');
+    } catch (e) {
+      root.innerHTML = `<div style="padding:18px;color:var(--bad);font-size:13px;">Failed to load: ${esc(String(e))}</div>`;
+      return;
+    }
+    const cntEl = document.getElementById('settings-cnt-policies');
+    if (cntEl) cntEl.textContent = _policiesCache.length;
+    const teamName = id => (_teamsCache.find(t=>t.id===id)||{}).name || id;
+    const subj = s => {
+      const parts=[];
+      if(s.role)    parts.push('role='+s.role);
+      if(s.team_id) parts.push('team='+teamName(s.team_id));
+      if(s.user_ids?.length) parts.push('users('+s.user_ids.length+')');
+      return parts.length ? parts.join(' · ') : '— anyone —';
+    };
+    root.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--text-3);">${_policiesCache.length} polic${_policiesCache.length===1?'y':'ies'}</div>
+        <button onclick="openPolicyEditor()" class="btn btn-purple" style="padding:6px 14px;font-size:12px;">+ New Policy</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="text-align:left;color:var(--text-3);border-bottom:1px solid var(--border);">
+          <th style="padding:8px 6px;">Name</th><th>Resource</th><th>Action</th><th>Effect</th><th>Applies to</th><th>Priority</th><th>Enabled</th><th></th>
+        </tr></thead><tbody>
+        ${_policiesCache.map(p=>`
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 6px;font-weight:600;">${esc(p.name)}</td>
+            <td>${esc(p.resource)}</td>
+            <td>${esc(p.action)}</td>
+            <td>${p.effect==='allow'?'<span style="color:#2F8F5C;">✓ allow</span>':'<span style="color:#B83A3A;">⛔ deny</span>'}</td>
+            <td>${esc(subj(p.subject||{}))}</td>
+            <td>${p.priority}</td>
+            <td><input type="checkbox" ${p.enabled?'checked':''} onchange="togglePolicyEnabled('${p.id}', this.checked)"/></td>
+            <td><a href="#" onclick="event.preventDefault();openPolicyEditor('${p.id}')">Edit</a> · <a href="#" onclick="event.preventDefault();deletePolicy('${p.id}')" style="color:var(--bad);">Delete</a></td>
+          </tr>`).join('')}
+        ${_policiesCache.length===0?`<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-4);">No policies yet. Click + New Policy.</td></tr>`:''}
+      </tbody></table>`;
+  };
+
+  window.togglePolicyEnabled = async function(id, enabled){
+    try { await _restWrite(`abac_policies?id=eq.${id}`, 'PATCH', { enabled }); if(typeof toast==='function') toast('Updated', 'success'); }
+    catch (e) { if(typeof toast==='function') toast('Update failed: '+e.message, 'error'); await renderSettingsPolicies(); }
+  };
+  window.deletePolicy = async function(id){
+    if (!confirm('Delete this policy?')) return;
+    try { await _restWrite(`abac_policies?id=eq.${id}`, 'DELETE'); await renderSettingsPolicies(); if(typeof toast==='function') toast('Deleted','success'); }
+    catch (e) { if(typeof toast==='function') toast('Delete failed: '+e.message,'error'); }
+  };
+
+  // Stubs replaced in subsequent tasks.
+  window.openPolicyEditor    = function(id){ alert('Policy Editor lands in Task 10'); };
+  window.renderSettingsTeams = function(){ document.getElementById('settings-pane-teams').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Teams tab — implemented in Task 11.</div>'; };
   window.renderSettingsSimulator = function(){ document.getElementById('settings-pane-simulator').innerHTML = '<div style="padding:18px;color:var(--text-3);font-size:13px;">Simulator — implemented in Task 12.</div>'; };
 })();
 </script>
