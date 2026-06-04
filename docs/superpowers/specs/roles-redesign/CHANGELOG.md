@@ -34,12 +34,30 @@ Egypt, Gulf, etc). See the design at
 - Toggle handler writes `subject.role_id` (was `team_id`) so per-role toggles
   target the role correctly.
 
-## Phase 4 — cleanup (DEFERRED, run ~24h after Phase 3 is stable)
-NOT yet applied. When ready:
-- Rewrite `is_admin()` to read `roles.type='admin'`.
-- Drop `profiles.role` enum.
-- Drop `teams.lead_user_id`.
-- Run only after `abac_audit` shows no unexpected denies for ~24h.
+## 2026-06-04 Phase 4 — make role_id authoritative (expand-contract)
+Applied. `role_id → roles.type` is now the single source of truth for admin:
+- Rewrote `is_admin()`, `is_admin_for()`, and the admin-bypass in both
+  `abac_check` and `abac_simulate` to read `roles.type='admin'` via `role_id`
+  (no longer the `profiles.role` enum).
+- Rewrote `handle_new_user()` to also assign `role_id` (Admin if allowlisted,
+  else Sales Member) on signup.
+- Added `_sync_profile_role_from_role_id` trigger so `profiles.role` is now an
+  auto-maintained **mirror** of `role_id → roles.type`. This keeps the two
+  inline RLS policies (`merge_log`, `paid_customers`) and the frontend's
+  `AUTH_PROFILE.role` working with zero changes, while role_id stays
+  authoritative and the mirror can never drift.
+- **Data fix:** `a.hammad@icareer.ai` had drifted to the Sales Member role_id
+  during earlier UI testing while still flagged admin via the mirror/allowlist.
+  Corrected all true admins' `role_id` to the Admin role.
+- Dropped the dead `teams.lead_user_id` column.
+
+### Deliberately NOT done: physically dropping `profiles.role`
+`profiles.role` is kept as the trigger-synced mirror rather than `DROP COLUMN`.
+Dropping it would require a coordinated frontend deploy (the UI reads
+`AUTH_PROFILE.role` in many places) for zero functional gain — `role_id` is
+already authoritative and the mirror cannot drift. If a future cleanup wants
+the column physically gone, first ship a frontend that derives the role from
+`role_id`, verify it live, then `ALTER TABLE public.profiles DROP COLUMN role`.
 
 ## How to change someone's role now
 Settings → Roles & Permissions → open the **new** role → **Members** sub-tab →
