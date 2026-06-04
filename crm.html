@@ -15019,6 +15019,20 @@ function renderActivityFeed(el) {
     leads = await sbFetch();
     window.leads = leads; // expose for cross-scope lookups (owner picker, etc.)
     console.log('[CRM] sbFetch returned', leads.length, 'accounts');
+    // Reconcile localStorage stage cache with the DB. The cache is meant to be
+    // an optimistic-UI hint for in-session drags, but stale entries (e.g. from
+    // before the score-aware stage trigger demoted accounts to Lead) override
+    // the truth. Clear cached stages so the DB value wins on every fresh load.
+    try {
+      let _reconciled = 0;
+      leads.forEach(l => {
+        const k = 'st_' + l._id;
+        const cached = ls.g(k);
+        const dbStage = l._sb_stage;
+        if (cached && dbStage && cached !== dbStage) { localStorage.removeItem(k); _reconciled++; }
+      });
+      if (_reconciled) console.log('[CRM] reconciled', _reconciled, 'stale stage-cache entries');
+    } catch(e) { console.warn('[CRM] stage cache reconcile failed', e); }
     // Fire-and-forget: preload active contracts so renewal pills can render on the Accounts table.
     try { if (typeof preloadActiveContractsForAccounts === 'function') preloadActiveContractsForAccounts(); } catch {}
     // Fire-and-forget: persist Recruitera scores for any row whose stored
