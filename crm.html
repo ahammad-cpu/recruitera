@@ -7667,11 +7667,13 @@ body .ld-tab-content {
   <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);">
     <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
+    <div class="settings-tab"        data-tab="templates" onclick="settingsSwitchTab('templates')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Manage shared notes / email / meeting / call templates">Templates <span class="settings-tab-cnt" id="settings-cnt-templates" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
   <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--text-1)!important;} .settings-tab.active .settings-tab-cnt{background:var(--lime-200,#ECF8C0)!important;color:var(--text-1)!important;}</style>
   <div id="settings-pane-roles"     style="flex:1;min-height:0;"></div>
   <div id="settings-pane-simulator" style="flex:1;min-height:0;display:none;"></div>
+  <div id="settings-pane-templates" style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-policies"  style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-teams"     style="display:none;"></div>
 </div>
@@ -7901,6 +7903,126 @@ window.renderLogsList = function(){
       </div>
     </div>`;
   }).join('') + (rows.length>1000 ? '<div style="padding:14px;text-align:center;color:var(--text-3);font-size:12px;">Showing first 1,000 of '+rows.length.toLocaleString('en-US')+'. Narrow filters to see more.</div>' : '');
+};
+
+// ─── SETTINGS → TEMPLATES ─────────────────────────────────
+window.renderSettingsTemplates = async function(){
+  const root = document.getElementById('settings-pane-templates'); if(!root) return;
+  await loadActivityTemplates();
+  const all = Object.values(window.TEMPLATES_BY_KIND||{}).flat();
+  const cnt = document.getElementById('settings-cnt-templates');
+  if(cnt) cnt.textContent = all.length;
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const kindLabels = { note:'📝 Note', email:'✉️ Email', call:'📞 Call', meeting:'📅 Meeting', task:'✅ Task' };
+  const isAdm = window.AUTH_PROFILE?.role === 'admin';
+  root.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:var(--text-1);">Templates</div>
+        <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Reusable bodies for notes, emails, calls and meetings. Use <code style="font-size:11.5px;background:var(--bg-2);padding:1px 5px;border-radius:4px;">{{company}}</code> <code style="font-size:11.5px;background:var(--bg-2);padding:1px 5px;border-radius:4px;">{{contact_name}}</code> <code style="font-size:11.5px;background:var(--bg-2);padding:1px 5px;border-radius:4px;">{{my_name}}</code> <code style="font-size:11.5px;background:var(--bg-2);padding:1px 5px;border-radius:4px;">{{today}}</code> as variables.</div>
+      </div>
+      <button class="btn btn-primary" onclick="openTemplateEditor()" style="height:34px;">+ New template</button>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      ${all.length ? all.map(t => {
+        const owned = t.owner_id === AUTH_PROFILE?.id;
+        const canEdit = isAdm || owned;
+        return `<div style="display:grid;grid-template-columns:90px 1fr 140px 100px;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center;">
+          <span style="font-size:11.5px;font-weight:600;color:var(--text-2);">${escFn(kindLabels[t.kind]||t.kind)}</span>
+          <div style="min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${escFn(t.name)}</div>
+            <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn((t.body_template||'').slice(0,120))}</div>
+          </div>
+          <span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:${t.is_shared?'var(--lime-200,#ECF8C0)':'var(--bg-2)'};color:${t.is_shared?'var(--text-1)':'var(--text-3)'};text-align:center;letter-spacing:0.05em;">${t.is_shared?'⭐ SHARED':'PERSONAL'}</span>
+          <div style="display:flex;gap:6px;justify-content:flex-end;">
+            ${canEdit ? `<button onclick="openTemplateEditor('${t.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;font-size:11px;padding:4px 8px;cursor:pointer;color:var(--text-2);">Edit</button>` : ''}
+            ${canEdit ? `<button onclick="deleteTemplate('${t.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;font-size:11px;padding:4px 8px;cursor:pointer;color:var(--bad);">Delete</button>` : ''}
+          </div>
+        </div>`;
+      }).join('') : `<div style="padding:32px;text-align:center;color:var(--text-3);">No templates yet. Create one to save typing time.</div>`}
+    </div>`;
+};
+
+window.openTemplateEditor = function(tplId){
+  const all = Object.values(window.TEMPLATES_BY_KIND||{}).flat();
+  const t = tplId ? all.find(x => x.id === tplId) : null;
+  const isAdm = window.AUTH_PROFILE?.role === 'admin';
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const m = document.createElement('div');
+  m.className = 'disq-modal-bg open';
+  m.id = 'tpl-editor-modal';
+  m.innerHTML = `
+    <div class="disq-modal" style="max-width:560px;">
+      <div class="disq-hdr">
+        <div class="disq-title">${t?'Edit template':'New template'}</div>
+        <div class="disq-sub">Templates show up in the Activity composer.</div>
+      </div>
+      <div class="disq-body" style="display:flex;flex-direction:column;gap:12px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Kind
+          <select id="tpl-kind" style="display:block;width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:7px;margin-top:3px;">
+            <option value="note"${t?.kind==='note'?' selected':''}>📝 Note</option>
+            <option value="email"${t?.kind==='email'?' selected':''}>✉️ Email</option>
+            <option value="call"${t?.kind==='call'?' selected':''}>📞 Call</option>
+            <option value="meeting"${t?.kind==='meeting'?' selected':''}>📅 Meeting</option>
+            <option value="task"${t?.kind==='task'?' selected':''}>✅ Task</option>
+          </select>
+        </label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Template name
+          <input id="tpl-name" type="text" placeholder="e.g. Demo recap" value="${escFn(t?.name||'')}" style="display:block;width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:7px;margin-top:3px;"/>
+        </label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Subject / Title (optional, used for email subject or task title)
+          <input id="tpl-title" type="text" placeholder="Quick check-in" value="${escFn(t?.title_template||'')}" style="display:block;width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:7px;margin-top:3px;"/>
+        </label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Body
+          <textarea id="tpl-body" rows="7" placeholder="Hi {{contact_name}},..." style="display:block;width:100%;padding:8px 10px;font-size:13px;font-family:inherit;border:1px solid var(--border);border-radius:7px;margin-top:3px;">${escFn(t?.body_template||'')}</textarea>
+        </label>
+        ${isAdm ? `<label style="font-size:13px;display:flex;align-items:center;gap:8px;">
+          <input id="tpl-shared" type="checkbox"${t?.is_shared?' checked':''}/>
+          <span>⭐ Shared (visible to everyone)</span>
+        </label>` : ''}
+      </div>
+      <div class="disq-footer">
+        <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('tpl-editor-modal').remove()">Cancel</button>
+        <button class="btn btn-primary"  style="flex:2;" onclick="saveTemplate('${t?t.id:''}')">${t?'Save changes':'Create template'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+};
+
+window.saveTemplate = async function(tplId){
+  const payload = {
+    kind:           document.getElementById('tpl-kind').value,
+    name:           document.getElementById('tpl-name').value.trim(),
+    title_template: document.getElementById('tpl-title').value.trim() || null,
+    body_template:  document.getElementById('tpl-body').value.trim(),
+    is_shared:      document.getElementById('tpl-shared')?.checked || false,
+    owner_id:       AUTH_PROFILE?.id || null,
+  };
+  if(!payload.name || !payload.body_template){ toast('Name + body required','error'); return; }
+  const token = await _getValidAccessToken(); if(!token) return;
+  const H = {'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'};
+  let res;
+  if(tplId){
+    res = await fetch(`${SB_URL}/rest/v1/activity_templates?id=eq.${tplId}`, {method:'PATCH', headers:H, body: JSON.stringify(payload)});
+  } else {
+    res = await fetch(`${SB_URL}/rest/v1/activity_templates`, {method:'POST', headers:H, body: JSON.stringify(payload)});
+  }
+  if(res.ok){
+    document.getElementById('tpl-editor-modal')?.remove();
+    toast(tplId?'Updated':'Created','success');
+    await renderSettingsTemplates();
+  } else {
+    toast('Save failed','error');
+  }
+};
+
+window.deleteTemplate = async function(tplId){
+  if(!confirm('Delete this template?')) return;
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/activity_templates?id=eq.${tplId}`, {
+    method:'DELETE', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  if(r.ok){ toast('Deleted','success'); await renderSettingsTemplates(); }
 };
 
 // ─── NOTIFICATIONS BELL ──────────────────────────────────
@@ -17537,7 +17659,7 @@ window.addEventListener('auth-ready', () => {
 
   // ─── Tab switcher ─────────────────────────────────────
   function settingsSwitchTab(tab){
-    ['roles','policies','teams','simulator'].forEach(function(t){
+    ['roles','policies','teams','simulator','templates'].forEach(function(t){
       var tabEl = document.querySelector('.settings-tab[data-tab="'+t+'"]');
       if (tabEl) tabEl.classList.toggle('active', t === tab);
       var pane = document.getElementById('settings-pane-'+t);
@@ -17547,6 +17669,7 @@ window.addEventListener('auth-ready', () => {
     if (tab === 'policies'  && typeof renderSettingsPolicies  === 'function') renderSettingsPolicies();
     if (tab === 'teams'     && typeof renderSettingsTeams     === 'function') renderSettingsTeams();
     if (tab === 'simulator' && typeof renderSettingsSimulator === 'function') renderSettingsSimulator();
+    if (tab === 'templates' && typeof renderSettingsTemplates === 'function') renderSettingsTemplates();
   }
   window.settingsSwitchTab = settingsSwitchTab;
 
