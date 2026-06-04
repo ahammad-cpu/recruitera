@@ -16236,7 +16236,7 @@ window.addEventListener('auth-ready', () => {
   let _rolesFetchedAt = 0;     // ms timestamp; treat as fresh for STALENESS_MS after a successful fetch
   const STALENESS_MS = 30_000; // 30s — long enough to feel instant during a typing/clicking session
 
-  function _policyAutoName(roleId, action){ return 'auto:'+roleId+':'+action; }
+  function _policyAutoName(roleId, action){ return 'auto:role:'+roleId+':'+action; }
 
   // Re-paint the Roles tab from in-memory caches. Used after local mutations and
   // for the stale-while-revalidate render path so opening the tab is instant
@@ -16372,7 +16372,7 @@ window.addEventListener('auth-ready', () => {
     _teamsCache = teams; // for the Manage Teams sub-modal + advanced policy editor
     _rolePolicies = {};
     autoPolicies.forEach(p => {
-      const m = (p.name || '').match(/^auto:([0-9a-f-]+):(.+)$/);
+      const m = (p.name || '').match(/^auto:role:([0-9a-f-]+):(.+)$/);
       if(!m) return;
       const [, rid, action] = m;
       (_rolePolicies[rid] = _rolePolicies[rid] || {})[action] = p;
@@ -16461,7 +16461,7 @@ window.addEventListener('auth-ready', () => {
             <div style="font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:4px;">
               ${esc(m.email)}
               ${m.role==='admin'?'<span style="margin-left:6px;font-size:10px;background:#f0eef9;color:#7c3aed;padding:1px 7px;border-radius:999px;font-weight:600;">ADMIN</span>':''}
-              ${teamPicker}
+              ${leadPicker}
             </div>
           </div>
           <button class="btn btn-secondary" onclick="abacRoleRemoveMember('${m.id}')" style="padding:4px 10px;font-size:11px;color:var(--bad);border-color:var(--bad);">Remove</button>
