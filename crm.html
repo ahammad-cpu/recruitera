@@ -16086,8 +16086,8 @@ window.addEventListener('auth-ready', () => {
       <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Email <input id="abac-inv-email" type="email" placeholder="jane@company.com" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Role
-          <select id="abac-inv-role-id" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
-        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Assign to role
+          <select id="abac-inv-role-id" onchange="abacInviteRoleChanged()" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
+        <label id="abac-inv-team-label" style="font-size:11.5px;font-weight:600;color:var(--text-3);">Team
           <select id="abac-inv-team" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
       </div>
       <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Temporary password <input id="abac-inv-password" type="text" value="Recruitera@2025" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
@@ -16543,14 +16543,26 @@ window.addEventListener('auth-ready', () => {
     roleSel.innerHTML = _rolesCache.map(r => `<option value="${r.id}">${esc(r.name)}${r.is_system?' · system':''}</option>`).join('');
     if (_selectedRoleId) roleSel.value = _selectedRoleId;
     const teamSel = document.getElementById('abac-inv-team');
-    teamSel.innerHTML = '<option value="">— none —</option>' + _teamsCache.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    teamSel.innerHTML = _teamsCache.length === 0
+      ? '<option value="">— no teams yet —</option>'
+      : '<option value="">— pick team —</option>' + _teamsCache.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
     document.getElementById('abac-inv-error').style.display   = 'none';
     document.getElementById('abac-inv-success').style.display = 'none';
     document.getElementById('abac-inv-submit').disabled = false;
     document.getElementById('abac-inv-submit').textContent = 'Create user';
+    abacInviteRoleChanged(); // show/hide Team field based on the default-selected role
     document.getElementById('abac-invite-bg').classList.add('open');
   };
   window.abacInviteUserClose = function(){ document.getElementById('abac-invite-bg').classList.remove('open'); };
+
+  // Show the Team field only when the chosen role needs a team. Admin (and any
+  // role with requires_team=false) hides it entirely so the modal isn't confusing.
+  window.abacInviteRoleChanged = function(){
+    const role = _rolesCache.find(r => r.id === document.getElementById('abac-inv-role-id').value);
+    const label = document.getElementById('abac-inv-team-label');
+    if(!label) return;
+    label.style.display = (role && role.requires_team) ? '' : 'none';
+  };
 
   window.abacInviteUserSubmit = async function(){
     const email    = document.getElementById('abac-inv-email').value.trim().toLowerCase();
