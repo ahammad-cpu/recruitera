@@ -7768,6 +7768,100 @@ body .ld-tab-content {
   </div>
 </div>
 
+<!-- ─── PROPOSAL MODAL (→ Proposal stage) ─── -->
+<div class="disq-modal-bg" id="proposal-modal-bg">
+  <div class="disq-modal" style="max-width:480px;">
+    <div class="disq-hdr">
+      <div class="disq-title">Proposal details</div>
+      <div class="disq-sub">Capture the proposal for <b id="proposal-company">—</b> before moving it to Proposal.</div>
+    </div>
+    <div class="disq-body" style="display:flex;flex-direction:column;gap:12px;">
+      <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Proposal amount (EGP)
+        <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;margin-top:3px;overflow:hidden;">
+          <span style="padding:7px 10px;background:var(--bg-2);color:var(--text-3);font-size:12px;font-weight:600;border-right:1px solid var(--border);">EGP</span>
+          <input id="proposal-amount" type="text" inputmode="numeric" placeholder="0" style="flex:1;border:none;outline:none;padding:7px 10px;font:inherit;font-size:14px;background:transparent;color:var(--text-1);"/>
+        </div>
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Proposal sent
+          <input id="proposal-sent" type="date" style="display:block;width:100%;padding:7px 9px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:7px;margin-top:3px;"/></label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Expected decision
+          <input id="proposal-decision" type="date" style="display:block;width:100%;padding:7px 9px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:7px;margin-top:3px;"/></label>
+      </div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="cancelProposal()">Cancel</button>
+      <button class="btn btn-primary"   style="flex:2" onclick="confirmProposal()">Save &amp; move to Proposal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── PROPOSAL stage modal ───────────────────────────────
+(function(){
+  let _proposalId = null;
+  window.openProposalModal = function(id){
+    const lead = (window.leads||[]).find(l => l._id === id);
+    if(!lead){ if(typeof toast==='function') toast('Lead not found','error'); return; }
+    _proposalId = id;
+    document.getElementById('proposal-company').textContent = (typeof gName==='function' ? gName(lead) : (lead.name||'(no name)'));
+    // Pre-fill: proposal amount from prior proposal value or the deal ACV; sent = today.
+    const priorAmt = lead.proposal_amount != null ? lead.proposal_amount
+                   : (typeof gAcv==='function' ? (parseFloat(String(gAcv(id)).replace(/[^\d.\-]/g,''))||'') : '');
+    document.getElementById('proposal-amount').value   = priorAmt!==''&&priorAmt!=null ? Number(priorAmt).toLocaleString('en-US') : '';
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('proposal-sent').value     = lead.proposal_sent_date || today;
+    document.getElementById('proposal-decision').value = lead.proposal_decision_date || lead.deal_close_date || '';
+    document.getElementById('proposal-modal-bg').classList.add('open');
+  };
+  window.cancelProposal = function(){
+    document.getElementById('proposal-modal-bg').classList.remove('open');
+    if(typeof pendingStageChange !== 'undefined') pendingStageChange = null;
+    _proposalId = null;
+  };
+  window.confirmProposal = async function(){
+    const id = _proposalId;
+    const lead = (window.leads||[]).find(l => l._id === id);
+    const amtRaw = document.getElementById('proposal-amount').value;
+    const amt = parseFloat(String(amtRaw).replace(/[^\d.\-]/g,''));
+    const payload = {
+      proposal_amount:        isFinite(amt) ? amt : null,
+      proposal_sent_date:     document.getElementById('proposal-sent').value || null,
+      proposal_decision_date: document.getElementById('proposal-decision').value || null,
+      proposal_filled_at:     new Date().toISOString(),
+      proposal_filled_by:     (window.AUTH_PROFILE?.id) || null,
+    };
+    if(lead) Object.assign(lead, payload);
+    // Mirror the proposal amount into the deal ACV + close date so the card/forecast reflect it.
+    if(isFinite(amt) && typeof sAcv==='function') sAcv(id, (typeof fmtMoney==='function'?fmtMoney(amt):('EGP '+amt)));
+    if(payload.proposal_decision_date && typeof sClose==='function') sClose(id, payload.proposal_decision_date);
+
+    const sbId = lead?._supabase_id;
+    if(sbId){
+      const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+      if(token){
+        try {
+          const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+            method:'PATCH',
+            headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'},
+            body: JSON.stringify(payload)
+          });
+          if(!res.ok) console.warn('[proposal] persist failed', res.status, await res.text());
+        } catch(e){ console.warn('[proposal] persist threw', e); }
+      }
+    }
+    document.getElementById('proposal-modal-bg').classList.remove('open');
+    if(typeof pendingStageChange !== 'undefined' && pendingStageChange){
+      const { id:pid, newStage, oldStage } = pendingStageChange;
+      pendingStageChange = null;
+      if(typeof applyStageChange === 'function') applyStageChange(pid, newStage, oldStage);
+    }
+    if(typeof toast==='function') toast('Proposal saved · moved to Proposal','success');
+    _proposalId = null;
+  };
+})();
+</script>
+
 <!-- ─── BANT MODAL (Lead/MQL → SQL gate) ─── -->
 <div class="disq-modal-bg" id="bant-modal-bg">
   <div class="disq-modal" style="max-width:560px;">
@@ -8878,6 +8972,9 @@ async function sbFetch() {
     bant_timing_yes:    acc.bant_timing_yes ?? null,
     bant_timing_note:   acc.bant_timing_note || '',
     bant_filled_at:     acc.bant_filled_at || null,
+    proposal_amount:        acc.proposal_amount ?? null,
+    proposal_sent_date:     acc.proposal_sent_date || null,
+    proposal_decision_date: acc.proposal_decision_date || null,
     is_unreachable:   acc.is_unreachable === true,
     is_paid_customer: acc.is_paid_customer || false,
     paid_status:      acc.paid_status || null,
@@ -9287,6 +9384,13 @@ function ddr(e,sid){
   if(sid==='sql'){
     pendingStageChange={id, newStage:'sql', oldStage:prev};
     openBantModal(id);
+    return;
+  }
+
+  // Proposal: capture proposal amount + dates before applying the move.
+  if(sid==='proposal'){
+    pendingStageChange={id, newStage:'proposal', oldStage:prev};
+    openProposalModal(id);
     return;
   }
 
