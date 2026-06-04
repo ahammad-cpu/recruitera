@@ -9073,10 +9073,45 @@ const sContact=(id,v)=>ls.s('contact_'+id,v);
 const gLost=id=>ls.g('lost_'+id)||null;
 const sLost=(id,v)=>ls.s('lost_'+id,v);
 
-function pushLog(id,type,text,author){
+// Activity item shape (v2):
+//   {id, type, text, author, ts, edited_at, parent_id, is_archived,
+//    title, priority, assigned_to,
+//    call_outcome, call_duration, call_direction,
+//    email_direction, email_to, email_from, email_subject, email_body,
+//    meeting_kind, meeting_start, meeting_end, meeting_location, meeting_attendees, meeting_outcome,
+//    task_due, task_done, task_done_at}
+function pushLog(id,type,text,author,extras){
   const arr=gLog(id);
-  arr.unshift({type,text,author:author||gOwner(id),ts:Date.now()});
+  const item = Object.assign(
+    { id: (crypto?.randomUUID?.() || ('a_'+Date.now()+Math.random())),
+      type, text, author:author||gOwner(id), ts:Date.now(), is_archived:false },
+    extras || {}
+  );
+  arr.unshift(item);
   sLog(id,arr);
+  return item;
+}
+function updateLogItem(accId, itemId, patch){
+  const arr = gLog(accId);
+  const i = arr.findIndex(x => x.id === itemId);
+  if(i < 0) return null;
+  arr[i] = Object.assign({}, arr[i], patch, { edited_at: Date.now() });
+  sLog(accId, arr);
+  return arr[i];
+}
+function deleteLogItem(accId, itemId){
+  let arr = gLog(accId);
+  // Also drop any children of the deleted item (subtasks)
+  arr = arr.filter(x => x.id !== itemId && x.parent_id !== itemId);
+  sLog(accId, arr);
+}
+function toggleTaskDone(accId, itemId){
+  const arr = gLog(accId);
+  const i = arr.findIndex(x => x.id === itemId);
+  if(i < 0) return;
+  arr[i].task_done = !arr[i].task_done;
+  arr[i].task_done_at = arr[i].task_done ? Date.now() : null;
+  sLog(accId, arr);
 }
 
 function calcIcpScore(id){
@@ -10829,85 +10864,418 @@ async function preloadActiveContractsForAccounts(){
   }catch(e){ console.warn('[contracts] preload error', e); }
 }
 
-function renderLdActivity(lead,el){
-  const id=lead._id;const logs=gLog(id);
-  const typeIcons={call:'📞',email:'✉️',note:'📝',demo:'🗓️',task:'✅',stage:'⇄'};
-  const compTabs=[
-    {id:'note', l:'Note',      icon:'📝'},
-    {id:'call', l:'Log call',  icon:'📞'},
-    {id:'email',l:'Log email', icon:'✉️'},
-    {id:'demo', l:'Meeting',   icon:'📅'},
-    {id:'task', l:'Task',      icon:'✅'},
-  ];
-  const ownerSel=OWNERS.map(o=>`<option value="${o.id}"${o.id===gOwner(id)?' selected':''}>${o.name}</option>`).join('');
-  el.innerHTML=`
-    <div class="ld-composer">
-      <div class="ld-composer-tabs">
-        ${compTabs.map(t=>`<button class="ld-composer-tab${ldComposerMode===t.id?' active':''}" data-type="${t.id}" onclick="ldPickComposer(this)">
-          <span style="font-size:14px;line-height:1;">${t.icon}</span>${t.l}
-        </button>`).join('')}
-        <select id="ld-author" style="display:none;">${ownerSel}</select>
+// ═══ ACTIVITY TAB v2 ════════════════════════════════════════════════
+// 6 type-specific composers. Per-type feed renders. Edit + delete inline.
+// Tasks first-class with checkbox + subtasks. Filter chips above feed.
+
+window.ldFeedFilter = window.ldFeedFilter || 'all';
+window.ldEditingId = null;
+
+const ACT_TYPES = [
+  {id:'note',         l:'Note',             icon:'📝'},
+  {id:'call',         l:'Log call',         icon:'📞'},
+  {id:'email',        l:'Log email',        icon:'✉️'},
+  {id:'meeting-log',  l:'Log meeting',      icon:'📅'},
+  {id:'meeting',      l:'Schedule meeting', icon:'🗓️'},
+  {id:'task',         l:'Task',             icon:'✅'},
+];
+const ACT_TYPE_BY_ID = Object.fromEntries(ACT_TYPES.map(t => [t.id, t]));
+
+function renderLdActivity(lead, el){
+  const id = lead._id;
+  el.innerHTML = `
+    <div class="ld-composer" id="ld-composer-wrap">${renderActComposer(id, ldComposerMode||'note', null)}</div>
+    <div id="ld-feed-wrap" style="margin-top:14px;">${renderActFeed(id)}</div>
+  `;
+  bindComposerHandlers(id);
+}
+
+function renderActComposer(accId, type, editingItem){
+  const t = ACT_TYPE_BY_ID[type] || ACT_TYPES[0];
+  const isEdit = !!editingItem;
+  const tabs = isEdit ? '' : `
+    <div class="ld-composer-tabs">
+      ${ACT_TYPES.map(x => `<button class="ld-composer-tab${x.id===type?' active':''}" data-type="${x.id}" onclick="ldPickComposer(this)">
+        <span style="font-size:14px;line-height:1;">${x.icon}</span>${esc(x.l)}
+      </button>`).join('')}
+    </div>`;
+  const body = composerBodyHTML(accId, type, editingItem);
+  const saveLabel = isEdit ? 'Save changes' : ('Save ' + (t.l.replace(/^Log |^Schedule /,'').toLowerCase()));
+  const cancelBtn = isEdit ? `<button class="btn btn-secondary" style="margin-right:8px;" onclick="ldCancelEdit()">Cancel</button>` : '';
+  return `
+    ${tabs}
+    <div class="ld-composer-body" id="ld-composer-body" data-type="${type}" data-edit="${editingItem?editingItem.id:''}">
+      ${body}
+      <div class="ld-composer-footer">
+        <span style="font-size:11px;color:var(--text-4);display:flex;align-items:center;gap:5px;">
+          ${type==='note' || type==='call' || type==='email' ? '<kbd style="font-size:10px;padding:2px 5px;border:1px solid var(--border-2);border-radius:4px;font-family:inherit;background:var(--surface-2);">Ctrl</kbd> <kbd style="font-size:10px;padding:2px 5px;border:1px solid var(--border-2);border-radius:4px;font-family:inherit;background:var(--surface-2);">↵</kbd> to save' : ''}
+        </span>
+        <div>${cancelBtn}<button class="ld-save-btn" onclick="ldSubmitLog()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
+          ${esc(saveLabel)}
+        </button></div>
       </div>
-      <div class="ld-composer-body">
-        <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="${ldComposerMode==='note'?'Write a note for the team…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…'}"></textarea>
-        <div style="font-size:11px;color:var(--text-4);margin-top:8px;padding:0 4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span style="font-size:13px;line-height:1;">💡</span>
-          <span>Tip: Type</span>
-          <kbd style="font-size:10.5px;padding:2px 6px;border:1px solid var(--border-2);border-radius:5px;font-family:inherit;background:var(--surface-2);color:var(--info);font-weight:600;">@</kbd>
-          <span>to mention a teammate ·</span>
-          <kbd style="font-size:10.5px;padding:2px 6px;border:1px solid var(--border-2);border-radius:5px;font-family:inherit;background:var(--surface-2);">Ctrl</kbd>
-          <span>+</span>
-          <kbd style="font-size:10.5px;padding:2px 6px;border:1px solid var(--border-2);border-radius:5px;font-family:inherit;background:var(--surface-2);">Enter</kbd>
-          <span>to send</span>
-        </div>
-        <div class="ld-composer-footer">
-          <span style="font-size:11px;color:var(--text-4);display:flex;align-items:center;gap:5px;">
-            <kbd style="font-size:10px;padding:2px 5px;border:1px solid var(--border-2);border-radius:4px;font-family:inherit;background:var(--surface-2);">Ctrl</kbd>
-            <kbd style="font-size:10px;padding:2px 5px;border:1px solid var(--border-2);border-radius:4px;font-family:inherit;background:var(--surface-2);">↵</kbd>
-            to save
-          </span>
-          <button class="ld-save-btn" onclick="ldSubmitLog()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
-            Save ${ldComposerMode}
-          </button>
-        </div>
+    </div>`;
+}
+
+function composerBodyHTML(accId, type, e){
+  e = e || {};
+  const ownerOpts = (window.PROFILES_DIR||[]).filter(p=>p.active!==false).map(p =>
+    `<option value="${esc(p.id)}"${p.id===(e.assigned_to||AUTH_PROFILE?.id)?' selected':''}>${esc(p.full_name||p.email||p.id)}</option>`).join('');
+  const inputStyle = 'width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;font-size:13px;background:transparent;color:var(--text-1);outline:none;';
+  const rowGrid = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+  const lbl = (t)=>`<div style="font-size:10.5px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">${t}</div>`;
+
+  if(type === 'note'){
+    return `<textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="Write a note for the team…">${esc(e.text||'')}</textarea>
+      <div style="font-size:11px;color:var(--text-4);margin-top:6px;">💡 Type <kbd style="font-size:10px;padding:1px 5px;border:1px solid var(--border-2);border-radius:4px;background:var(--surface-2);color:var(--info);">@</kbd> to mention a teammate</div>`;
+  }
+  if(type === 'call'){
+    return `
+      <div style="${rowGrid};margin-bottom:10px;">
+        <div>${lbl('Direction')}<select id="ld-call-dir" style="${inputStyle}">
+          <option value="outbound"${e.call_direction==='outbound'?' selected':''}>📤 Outbound</option>
+          <option value="inbound"${e.call_direction==='inbound'?' selected':''}>📥 Inbound</option>
+        </select></div>
+        <div>${lbl('Outcome')}<select id="ld-call-out" style="${inputStyle}">
+          <option value="connected"${e.call_outcome==='connected'?' selected':''}>✅ Connected</option>
+          <option value="voicemail"${e.call_outcome==='voicemail'?' selected':''}>📩 Left voicemail</option>
+          <option value="no-answer"${e.call_outcome==='no-answer'?' selected':''}>📵 No answer</option>
+          <option value="busy"${e.call_outcome==='busy'?' selected':''}>📞 Busy</option>
+          <option value="wrong-number"${e.call_outcome==='wrong-number'?' selected':''}>❓ Wrong number</option>
+        </select></div>
       </div>
-    </div>
-    ${logs.length===0
-      ?`<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">📋</div><div>No activity yet</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">Log a call, email or note above</div></div>`
-      :`<div class="ld-timeline"><div class="ld-act-group-label">All activity</div>
-        ${logs.map(l=>`<div class="ld-act-item">
-          <div class="ld-act-icon ${l.type||'note'}">${typeIcons[l.type]||'•'}</div>
-          <div class="ld-act-body">
-            <div class="ld-act-who">${esc(l.author||'System')}<span class="ld-act-who-type"> · ${l.type==='stage'?'moved stage':l.type}</span></div>
-            <div class="ld-act-text">${renderTextWithMentions(l.text)}</div>
-            <div class="ld-act-time">${fmtT(l.ts)}</div>
-          </div>
-        </div>`).join('')}
-      </div>`}`;
-  const ta=el.querySelector('#ld-ta');
+      <div style="margin-bottom:10px;">${lbl('Duration (minutes)')}<input id="ld-call-dur" type="number" min="0" placeholder="e.g. 12" value="${e.call_duration_minutes||''}" style="${inputStyle}"/></div>
+      <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="What was discussed? Key points, next steps…">${esc(e.text||'')}</textarea>`;
+  }
+  if(type === 'email'){
+    return `
+      <div style="${rowGrid};margin-bottom:10px;">
+        <div>${lbl('Direction')}<select id="ld-em-dir" style="${inputStyle}">
+          <option value="sent"${e.email_direction==='sent'?' selected':''}>📤 Sent</option>
+          <option value="received"${e.email_direction==='received'?' selected':''}>📥 Received</option>
+        </select></div>
+        <div>${lbl('To / From')}<input id="ld-em-addr" type="email" placeholder="name@company.com" value="${esc(e.email_to||e.email_from||'')}" style="${inputStyle}"/></div>
+      </div>
+      <div style="margin-bottom:10px;">${lbl('Subject')}<input id="ld-em-sub" type="text" placeholder="Subject line" value="${esc(e.email_subject||'')}" style="${inputStyle}"/></div>
+      <textarea class="ld-composer-ta" id="ld-ta" rows="4" placeholder="Email body / summary…">${esc(e.email_body||e.text||'')}</textarea>`;
+  }
+  if(type === 'meeting-log'){
+    const dt = e.meeting_start_at ? new Date(e.meeting_start_at).toISOString().slice(0,16) : '';
+    return `
+      <div style="${rowGrid};margin-bottom:10px;">
+        <div>${lbl('When (past)')}<input id="ld-mtg-when" type="datetime-local" value="${dt}" style="${inputStyle}"/></div>
+        <div>${lbl('Outcome')}<input id="ld-mtg-out" type="text" placeholder="e.g. agreed pilot, asked for proposal" value="${esc(e.meeting_outcome||'')}" style="${inputStyle}"/></div>
+      </div>
+      <div style="margin-bottom:10px;">${lbl('Attendees (comma-separated)')}<input id="ld-mtg-att" type="text" placeholder="Ahmed, Mariam, Hossam" value="${esc((e.meeting_attendees||[]).join(', '))}" style="${inputStyle}"/></div>
+      <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="Meeting notes, decisions, next steps…">${esc(e.text||'')}</textarea>`;
+  }
+  if(type === 'meeting'){
+    const dt = e.meeting_start_at ? new Date(e.meeting_start_at).toISOString().slice(0,16) : '';
+    const dtEnd = e.meeting_end_at ? new Date(e.meeting_end_at).toISOString().slice(0,16) : '';
+    return `
+      <div style="${rowGrid};margin-bottom:10px;">
+        <div>${lbl('Starts')}<input id="ld-mtg-start" type="datetime-local" value="${dt}" style="${inputStyle}"/></div>
+        <div>${lbl('Ends')}<input id="ld-mtg-end" type="datetime-local" value="${dtEnd}" style="${inputStyle}"/></div>
+      </div>
+      <div style="margin-bottom:10px;">${lbl('Location / Video link')}<input id="ld-mtg-loc" type="text" placeholder="Zoom URL, Google Meet, room name…" value="${esc(e.meeting_location||'')}" style="${inputStyle}"/></div>
+      <div style="margin-bottom:10px;">${lbl('Attendees (comma-separated)')}<input id="ld-mtg-att" type="text" placeholder="Ahmed, Mariam" value="${esc((e.meeting_attendees||[]).join(', '))}" style="${inputStyle}"/></div>
+      <textarea class="ld-composer-ta" id="ld-ta" rows="2" placeholder="Agenda or notes…">${esc(e.text||'')}</textarea>`;
+  }
+  if(type === 'task'){
+    const due = e.task_due ? new Date(e.task_due).toISOString().slice(0,10) : '';
+    return `
+      <div style="margin-bottom:10px;">${lbl('Task title')}<input id="ld-task-title" type="text" placeholder="What needs to happen?" value="${esc(e.title||e.text||'')}" style="${inputStyle};font-weight:600;font-size:14px;"/></div>
+      <div style="${rowGrid};margin-bottom:10px;">
+        <div>${lbl('Due date')}<input id="ld-task-due" type="date" value="${due}" style="${inputStyle}"/></div>
+        <div>${lbl('Priority')}<select id="ld-task-pri" style="${inputStyle}">
+          <option value="medium"${e.priority==='medium'||!e.priority?' selected':''}>🟡 Medium</option>
+          <option value="high"${e.priority==='high'?' selected':''}>🔴 High</option>
+          <option value="low"${e.priority==='low'?' selected':''}>🟢 Low</option>
+        </select></div>
+      </div>
+      <div style="margin-bottom:10px;">${lbl('Assigned to')}<select id="ld-task-ass" style="${inputStyle}">${ownerOpts}</select></div>
+      <textarea class="ld-composer-ta" id="ld-ta" rows="2" placeholder="Description (optional)…">${esc(e.text||'')}</textarea>`;
+  }
+  return `<textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="Type something…">${esc(e.text||'')}</textarea>`;
+}
+
+function bindComposerHandlers(accId){
+  const ta = document.getElementById('ld-ta');
   if(ta){
-    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))ldSubmitLog();});
-    initMentionsForTextarea(ta);
+    ta.addEventListener('keydown', e => {
+      if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) ldSubmitLog();
+    });
+    if(typeof initMentionsForTextarea === 'function') initMentionsForTextarea(ta);
   }
 }
 
-function ldPickComposer(btn){
-  document.querySelectorAll('.ld-composer-tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');ldComposerMode=btn.dataset.type;
-  const ta=document.getElementById('ld-ta');
-  if(ta)ta.placeholder=ldComposerMode==='note'?'Write a note for the team…':ldComposerMode==='call'?'What was discussed?':ldComposerMode==='email'?'Email summary…':'Write update…';
+window.ldPickComposer = function(btn){
+  ldComposerMode = btn.dataset.type;
+  ldEditingId = null;
+  const wrap = document.getElementById('ld-composer-wrap');
+  if(wrap) wrap.innerHTML = renderActComposer(curId, ldComposerMode, null);
+  bindComposerHandlers(curId);
+};
+
+window.ldCancelEdit = function(){
+  ldEditingId = null;
+  const wrap = document.getElementById('ld-composer-wrap');
+  if(wrap) wrap.innerHTML = renderActComposer(curId, ldComposerMode||'note', null);
+  bindComposerHandlers(curId);
+};
+
+window.ldEditItem = function(itemId){
+  const arr = gLog(curId);
+  const item = arr.find(x => x.id === itemId);
+  if(!item) return;
+  ldEditingId = itemId;
+  ldComposerMode = item.type;
+  const wrap = document.getElementById('ld-composer-wrap');
+  if(wrap) wrap.innerHTML = renderActComposer(curId, item.type, item);
+  bindComposerHandlers(curId);
+  wrap?.scrollIntoView({behavior:'smooth', block:'start'});
+};
+
+window.ldDeleteItem = function(itemId){
+  if(!confirm('Delete this entry? Sub-items will be deleted too.')) return;
+  deleteLogItem(curId, itemId);
+  const wrap = document.getElementById('ld-feed-wrap');
+  if(wrap) wrap.innerHTML = renderActFeed(curId);
+  const lead = leads.find(l => l._id === curId);
+  if(lead) updateLdTabCounts(lead);
+  if(typeof toast === 'function') toast('Deleted','success');
+};
+
+window.ldToggleTask = function(itemId){
+  toggleTaskDone(curId, itemId);
+  const wrap = document.getElementById('ld-feed-wrap');
+  if(wrap) wrap.innerHTML = renderActFeed(curId);
+};
+
+window.ldAddSubtask = function(parentId){
+  const title = prompt('Subtask title');
+  if(!title || !title.trim()) return;
+  pushLog(curId, 'task', '', AUTH_PROFILE?.email || gOwner(curId), {
+    title: title.trim(),
+    parent_id: parentId,
+    priority: 'medium',
+    assigned_to: AUTH_PROFILE?.id || null,
+  });
+  const wrap = document.getElementById('ld-feed-wrap');
+  if(wrap) wrap.innerHTML = renderActFeed(curId);
+};
+
+window.ldSetFeedFilter = function(f){
+  ldFeedFilter = f;
+  const wrap = document.getElementById('ld-feed-wrap');
+  if(wrap) wrap.innerHTML = renderActFeed(curId);
+};
+
+window.ldSubmitLog = function(){
+  if(!curId) return;
+  const body = document.getElementById('ld-composer-body');
+  if(!body) return;
+  const type = body.dataset.type;
+  const editId = body.dataset.edit || null;
+  const ta = document.getElementById('ld-ta');
+  const text = (ta?.value || '').trim();
+
+  const extras = {};
+  if(type === 'call'){
+    extras.call_direction = document.getElementById('ld-call-dir')?.value;
+    extras.call_outcome   = document.getElementById('ld-call-out')?.value;
+    const d = parseInt(document.getElementById('ld-call-dur')?.value || '0', 10);
+    extras.call_duration_minutes = isNaN(d) ? null : d;
+  } else if(type === 'email'){
+    extras.email_direction = document.getElementById('ld-em-dir')?.value;
+    const addr = document.getElementById('ld-em-addr')?.value || '';
+    if(extras.email_direction === 'sent') extras.email_to = addr; else extras.email_from = addr;
+    extras.email_subject = document.getElementById('ld-em-sub')?.value || '';
+    extras.email_body = text;
+  } else if(type === 'meeting-log'){
+    const w = document.getElementById('ld-mtg-when')?.value;
+    extras.meeting_kind = 'logged';
+    extras.meeting_start_at = w ? new Date(w).getTime() : null;
+    extras.meeting_outcome = document.getElementById('ld-mtg-out')?.value || '';
+    extras.meeting_attendees = (document.getElementById('ld-mtg-att')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+  } else if(type === 'meeting'){
+    const s = document.getElementById('ld-mtg-start')?.value;
+    const e2 = document.getElementById('ld-mtg-end')?.value;
+    extras.meeting_kind = 'scheduled';
+    extras.meeting_start_at = s ? new Date(s).getTime() : null;
+    extras.meeting_end_at = e2 ? new Date(e2).getTime() : null;
+    extras.meeting_location = document.getElementById('ld-mtg-loc')?.value || '';
+    extras.meeting_attendees = (document.getElementById('ld-mtg-att')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+  } else if(type === 'task'){
+    extras.title = document.getElementById('ld-task-title')?.value || '';
+    const due = document.getElementById('ld-task-due')?.value;
+    extras.task_due = due ? new Date(due).getTime() : null;
+    extras.priority = document.getElementById('ld-task-pri')?.value || 'medium';
+    extras.assigned_to = document.getElementById('ld-task-ass')?.value || null;
+    if(!extras.title.trim()){ toast('Task needs a title','error'); return; }
+  } else { // note
+    if(!text){ toast('Empty note','error'); return; }
+  }
+
+  const author = AUTH_PROFILE?.email || gOwner(curId);
+  if(editId){
+    updateLogItem(curId, editId, Object.assign({type, text}, extras));
+  } else {
+    pushLog(curId, type, text, author, extras);
+  }
+  ldEditingId = null;
+  // Reset to note mode after save unless we were editing
+  if(!editId){ ldComposerMode = 'note'; }
+  const cw = document.getElementById('ld-composer-wrap');
+  if(cw) cw.innerHTML = renderActComposer(curId, ldComposerMode, null);
+  bindComposerHandlers(curId);
+  const fw = document.getElementById('ld-feed-wrap');
+  if(fw) fw.innerHTML = renderActFeed(curId);
+  const lead = leads.find(l => l._id === curId);
+  if(lead) updateLdTabCounts(lead);
+  if(typeof renderBoard === 'function') renderBoard();
+  if(typeof toast === 'function') toast(editId ? 'Updated' : 'Logged','success');
+};
+
+// ─── Feed renderer ───────────────────────────────────────
+function renderActFeed(accId){
+  const all = gLog(accId).filter(x => !x.is_archived);
+  const f = window.ldFeedFilter || 'all';
+  const filtered = all.filter(item => {
+    if(item.parent_id) return false; // subtasks render under parent
+    if(f === 'all') return true;
+    if(f === 'note') return item.type === 'note';
+    if(f === 'call') return item.type === 'call';
+    if(f === 'email') return item.type === 'email';
+    if(f === 'meeting') return item.type === 'meeting' || item.type === 'meeting-log' || item.type === 'demo';
+    if(f === 'task') return item.type === 'task';
+    if(f === 'mytasks') return item.type === 'task' && !item.task_done && (item.assigned_to === AUTH_PROFILE?.id || item.author === AUTH_PROFILE?.email);
+    if(f === 'overdue') return item.type === 'task' && !item.task_done && item.task_due && item.task_due < Date.now();
+    return true;
+  });
+  const counts = {
+    all: all.filter(x=>!x.parent_id).length,
+    note: all.filter(x=>x.type==='note' && !x.parent_id).length,
+    call: all.filter(x=>x.type==='call' && !x.parent_id).length,
+    email: all.filter(x=>x.type==='email' && !x.parent_id).length,
+    meeting: all.filter(x=>(x.type==='meeting'||x.type==='meeting-log'||x.type==='demo') && !x.parent_id).length,
+    task: all.filter(x=>x.type==='task' && !x.parent_id).length,
+    overdue: all.filter(x=>x.type==='task' && !x.task_done && x.task_due && x.task_due < Date.now()).length,
+  };
+  const chip = (id, label) => `<button class="act-filter-chip${f===id?' active':''}" onclick="ldSetFeedFilter('${id}')" style="font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:999px;border:1px solid ${f===id?'var(--text-1)':'var(--border)'};background:${f===id?'var(--text-1)':'transparent'};color:${f===id?'var(--bg)':'var(--text-2)'};cursor:pointer;font-family:inherit;">${esc(label)}${counts[id]!=null?` <span style="opacity:0.7;">· ${counts[id]}</span>`:''}</button>`;
+  const filterRow = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    ${chip('all','All')}${chip('note','Notes')}${chip('call','Calls')}${chip('email','Emails')}${chip('meeting','Meetings')}${chip('task','Tasks')}${chip('mytasks','My tasks')}${chip('overdue','Overdue')}
+  </div>`;
+  if(!filtered.length){
+    return filterRow + `<div class="ld-act-empty" style="padding:32px;text-align:center;color:var(--text-3);">No entries match this filter.</div>`;
+  }
+  // Build a map of children by parent_id so tasks can render subtasks
+  const childrenOf = {};
+  all.forEach(x => { if(x.parent_id){ (childrenOf[x.parent_id] = childrenOf[x.parent_id] || []).push(x); } });
+  return filterRow + `<div class="ld-timeline">${filtered.map(it => renderActItem(it, childrenOf)).join('')}</div>`;
 }
 
-function ldSubmitLog(){
-  const ta=document.getElementById('ld-ta');if(!ta||!curId)return;
-  const text=ta.value.trim();if(!text)return;
-  const author=document.getElementById('ld-author')?.value||gOwner(curId);
-  pushLog(curId,ldComposerMode,text,author);
-  ta.value='';
-  const lead=leads.find(l=>l._id===curId);
-  if(lead){renderLdTabContent('activity',lead);updateLdTabCounts(lead);}
-  renderBoard();toast('Logged','success');
+function renderActItem(item, childrenOf){
+  const t = item.type;
+  const editBtn = `<button onclick="ldEditItem('${item.id}')" title="Edit" style="background:none;border:none;cursor:pointer;padding:3px;color:var(--text-3);font-size:13px;">✏️</button>`;
+  const delBtn  = `<button onclick="ldDeleteItem('${item.id}')" title="Delete" style="background:none;border:none;cursor:pointer;padding:3px;color:var(--bad);font-size:13px;">🗑</button>`;
+  const meta = `<div style="font-size:11px;color:var(--text-4);margin-top:4px;display:flex;align-items:center;gap:8px;">
+    <span>${esc(item.author||'System')} · ${fmtT(item.ts)}</span>
+    ${item.edited_at ? `<span style="font-style:italic;">(edited)</span>` : ''}
+    <span style="margin-left:auto;display:flex;gap:2px;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">${editBtn}${delBtn}</span>
+  </div>`;
+
+  if(t === 'task'){
+    const done = !!item.task_done;
+    const overdue = item.task_due && !done && item.task_due < Date.now();
+    const dueStr = item.task_due ? new Date(item.task_due).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    const priClr = {high:'#B83A3A',medium:'#B8761A',low:'#7BAE3F'}[item.priority||'medium'];
+    const priIcon = {high:'🔴',medium:'🟡',low:'🟢'}[item.priority||'medium'];
+    const assignee = (window.PROFILES_DIR||[]).find(p => p.id === item.assigned_to);
+    const assigneeLabel = assignee ? (assignee.full_name||assignee.email) : '';
+    const subs = (childrenOf[item.id] || []).sort((a,b) => (a.ts||0) - (b.ts||0));
+    return `<div class="ld-act-item" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <input type="checkbox" ${done?'checked':''} onchange="ldToggleTask('${item.id}')" style="width:18px;height:18px;margin-top:1px;cursor:pointer;accent-color:var(--lime-700);"/>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);${done?'text-decoration:line-through;color:var(--text-4);':''}">${esc(item.title||item.text||'(no title)')}</div>
+          ${item.text && item.title ? `<div style="font-size:12.5px;color:var(--text-3);margin-top:3px;line-height:1.4;">${renderTextWithMentions(item.text)}</div>` : ''}
+          <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;">
+            ${dueStr ? `<span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:${overdue?'var(--bad-bg)':'var(--bg-2)'};color:${overdue?'var(--bad)':'var(--text-3)'};">📅 ${dueStr}${overdue?' · overdue':''}</span>` : ''}
+            <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--bg-2);color:${priClr};">${priIcon} ${esc(item.priority||'medium')}</span>
+            ${assigneeLabel ? `<span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--bg-2);color:var(--text-3);">👤 ${esc(assigneeLabel)}</span>` : ''}
+          </div>
+          ${subs.length ? `<div style="margin-top:8px;border-left:2px solid var(--border);padding-left:10px;">
+            ${subs.map(s => `<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;${s.task_done?'opacity:0.55;':''}">
+              <input type="checkbox" ${s.task_done?'checked':''} onchange="ldToggleTask('${s.id}')" style="width:14px;height:14px;cursor:pointer;accent-color:var(--lime-700);"/>
+              <span style="flex:1;${s.task_done?'text-decoration:line-through;':''}">${esc(s.title||s.text||'(no title)')}</span>
+              <button onclick="ldDeleteItem('${s.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-4);font-size:11px;padding:2px;">🗑</button>
+            </div>`).join('')}
+          </div>` : ''}
+          <button onclick="ldAddSubtask('${item.id}')" style="margin-top:6px;font-size:11px;color:var(--text-3);background:none;border:none;cursor:pointer;padding:2px 0;font-family:inherit;">+ Add subtask</button>
+        </div>
+      </div>
+      ${meta}
+    </div>`;
+  }
+  if(t === 'call'){
+    const dirIcon = item.call_direction==='inbound' ? '📥' : '📤';
+    const outcomeColors = {connected:'#2F8F5C',voicemail:'#B8761A','no-answer':'#B83A3A',busy:'#B8761A','wrong-number':'var(--text-3)'};
+    const oc = outcomeColors[item.call_outcome] || 'var(--text-3)';
+    return `<div class="ld-act-item" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:4px;">
+        <span style="font-size:16px;">📞</span>
+        <span style="font-weight:600;color:var(--text);">${dirIcon} ${esc(item.call_direction||'outbound')}</span>
+        <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--bg-2);color:${oc};">${esc(item.call_outcome||'connected')}</span>
+        ${item.call_duration_minutes ? `<span style="font-size:11.5px;color:var(--text-3);">${item.call_duration_minutes} min</span>` : ''}
+      </div>
+      ${item.text ? `<div style="font-size:13px;color:var(--text-2);line-height:1.5;">${renderTextWithMentions(item.text)}</div>` : ''}
+      ${meta}
+    </div>`;
+  }
+  if(t === 'email'){
+    const dirIcon = item.email_direction==='received' ? '📥' : '📤';
+    const addr = item.email_to || item.email_from || '';
+    return `<div class="ld-act-item" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:4px;">
+        <span style="font-size:16px;">✉️</span>
+        <span style="font-weight:600;color:var(--text);">${dirIcon} ${esc(item.email_direction||'sent')}</span>
+        ${addr ? `<span style="font-size:11.5px;color:var(--text-3);">${item.email_direction==='received'?'from':'to'} ${esc(addr)}</span>` : ''}
+      </div>
+      ${item.email_subject ? `<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${esc(item.email_subject)}</div>` : ''}
+      ${(item.email_body||item.text) ? `<div style="font-size:12.5px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;">${esc((item.email_body||item.text).slice(0,400))}${(item.email_body||item.text).length>400?'…':''}</div>` : ''}
+      ${meta}
+    </div>`;
+  }
+  if(t === 'meeting' || t === 'meeting-log' || t === 'demo'){
+    const isScheduled = item.meeting_kind === 'scheduled' || (t === 'meeting' && !item.meeting_kind);
+    const when = item.meeting_start_at ? new Date(item.meeting_start_at) : null;
+    const whenStr = when ? when.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    const future = when && when.getTime() > Date.now();
+    return `<div class="ld-act-item" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:4px;flex-wrap:wrap;">
+        <span style="font-size:16px;">${isScheduled?'🗓️':'📅'}</span>
+        <span style="font-weight:600;color:var(--text);">${isScheduled?'Scheduled meeting':'Logged meeting'}</span>
+        ${whenStr ? `<span style="font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:${future?'var(--ok-bg)':'var(--bg-2)'};color:${future?'var(--ok)':'var(--text-3)'};">${esc(whenStr)}${future?' · upcoming':''}</span>` : ''}
+      </div>
+      ${item.meeting_location ? `<div style="font-size:12px;color:var(--text-3);margin-bottom:2px;">📍 ${item.meeting_location.match(/^https?:\/\//) ? `<a href="${esc(item.meeting_location)}" target="_blank" style="color:var(--info);">${esc(item.meeting_location)}</a>` : esc(item.meeting_location)}</div>` : ''}
+      ${(item.meeting_attendees||[]).length ? `<div style="font-size:12px;color:var(--text-3);margin-bottom:4px;">👥 ${esc(item.meeting_attendees.join(', '))}</div>` : ''}
+      ${item.meeting_outcome ? `<div style="font-size:12.5px;color:var(--text-2);margin-bottom:3px;"><b>Outcome:</b> ${esc(item.meeting_outcome)}</div>` : ''}
+      ${item.text ? `<div style="font-size:12.5px;color:var(--text-2);line-height:1.5;">${renderTextWithMentions(item.text)}</div>` : ''}
+      ${meta}
+    </div>`;
+  }
+  if(t === 'stage'){
+    return `<div class="ld-act-item" style="padding:8px 12px;font-size:12.5px;color:var(--text-3);margin-bottom:8px;">
+      <span style="margin-right:5px;">⇄</span>${renderTextWithMentions(item.text||'Stage changed')} <span style="margin-left:6px;color:var(--text-4);">· ${esc(item.author||'')} · ${fmtT(item.ts)}</span>
+    </div>`;
+  }
+  // Default = note
+  return `<div class="ld-act-item" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--surface);">
+    <div style="font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${renderTextWithMentions(item.text||'')}</div>
+    ${meta}
+  </div>`;
 }
 
 function renderLdNotes(lead,el){
