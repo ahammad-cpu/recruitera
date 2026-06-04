@@ -8750,6 +8750,7 @@ const enrichCache={};
 
 // ─── PIPELINE STAGES ──────────────────────────────────
 const STAGES=[
+  {id:'lead',     name:'Lead',          color:'#B0B5BD'},
   {id:'mql',      name:'MQL',           color:'#969BA1'},
   {id:'sql',      name:'SQL',           color:'#6C737C'},
   {id:'demo',     name:'Demo',          color:'#392396'},
@@ -8757,10 +8758,10 @@ const STAGES=[
   {id:'won',      name:'Deal Won',      color:'#2F8F5C'},
   {id:'lost',     name:'Deal Lost',     color:'#B83A3A'},
 ];
-// Funnel starts at MQL. Lead is a pre-MQL bucket that lives only in Accounts
-// → Leads tab; companies are promoted to MQL only after passing the MQL gate
-// (validateMqlGate). Kanban therefore renders every STAGES entry as a column.
-const KANBAN_STAGES = STAGES;
+// Lead is a pre-MQL bucket that lives only in Accounts → Leads tab. Companies
+// are auto-promoted to MQL when their Recruitera Score reaches 50. The Kanban
+// pipeline therefore starts at MQL — we filter Lead out of the column list.
+const KANBAN_STAGES = STAGES.filter(s => s.id !== 'lead');
 
 // ─── ICP CRITERIA ─────────────────────────────────────
 const ICP_CRITERIA=[
