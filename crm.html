@@ -7438,8 +7438,8 @@ body .ld-tab-content {
         </div>
       </div>
       <style>
-        .pipeline-tab.active { color: var(--text-1) !important; border-bottom-color: var(--purple-700, #7c3aed) !important; }
-        .pipeline-tab.active .pipeline-tab-badge { background: var(--purple-100, #f0eef9) !important; color: var(--purple-700, #7c3aed) !important; }
+        .pipeline-tab.active { color: var(--text-1) !important; border-bottom-color: var(--lime-700) !important; }
+        .pipeline-tab.active .pipeline-tab-badge { background: var(--lime-200, #ECF8C0) !important; color: var(--text-1) !important; }
       </style>
 
       <div class="kpis">
@@ -7655,7 +7655,7 @@ body .ld-tab-content {
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
     <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
-  <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--purple-700,#7c3aed)!important;} .settings-tab.active .settings-tab-cnt{background:var(--purple-100,#f0eef9)!important;color:var(--purple-700,#7c3aed)!important;}</style>
+  <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--text-1)!important;} .settings-tab.active .settings-tab-cnt{background:var(--lime-200,#ECF8C0)!important;color:var(--text-1)!important;}</style>
   <div id="settings-pane-roles"     style="flex:1;min-height:0;"></div>
   <div id="settings-pane-simulator" style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-policies"  style="flex:1;min-height:0;display:none;"></div>
@@ -7674,7 +7674,7 @@ body .ld-tab-content {
   <div class="disq-modal">
     <div class="disq-hdr">
       <div class="disq-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#392396" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         <span id="disq-modal-title">Mark as disqualified?</span>
       </div>
       <div class="disq-sub" id="disq-modal-sub">This company will be hidden from the pipeline and flagged as not a real/valid lead.</div>
@@ -7814,7 +7814,7 @@ body .ld-tab-content {
   .bant-pill:hover{border-color:var(--text-3);}
   .bant-pill.on-yes{background:#e7f6ed;border-color:#2F8F5C;color:#2F8F5C;}
   .bant-pill.on-no{background:#fce8e8;border-color:#B83A3A;color:#B83A3A;}
-  .bant-pill.on-unk{background:#f0eef9;border-color:#7c3aed;color:#7c3aed;}
+  .bant-pill.on-unk{background:#f0eef9;border-color:var(--text-3);color:var(--text-3);}
   .bant-note{font:inherit;font-size:12px;width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 8px;resize:vertical;min-height:28px;background:#fff;color:var(--text-1);}
 </style>
 
@@ -16096,7 +16096,7 @@ window.addEventListener('auth-ready', () => {
     </div>
     <div class="disq-footer">
       <button class="btn btn-secondary" style="flex:1" onclick="abacInviteUserClose()">Cancel</button>
-      <button class="btn btn-purple"    style="flex:2" onclick="abacInviteUserSubmit()" id="abac-inv-submit">Create user</button>
+      <button class="btn btn-primary"    style="flex:2" onclick="abacInviteUserSubmit()" id="abac-inv-submit">Create user</button>
     </div>
   </div>
 </div>
@@ -16111,7 +16111,7 @@ window.addEventListener('auth-ready', () => {
     <div class="disq-body" style="display:flex;flex-direction:column;gap:8px;">
       <div style="display:flex;gap:6px;">
         <input id="abac-teams-newname" type="text" placeholder="New team name" style="flex:1;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;"/>
-        <button class="btn btn-purple" onclick="abacTeamsCreate()" style="padding:6px 12px;font-size:12px;">+ Create</button>
+        <button class="btn btn-primary" onclick="abacTeamsCreate()" style="padding:6px 12px;font-size:12px;">+ Create</button>
       </div>
       <div id="abac-teams-list" style="display:flex;flex-direction:column;gap:4px;"></div>
     </div>
@@ -16157,7 +16157,7 @@ window.addEventListener('auth-ready', () => {
     </div>
     <div class="disq-footer">
       <button class="btn btn-secondary" style="flex:1" onclick="closePolicyEditor()">Cancel</button>
-      <button class="btn btn-purple"    style="flex:2" onclick="savePolicyEditor()">Save policy</button>
+      <button class="btn btn-primary"    style="flex:2" onclick="savePolicyEditor()">Save policy</button>
     </div>
   </div>
 </div>
@@ -16256,7 +16256,7 @@ window.addEventListener('auth-ready', () => {
           <b style="color:var(--text-1);">Roles</b> decide what a person can <i>do</i> (view, edit, delete…).
           Each person can <b style="color:var(--text-1);">report to</b> a lead — a Team Lead or Admin sees every account owned by anyone who reports to them.
         </div>
-        <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:7px 16px;font-size:12.5px;white-space:nowrap;">+ Invite User</button>
+        <button class="btn btn-primary" onclick="abacInviteUserOpen()" style="padding:7px 16px;font-size:12.5px;white-space:nowrap;">+ Invite User</button>
       </div>
 
       <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;">
@@ -16269,11 +16269,11 @@ window.addEventListener('auth-ready', () => {
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;">
               ${_rolesCache.map(r => `
-                <div onclick="abacRoleSelect('${r.id}')" style="border:1.5px solid ${r.id===_selectedRoleId?'var(--purple-700,#7c3aed)':'var(--border)'};border-radius:8px;padding:9px 11px;cursor:pointer;background:${r.id===_selectedRoleId?'var(--purple-100,#f0eef9)':'#fff'};transition:all 120ms;">
+                <div onclick="abacRoleSelect('${r.id}')" style="border:1.5px solid ${r.id===_selectedRoleId?'var(--lime-700)':'var(--border)'};border-radius:8px;padding:9px 11px;cursor:pointer;background:${r.id===_selectedRoleId?'var(--lime-200,#ECF8C0)':'#fff'};transition:all 120ms;">
                   <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
                     <div style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:6px;min-width:0;">
                       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}</span>
-                      ${r.is_system ? '<span title="System role — cannot be deleted or renamed" style="font-size:9px;font-weight:700;letter-spacing:0.05em;background:#eceaf8;color:#7c3aed;padding:1px 5px;border-radius:999px;flex-shrink:0;">SYS</span>' : ''}
+                      ${r.is_system ? '<span title="System role — cannot be deleted or renamed" style="font-size:9px;font-weight:700;letter-spacing:0.05em;background:var(--bg-2);color:var(--text-3);padding:1px 5px;border-radius:999px;flex-shrink:0;">SYS</span>' : ''}
                     </div>
                     <span title="${r.user_count} user${r.user_count===1?'':'s'}" style="font-size:11px;color:var(--text-3);flex-shrink:0;">${r.user_count}</span>
                   </div>
@@ -16410,7 +16410,7 @@ window.addEventListener('auth-ready', () => {
             </div>
             <label class="abac-toggle" style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;margin-top:2px;">
               <input type="checkbox" ${on?'checked':''} ${isAdminRole?'disabled':''} onchange="abacRoleToggle('${role.id}','${item.key}', this.checked)" style="opacity:0;width:0;height:0;"/>
-              <span style="position:absolute;cursor:${isAdminRole?'not-allowed':'pointer'};inset:0;background:${on?'var(--purple-700,#7c3aed)':'var(--bg-2,#e5e7eb)'};border-radius:999px;transition:background 150ms;${isAdminRole?'opacity:0.55;':''}"></span>
+              <span style="position:absolute;cursor:${isAdminRole?'not-allowed':'pointer'};inset:0;background:${on?'var(--lime-700)':'var(--bg-2,#e5e7eb)'};border-radius:999px;transition:background 150ms;${isAdminRole?'opacity:0.55;':''}"></span>
               <span style="position:absolute;top:2px;left:${on?'22px':'2px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:left 150ms;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></span>
             </label>
           </div>`;
@@ -16439,7 +16439,7 @@ window.addEventListener('auth-ready', () => {
             <div style="font-size:13px;font-weight:600;color:var(--text-1);">${esc(m.full_name||m.email)}</div>
             <div style="font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:4px;">
               ${esc(m.email)}
-              ${m.role==='admin'?'<span style="margin-left:6px;font-size:10px;background:#f0eef9;color:#7c3aed;padding:1px 7px;border-radius:999px;font-weight:600;">ADMIN</span>':''}
+              ${m.role==='admin'?'<span style="margin-left:6px;font-size:10px;background:var(--bg-2);color:var(--text-3);padding:1px 7px;border-radius:999px;font-weight:600;">ADMIN</span>':''}
               ${leadPicker}
             </div>
           </div>
@@ -16453,7 +16453,7 @@ window.addEventListener('auth-ready', () => {
           <select id="abac-add-member-sel" style="flex:1;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;">
             ${unassigned.map(p => `<option value="${p.id}">${esc(p.full_name||p.email)} · ${esc(p.email)}</option>`).join('')}
           </select>
-          <button class="btn btn-purple" onclick="abacRoleAddMember('${role.id}')" style="padding:6px 14px;font-size:12px;">Add to role</button>
+          <button class="btn btn-primary" onclick="abacRoleAddMember('${role.id}')" style="padding:6px 14px;font-size:12px;">Add to role</button>
         </div>`;
 
     panel.innerHTML = `
@@ -16475,12 +16475,12 @@ window.addEventListener('auth-ready', () => {
 
       <!-- Permissions / Members sub-tabs -->
       <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;">
-        <button class="role-subtab" onclick="abacRoleSetMode('permissions')" style="padding:8px 14px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid ${_roleDetailMode==='permissions'?'var(--purple-700,#7c3aed)':'transparent'};color:${_roleDetailMode==='permissions'?'var(--text-1)':'var(--text-3)'};cursor:pointer;">Permissions</button>
-        <button class="role-subtab" onclick="abacRoleSetMode('members')"     style="padding:8px 14px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid ${_roleDetailMode==='members'    ?'var(--purple-700,#7c3aed)':'transparent'};color:${_roleDetailMode==='members'    ?'var(--text-1)':'var(--text-3)'};cursor:pointer;">Members <span style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">${members.length}</span></button>
+        <button class="role-subtab" onclick="abacRoleSetMode('permissions')" style="padding:8px 14px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid ${_roleDetailMode==='permissions'?'var(--lime-700)':'transparent'};color:${_roleDetailMode==='permissions'?'var(--text-1)':'var(--text-3)'};cursor:pointer;">Permissions</button>
+        <button class="role-subtab" onclick="abacRoleSetMode('members')"     style="padding:8px 14px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid ${_roleDetailMode==='members'    ?'var(--lime-700)':'transparent'};color:${_roleDetailMode==='members'    ?'var(--text-1)':'var(--text-3)'};cursor:pointer;">Members <span style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">${members.length}</span></button>
       </div>
 
       ${_roleDetailMode === 'permissions' ? `
-        ${isAdminRole ? '<div style="padding:10px 12px;background:#f0eef9;border:1px solid #d6d1ee;border-radius:6px;color:#392396;font-size:12px;margin-bottom:14px;">Admin role bypasses every ABAC policy automatically. Toggles are shown for reference but cannot be changed.</div>' : ''}
+        ${isAdminRole ? '<div style="padding:10px 12px;background:var(--lime-100,#F2FAD5);border:1px solid var(--lime-700);border-radius:6px;color:var(--text-2);font-size:12px;margin-bottom:14px;">Admin role bypasses every ABAC policy automatically. Toggles are shown for reference but cannot be changed.</div>' : ''}
         ${groupHtml}
       ` : `
         ${memberRows}
@@ -16810,7 +16810,7 @@ window.addEventListener('auth-ready', () => {
     root.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-size:13px;color:var(--text-3);">${_policiesCache.length} polic${_policiesCache.length===1?'y':'ies'}</div>
-        <button onclick="openPolicyEditor()" class="btn btn-purple" style="padding:6px 14px;font-size:12px;">+ New Policy</button>
+        <button onclick="openPolicyEditor()" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">+ New Policy</button>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
         <thead><tr style="text-align:left;color:var(--text-3);border-bottom:1px solid var(--border);">
@@ -17023,7 +17023,7 @@ window.addEventListener('auth-ready', () => {
         <div style="font-size:13px;color:var(--text-3);">${teams.length} team${teams.length===1?'':'s'} · ${profiles.length} users</div>
         <div style="display:flex;gap:6px;">
           <input id="abac-new-team-name" type="text" placeholder="Team name" style="font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;"/>
-          <button class="btn btn-purple" onclick="abacCreateTeam()" style="padding:6px 12px;font-size:12px;">+ Create</button>
+          <button class="btn btn-primary" onclick="abacCreateTeam()" style="padding:6px 12px;font-size:12px;">+ Create</button>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:18px;">
@@ -17093,7 +17093,7 @@ window.addEventListener('auth-ready', () => {
           <select id="sim-action" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;">${ACTION_OPTIONS.map(a=>`<option value="${a}">${a}</option>`).join('')}</select></label>
         <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Account
           <select id="sim-account" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;">${accounts.map(a=>`<option value="${a.id}">${esc(a.name)} ${a.domain?'· '+esc(a.domain):''}</option>`).join('')}</select></label>
-        <button class="btn btn-purple" onclick="abacRunSimulator()" style="padding:8px 16px;font-size:12px;">Run</button>
+        <button class="btn btn-primary" onclick="abacRunSimulator()" style="padding:8px 16px;font-size:12px;">Run</button>
       </div>
       <div id="sim-result" style="padding:12px;background:var(--bg-2);border-radius:6px;font-size:12.5px;color:var(--text-3);">Pick user / action / account, then click Run.</div>`;
   };
