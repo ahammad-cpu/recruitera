@@ -7364,6 +7364,13 @@ body .ld-tab-content {
       </h1>
       <div style="flex:1;"></div>
       <div class="tb-actions">
+        <div id="notif-bell-wrap" style="position:relative;">
+          <button id="notif-bell" onclick="toggleNotifDropdown()" title="Notifications" style="background:none;border:1px solid var(--border);border-radius:8px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);position:relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span id="notif-bell-count" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--bad);color:#fff;font-size:9.5px;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 4px;">0</span>
+          </button>
+          <div id="notif-dropdown" style="display:none;position:absolute;top:42px;right:0;width:380px;max-height:520px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:1000;overflow:hidden;flex-direction:column;"></div>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="refresh()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9A9 9 0 0118.36 5.64L23 10M1 14L5.64 18.36A9 9 0 0020.49 15"/></svg>
           Refresh
@@ -7895,6 +7902,131 @@ window.renderLogsList = function(){
     </div>`;
   }).join('') + (rows.length>1000 ? '<div style="padding:14px;text-align:center;color:var(--text-3);font-size:12px;">Showing first 1,000 of '+rows.length.toLocaleString('en-US')+'. Narrow filters to see more.</div>' : '');
 };
+
+// ─── NOTIFICATIONS BELL ──────────────────────────────────
+window.renderNotifBell = function(){
+  const cnt = document.getElementById('notif-bell-count');
+  const dd  = document.getElementById('notif-dropdown');
+  const rows = window.NOTIFICATIONS || [];
+  const unread = rows.filter(n => !n.read_at).length;
+  if(cnt){
+    if(unread > 0){ cnt.textContent = unread > 99 ? '99+' : unread; cnt.style.display = 'flex'; }
+    else cnt.style.display = 'none';
+  }
+  if(dd && dd.style.display !== 'none'){ renderNotifDropdown(); }
+};
+function renderNotifDropdown(){
+  const dd = document.getElementById('notif-dropdown'); if(!dd) return;
+  const rows = window.NOTIFICATIONS || [];
+  const dirById = {}; (window.PROFILES_DIR||[]).forEach(p => { if(p.id) dirById[p.id] = p; });
+  const accById = {}; (window.leads||[]).forEach(l => { if(l._supabase_id) accById[l._supabase_id] = l; });
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const kindIcon = {mention:'💬',task_assigned:'✅',task_due:'⏰',task_overdue:'🚨',meeting_soon:'🗓️'};
+  const header = `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);">
+    <b style="font-size:13px;">Notifications</b>
+    <button onclick="markAllNotifRead()" style="background:none;border:none;color:var(--text-3);font-size:11.5px;cursor:pointer;padding:2px 4px;">Mark all read</button>
+  </div>`;
+  if(!rows.length){
+    dd.innerHTML = header + `<div style="padding:32px;text-align:center;color:var(--text-3);font-size:12.5px;">No notifications yet.</div>`;
+    return;
+  }
+  const body = rows.slice(0,20).map(n => {
+    const acc = accById[n.account_id];
+    const fmt = d => { try { return new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); } catch { return d; } };
+    return `<div onclick="openFromNotif('${n.id}','${acc?acc._id:''}')" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;${n.read_at?'opacity:0.55;':'background:var(--bg-2);'}">
+      <div style="display:flex;align-items:flex-start;gap:8px;">
+        <span style="font-size:16px;flex-shrink:0;">${kindIcon[n.kind]||'🔔'}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:600;color:var(--text);line-height:1.4;">${escFn(n.title||'')}</div>
+          ${n.body?`<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;line-height:1.4;">${escFn(n.body.slice(0,140))}${n.body.length>140?'…':''}</div>`:''}
+          <div style="font-size:10.5px;color:var(--text-4);margin-top:3px;">${fmt(n.created_at)}</div>
+        </div>
+        ${!n.read_at?'<span style="width:7px;height:7px;border-radius:50%;background:var(--info);flex-shrink:0;margin-top:5px;"></span>':''}
+      </div>
+    </div>`;
+  }).join('');
+  dd.innerHTML = header + `<div style="overflow-y:auto;max-height:430px;flex:1;">${body}</div>`;
+};
+window.toggleNotifDropdown = function(){
+  const dd = document.getElementById('notif-dropdown'); if(!dd) return;
+  if(dd.style.display === 'flex'){ dd.style.display = 'none'; return; }
+  dd.style.display = 'flex';
+  renderNotifDropdown();
+};
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('notif-dropdown');
+  const wrap = document.getElementById('notif-bell-wrap');
+  if(dd && dd.style.display==='flex' && wrap && !wrap.contains(e.target)){ dd.style.display = 'none'; }
+});
+window.openFromNotif = async function(notifId, leadId){
+  await markNotifRead(notifId);
+  document.getElementById('notif-dropdown').style.display = 'none';
+  if(leadId && typeof openDrawer === 'function') openDrawer(leadId, 'pipeline');
+};
+window.markNotifRead = async function(notifId){
+  const token = await _getValidAccessToken(); if(!token) return;
+  await fetch(`${SB_URL}/rest/v1/notifications?id=eq.${notifId}`, {
+    method:'PATCH', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body: JSON.stringify({read_at: new Date().toISOString()})
+  }).catch(()=>{});
+  const n = (window.NOTIFICATIONS||[]).find(x => x.id === notifId);
+  if(n) n.read_at = new Date().toISOString();
+  renderNotifBell();
+};
+window.markAllNotifRead = async function(){
+  const token = await _getValidAccessToken(); if(!token) return;
+  await fetch(`${SB_URL}/rest/v1/notifications?read_at=is.null`, {
+    method:'PATCH', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body: JSON.stringify({read_at: new Date().toISOString()})
+  }).catch(()=>{});
+  (window.NOTIFICATIONS||[]).forEach(n => { if(!n.read_at) n.read_at = new Date().toISOString(); });
+  renderNotifBell();
+};
+
+// ─── TEMPLATES — insertion helpers ────────────────────────
+function applyTemplate(tpl){
+  if(!tpl) return;
+  const lead = (window.leads||[]).find(l => l._id === curId) || {};
+  const ctx = {
+    company:      (typeof gName==='function' ? gName(lead) : (lead.name||'')) || 'them',
+    contact_name: gContact(curId).full_name || (typeof gContactName==='function' ? gContactName(lead) : '') || 'there',
+    my_name:      AUTH_PROFILE?.full_name || (AUTH_PROFILE?.email||'').split('@')[0] || 'me',
+    today:        new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    stage:        (typeof gStage==='function' ? gStage(curId) : 'mql').toUpperCase(),
+    score:        (typeof calcRecruiteraScore==='function' ? calcRecruiteraScore(lead).score : '') || '',
+  };
+  const sub = s => String(s||'').replace(/\{\{(\w+)\}\}/g, (_,k) => ctx[k] != null ? ctx[k] : '');
+  const ta = document.getElementById('ld-ta');
+  if(ta) ta.value = sub(tpl.body_template);
+  // Type-specific fields
+  if(tpl.kind === 'email'){
+    const subEl = document.getElementById('ld-em-sub');
+    if(subEl && tpl.title_template) subEl.value = sub(tpl.title_template);
+  }
+  if(tpl.kind === 'task'){
+    const titleEl = document.getElementById('ld-task-title');
+    if(titleEl && tpl.title_template) titleEl.value = sub(tpl.title_template);
+  }
+}
+window.applyTemplateById = function(id){
+  const all = Object.values(window.TEMPLATES_BY_KIND||{}).flat();
+  const tpl = all.find(t => t.id === id);
+  if(tpl) applyTemplate(tpl);
+};
+function renderTemplateDropdown(currentType){
+  const kindMap = {note:'note', call:'call', email:'email', task:'task', meeting:'meeting', 'meeting-log':'meeting'};
+  const kind = kindMap[currentType];
+  if(!kind) return '';
+  const tpls = (window.TEMPLATES_BY_KIND||{})[kind] || [];
+  if(!tpls.length) return '';
+  const opts = tpls.map(t => `<option value="${t.id}">${(t.is_shared?'⭐ ':'')+t.name}</option>`).join('');
+  return `<div style="margin-bottom:10px;">
+    <select onchange="if(this.value){applyTemplateById(this.value);this.value='';}" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;font-size:12px;background:var(--bg-2);color:var(--text-2);outline:none;">
+      <option value="">📋 Insert template…</option>
+      ${opts}
+    </select>
+  </div>`;
+}
 
 window.openQualHistory = async function(leadId){
   const lead = (window.leads||[]).find(l => l._id === leadId);
@@ -8658,6 +8790,8 @@ window.AUTH_PROFILE = null;
     // across the system can use real user photos. RLS allows authenticated read.
     try { await loadProfilesDirectory(); } catch(e) { console.warn('[profiles] dir load failed', e); }
     try { await loadMarketingTracking(); } catch(e) { console.warn('[mt] load failed', e); }
+    try { await loadActivityTemplates(); } catch(e) { console.warn('[tpl] load failed', e); }
+    try { await loadNotifications(); startNotifPolling(); } catch(e) { console.warn('[notif] load failed', e); }
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
     // flash zeros over the loading state. The bootstrap IIFE calls init() (which
@@ -9089,7 +9223,60 @@ function pushLog(id,type,text,author,extras){
   );
   arr.unshift(item);
   sLog(id,arr);
+  // Fire-and-forget: write to Supabase activities too, so server-side
+  // triggers (mentions, task_assigned) produce notifications.
+  try { persistActivityToDB(id, item); } catch(e){ console.warn('[act] persist', e); }
   return item;
+}
+
+async function persistActivityToDB(accId, item){
+  const lead = (window.leads||[]).find(l => l._id === accId);
+  const sbId = lead?._supabase_id;
+  if(!sbId || !item) return;
+  const token = (typeof _getValidAccessToken==='function') ? await _getValidAccessToken() : null;
+  if(!token || !AUTH_PROFILE?.id) return;
+  // Extract @mentions from text/title
+  const blob = `${item.text||''} ${item.title||''}`;
+  const mentions = Array.from(new Set((blob.match(/@[a-zA-Z0-9._-]+/g)||[]).map(m=>m.slice(1).toLowerCase())));
+  // Map type → DB type (DB enum probably uses 'note','call','email','demo','task','stage','meeting')
+  const dbType = item.type === 'meeting-log' ? 'demo' : item.type;
+  const payload = {
+    id: item.id,
+    account_id: sbId,
+    author_id: AUTH_PROFILE.id,
+    type: dbType,
+    text: item.text || null,
+    title: item.title || null,
+    mentions: mentions.length ? mentions : null,
+    parent_id: item.parent_id || null,
+    priority: item.priority || null,
+    assigned_to: item.assigned_to || null,
+    task_due_date: item.task_due ? new Date(item.task_due).toISOString().slice(0,10) : null,
+    task_done: !!item.task_done,
+    task_done_at: item.task_done_at ? new Date(item.task_done_at).toISOString() : null,
+    call_outcome: item.call_outcome || null,
+    call_duration_minutes: item.call_duration_minutes ?? null,
+    call_direction: item.call_direction || null,
+    email_direction: item.email_direction || null,
+    email_to: item.email_to || null,
+    email_from: item.email_from || null,
+    email_subject: item.email_subject || null,
+    email_body: item.email_body || null,
+    meeting_kind: item.meeting_kind || null,
+    meeting_start_at: item.meeting_start_at ? new Date(item.meeting_start_at).toISOString() : null,
+    meeting_end_at: item.meeting_end_at ? new Date(item.meeting_end_at).toISOString() : null,
+    meeting_location: item.meeting_location || null,
+    meeting_attendees: item.meeting_attendees || null,
+    meeting_outcome: item.meeting_outcome || null,
+    is_archived: !!item.is_archived,
+  };
+  try {
+    await fetch(`${SB_URL}/rest/v1/activities`, {
+      method: 'POST',
+      headers: {'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal,resolution=merge-duplicates'},
+      body: JSON.stringify(payload),
+    });
+  } catch(e){ /* silent */ }
 }
 function updateLogItem(accId, itemId, patch){
   const arr = gLog(accId);
@@ -10926,12 +11113,13 @@ function composerBodyHTML(accId, type, e){
   const rowGrid = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
   const lbl = (t)=>`<div style="font-size:10.5px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">${t}</div>`;
 
+  const tplBar = renderTemplateDropdown(type);
   if(type === 'note'){
-    return `<textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="Write a note for the team…">${esc(e.text||'')}</textarea>
+    return tplBar + `<textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="Write a note for the team…">${esc(e.text||'')}</textarea>
       <div style="font-size:11px;color:var(--text-4);margin-top:6px;">💡 Type <kbd style="font-size:10px;padding:1px 5px;border:1px solid var(--border-2);border-radius:4px;background:var(--surface-2);color:var(--info);">@</kbd> to mention a teammate</div>`;
   }
   if(type === 'call'){
-    return `
+    return tplBar + `
       <div style="${rowGrid};margin-bottom:10px;">
         <div>${lbl('Direction')}<select id="ld-call-dir" style="${inputStyle}">
           <option value="outbound"${e.call_direction==='outbound'?' selected':''}>📤 Outbound</option>
@@ -10949,7 +11137,7 @@ function composerBodyHTML(accId, type, e){
       <textarea class="ld-composer-ta" id="ld-ta" rows="3" placeholder="What was discussed? Key points, next steps…">${esc(e.text||'')}</textarea>`;
   }
   if(type === 'email'){
-    return `
+    return tplBar + `
       <div style="${rowGrid};margin-bottom:10px;">
         <div>${lbl('Direction')}<select id="ld-em-dir" style="${inputStyle}">
           <option value="sent"${e.email_direction==='sent'?' selected':''}>📤 Sent</option>
@@ -10962,7 +11150,7 @@ function composerBodyHTML(accId, type, e){
   }
   if(type === 'meeting-log'){
     const dt = e.meeting_start_at ? new Date(e.meeting_start_at).toISOString().slice(0,16) : '';
-    return `
+    return tplBar + `
       <div style="${rowGrid};margin-bottom:10px;">
         <div>${lbl('When (past)')}<input id="ld-mtg-when" type="datetime-local" value="${dt}" style="${inputStyle}"/></div>
         <div>${lbl('Outcome')}<input id="ld-mtg-out" type="text" placeholder="e.g. agreed pilot, asked for proposal" value="${esc(e.meeting_outcome||'')}" style="${inputStyle}"/></div>
@@ -10973,7 +11161,7 @@ function composerBodyHTML(accId, type, e){
   if(type === 'meeting'){
     const dt = e.meeting_start_at ? new Date(e.meeting_start_at).toISOString().slice(0,16) : '';
     const dtEnd = e.meeting_end_at ? new Date(e.meeting_end_at).toISOString().slice(0,16) : '';
-    return `
+    return tplBar + `
       <div style="${rowGrid};margin-bottom:10px;">
         <div>${lbl('Starts')}<input id="ld-mtg-start" type="datetime-local" value="${dt}" style="${inputStyle}"/></div>
         <div>${lbl('Ends')}<input id="ld-mtg-end" type="datetime-local" value="${dtEnd}" style="${inputStyle}"/></div>
@@ -10984,7 +11172,7 @@ function composerBodyHTML(accId, type, e){
   }
   if(type === 'task'){
     const due = e.task_due ? new Date(e.task_due).toISOString().slice(0,10) : '';
-    return `
+    return tplBar + `
       <div style="margin-bottom:10px;">${lbl('Task title')}<input id="ld-task-title" type="text" placeholder="What needs to happen?" value="${esc(e.title||e.text||'')}" style="${inputStyle};font-weight:600;font-size:14px;"/></div>
       <div style="${rowGrid};margin-bottom:10px;">
         <div>${lbl('Due date')}<input id="ld-task-due" type="date" value="${due}" style="${inputStyle}"/></div>
@@ -12834,6 +13022,38 @@ async function toggleUnreachable(leadId){
 
 // ── ownerFromEmail: build display object from email ──
 const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6'];
+
+// Activity templates — shared + personal. Loaded once after auth.
+window.TEMPLATES_BY_KIND = { note:[], email:[], meeting:[], call:[], task:[] };
+async function loadActivityTemplates(){
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/activity_templates?select=*&order=is_shared.desc,name.asc`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  if(!r.ok) return;
+  const rows = await r.json();
+  const by = { note:[], email:[], meeting:[], call:[], task:[] };
+  (rows||[]).forEach(t => { if(by[t.kind]) by[t.kind].push(t); });
+  window.TEMPLATES_BY_KIND = by;
+  console.log('[tpl] loaded', rows.length, 'templates');
+}
+
+// Notifications — bell in topbar. Polled every 30s.
+window.NOTIFICATIONS = [];
+window._notifPollTimer = null;
+async function loadNotifications(){
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/notifications?select=*&order=created_at.desc&limit=30`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  if(!r.ok) return;
+  window.NOTIFICATIONS = await r.json();
+  if(typeof renderNotifBell === 'function') renderNotifBell();
+}
+function startNotifPolling(){
+  if(window._notifPollTimer) clearInterval(window._notifPollTimer);
+  window._notifPollTimer = setInterval(() => { loadNotifications().catch(()=>{}); }, 30000);
+}
 
 // Marketing tracking — first/last touch attribution. Loaded once after auth.
 // Keyed by account_id so the Lead Detail panel can render in O(1).
