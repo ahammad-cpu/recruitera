@@ -9207,7 +9207,9 @@ function buildCard(lead,st){
   const ownerEmail=gAmMail(lead)||gOwner(lead._id)||'';
   const ownerInitials=ownerEmail?ownerEmail.split('@')[0].slice(0,2).toUpperCase():'??';
   const ownerName=ownerEmail?ownerEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()):ownerEmail;
-  const owner={id:ownerInitials, name:ownerName, color:'#CCED59'};
+  // Pull the owner's uploaded photo (+ colour) from the profiles directory when available.
+  const _ownerProf=(window.PROFILES_BY_EMAIL||{})[(ownerEmail||'').toLowerCase()];
+  const owner={id:ownerInitials, name:_ownerProf?.full_name||ownerName, color:_ownerProf?.color||'#CCED59', avatar_url:_ownerProf?.avatar_url||null};
   const contact=gContact(lead._id);
   const init2=gInit(name);
 
@@ -9251,7 +9253,7 @@ function buildCard(lead,st){
       ${closeHtml}
     </div>
     <div style="display:flex;align-items:center;gap:7px;padding-top:8px;border-top:1px solid var(--border);margin-top:0;padding-top:9px;margin-top:4px;">
-      <div style="width:24px;height:24px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:500;color:var(--lime);flex-shrink:0;letter-spacing:0;">${owner.id}</div>
+      <div style="width:24px;height:24px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:500;color:var(--lime);flex-shrink:0;letter-spacing:0;overflow:hidden;">${owner.avatar_url?`<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`:owner.id}</div>
       <span style="font-size:11px;color:var(--text-3);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${source?esc(source):owner.name}</span>
       ${plabel?`<div style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--cg-500);flex-shrink:0;"><span style="width:7px;height:7px;border-radius:50%;background:${pcolor};flex-shrink:0;display:inline-block;"></span>${plabel}</div>`:''}
     </div>`;
