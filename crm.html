@@ -12945,11 +12945,10 @@ function buildAccountRow(lead) {
       const _s = calcRecruiteraScore(lead);
       const _c = {hot:'#2F8F5C',warm:'#7BAE3F',cool:'#B8761A',cold:'#B83A3A'}[_s.tier] || '#999';
       const _lbl = {hot:'Hot',warm:'Warm',cool:'Cool',cold:'Cold'}[_s.tier] || '';
-      return `<div class="acc-icp-cell" title="${esc(_s.verdict)}">
-        <span style="width:8px;height:8px;border-radius:50%;background:${_c};flex-shrink:0;"></span>
-        <span class="acc-icp-num" style="color:#1C2333;font-variant-numeric:tabular-nums;">${_s.score}</span>
-        <span style="font-size:10px;font-weight:600;color:${_c};letter-spacing:0.04em;text-transform:uppercase;">${_lbl}</span>
-      </div>`;
+      return `<span title="${esc(_lbl)} — ${esc(_s.verdict)}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border-radius:999px;background:${_c}14;border:1px solid ${_c}33;font-variant-numeric:tabular-nums;">
+        <span style="width:6px;height:6px;border-radius:50%;background:${_c};"></span>
+        <span style="font-size:12.5px;font-weight:600;color:${_c};">${_s.score}</span>
+      </span>`;
     })()}</td>
     <td>
       <div class="acc-owner-cell" title="${esc(ownerObj.name)}${ownerObj.email?' · '+esc(ownerObj.email):''}${window.AUTH_PROFILE?.role==='admin'?' · click to reassign':''}">
