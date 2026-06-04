@@ -10808,6 +10808,47 @@ function renderLdRight(lead){
       </div>
     </div>
 
+    <!-- ── MQL READINESS (4-rule gate check) ── -->
+    ${(()=>{
+      if(typeof validateMqlGate !== 'function') return '';
+      const v = validateMqlGate(lead);
+      const failed = {}; (v.failures||[]).forEach(f => { failed[f.rule] = f.why; });
+      const rules = [
+        ['Title',          'Decision-maker title (CEO, Director, HR, Recruiter…)'],
+        ['Email',          'Business email (no gmail/yahoo/etc.)'],
+        ['Hiring volume',  '> 10 vacancies / year'],
+        ['Company name',   'Real name, not "test" or "untitled"'],
+      ];
+      const passCount = rules.length - (v.failures||[]).length;
+      const allPass = v.ok;
+      const headColor = allPass ? 'var(--ok)' : (passCount===0 ? 'var(--bad)' : 'var(--warn)');
+      const headBg    = allPass ? 'var(--ok-bg)' : (passCount===0 ? 'var(--bad-bg)' : 'var(--warn-bg)');
+      const headText  = allPass ? '✓ Ready for MQL' : `${passCount} / 4 checks passing`;
+      return `
+      <div class="ld-panel-card">
+        <div class="ld-panel-head" style="background:transparent;border-bottom:none;padding-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+          <div class="ld-panel-title" style="color:var(--text-3);font-weight:700;letter-spacing:0.08em;">
+            <span style="font-size:14px;">🚦</span> MQL READINESS
+          </div>
+          <span style="font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:${headBg};color:${headColor};letter-spacing:0.06em;">${headText}</span>
+        </div>
+        <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:6px;padding-top:6px;">
+          ${rules.map(([k,desc])=>{
+            const why = failed[k];
+            const ok = !why;
+            const icon = ok ? '<span style="color:var(--ok);font-weight:700;">✓</span>' : '<span style="color:var(--bad);font-weight:700;">✗</span>';
+            return `<div style="display:flex;align-items:flex-start;gap:9px;font-size:13px;padding:4px 0;">
+              <span style="margin-top:1px;">${icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:500;color:var(--text);">${esc(k)}</div>
+                <div style="font-size:11.5px;color:${ok?'var(--text-4)':'var(--bad)'};line-height:1.4;margin-top:1px;">${esc(why || desc)}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    })()}
+
     <!-- ── QUALIFICATION (BANT + Proposal) ── -->
     ${(()=>{
       const b={
