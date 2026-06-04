@@ -16087,7 +16087,7 @@ window.addEventListener('auth-ready', () => {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Role
           <select id="abac-inv-role-id" onchange="abacInviteRoleChanged()" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
-        <label id="abac-inv-team-label" style="font-size:11.5px;font-weight:600;color:var(--text-3);">Team
+        <label id="abac-inv-team-label" style="font-size:11.5px;font-weight:600;color:var(--text-3);">Reports to
           <select id="abac-inv-team" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"></select></label>
       </div>
       <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Temporary password <input id="abac-inv-password" type="text" value="Recruitera@2025" style="display:block;width:100%;padding:6px 8px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-top:3px;"/></label>
@@ -16355,7 +16355,7 @@ window.addEventListener('auth-ready', () => {
       [roles, teams, profiles, autoPolicies] = await Promise.all([
         _restGet('roles?select=id,name,type,description,is_system,requires_team&order=is_system.desc,name.asc'),
         _restGet('teams?select=id,name,description&order=name.asc'),
-        _restGet('profiles?select=id,email,full_name,role,team_id,role_id&order=email.asc'),
+        _restGet('profiles?select=id,email,full_name,role,team_id,role_id,reports_to&order=email.asc'),
         _restGet('abac_policies?select=*&name=like.auto:*'),
       ]);
     } catch (e) {
@@ -16407,7 +16407,7 @@ window.addEventListener('auth-ready', () => {
         : '<span style="font-size:12px;color:var(--text-4);">No permissions yet — turn some on in the Permissions tab.</span>';
     }
     const scopeText = isAdminRole ? 'all accounts'
-      : role.type === 'team_lead' ? 'accounts owned by anyone in their team'
+      : role.type === 'team_lead' ? 'accounts they own + accounts owned by anyone who reports to them'
       : role.type === 'member'    ? 'accounts they own'
       : 'accounts matching this role’s rules';
     const capSummary = `
@@ -16445,13 +16445,14 @@ window.addEventListener('auth-ready', () => {
     const memberRows = members.length === 0
       ? '<div style="padding:30px;text-align:center;color:var(--text-4);font-size:12px;">No members in this role yet. Add some below.</div>'
       : members.map(m => {
-          const teamPicker = role.requires_team
-            ? (_teamsCache.length === 0
-                ? `<button onclick="abacTeamsOpen()" title="This role is scoped by team, but no teams exist yet" style="margin-left:8px;font:inherit;font-size:11px;padding:3px 8px;border:1px dashed var(--purple-700,#7c3aed);border-radius:6px;background:var(--purple-100,#f0eef9);color:var(--purple-700,#7c3aed);cursor:pointer;">+ Create a team first</button>`
-                : `<select onchange="abacMemberSetTeam('${m.id}', this.value)" style="font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;margin-left:8px;">
-                 <option value="">— pick team —</option>
-                 ${_teamsCache.map(t => `<option value="${t.id}" ${t.id===m.team_id?'selected':''}>${esc(t.name)}</option>`).join('')}
-               </select>`)
+          // Non-admin members get a "Reports to" picker (leads = Team Leads + Admins,
+          // excluding the member themselves). Admin-role members report to no one.
+          const leadPicker = (role.type !== 'admin')
+            ? `<span style="margin-left:8px;font-size:11px;color:var(--text-4);">reports to</span>
+               <select onchange="abacMemberSetReportsTo('${m.id}', this.value)" style="font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;margin-left:4px;">
+                 <option value="">— no lead —</option>
+                 ${_leadProfiles().filter(l => l.id !== m.id).map(l => `<option value="${l.id}" ${l.id===m.reports_to?'selected':''}>${esc(l.full_name||l.email)}</option>`).join('')}
+               </select>`
             : '';
           return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;">
@@ -16553,6 +16554,17 @@ window.addEventListener('auth-ready', () => {
     } catch (e) { if(typeof toast==='function') toast('Assign failed: '+e.message,'error'); }
   };
 
+  // Set a member's lead (reports_to). Drives Team Lead visibility.
+  window.abacMemberSetReportsTo = async function(uid, leadId){
+    try {
+      await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { reports_to: leadId || null });
+      const prof = _allProfiles.find(p => p.id === uid);
+      if (prof) prof.reports_to = leadId || null;
+      _paintRolesFromCache();
+      if(typeof toast==='function') toast(leadId ? 'Lead assigned' : 'Lead cleared','success');
+    } catch (e) { if(typeof toast==='function') toast('Assign failed: '+e.message,'error'); }
+  };
+
   // ─── Manage Teams sub-modal ──────────────────────────
   window.abacTeamsOpen = function(){
     abacTeamsRenderList();
@@ -16612,26 +16624,31 @@ window.addEventListener('auth-ready', () => {
     const roleSel = document.getElementById('abac-inv-role-id');
     roleSel.innerHTML = _rolesCache.map(r => `<option value="${r.id}">${esc(r.name)}${r.is_system?' · system':''}</option>`).join('');
     if (_selectedRoleId) roleSel.value = _selectedRoleId;
-    const teamSel = document.getElementById('abac-inv-team');
-    teamSel.innerHTML = _teamsCache.length === 0
-      ? '<option value="">— no teams yet —</option>'
-      : '<option value="">— pick team —</option>' + _teamsCache.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    const leadSel = document.getElementById('abac-inv-team');
+    const leads = _leadProfiles();
+    leadSel.innerHTML = '<option value="">— no lead —</option>' +
+      leads.map(p => `<option value="${p.id}">${esc(p.full_name||p.email)}${p.role==='admin'?' · admin':' · team lead'}</option>`).join('');
     document.getElementById('abac-inv-error').style.display   = 'none';
     document.getElementById('abac-inv-success').style.display = 'none';
     document.getElementById('abac-inv-submit').disabled = false;
     document.getElementById('abac-inv-submit').textContent = 'Create user';
-    abacInviteRoleChanged(); // show/hide Team field based on the default-selected role
+    abacInviteRoleChanged(); // show/hide the Reports-to field based on the default-selected role
     document.getElementById('abac-invite-bg').classList.add('open');
   };
   window.abacInviteUserClose = function(){ document.getElementById('abac-invite-bg').classList.remove('open'); };
 
-  // Show the Team field only when the chosen role needs a team. Admin (and any
-  // role with requires_team=false) hides it entirely so the modal isn't confusing.
+  // Leads a user can report to = Admins + Team Leads.
+  function _leadProfiles(){
+    const teamLeadRoleIds = new Set(_rolesCache.filter(r => r.type === 'team_lead').map(r => r.id));
+    return _allProfiles.filter(p => p.role === 'admin' || teamLeadRoleIds.has(p.role_id));
+  }
+
+  // Show "Reports to" only for non-admin roles. Admins don't report to anyone.
   window.abacInviteRoleChanged = function(){
     const role = _rolesCache.find(r => r.id === document.getElementById('abac-inv-role-id').value);
     const label = document.getElementById('abac-inv-team-label');
     if(!label) return;
-    label.style.display = (role && role.requires_team) ? '' : 'none';
+    label.style.display = (role && role.type !== 'admin') ? '' : 'none';
   };
 
   window.abacInviteUserSubmit = async function(){
@@ -16639,9 +16656,9 @@ window.addEventListener('auth-ready', () => {
     const name     = document.getElementById('abac-inv-name').value.trim();
     const role_id  = document.getElementById('abac-inv-role-id').value;
     const role_obj = _rolesCache.find(r => r.id === role_id);
-    const role     = role_obj?.type === 'admin' ? 'admin' : 'user';
-    const team_id  = (role_obj?.requires_team) ? (document.getElementById('abac-inv-team').value || null) : null;
-    const password = document.getElementById('abac-inv-password').value || 'Recruitera@2025';
+    const role       = role_obj?.type === 'admin' ? 'admin' : 'user';
+    const reports_to = (role_obj?.type !== 'admin') ? (document.getElementById('abac-inv-team').value || null) : null;
+    const password   = document.getElementById('abac-inv-password').value || 'Recruitera@2025';
     const errEl    = document.getElementById('abac-inv-error');
     const okEl     = document.getElementById('abac-inv-success');
     const btn      = document.getElementById('abac-inv-submit');
@@ -16655,7 +16672,7 @@ window.addEventListener('auth-ready', () => {
       const res = await fetch(`${SB_URL}/functions/v1/invite-user`, {
         method:'POST',
         headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-        body: JSON.stringify({ email, full_name: name, role, role_id, team_id, password })
+        body: JSON.stringify({ email, full_name: name, role, role_id, reports_to, password })
       });
       const data = await res.json().catch(()=>({error:'Invalid JSON response'}));
       if(!res.ok || !data.ok){
