@@ -9033,10 +9033,13 @@ function trialStatus(lead){
 // no longer rewritten to 'mql'. The MQL gate (validateMqlGate) promotes a
 // Lead to MQL only when the company passes the qualification criteria.
 const gStage=id=>{
-  const v=ls.g('st_'+id);
-  if(v)return v;
+  // DB stage wins. The localStorage cache existed to make drag-to-stage feel
+  // instant, but the drag handler also updates l._sb_stage live (see ddr/dr*),
+  // so we no longer need the cache to be authoritative. It now only acts as a
+  // last-resort fallback when the lead row isn't loaded.
   const l=leads.find(x=>x._id===id);
-  return l?._sb_stage || 'mql';
+  if(l?._sb_stage) return l._sb_stage;
+  return ls.g('st_'+id) || 'mql';
 };
 const sStage=(id,s)=>ls.s('st_'+id,s);
 const gAcv=id=>{
