@@ -8144,7 +8144,7 @@ window.openQualHistory = async function(leadId){
     const raw = lead.raw_data || {};
 
     // 1. Title (primary contact)
-    const title = String(raw.Contact_Title || raw.Job_Title || raw.Title ||
+    const title = String(raw.WP_Contact_Job_Title || raw.Contact_Title || raw.Job_Title || raw.Title ||
                          lead.contact_title || lead.job_title || '').trim();
     if(!title){
       failures.push({rule:'Title', why:'No contact title on file'});
