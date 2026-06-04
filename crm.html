@@ -7483,12 +7483,12 @@ body .ld-tab-content {
         <span class="f-lbl">Filter</span>
         <select class="f-select" id="fsrc" onchange="renderBoard()"><option value="">All sources</option></select>
         <select class="f-select" id="fstg" onchange="renderBoard()"><option value="">All stages</option></select>
-        <select class="f-select" id="ficp" onchange="renderBoard()">
-          <option value="">All ICP grades</option>
-          <option value="A">Grade A (80–100)</option>
-          <option value="B">Grade B (50–79)</option>
-          <option value="C">Grade C (20–49)</option>
-          <option value="D">Grade D (0–19)</option>
+        <select class="f-select" id="fscore" onchange="renderBoard()">
+          <option value="">All scores</option>
+          <option value="hot">🔥 Hot (80–100)</option>
+          <option value="warm">✓ Warm (60–79)</option>
+          <option value="cool">⚠ Cool (40–59)</option>
+          <option value="cold">✗ Cold (0–39)</option>
         </select>
         <select class="f-select" id="ftrial" onchange="renderBoard()">
           <option value="">All trial status</option>
@@ -7512,7 +7512,7 @@ body .ld-tab-content {
           <option value="name_za">Name Z→A</option>
           <option value="value_hi">Value high→low</option>
           <option value="value_lo">Value low→high</option>
-          <option value="icp_hi">ICP score high→low</option>
+          <option value="score_hi">Score high→low</option>
         </select>
         <button class="acc-export-btn" id="pipe-export-btn" onclick="exportPipeline()" style="display:none;margin-left:auto;" title="Admin only — export filtered pipeline to CSV">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -10199,7 +10199,8 @@ function popFilters(){
   const sel=document.getElementById('fsrc');
   sel.innerHTML='<option value="">All sources</option>'+srcs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
   const stg=document.getElementById('fstg');
-  stg.innerHTML='<option value="">All stages</option>'+STAGES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  // Lead stage doesn't appear on the kanban board (Phase B2), so don't offer it as a filter.
+  stg.innerHTML='<option value="">All stages</option>'+STAGES.filter(s=>s.id!=='lead').map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   // Populate owner filter from unique AM Mail values in leads data
   const own=document.getElementById('fowner');
   if(own){
@@ -10227,7 +10228,7 @@ function filtered(){
   const q=document.getElementById('search')?.value.toLowerCase().trim()||'';
   const fs=document.getElementById('fsrc')?.value||'';
   const fst=document.getElementById('fstg')?.value||'';
-  const ficp=document.getElementById('ficp')?.value||'';
+  const fscore=document.getElementById('fscore')?.value||'';
   const ftrial=document.getElementById('ftrial')?.value||'';
   const fsort=document.getElementById('fsort')?.value||'newest';
   // Owner filter: admin picks from dropdown, non-admin always forced to their email
@@ -10256,9 +10257,10 @@ function filtered(){
     }
     if(fs&&gSource(l)!==fs)return false;
     if(fst&&gStage(l._id)!==fst)return false;
-    if(ficp){
-      const s=calcIcpScore(l._id);
-      if(icpGrade(s)!==ficp||(s===0&&ficp!=='D'))return false;
+    if(fscore){
+      if(typeof calcRecruiteraScore !== 'function') return false;
+      const t = calcRecruiteraScore(l).tier;
+      if(t !== fscore) return false;
     }
     if(ftrial&&trialStatus(l)!==ftrial)return false;
     // Owner filter: match by AM Mail email
@@ -10284,7 +10286,11 @@ function filtered(){
     if(fsort==='name_za') return gName(b).localeCompare(gName(a));
     if(fsort==='value_hi') return pAcv(gAcv(b._id))-pAcv(gAcv(a._id));
     if(fsort==='value_lo') return pAcv(gAcv(a._id))-pAcv(gAcv(b._id));
-    if(fsort==='icp_hi') return calcIcpScore(b._id)-calcIcpScore(a._id);
+    if(fsort==='score_hi'){
+      const sa = (typeof calcRecruiteraScore==='function') ? calcRecruiteraScore(a).score : 0;
+      const sb = (typeof calcRecruiteraScore==='function') ? calcRecruiteraScore(b).score : 0;
+      return sb - sa;
+    }
     return 0;
   });
 
