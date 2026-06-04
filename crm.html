@@ -7618,6 +7618,7 @@ body .ld-tab-content {
             <th onclick="accSort('name')" id="acc-th-name">ACCOUNT <span class="sort-icon">↕</span></th>
             <th onclick="accSort('stage')" id="acc-th-stage">STATUS <span class="sort-icon">↕</span></th>
             <th>EMAIL</th>
+            <th onclick="accSort('score')" id="acc-th-score">SCORE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('icp')" id="acc-th-icp">HEALTH <span class="sort-icon">↕</span></th>
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
@@ -8279,6 +8280,40 @@ window.openQualHistory = async function(leadId){
         {key:'Company name',  pts:n.pts, max:10, note:n.label, raw:nameVal||'—'},
       ],
     };
+  };
+
+  // Persist score for any lead whose stored value drifted from the live one.
+  // Throttled (8 concurrent, max 200/load) — keeps the DB roughly in sync so
+  // Supabase SQL queries and the Logs view can reason about the score.
+  window.persistRecruiteraScores = async function(leadList){
+    if (typeof _getValidAccessToken !== 'function') return;
+    const stale = (leadList||[]).filter(l => {
+      if (!l || !l._supabase_id) return false;
+      const s = calcRecruiteraScore(l);
+      return s.score !== (l.recruitera_score ?? -1) || s.tier !== (l.recruitera_tier || null);
+    }).slice(0, 200);
+    if (!stale.length) return;
+    const token = await _getValidAccessToken(); if (!token) return;
+    const H = { 'apikey':SB_KEY, 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Prefer':'return=minimal' };
+    let i = 0, active = 0;
+    const next = () => new Promise(resolve => {
+      const launch = () => {
+        while (active < 8 && i < stale.length) {
+          const lead = stale[i++]; active++;
+          const s = calcRecruiteraScore(lead);
+          // Mirror to in-memory immediately so the next render sees fresh values.
+          lead.recruitera_score = s.score; lead.recruitera_tier = s.tier;
+          fetch(`${SB_URL}/rest/v1/accounts?id=eq.${lead._supabase_id}`, {
+            method:'PATCH', headers:H,
+            body: JSON.stringify({recruitera_score:s.score, recruitera_tier:s.tier})
+          }).catch(()=>{}).finally(() => { active--; if (i < stale.length) launch(); else if (active === 0) resolve(); });
+        }
+        if (i >= stale.length && active === 0) resolve();
+      };
+      launch();
+    });
+    await next();
+    console.log('[score] persisted', stale.length, 'rows');
   };
 
   window.validateMqlGate = function(lead){
@@ -9363,6 +9398,8 @@ async function sbFetch() {
     proposal_sent_date:     acc.proposal_sent_date || null,
     proposal_decision_date: acc.proposal_decision_date || null,
     proposal_probability:   acc.proposal_probability || null,
+    recruitera_score:       acc.recruitera_score ?? null,
+    recruitera_tier:        acc.recruitera_tier  || null,
     is_unreachable:   acc.is_unreachable === true,
     is_paid_customer: acc.is_paid_customer || false,
     paid_status:      acc.paid_status || null,
@@ -9731,7 +9768,12 @@ function buildCard(lead,st){
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       ${logoHtml}
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.01em;">${esc(name)}${isLeadPaidCustomer(lead)?'<span class="paid-badge" style="margin-left:5px;font-size:9px;">✓ PAID</span>':''}</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-0.01em;">${esc(name)}${isLeadPaidCustomer(lead)?'<span class="paid-badge" style="margin-left:5px;font-size:9px;">✓ PAID</span>':''}${(() => {
+          if(typeof calcRecruiteraScore!=='function') return '';
+          const _s = calcRecruiteraScore(lead);
+          const _c = {hot:'#2F8F5C',warm:'#7BAE3F',cool:'#B8761A',cold:'#B83A3A'}[_s.tier] || '#999';
+          return `<span title="Recruitera Score: ${_s.score}/100 — ${_s.verdict}" style="margin-left:6px;display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:999px;background:${_c}18;color:${_c};border:1px solid ${_c}55;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:0;vertical-align:1px;">●${_s.score}</span>`;
+        })()}</div>
         ${source?`<div style="font-size:10.5px;color:var(--text-4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(source)}</div>`:''}
       </div>
       ${acvDisplay?`<span class="card-acv-pill" style="font-size:11px;font-weight:600;color:#1C2333;background:var(--lime-700);padding:3px 10px;border-radius:999px;white-space:nowrap;letter-spacing:-0.01em;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,0.06);">${esc(acvDisplay)}</span>`:''}
@@ -12165,6 +12207,8 @@ function accFilteredLeads() {
         return dir * (gStage(a._id)||'').localeCompare(gStage(b._id)||'');
       case 'icp':
         return dir * (calcIcpScore(a._id) - calcIcpScore(b._id));
+      case 'score':
+        return dir * ((calcRecruiteraScore(a)?.score||0) - (calcRecruiteraScore(b)?.score||0));
       case 'owner':
         return dir * (gOwner(a._id)||'').localeCompare(gOwner(b._id)||'');
       case 'source':
@@ -12183,7 +12227,7 @@ function accFilteredLeads() {
 
 function accSort(col) {
   if (accSortCol === col) accSortDir = accSortDir === 'asc' ? 'desc' : 'asc';
-  else { accSortCol = col; accSortDir = col === 'icp' ? 'desc' : 'asc'; }
+  else { accSortCol = col; accSortDir = (col === 'icp' || col === 'score') ? 'desc' : 'asc'; }
   // Update header indicators
   document.querySelectorAll('.acc-table thead th').forEach(th => th.classList.remove('sorted'));
   const th = document.getElementById('acc-th-' + col);
@@ -12830,6 +12874,17 @@ function buildAccountRow(lead) {
       </span>
     </td>
     <td class="acc-email-cell">${emailCellHtml}</td>
+    <td>${(() => {
+      if(typeof calcRecruiteraScore!=='function') return '<span style="color:#C8CDD8;font-size:13px;">—</span>';
+      const _s = calcRecruiteraScore(lead);
+      const _c = {hot:'#2F8F5C',warm:'#7BAE3F',cool:'#B8761A',cold:'#B83A3A'}[_s.tier] || '#999';
+      const _lbl = {hot:'Hot',warm:'Warm',cool:'Cool',cold:'Cold'}[_s.tier] || '';
+      return `<div class="acc-icp-cell" title="${esc(_s.verdict)}">
+        <span style="width:8px;height:8px;border-radius:50%;background:${_c};flex-shrink:0;"></span>
+        <span class="acc-icp-num" style="color:#1C2333;font-variant-numeric:tabular-nums;">${_s.score}</span>
+        <span style="font-size:10px;font-weight:600;color:${_c};letter-spacing:0.04em;text-transform:uppercase;">${_lbl}</span>
+      </div>`;
+    })()}</td>
     <td>
       ${hasIcp
         ? `<div class="acc-icp-cell">
@@ -14910,6 +14965,9 @@ function renderActivityFeed(el) {
     console.log('[CRM] sbFetch returned', leads.length, 'accounts');
     // Fire-and-forget: preload active contracts so renewal pills can render on the Accounts table.
     try { if (typeof preloadActiveContractsForAccounts === 'function') preloadActiveContractsForAccounts(); } catch {}
+    // Fire-and-forget: persist Recruitera scores for any row whose stored
+    // score has drifted from the live-computed one. Throttled, max 200/load.
+    try { if (typeof persistRecruiteraScores === 'function') persistRecruiteraScores(leads); } catch(e){ console.warn('[score] persist failed', e); }
     hideL();
     document.getElementById('sidebar').style.display='flex';
     document.getElementById('main').style.display='flex';
