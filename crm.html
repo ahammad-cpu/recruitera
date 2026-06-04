@@ -16347,7 +16347,7 @@ window.addEventListener('auth-ready', () => {
     }
     const isAdminRole = role.type === 'admin';
     const perms = _rolePolicies[role.id] || {};
-    const members = _allProfiles.filter(p => p.team_id === role.id);
+    const members = _allProfiles.filter(p => p.role_id === role.id);
 
     // Permissions panel (when sub-tab = 'permissions')
     const groupHtml = PERM_CATALOG.map(g => `
@@ -16372,7 +16372,8 @@ window.addEventListener('auth-ready', () => {
     `).join('');
 
     // Members panel (when sub-tab = 'members')
-    const unassigned = _allProfiles.filter(p => p.team_id !== role.id);
+    // "Unassigned" for the Add dropdown = users not already in THIS role.
+    const unassigned = _allProfiles.filter(p => p.role_id !== role.id);
     const memberRows = members.length === 0
       ? '<div style="padding:30px;text-align:center;color:var(--text-4);font-size:12px;">No members in this role yet. Add some below.</div>'
       : members.map(m => {
