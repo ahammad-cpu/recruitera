@@ -7652,7 +7652,7 @@ body .ld-tab-content {
 <div id="settings-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
   <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);">
     <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
-    <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Simulator</div>
+    <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
     <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
   <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--purple-700,#7c3aed)!important;} .settings-tab.active .settings-tab-cnt{background:var(--purple-100,#f0eef9)!important;color:var(--purple-700,#7c3aed)!important;}</style>
@@ -16249,38 +16249,83 @@ window.addEventListener('auth-ready', () => {
     if(!_selectedRoleId || !_rolesCache.find(r => r.id === _selectedRoleId)){
       _selectedRoleId = _rolesCache[0]?.id || null;
     }
+    const teamCount = id => _allProfiles.filter(p => p.team_id === id).length;
     root.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div style="font-size:13px;color:var(--text-3);">${_rolesCache.length} role${_rolesCache.length===1?'':'s'} · ${_allProfiles.length} user${_allProfiles.length===1?'':'s'}</div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" onclick="abacTeamsOpen()" style="padding:6px 12px;font-size:12px;">Manage Teams</button>
-          <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:6px 14px;font-size:12px;">+ Invite User</button>
+      <!-- Explainer + primary action -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
+        <div style="font-size:12.5px;color:var(--text-3);line-height:1.5;max-width:640px;">
+          <b style="color:var(--text-1);">Roles</b> decide what a person can <i>do</i> (view, edit, delete…).
+          <b style="color:var(--text-1);">Teams</b> decide which <i>group</i> they belong to — used for team-based visibility, e.g. a Team Lead sees their whole team's accounts.
         </div>
+        <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:7px 16px;font-size:12.5px;white-space:nowrap;">+ Invite User</button>
       </div>
-      <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100% - 50px);">
-        <div style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);">Roles</div>
-            <button class="btn btn-secondary" onclick="abacRoleCreate()" style="padding:4px 10px;font-size:11px;">+ Add Role</button>
-          </div>
-          ${_rolesCache.map(r => `
-            <div onclick="abacRoleSelect('${r.id}')" style="border:2px solid ${r.id===_selectedRoleId?'var(--purple-700,#7c3aed)':'var(--border)'};border-radius:8px;padding:10px 12px;cursor:pointer;background:${r.id===_selectedRoleId?'var(--purple-100,#f0eef9)':'#fff'};transition:all 120ms;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <div style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:6px;">
-                  ${esc(r.name)}
-                  ${r.is_system ? '<span title="System role — cannot be deleted or renamed" style="font-size:9.5px;font-weight:700;letter-spacing:0.06em;background:#f0eef9;color:#7c3aed;padding:1px 6px;border-radius:999px;">SYSTEM</span>' : ''}
-                </div>
-                <span style="font-size:11px;color:var(--text-3);background:var(--bg-2);padding:1px 7px;border-radius:999px;">${r.user_count} user${r.user_count===1?'':'s'}</span>
-              </div>
-              ${r.description ? `<div style="font-size:11.5px;color:var(--text-3);line-height:1.35;">${esc(r.description)}</div>` : ''}
+
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;">
+        <!-- LEFT RAIL: Roles + Teams -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-3);">Roles</div>
+              <button class="btn btn-secondary" onclick="abacRoleCreate()" style="padding:3px 10px;font-size:11px;">+ Add</button>
             </div>
-          `).join('')}
-          ${_rolesCache.length === 0 ? '<div style="color:var(--text-4);font-size:12px;padding:18px 4px;text-align:center;">No roles yet. Click + Add Role.</div>' : ''}
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${_rolesCache.map(r => `
+                <div onclick="abacRoleSelect('${r.id}')" style="border:1.5px solid ${r.id===_selectedRoleId?'var(--purple-700,#7c3aed)':'var(--border)'};border-radius:8px;padding:9px 11px;cursor:pointer;background:${r.id===_selectedRoleId?'var(--purple-100,#f0eef9)':'#fff'};transition:all 120ms;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+                    <div style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:6px;min-width:0;">
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.name)}</span>
+                      ${r.is_system ? '<span title="System role — cannot be deleted or renamed" style="font-size:9px;font-weight:700;letter-spacing:0.05em;background:#eceaf8;color:#7c3aed;padding:1px 5px;border-radius:999px;flex-shrink:0;">SYS</span>' : ''}
+                    </div>
+                    <span title="${r.user_count} user${r.user_count===1?'':'s'}" style="font-size:11px;color:var(--text-3);flex-shrink:0;">${r.user_count}</span>
+                  </div>
+                </div>
+              `).join('')}
+              ${_rolesCache.length === 0 ? '<div style="color:var(--text-4);font-size:12px;padding:14px 4px;text-align:center;">No roles yet.</div>' : ''}
+            </div>
+          </div>
+
+          <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:12px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-3);margin-bottom:8px;">Teams</div>
+            <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;">
+              ${_teamsCache.length === 0
+                ? '<div style="font-size:11.5px;color:var(--text-4);padding:4px 2px;">No teams yet — add one below.</div>'
+                : _teamsCache.map(t => `
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#fff;">
+                    <span style="font-size:12.5px;font-weight:600;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.name)}</span>
+                    <span style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
+                      <span title="${teamCount(t.id)} member${teamCount(t.id)===1?'':'s'}" style="font-size:11px;color:var(--text-3);">${teamCount(t.id)}</span>
+                      <span onclick="abacTeamsDelete('${t.id}')" title="Delete team" style="cursor:pointer;color:var(--text-4);font-size:15px;line-height:1;">×</span>
+                    </span>
+                  </div>`).join('')}
+            </div>
+            <div style="display:flex;gap:5px;">
+              <input id="abac-team-inline-name" type="text" placeholder="New team…" onkeydown="if(event.key==='Enter')abacTeamAddInline()" style="flex:1;min-width:0;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;"/>
+              <button class="btn btn-secondary" onclick="abacTeamAddInline()" style="padding:4px 10px;font-size:11px;">Add</button>
+            </div>
+          </div>
         </div>
-        <div id="abac-role-detail" style="border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:18px;overflow-y:auto;"></div>
+
+        <!-- DETAIL -->
+        <div id="abac-role-detail" style="border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:20px;min-height:440px;"></div>
       </div>`;
     _renderRoleDetail();
   }
+
+  // Inline team add from the left-rail (separate input id from the legacy modal).
+  window.abacTeamAddInline = async function(){
+    const inp = document.getElementById('abac-team-inline-name');
+    const name = (inp?.value || '').trim();
+    if(!name) return;
+    try {
+      const created = await _restWrite('teams', 'POST', { name });
+      _teamsCache.push(Array.isArray(created) ? created[0] : created);
+      _paintRolesFromCache();
+      if(typeof toast==='function') toast('Team created','success');
+    } catch (e) {
+      const msg = String(e.message||e);
+      if(typeof toast==='function') toast(/duplicate|unique/i.test(msg) ? 'Team name already exists' : 'Create failed: '+msg, 'error');
+    }
+  };
 
   window.renderSettingsRoles = async function(opts){
     const force = opts && opts.force === true;
@@ -16348,6 +16393,29 @@ window.addEventListener('auth-ready', () => {
     const isAdminRole = role.type === 'admin';
     const perms = _rolePolicies[role.id] || {};
     const members = _allProfiles.filter(p => p.role_id === role.id);
+
+    // ─── Plain-English capability summary ("This role can: …") ───
+    const SHORT_PERM = { read:'View', update:'Edit', disqualify:'Disqualify', mark_won_lost:'Mark won/lost', reassign_owner:'Reassign owner', delete:'Delete', merge:'Merge' };
+    const chip = (txt, on) => `<span style="font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;${on?'background:#e7f6ed;color:#2F8F5C;':'background:var(--bg-2);color:var(--text-4);'}">${esc(txt)}</span>`;
+    let capHtml;
+    if (isAdminRole) {
+      capHtml = chip('Full access — bypasses every rule', true);
+    } else {
+      const enabled = Object.keys(SHORT_PERM).filter(k => perms[k] && perms[k].enabled);
+      capHtml = enabled.length
+        ? enabled.map(k => chip(SHORT_PERM[k], true)).join(' ')
+        : '<span style="font-size:12px;color:var(--text-4);">No permissions yet — turn some on in the Permissions tab.</span>';
+    }
+    const scopeText = isAdminRole ? 'all accounts'
+      : role.type === 'team_lead' ? 'accounts owned by anyone in their team'
+      : role.type === 'member'    ? 'accounts they own'
+      : 'accounts matching this role’s rules';
+    const capSummary = `
+      <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:11px 13px;margin-bottom:16px;">
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:7px;">This role can</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">${capHtml}</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:8px;">Applies to <b style="color:var(--text-2);">${esc(scopeText)}</b>.</div>
+      </div>`;
 
     // Permissions panel (when sub-tab = 'permissions')
     const groupHtml = PERM_CATALOG.map(g => `
@@ -16422,6 +16490,8 @@ window.addEventListener('auth-ready', () => {
           ${role.is_system ? '' : `<button class="btn btn-secondary" onclick="abacRoleDelete('${role.id}')" style="padding:6px 12px;font-size:12px;color:var(--bad);border-color:var(--bad);">Delete role</button>`}
         </div>
       </div>
+
+      ${capSummary}
 
       <!-- Permissions / Members sub-tabs -->
       <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;">
