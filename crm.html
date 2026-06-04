@@ -9217,6 +9217,13 @@ function filtered(){
     if(gDisq(l._id)) return false;
     // Pure Lead stage stays in Accounts table; MQL onwards lives in kanban.
     if(gStage(l._id)==='lead') return false;
+    // Paid customers don't belong in the sales pipeline — they live in
+    // Accounts → Paid / Renewals. Only show them here if the user
+    // explicitly filtered to "Paid" via the dropdown.
+    {
+      const _fp = document.getElementById('fpaid')?.value || '';
+      if(_fp !== 'paid' && isLeadPaidCustomer(l)) return false;
+    }
     if(q){
       const t=`${gName(l)} ${gEmail(l)} ${gIndustry(l)} ${gSource(l)} ${gContact(l._id).enriched_name||''}`.toLowerCase();
       if(!t.includes(q))return false;
