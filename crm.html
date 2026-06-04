@@ -7768,6 +7768,69 @@ body .ld-tab-content {
   </div>
 </div>
 
+<!-- ─── QUALIFICATION HISTORY MODAL ─── -->
+<div class="disq-modal-bg" id="qualhist-modal-bg">
+  <div class="disq-modal" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="disq-hdr">
+      <div class="disq-title">Qualification history</div>
+      <div class="disq-sub">Every BANT &amp; Proposal change for <b id="qualhist-company">—</b>.</div>
+    </div>
+    <div class="disq-body" id="qualhist-body" style="overflow-y:auto;flex:1;padding:0;">
+      <div style="padding:20px;color:var(--text-3);text-align:center;">Loading…</div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('qualhist-modal-bg').classList.remove('open')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.openQualHistory = async function(leadId){
+  const lead = (window.leads||[]).find(l => l._id === leadId);
+  if(!lead){ if(typeof toast==='function') toast('Lead not found','error'); return; }
+  document.getElementById('qualhist-company').textContent = (typeof gName==='function' ? gName(lead) : (lead.name||'(no name)'));
+  const body = document.getElementById('qualhist-body');
+  body.innerHTML = '<div style="padding:20px;color:var(--text-3);text-align:center;">Loading…</div>';
+  document.getElementById('qualhist-modal-bg').classList.add('open');
+  const sbId = lead._supabase_id;
+  if(!sbId){ body.innerHTML = '<div style="padding:20px;color:var(--text-3);text-align:center;">No Supabase record — nothing to show.</div>'; return; }
+  const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+  if(!token){ body.innerHTML = '<div style="padding:20px;color:var(--bad);text-align:center;">Not signed in.</div>'; return; }
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/qualification_history?account_id=eq.${sbId}&order=changed_at.desc&limit=200`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
+    });
+    const rows = res.ok ? await res.json() : [];
+    if(!rows.length){ body.innerHTML = '<div style="padding:32px 20px;color:var(--text-3);text-align:center;">No history yet. Changes will appear here as BANT &amp; Proposal answers are saved.</div>'; return; }
+    const dir = {}; (window.PROFILES_DIR||[]).forEach(p => { if(p && p.id) dir[p.id] = p; });
+    const fmt = v => {
+      if(v===null || v===undefined) return '<span style="color:var(--text-4);font-style:italic;">empty</span>';
+      if(typeof v === 'boolean') return v ? 'Yes' : 'No';
+      if(typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)){ try{ return new Date(v).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }catch{return v;} }
+      if(typeof v === 'number') return v.toLocaleString('en-US');
+      return String(v);
+    };
+    const fieldLabel = f => f.replace(/^bant_/,'').replace(/^proposal_/,'').replace(/_yes$/,'').replace(/_note$/,' note').replace(/_/g,' ').replace(/\b\w/g, c=>c.toUpperCase());
+    body.innerHTML = `<div style="padding:0;">${rows.map(r => {
+      const who = dir[r.changed_by]?.full_name || dir[r.changed_by]?.email || '—';
+      const when = new Date(r.changed_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+      const kindColor = r.kind==='bant' ? 'var(--info)' : 'var(--lime-700)';
+      return `<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
+        <span style="font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:4px;background:${kindColor}22;color:${kindColor};letter-spacing:0.06em;flex-shrink:0;margin-top:1px;">${r.kind.toUpperCase()}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);">${esc(fieldLabel(r.field))}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:3px;line-height:1.5;">${fmt(r.old_value)} <span style="color:var(--text-4);">→</span> <b style="color:var(--text);">${fmt(r.new_value)}</b></div>
+          <div style="font-size:11px;color:var(--text-4);margin-top:4px;">${esc(who)} · ${esc(when)}</div>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  } catch(e){
+    console.warn('[qualhist] fetch threw', e);
+    body.innerHTML = '<div style="padding:20px;color:var(--bad);text-align:center;">Failed to load history.</div>';
+  }
+};
+</script>
+
 <!-- ─── PROPOSAL MODAL (→ Proposal stage) ─── -->
 <div class="disq-modal-bg" id="proposal-modal-bg">
   <div class="disq-modal" style="max-width:480px;">
@@ -10624,6 +10687,63 @@ function renderLdRight(lead){
         ${eDesc?`<div style="font-size:12px;color:var(--text-3);line-height:1.55;padding:10px 0 0;border-top:1px solid var(--border);margin-top:0;">${esc(eDesc.slice(0,160))}${eDesc.length>160?'…':''}</div>`:''}
       </div>
     </div>
+
+    <!-- ── QUALIFICATION (BANT + Proposal) ── -->
+    ${(()=>{
+      const b={
+        budget:   {y:lead.bant_budget_yes,    n:lead.bant_budget_note},
+        authority:{y:lead.bant_authority_yes, n:lead.bant_authority_note},
+        need:     {y:lead.bant_need_yes,      n:lead.bant_need_note},
+        timing:   {y:lead.bant_timing_yes,    n:lead.bant_timing_note},
+      };
+      const hasBant = Object.values(b).some(x => x.y!=null || x.n);
+      const hasProp = lead.proposal_amount!=null || lead.proposal_sent_date || lead.proposal_decision_date || lead.proposal_probability;
+      if(!hasBant && !hasProp) return '';
+      const dot = v => v===true?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);"></span>':v===false?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);"></span>':'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--border-2);"></span>';
+      const probColor=lead.proposal_probability==='high'?'#2F8F5C':lead.proposal_probability==='medium'?'#B8761A':lead.proposal_probability==='low'?'#B83A3A':'var(--text-4)';
+      const probLabel=lead.proposal_probability?lead.proposal_probability[0].toUpperCase()+lead.proposal_probability.slice(1):'';
+      const fmtD = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+      const editBtn = (fn) => `<button onclick="${fn}('${id}')" style="font-size:11px;font-weight:500;padding:3px 8px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;">Edit</button>`;
+      return `
+      <div class="ld-panel-card">
+        <div class="ld-panel-head" style="background:transparent;border-bottom:none;padding-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+          <div class="ld-panel-title" style="color:var(--text-3);font-weight:700;letter-spacing:0.08em;">
+            <span style="font-size:14px;">🎯</span> QUALIFICATION
+          </div>
+          <button onclick="openQualHistory('${id}')" style="font-size:11px;font-weight:500;padding:3px 8px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;">History</button>
+        </div>
+        <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:14px;padding-top:6px;">
+          ${hasBant?`<div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);">BANT</div>
+              ${editBtn('openBantModal')}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${[['Budget','budget'],['Authority','authority'],['Need','need'],['Timing','timing']].map(([lbl,k])=>`
+                <div style="display:flex;align-items:flex-start;gap:8px;font-size:13px;">
+                  <span style="margin-top:5px;">${dot(b[k].y)}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:500;color:var(--text);">${lbl}</div>
+                    ${b[k].n?`<div style="font-size:12px;color:var(--text-3);line-height:1.4;margin-top:2px;">${esc(b[k].n)}</div>`:''}
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>`:''}
+          ${hasProp?`<div style="${hasBant?'border-top:1px solid var(--border);padding-top:12px;':''}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);">PROPOSAL</div>
+              ${editBtn('openProposalModal')}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0;">
+              ${mRow('AMOUNT', lead.proposal_amount!=null?`EGP ${Number(lead.proposal_amount).toLocaleString('en-US')}`:'')}
+              ${mRow('PROBABILITY', probLabel?`<span style="color:${probColor};font-weight:600;">● ${probLabel}</span>`:'')}
+              ${mRow('SENT', fmtD(lead.proposal_sent_date))}
+              ${mRow('EXPECTED DECISION', fmtD(lead.proposal_decision_date))}
+            </div>
+          </div>`:''}
+        </div>
+      </div>`;
+    })()}
 
     <!-- ── TAGS ─── -->
     <div class="ld-panel-card">
