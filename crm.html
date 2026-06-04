@@ -8658,6 +8658,7 @@ window.AUTH_PROFILE = null;
     // Load the full profiles directory (email → photo/name) so owner avatars
     // across the system can use real user photos. RLS allows authenticated read.
     try { await loadProfilesDirectory(); } catch(e) { console.warn('[profiles] dir load failed', e); }
+    try { await loadMarketingTracking(); } catch(e) { console.warn('[mt] load failed', e); }
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
     // flash zeros over the loading state. The bootstrap IIFE calls init() (which
@@ -11074,6 +11075,57 @@ function renderLdRight(lead){
       </div>`;
     })()}
 
+    <!-- ── MARKETING ATTRIBUTION (first / last touch) ── -->
+    ${(()=>{
+      const mt = (window.MT_BY_ACCOUNT||{})[lead._supabase_id];
+      if(!mt) return '';
+      const fmtD = d => d ? (()=>{try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d;}})() : '';
+      const srcColor = (s) => {
+        const k = (s||'').toLowerCase();
+        if(k.includes('linkedin')) return '#0A66C2';
+        if(k.includes('google')) return '#4285F4';
+        if(k==='fb'||k.includes('facebook')||k==='meta') return '#1877F2';
+        if(k.includes('bing')) return '#008373';
+        if(k==='ig'||k.includes('instagram')) return '#E1306C';
+        if(k.includes('direct')) return 'var(--text-3)';
+        return '#7BAE3F';
+      };
+      const touchDot = (src) => src ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${srcColor(src)};margin-right:6px;vertical-align:1px;"></span>` : '';
+      const touchRow = (label, src, med, camp, date) => (src||med||camp||date) ? `
+        <div style="padding:6px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:3px;">${label}</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);">${touchDot(src)}${esc(src||'—')}</div>
+          ${(med||camp)?`<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${med?esc(med):''}${med&&camp?' · ':''}${camp?esc(camp):''}</div>`:''}
+          ${date?`<div style="font-size:11px;color:var(--text-4);margin-top:2px;">${esc(fmtD(date))}</div>`:''}
+        </div>` : '';
+      const ttc = mt.days_to_convert;
+      const tc  = mt.touch_count;
+      return `
+      <div class="ld-panel-card">
+        <div class="ld-panel-head" style="background:transparent;border-bottom:none;padding-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+          <div class="ld-panel-title" style="color:var(--text-3);font-weight:700;letter-spacing:0.08em;">
+            <span style="font-size:14px;">📡</span> ATTRIBUTION
+          </div>
+          ${tc!=null?`<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--bg-2);color:var(--text-2);letter-spacing:0.04em;">${tc} touch${tc===1?'':'es'}</span>`:''}
+        </div>
+        <div class="ld-panel-body" style="display:flex;flex-direction:column;gap:0;padding-top:6px;">
+          ${touchRow('FIRST TOUCH', mt.first_source, mt.first_medium, mt.first_campaign, mt.first_date)}
+          ${touchRow('LAST TOUCH',  mt.last_source,  mt.last_medium,  mt.last_campaign,  mt.last_date)}
+          ${(ttc!=null||mt.device_type||mt.cta_clicked||mt.signup_language)?`
+          <div style="padding:8px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;">
+            ${ttc!=null?`<div><div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;">Days to convert</div><div style="font-size:14px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;">${ttc}</div></div>`:''}
+            ${mt.device_type?`<div><div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;">Device</div><div style="font-size:13px;font-weight:500;color:var(--text);">${esc(mt.device_type)}</div></div>`:''}
+            ${mt.signup_language?`<div><div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;">Lang</div><div style="font-size:13px;font-weight:500;color:var(--text);">${esc(mt.signup_language)}</div></div>`:''}
+            ${mt.cta_clicked?`<div><div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;">CTA</div><div style="font-size:13px;font-weight:500;color:var(--text);">${esc(mt.cta_clicked)}</div></div>`:''}
+          </div>`:''}
+          ${mt.first_landing_page?`<div style="padding:8px 0 0;border-top:1px solid var(--border);margin-top:6px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:3px;">First landing page</div>
+            <div style="font-size:12px;color:var(--text-2);word-break:break-all;line-height:1.4;">${esc(mt.first_landing_page)}</div>
+          </div>`:''}
+        </div>
+      </div>`;
+    })()}
+
     <!-- ── QUALIFICATION (BANT + Proposal) ── -->
     ${(()=>{
       const b={
@@ -12412,6 +12464,21 @@ async function toggleUnreachable(leadId){
 
 // ── ownerFromEmail: build display object from email ──
 const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6'];
+
+// Marketing tracking — first/last touch attribution. Loaded once after auth.
+// Keyed by account_id so the Lead Detail panel can render in O(1).
+window.MT_BY_ACCOUNT = {};
+async function loadMarketingTracking(){
+  const token = await _getValidAccessToken(); if(!token) return;
+  const res = await fetch(`${SB_URL}/rest/v1/marketing_tracking?select=account_id,company_ref,first_source,first_medium,first_campaign,first_content,first_term,first_landing_page,first_referrer,first_date,last_source,last_medium,last_campaign,last_content,last_term,last_landing_page,last_referrer,last_date,touch_count,days_to_convert,device_type,signup_language,cta_clicked&account_id=not.is.null`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
+  });
+  if(!res.ok){ console.warn('[mt] load failed', res.status); return; }
+  const rows = await res.json();
+  window.MT_BY_ACCOUNT = {};
+  (Array.isArray(rows) ? rows : []).forEach(r => { if(r.account_id) window.MT_BY_ACCOUNT[r.account_id] = r; });
+  console.log('[mt] loaded', Object.keys(window.MT_BY_ACCOUNT).length, 'tracking rows');
+}
 
 // Profiles directory: email (lowercased) -> profile row. Loaded once after auth.
 window.PROFILES_DIR = [];
