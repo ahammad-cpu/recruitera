@@ -7539,6 +7539,10 @@ body .ld-tab-content {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2"/><rect x="8" y="8" width="12" height="12" rx="2"/></svg>
           Find duplicates
         </button>
+        <button class="acc-export-btn" id="acc-manual-merge-btn" onclick="openManualMerge()" style="display:none;" title="Admin only — pick accounts manually and merge them into one">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/><path d="M3 8V3h5"/><path d="M3 3l7 7"/><path d="M21 16v5h-5"/><path d="M21 21l-7-7"/></svg>
+          Merge accounts
+        </button>
         <button class="acc-export-btn" id="acc-export-btn" onclick="exportAccounts()" style="display:none;" title="Admin only — export filtered accounts to CSV">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
@@ -7821,6 +7825,157 @@ body .ld-tab-content {
 </div>
 
 <!-- ─── QUALIFICATION HISTORY MODAL ─── -->
+<!-- ─── MANUAL MERGE MODAL ─── -->
+<div class="disq-modal-bg" id="manual-merge-modal-bg">
+  <div class="disq-modal" style="max-width:720px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="disq-hdr">
+      <div class="disq-title">Merge accounts</div>
+      <div class="disq-sub">Pick 2 or more accounts to combine into one. Choose which one to keep — everything from the others (activities, contacts, deals, raw data) gets moved onto it. <b>This can't be undone.</b></div>
+    </div>
+    <div class="disq-body" style="display:flex;flex-direction:column;gap:14px;overflow:hidden;">
+      <div>
+        <div style="font-size:10.5px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Search</div>
+        <input id="mm-search" type="text" placeholder="Type a company name…" oninput="renderManualMergeSearch()" style="width:100%;padding:8px 10px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:7px;outline:none;"/>
+        <div id="mm-results" style="margin-top:6px;max-height:160px;overflow-y:auto;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;display:none;"></div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;font-weight:700;letter-spacing:0.08em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+          <span>Selected to merge · <span id="mm-count">0</span></span>
+          <span style="font-size:10.5px;color:var(--text-4);text-transform:none;letter-spacing:0;font-weight:500;">Pick the keeper with the radio button</span>
+        </div>
+        <div id="mm-picked" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+      </div>
+    </div>
+    <div class="disq-footer">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeManualMerge()">Cancel</button>
+      <button class="btn btn-primary"  style="flex:2;" id="mm-execute" onclick="executeManualMerge()" disabled>Merge into keeper</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.MM_PICKED = [];        // array of lead._id
+window.MM_KEEPER = null;       // _id of keeper among picked
+
+window.openManualMerge = function(){
+  if (window.AUTH_PROFILE?.role !== 'admin'){ toast('Admin only','error'); return; }
+  window.MM_PICKED = []; window.MM_KEEPER = null;
+  document.getElementById('mm-search').value = '';
+  document.getElementById('mm-results').style.display = 'none';
+  renderManualMergePicked();
+  document.getElementById('manual-merge-modal-bg').classList.add('open');
+};
+window.closeManualMerge = function(){
+  document.getElementById('manual-merge-modal-bg').classList.remove('open');
+};
+
+window.renderManualMergeSearch = function(){
+  const q = (document.getElementById('mm-search').value || '').toLowerCase().trim();
+  const box = document.getElementById('mm-results');
+  if (!q || q.length < 2){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  const matches = (window.leads||[]).filter(l => {
+    if (!l._supabase_id) return false; // must exist in DB
+    if (window.MM_PICKED.includes(l._id)) return false; // already picked
+    const name = (typeof gName==='function' ? gName(l) : (l.name||'')).toLowerCase();
+    return name.includes(q);
+  }).slice(0, 20);
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  if (!matches.length){ box.style.display = 'block'; box.innerHTML = '<div style="padding:10px;color:var(--text-3);font-size:12px;text-align:center;">No matches.</div>'; return; }
+  box.style.display = 'block';
+  box.innerHTML = matches.map(l => `<div onclick="addToManualMerge('${l._id}')" style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="min-width:0;flex:1;"><div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(gName(l))}</div><div style="font-size:11px;color:var(--text-3);">${escFn(l.domain||'no domain')} · stage ${escFn(gStage(l._id))}</div></div>
+    <span style="font-size:11px;color:var(--info);font-weight:600;">+ add</span>
+  </div>`).join('');
+};
+
+window.addToManualMerge = function(id){
+  if (!window.MM_PICKED.includes(id)) window.MM_PICKED.push(id);
+  if (window.MM_PICKED.length === 1) window.MM_KEEPER = id; // default keeper = first picked
+  document.getElementById('mm-search').value = '';
+  document.getElementById('mm-results').style.display = 'none';
+  document.getElementById('mm-results').innerHTML = '';
+  renderManualMergePicked();
+};
+
+window.removeFromManualMerge = function(id){
+  window.MM_PICKED = window.MM_PICKED.filter(x => x !== id);
+  if (window.MM_KEEPER === id) window.MM_KEEPER = window.MM_PICKED[0] || null;
+  renderManualMergePicked();
+};
+
+window.setManualMergeKeeper = function(id){
+  window.MM_KEEPER = id;
+  renderManualMergePicked();
+};
+
+window.renderManualMergePicked = function(){
+  const box = document.getElementById('mm-picked');
+  const cnt = document.getElementById('mm-count');
+  const exec = document.getElementById('mm-execute');
+  cnt.textContent = window.MM_PICKED.length;
+  exec.disabled = window.MM_PICKED.length < 2;
+  exec.textContent = window.MM_PICKED.length < 2 ? 'Pick 2+ accounts' : `Merge ${window.MM_PICKED.length - 1} into keeper`;
+  if (!window.MM_PICKED.length){ box.innerHTML = '<div style="padding:18px;text-align:center;color:var(--text-3);font-size:12.5px;border:1px dashed var(--border);border-radius:8px;">Nothing picked yet. Search above to add accounts.</div>'; return; }
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  box.innerHTML = window.MM_PICKED.map(id => {
+    const l = (window.leads||[]).find(x => x._id === id);
+    if (!l) return '';
+    const isKeeper = window.MM_KEEPER === id;
+    const stage = gStage(id);
+    const score = (typeof calcRecruiteraScore==='function') ? calcRecruiteraScore(l).score : '';
+    const rawKeys = l.raw_data ? Object.keys(l.raw_data).length : 0;
+    const created = new Date(l.created_at || l.bubble_created_at || 0).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    return `<label style="display:grid;grid-template-columns:30px 1fr auto auto;gap:10px;align-items:center;padding:10px 12px;border:2px solid ${isKeeper?'var(--ok)':'var(--border)'};border-radius:8px;background:${isKeeper?'var(--ok-bg)':'var(--surface)'};cursor:pointer;">
+      <input type="radio" name="mm-keeper" ${isKeeper?'checked':''} onchange="setManualMergeKeeper('${id}')" style="cursor:pointer;accent-color:var(--ok);width:18px;height:18px;"/>
+      <div style="min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(gName(l))}${isKeeper?' <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--ok);color:#fff;letter-spacing:0.06em;margin-left:6px;">KEEPER</span>':''}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${escFn(l.domain||'no domain')} · stage ${escFn(stage)}${score?` · score ${score}`:''} · ${rawKeys} fields · since ${created}</div>
+      </div>
+      <span style="font-size:10.5px;color:var(--text-4);text-align:right;">${l._supabase_id ? l._supabase_id.slice(0,8) : ''}</span>
+      <button type="button" onclick="event.preventDefault();removeFromManualMerge('${id}')" style="background:none;border:none;cursor:pointer;color:var(--bad);font-size:14px;padding:4px;">×</button>
+    </label>`;
+  }).join('');
+};
+
+window.executeManualMerge = async function(){
+  const keeperLeadId = window.MM_KEEPER;
+  if (!keeperLeadId){ toast('Pick a keeper','error'); return; }
+  const keeperLead = (window.leads||[]).find(l => l._id === keeperLeadId);
+  const keeperSb = keeperLead?._supabase_id;
+  const loserSbIds = window.MM_PICKED
+    .filter(id => id !== keeperLeadId)
+    .map(id => (window.leads||[]).find(l => l._id === id)?._supabase_id)
+    .filter(Boolean);
+  if (!keeperSb || !loserSbIds.length){ toast('Need a Supabase-backed keeper and at least one loser','error'); return; }
+  const keeperName = (typeof gName==='function' ? gName(keeperLead) : keeperLead.name);
+  if (!confirm(`Merge ${loserSbIds.length} account${loserSbIds.length===1?'':'s'} INTO "${keeperName}"?\n\nAll activities, contacts, deals and raw data from the others will be moved to the keeper, then the others will be DELETED. This can't be undone.`)) return;
+  const btn = document.getElementById('mm-execute');
+  btn.disabled = true; btn.textContent = 'Merging…';
+  try {
+    const token = await _getValidAccessToken();
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/manual_merge_accounts`, {
+      method:'POST', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body: JSON.stringify({ p_keeper_id: keeperSb, p_loser_ids: loserSbIds })
+    });
+    if (!r.ok){
+      const msg = (await r.json().catch(()=>({}))).message || 'Merge failed';
+      throw new Error(msg);
+    }
+    const result = await r.json().catch(()=>null);
+    toast(`Merged ${loserSbIds.length} into ${keeperName}`,'success');
+    // Drop losers from in-memory leads
+    window.leads = (window.leads||[]).filter(l => !loserSbIds.includes(l._supabase_id));
+    closeManualMerge();
+    if (typeof renderAccountsTable === 'function') renderAccountsTable();
+    if (typeof renderBoard === 'function') renderBoard();
+    if (result) console.log('[merge]', result);
+  } catch(e){
+    toast(e.message || 'Merge failed','error');
+    btn.disabled = false; btn.textContent = `Merge ${window.MM_PICKED.length - 1} into keeper`;
+  }
+};
+</script>
+
 <div class="disq-modal-bg" id="qualhist-modal-bg">
   <div class="disq-modal" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column;">
     <div class="disq-hdr">
@@ -9448,6 +9603,8 @@ window.AUTH_PROFILE = null;
       if (_sbLog) _sbLog.classList.toggle('sb-locked', !_isAdmin);
       const dupBtn = document.getElementById('acc-find-dupes-btn');
       if (dupBtn) dupBtn.style.display = (p.role === 'admin') ? '' : 'none';
+      const manMergeBtn = document.getElementById('acc-manual-merge-btn');
+      if (manMergeBtn) manMergeBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const accExportBtn = document.getElementById('acc-export-btn');
       if (accExportBtn) accExportBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const pipeExportBtn = document.getElementById('pipe-export-btn');
