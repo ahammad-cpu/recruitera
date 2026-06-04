@@ -7914,13 +7914,24 @@ window.renderLogsList = function(){
 // ═══ PERSONALIZED HOME / DASHBOARD ══════════════════════════════════
 // 4 widgets: Quarter target · My tasks today · Today's calls/meetings ·
 // New accounts assigned to me.
+window.HOME_VIEWING_AS = window.HOME_VIEWING_AS || null;
 window.renderHomeView = function(){
   const root = document.getElementById('home-view'); if(!root) return;
-  const me = window.AUTH_PROFILE || {};
+  const auth = window.AUTH_PROFILE || {};
+  const isAdmin = auth.role === 'admin';
+  const myReports = (window.PROFILES_DIR||[]).filter(p => p.reports_to === auth.id);
+  const isTeamLead = myReports.length > 0;
+  // Resolve the profile we're rendering for
+  const viewingId = window.HOME_VIEWING_AS || auth.id;
+  const viewing = (window.PROFILES_DIR||[]).find(p => p.id === viewingId) || auth;
+  const me = viewing;
   const myEmail = (me.email||'').toLowerCase();
   const myId    = me.id;
   const myName  = me.full_name || (myEmail.split('@')[0] || 'there');
-  const greeting = (h=>h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening')(new Date().getHours());
+  const viewingSelf = !window.HOME_VIEWING_AS || window.HOME_VIEWING_AS === auth.id;
+  const greeting = viewingSelf
+    ? (h=>h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening')(new Date().getHours()) + ', ' + (auth.full_name || (auth.email||'').split('@')[0] || 'there')
+    : "Viewing " + (myName);
   const target  = me.quarterly_target_egp;
   const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
   const fmtEgp = n => 'EGP ' + (n||0).toLocaleString('en-US');
@@ -8082,10 +8093,27 @@ window.renderHomeView = function(){
   const newWidget = card(`👥 New accounts assigned to you${newOnes.length?' · '+newOnes.length:''}`, newBody);
 
   // Layout
+  // Viewer picker (admin sees everyone; team lead sees own + reports)
+  let viewerPicker = '';
+  if (isAdmin || isTeamLead) {
+    const eligible = isAdmin
+      ? (window.PROFILES_DIR||[]).filter(p => p.active !== false)
+      : [auth, ...myReports];
+    viewerPicker = `<div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;">Viewing</span>
+      <select onchange="setHomeViewingAs(this.value)" style="font:inherit;font-size:13px;font-weight:600;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-1);">
+        <option value="">Me · ${escFn(auth.full_name||auth.email||'')}</option>
+        ${eligible.filter(p => p.id !== auth.id).map(p => `<option value="${p.id}"${viewingId===p.id?' selected':''}>${escFn(p.full_name||p.email||'')}</option>`).join('')}
+      </select>
+    </div>`;
+  }
   root.innerHTML = `
-    <div style="margin-bottom:24px;">
-      <div style="font-size:24px;font-weight:700;color:var(--text);">${escFn(greeting)}, ${escFn(myName)} 👋</div>
-      <div style="font-size:13px;color:var(--text-3);margin-top:4px;">Here's what's on your plate today.</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:14px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:24px;font-weight:700;color:var(--text);">${escFn(greeting)} ${viewingSelf?'👋':''}</div>
+        <div style="font-size:13px;color:var(--text-3);margin-top:4px;">${viewingSelf?"Here's what's on your plate today.":"Their plate at a glance."}</div>
+      </div>
+      ${viewerPicker}
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
@@ -8112,6 +8140,86 @@ window.renderHomeView = function(){
 window.quickToggleTask = function(leadId, itemId){
   toggleTaskDone(leadId, itemId);
   if(typeof renderHomeView === 'function') renderHomeView();
+};
+
+window.setHomeViewingAs = function(profileId){
+  window.HOME_VIEWING_AS = profileId || null;
+  if(typeof renderHomeView === 'function') renderHomeView();
+};
+
+// ─── REPS LEADERBOARD (rendered on Reports view) ──────────
+window.renderRepsLeaderboard = function(){
+  const dashEl = document.getElementById('dashboard-view'); if(!dashEl) return;
+  // Remove previous render
+  const old = document.getElementById('reps-leaderboard'); if(old) old.remove();
+  const profiles = (window.PROFILES_DIR||[]).filter(p => p.active !== false);
+  if(!profiles.length) return;
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const fmtEgp = n => 'EGP ' + (n||0).toLocaleString('en-US');
+  const now = new Date();
+  const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1).getTime();
+  const qEnd   = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3 + 3, 1).getTime() - 1;
+  const qLabel = `Q${Math.floor(now.getMonth()/3)+1} ${now.getFullYear()}`;
+
+  // Compute per-rep closed amount this quarter
+  const rows = profiles.map(p => {
+    const email = (p.email||'').toLowerCase();
+    const won = (window.leads||[]).filter(l => {
+      const am = (gAmMail(l) || gOwner(l._id) || '').toLowerCase();
+      if (am !== email) return false;
+      if (gStage(l._id) !== 'won') return false;
+      const t = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
+      return t >= qStart && t <= qEnd;
+    });
+    const amount = won.reduce((s,l) => s + (parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0), 0);
+    const target = p.quarterly_target_egp;
+    const pct = target ? (amount / target * 100) : null;
+    return { p, amount, target, pct, deals: won.length };
+  }).filter(r => r.target || r.amount > 0); // only show reps with a target OR closed deals
+
+  if (!rows.length) return;
+
+  rows.sort((a,b) => {
+    // No-target reps go to the bottom; sort by pct desc, then amount desc.
+    if (a.pct == null && b.pct == null) return b.amount - a.amount;
+    if (a.pct == null) return 1;
+    if (b.pct == null) return -1;
+    return b.pct - a.pct;
+  });
+
+  const tierColor = pct => pct==null?'#A0A6AE':pct>=80?'#2F8F5C':pct>=50?'#7BAE3F':pct>=25?'#B8761A':'#B83A3A';
+  const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+
+  const widget = document.createElement('div');
+  widget.id = 'reps-leaderboard';
+  widget.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px;';
+  widget.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">🏆 Reps leaderboard</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${qLabel} · ranked by % to quarterly target</div>
+      </div>
+    </div>
+    <div>
+      ${rows.map((r,i) => {
+        const pctLbl = r.pct == null ? '<span style="color:var(--text-4);">no target set</span>'
+                     : `${Math.round(r.pct)}%`;
+        const w = r.pct == null ? 0 : Math.min(100, Math.round(r.pct));
+        const c = tierColor(r.pct);
+        return `<div style="display:grid;grid-template-columns:28px 1fr 1fr 160px 60px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;">
+          <span style="font-size:18px;text-align:center;">${medal(i)||(i+1)}</span>
+          <div style="min-width:0;">
+            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(r.p.full_name||r.p.email)}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:1px;">${r.deals} deal${r.deals===1?'':'s'} closed</div>
+          </div>
+          <div style="font-variant-numeric:tabular-nums;color:var(--text-2);">${fmtEgp(r.amount)}${r.target?` / <span style="color:var(--text-3);">${fmtEgp(r.target)}</span>`:''}</div>
+          <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${w}%;background:${c};transition:width 220ms ease;"></div></div>
+          <div style="text-align:right;font-weight:700;color:${c};font-variant-numeric:tabular-nums;">${pctLbl}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  // Insert at the very top of dashboard-view
+  dashEl.insertBefore(widget, dashEl.firstChild);
 };
 
 window.openTargetEditor = function(profileId){
@@ -13004,7 +13112,7 @@ function switchMainView(view) {
     }
     setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,true); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Reports`;
-    requestAnimationFrame(() => renderDashboard());
+    requestAnimationFrame(() => { renderDashboard(); if(typeof renderRepsLeaderboard==='function') renderRepsLeaderboard(); });
   } else if (view === 'utm') {
     // Admin-only gate (defense in depth — sidebar item is already hidden for non-admins)
     if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
@@ -18039,7 +18147,7 @@ window.addEventListener('auth-ready', () => {
       [roles, teams, profiles, autoPolicies] = await Promise.all([
         _restGet('roles?select=id,name,type,description,is_system,requires_team&order=is_system.desc,name.asc'),
         _restGet('teams?select=id,name,description&order=name.asc'),
-        _restGet('profiles?select=id,email,full_name,role,team_id,role_id,reports_to&order=email.asc'),
+        _restGet('profiles?select=id,email,full_name,role,team_id,role_id,reports_to,quarterly_target_egp&order=email.asc'),
         _restGet('abac_policies?select=*&name=like.auto:*'),
       ]);
     } catch (e) {
@@ -18139,14 +18247,21 @@ window.addEventListener('auth-ready', () => {
                </select>`
             : '';
           return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;gap:10px;">
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;color:var(--text-1);">${esc(m.full_name||m.email)}</div>
-            <div style="font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:4px;">
+            <div style="font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
               ${esc(m.email)}
               ${m.role==='admin'?'<span style="margin-left:6px;font-size:10px;background:var(--bg-2);color:var(--text-3);padding:1px 7px;border-radius:999px;font-weight:600;">ADMIN</span>':''}
               ${leadPicker}
             </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10.5px;color:var(--text-3);font-weight:600;letter-spacing:0.04em;">EGP /Q</span>
+            <input type="number" min="0" step="1000" value="${m.quarterly_target_egp ?? ''}" placeholder="—"
+                   onblur="abacMemberSetTarget('${m.id}', this.value)"
+                   onkeydown="if(event.key==='Enter')this.blur();"
+                   style="width:110px;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;"/>
           </div>
           <button class="btn btn-secondary" onclick="abacRoleRemoveMember('${m.id}')" style="padding:4px 10px;font-size:11px;color:var(--bad);border-color:var(--bad);">Remove</button>
         </div>`;
@@ -18247,6 +18362,21 @@ window.addEventListener('auth-ready', () => {
       _paintRolesFromCache();
       if(typeof toast==='function') toast(leadId ? 'Lead assigned' : 'Lead cleared','success');
     } catch (e) { if(typeof toast==='function') toast('Assign failed: '+e.message,'error'); }
+  };
+
+  window.abacMemberSetTarget = async function(uid, raw){
+    const cur = (_allProfiles.find(p => p.id === uid) || {}).quarterly_target_egp;
+    const v = String(raw||'').replace(/[^\d]/g,'');
+    const num = v === '' ? null : parseInt(v, 10);
+    if (num === cur) return; // no change
+    try {
+      await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { quarterly_target_egp: num });
+      const prof = _allProfiles.find(p => p.id === uid);
+      if (prof) prof.quarterly_target_egp = num;
+      // Mirror to AUTH_PROFILE if it's me, so the Home dashboard updates without reload
+      if (window.AUTH_PROFILE && window.AUTH_PROFILE.id === uid) window.AUTH_PROFILE.quarterly_target_egp = num;
+      if(typeof toast==='function') toast(num==null ? 'Target cleared' : 'Target updated','success');
+    } catch (e) { if(typeof toast==='function') toast('Update failed: '+e.message,'error'); }
   };
 
   // ─── Manage Teams sub-modal ──────────────────────────
