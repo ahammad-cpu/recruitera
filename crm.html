@@ -17667,8 +17667,14 @@ function mergeV2Render(){
   }
   // Default the chosen primary to whatever the server proposed (oldest)
   if (!MERGE_V2.choice) MERGE_V2.choice = {};
+  if (!MERGE_V2.picked) MERGE_V2.picked = {};
   MERGE_V2.groups.forEach((g, i) => {
     if (MERGE_V2.choice[i] == null) MERGE_V2.choice[i] = g.primary_id;
+    // Default: every non-keeper is picked. Admin can uncheck individually.
+    if (!MERGE_V2.picked[i]){
+      const all = [g.primary_id, ...(g.duplicate_ids || [])];
+      MERGE_V2.picked[i] = new Set(all.filter(id => id !== MERGE_V2.choice[i]));
+    }
   });
 
   body.innerHTML = MERGE_V2.groups.map((g, i) => {
@@ -17681,7 +17687,8 @@ function mergeV2Render(){
                      : g.match_type === 'contact_email' ? { bg:'var(--info-bg)', fg:'var(--info)', br:'var(--info)' }
                      : { bg:'var(--surface-2)', fg:'var(--text-3)', br:'var(--border)' };
     const matchKey = g.match_key || g.domain || '';
-    const willMerge = rows.length - 1;
+    const pickedSet = MERGE_V2.picked[i] || new Set();
+    const willMerge = pickedSet.size;
     return `<div class="mergev2-group" data-key="${esc(matchKey)}" data-idx="${i}" style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:var(--surface);">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
         <div style="min-width:0;flex:1;">
@@ -17706,8 +17713,10 @@ function mergeV2Render(){
           const stage   = (l.stage || gStage(l._id) || '').toString();
           const dateRaw = l.bubble_created_at || l.created_at || '';
           const dateStr = dateRaw ? new Date(dateRaw).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
-          return `<label style="display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border:1.5px solid ${isPrim?'var(--lime-700)':'var(--border)'};border-radius:9px;background:${isPrim?'var(--lime-200)':'var(--surface)'};cursor:pointer;transition:all 110ms;">
-            <input type="radio" name="mergev2-primary-${i}" value="${esc(sbId)}" ${isPrim?'checked':''} onchange="mergeV2Pick(${i},'${esc(sbId)}')" style="margin-top:3px;accent-color:var(--cg-900);cursor:pointer;flex-shrink:0;"/>
+          const isPicked = pickedSet.has(sbId);
+          return `<label style="display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border:1.5px solid ${isPrim?'var(--lime-700)':isPicked?'var(--info)':'var(--border)'};border-radius:9px;background:${isPrim?'var(--lime-200)':'var(--surface)'};cursor:pointer;transition:all 110ms;${!isPrim && !isPicked?'opacity:0.55;':''}">
+            <input type="checkbox" ${isPrim?'disabled checked':isPicked?'checked':''} onchange="mergeV2TogglePick(${i},'${esc(sbId)}',this.checked)" title="${isPrim?'Keeper is always included':'Include in merge'}" style="margin-top:3px;accent-color:var(--info);cursor:${isPrim?'not-allowed':'pointer'};flex-shrink:0;width:16px;height:16px;"/>
+            <input type="radio" name="mergev2-primary-${i}" value="${esc(sbId)}" ${isPrim?'checked':''} onchange="mergeV2Pick(${i},'${esc(sbId)}')" title="Make this the keeper" style="margin-top:3px;accent-color:var(--cg-900);cursor:pointer;flex-shrink:0;"/>
             <div style="flex:1;min-width:0;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <span style="font-size:13px;font-weight:600;color:var(--text);">${esc(name)}</span>
@@ -17732,6 +17741,16 @@ function mergeV2Render(){
 
 function mergeV2Pick(groupIdx, sbId){
   MERGE_V2.choice[groupIdx] = sbId;
+  // Re-seed the picked set when keeper changes — keeper itself out, every other row in.
+  const g = MERGE_V2.groups[groupIdx];
+  const all = [g.primary_id, ...(g.duplicate_ids || [])];
+  MERGE_V2.picked[groupIdx] = new Set(all.filter(id => id !== sbId));
+  mergeV2Render();
+}
+
+function mergeV2TogglePick(groupIdx, sbId, on){
+  if (!MERGE_V2.picked[groupIdx]) MERGE_V2.picked[groupIdx] = new Set();
+  if (on) MERGE_V2.picked[groupIdx].add(sbId); else MERGE_V2.picked[groupIdx].delete(sbId);
   mergeV2Render();
 }
 
@@ -17739,10 +17758,11 @@ async function mergeV2Run(groupIdx){
   if (MERGE_V2.busy) return;
   const g = MERGE_V2.groups[groupIdx];
   if (!g) return;
-  const allIds = [g.primary_id, ...(g.duplicate_ids || [])];
   const primaryId = MERGE_V2.choice?.[groupIdx] || g.primary_id;
-  const dupIds    = allIds.filter(id => id !== primaryId);
-  if (!dupIds.length) { toast('Nothing to merge — choose at least 2 rows', 'error'); return; }
+  // Only merge the rows the admin actually ticked — never the keeper.
+  const pickedSet = MERGE_V2.picked?.[groupIdx] || new Set();
+  const dupIds = Array.from(pickedSet).filter(id => id !== primaryId);
+  if (!dupIds.length) { toast('Pick at least one row to merge into the keeper', 'error'); return; }
   const btn = document.getElementById(`mergev2-btn-${groupIdx}`);
   MERGE_V2.busy = true;
   if (btn) { btn.disabled = true; btn.textContent = 'Merging…'; }
