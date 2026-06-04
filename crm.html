@@ -7619,7 +7619,6 @@ body .ld-tab-content {
             <th onclick="accSort('stage')" id="acc-th-stage">STATUS <span class="sort-icon">↕</span></th>
             <th>EMAIL</th>
             <th onclick="accSort('score')" id="acc-th-score">SCORE <span class="sort-icon">↕</span></th>
-            <th onclick="accSort('icp')" id="acc-th-icp">HEALTH <span class="sort-icon">↕</span></th>
             <th onclick="accSort('owner')" id="acc-th-owner">OWNER <span class="sort-icon">↕</span></th>
             <th onclick="accSort('source')" id="acc-th-source">SOURCE <span class="sort-icon">↕</span></th>
             <th onclick="accSort('created')" id="acc-th-created">SINCE <span class="sort-icon">↕</span></th>
@@ -12952,14 +12951,6 @@ function buildAccountRow(lead) {
         <span style="font-size:10px;font-weight:600;color:${_c};letter-spacing:0.04em;text-transform:uppercase;">${_lbl}</span>
       </div>`;
     })()}</td>
-    <td>
-      ${hasIcp
-        ? `<div class="acc-icp-cell">
-            <span style="width:8px;height:8px;border-radius:50%;background:${healthDot};flex-shrink:0;"></span>
-            <span class="acc-icp-num" style="color:#1C2333;">${icpScore}</span>
-          </div>`
-        : `<span style="color:#C8CDD8;font-size:13px;">—</span>`}
-    </td>
     <td>
       <div class="acc-owner-cell" title="${esc(ownerObj.name)}${ownerObj.email?' · '+esc(ownerObj.email):''}${window.AUTH_PROFILE?.role==='admin'?' · click to reassign':''}">
         <div class="acc-owner-av${window.AUTH_PROFILE?.role==='admin'?' editable':''}" ${window.AUTH_PROFILE?.role==='admin'?`data-action="open-owner-picker" data-lead-id="${id}"`:''} style="background:${ownerObj.color||'#1C2333'};color:#FFFFFF;${window.AUTH_PROFILE?.role==='admin'?'cursor:pointer;':'cursor:default;'}">${ownerObj.avatar_url?`<img src="${esc(ownerObj.avatar_url)}" alt="${esc(ownerObj.id)}"/>`:esc(ownerObj.id)}</div>
