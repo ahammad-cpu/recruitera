@@ -16249,19 +16249,18 @@ window.addEventListener('auth-ready', () => {
     if(!_selectedRoleId || !_rolesCache.find(r => r.id === _selectedRoleId)){
       _selectedRoleId = _rolesCache[0]?.id || null;
     }
-    const teamCount = id => _allProfiles.filter(p => p.team_id === id).length;
     root.innerHTML = `
       <!-- Explainer + primary action -->
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
         <div style="font-size:12.5px;color:var(--text-3);line-height:1.5;max-width:640px;">
           <b style="color:var(--text-1);">Roles</b> decide what a person can <i>do</i> (view, edit, delete…).
-          <b style="color:var(--text-1);">Teams</b> decide which <i>group</i> they belong to — used for team-based visibility, e.g. a Team Lead sees their whole team's accounts.
+          Each person can <b style="color:var(--text-1);">report to</b> a lead — a Team Lead or Admin sees every account owned by anyone who reports to them.
         </div>
         <button class="btn btn-purple" onclick="abacInviteUserOpen()" style="padding:7px 16px;font-size:12.5px;white-space:nowrap;">+ Invite User</button>
       </div>
 
       <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;">
-        <!-- LEFT RAIL: Roles + Teams -->
+        <!-- LEFT RAIL: Roles -->
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:12px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -16281,26 +16280,6 @@ window.addEventListener('auth-ready', () => {
                 </div>
               `).join('')}
               ${_rolesCache.length === 0 ? '<div style="color:var(--text-4);font-size:12px;padding:14px 4px;text-align:center;">No roles yet.</div>' : ''}
-            </div>
-          </div>
-
-          <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:12px;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-3);margin-bottom:8px;">Teams</div>
-            <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;">
-              ${_teamsCache.length === 0
-                ? '<div style="font-size:11.5px;color:var(--text-4);padding:4px 2px;">No teams yet — add one below.</div>'
-                : _teamsCache.map(t => `
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#fff;">
-                    <span style="font-size:12.5px;font-weight:600;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.name)}</span>
-                    <span style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
-                      <span title="${teamCount(t.id)} member${teamCount(t.id)===1?'':'s'}" style="font-size:11px;color:var(--text-3);">${teamCount(t.id)}</span>
-                      <span onclick="abacTeamsDelete('${t.id}')" title="Delete team" style="cursor:pointer;color:var(--text-4);font-size:15px;line-height:1;">×</span>
-                    </span>
-                  </div>`).join('')}
-            </div>
-            <div style="display:flex;gap:5px;">
-              <input id="abac-team-inline-name" type="text" placeholder="New team…" onkeydown="if(event.key==='Enter')abacTeamAddInline()" style="flex:1;min-width:0;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:7px;"/>
-              <button class="btn btn-secondary" onclick="abacTeamAddInline()" style="padding:4px 10px;font-size:11px;">Add</button>
             </div>
           </div>
         </div>
