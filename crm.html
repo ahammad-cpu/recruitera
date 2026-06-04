@@ -7539,9 +7539,6 @@ body .ld-tab-content {
       <button class="acc-tab active" data-filter="all" onclick="accTabSwitch(this)">
         All <span class="acc-tab-count" id="acc-tab-all-count">· 0</span>
       </button>
-      <button class="acc-tab" data-filter="lead" onclick="accTabSwitch(this)">
-        Leads <span class="acc-tab-count" id="acc-tab-lead-count">· 0</span>
-      </button>
       <button class="acc-tab" data-filter="deal" onclick="accTabSwitch(this)">
         In pipeline <span class="acc-tab-count" id="acc-tab-deal-count">· 0</span>
       </button>
@@ -12905,9 +12902,8 @@ function buildAccountRow(lead) {
     statusBg = '#EAF3DE'; statusColor = '#27500A'; statusBorder = '#97C459'; statusDot = '#3B6D11'; statusLabel = 'Paid';
   } else if (isWC) {
     statusBg = '#FFF4E5'; statusColor = '#8A4B00'; statusBorder = '#F0C58A'; statusDot = '#D97706'; statusLabel = 'Without Charge';
-  } else if (['lead','mql'].includes(stage)) {
-    statusBg = '#EDEBFB'; statusColor = '#392396'; statusBorder = '#C4B8F5'; statusDot = '#392396'; statusLabel = 'Prospect';
   } else {
+    // Always show the actual stage name (MQL / SQL / Demo / Proposal / Won / Lost / Lead)
     statusBg = stageObj.color+'14'; statusColor = stageObj.color; statusBorder = stageObj.color+'40'; statusDot = stageObj.color; statusLabel = stageObj.name;
   }
 
