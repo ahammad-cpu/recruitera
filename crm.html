@@ -173,6 +173,9 @@ input,select,textarea{
 }
 .sb-item:hover{background:var(--surface-2);color:var(--text-2);}
 .sb-item.active{background:#ECF8C0;color:var(--text);}
+/* Admin-only items: more specific than `.sb-item{display:flex!important}` so it
+   actually wins. Toggled by JS on profile load. */
+.sb-item.sb-locked{display:none !important;}
 /* Sidebar active accent */
 .sb-item.active::before {
   content: '';
@@ -7320,11 +7323,11 @@ body .ld-tab-content {
         <span class="sb-item-label">Renewal</span>
         <span class="sb-cnt" id="sb-renewal-count">0</span>
       </div>
-      <div class="sb-item" data-label="Settings" id="sb-settings-item" onclick="switchMainView('settings')" style="display:none;">
+      <div class="sb-item sb-locked" data-label="Settings" id="sb-settings-item" onclick="switchMainView('settings')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         <span class="sb-item-label">Settings</span>
       </div>
-      <div class="sb-item" data-label="UTM Generator" id="sb-utm-item" onclick="switchMainView('utm')" style="display:none;">
+      <div class="sb-item sb-locked" data-label="UTM Generator" id="sb-utm-item" onclick="switchMainView('utm')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
         <span class="sb-item-label">UTM Generator</span>
       </div>
@@ -8117,11 +8120,14 @@ window.AUTH_PROFILE = null;
           avEl.textContent = initials.toUpperCase();
         }
       }
-      // Reveal admin-only sidebar entries + buttons
+      // Reveal admin-only sidebar entries + buttons. Toggle the .sb-locked class
+      // (more specific than `.sb-item{display:flex!important}`) instead of inline
+      // display, which that !important rule would otherwise override.
+      const _isAdmin = (p.role === 'admin');
       const utmItem = document.getElementById('sb-utm-item');
-      if (utmItem) utmItem.style.display = (p.role === 'admin') ? '' : 'none';
+      if (utmItem) utmItem.classList.toggle('sb-locked', !_isAdmin);
       const _sbSet = document.getElementById('sb-settings-item');
-      if (_sbSet) _sbSet.style.display = (p.role === 'admin') ? 'flex' : 'none';
+      if (_sbSet) _sbSet.classList.toggle('sb-locked', !_isAdmin);
       const dupBtn = document.getElementById('acc-find-dupes-btn');
       if (dupBtn) dupBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const accExportBtn = document.getElementById('acc-export-btn');
