@@ -8030,7 +8030,7 @@ window.renderHomeView = function(){
         <div style="height:100%;width:${pct}%;background:${tierColor};transition:width 320ms ease;"></div>
       </div>
       <div style="font-size:11px;color:var(--text-3);text-align:right;font-variant-numeric:tabular-nums;">${pct}%</div>`,
-      window.AUTH_PROFILE?.role === 'admin' ? `<button onclick="openTargetEditor('${myId}')" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-3);cursor:pointer;">Edit</button>` : '');
+      (isAdmin || me.reports_to === auth.id) ? `<button onclick="openTargetEditor('${myId}')" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-3);cursor:pointer;">${target==null?'+ Set target':'Edit'}</button>` : '');
   })();
 
   // My tasks widget
@@ -8223,23 +8223,31 @@ window.renderRepsLeaderboard = function(){
 };
 
 window.openTargetEditor = function(profileId){
-  const isMine = profileId === AUTH_PROFILE?.id;
-  const cur = isMine ? AUTH_PROFILE?.quarterly_target_egp : null;
-  const v = prompt('Quarterly target (EGP) for this rep:\n\nLeave empty to clear.', cur || '');
+  const prof = (window.PROFILES_DIR||[]).find(p => p.id === profileId) || AUTH_PROFILE;
+  const cur = prof?.quarterly_target_egp;
+  const who = prof?.full_name || prof?.email || 'this rep';
+  const v = prompt(`Quarterly target (EGP) for ${who}:\n\nLeave empty to clear.`, cur ?? '');
   if(v === null) return;
   const num = v.trim() === '' ? null : parseInt(v.replace(/[^\d]/g,''),10);
   if(v.trim() !== '' && (isNaN(num) || num < 0)){ toast('Invalid number','error'); return; }
   (async () => {
     const token = await _getValidAccessToken(); if(!token) return;
-    const r = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${profileId}`, {
-      method:'PATCH', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({quarterly_target_egp: num})
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/set_quarterly_target`, {
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body: JSON.stringify({ p_profile_id: profileId, p_amount: num })
     });
     if(r.ok){
-      if(isMine && AUTH_PROFILE) AUTH_PROFILE.quarterly_target_egp = num;
-      toast('Target updated','success');
+      // Mirror locally so the UI reflects without re-fetch
+      if(prof) prof.quarterly_target_egp = num;
+      if(AUTH_PROFILE && AUTH_PROFILE.id === profileId) AUTH_PROFILE.quarterly_target_egp = num;
+      toast(num==null ? 'Target cleared' : 'Target updated','success');
       if(typeof renderHomeView === 'function') renderHomeView();
-    } else toast('Update failed','error');
+    } else {
+      let msg = 'Update failed';
+      try { msg = (await r.json()).message || msg; } catch {}
+      toast(msg,'error');
+    }
   })();
 };
 
@@ -18370,10 +18378,16 @@ window.addEventListener('auth-ready', () => {
     const num = v === '' ? null : parseInt(v, 10);
     if (num === cur) return; // no change
     try {
-      await _restWrite(`profiles?id=eq.${uid}`, 'PATCH', { quarterly_target_egp: num });
+      // Route through the RPC so server-side permission check (admin or team lead) applies.
+      const token = await _getValidAccessToken();
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/set_quarterly_target`, {
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body: JSON.stringify({ p_profile_id: uid, p_amount: num })
+      });
+      if(!r.ok){ throw new Error((await r.json().catch(()=>({}))).message || 'PATCH failed'); }
       const prof = _allProfiles.find(p => p.id === uid);
       if (prof) prof.quarterly_target_egp = num;
-      // Mirror to AUTH_PROFILE if it's me, so the Home dashboard updates without reload
       if (window.AUTH_PROFILE && window.AUTH_PROFILE.id === uid) window.AUTH_PROFILE.quarterly_target_egp = num;
       if(typeof toast==='function') toast(num==null ? 'Target cleared' : 'Target updated','success');
     } catch (e) { if(typeof toast==='function') toast('Update failed: '+e.message,'error'); }
