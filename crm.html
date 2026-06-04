@@ -10277,7 +10277,6 @@ function renderLdHero(lead){
             <span class="ld-hero-stage-pill" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:${stageObj.color}1f;color:${stageObj.color};border:1px solid ${stageObj.color}44;">
               <span style="width:6px;height:6px;border-radius:50%;background:${stageObj.color};"></span>${stageObj.name}
             </span>
-            <span class="hs-stage-badge" style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface-2);color:var(--text-3);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">LEAD</span>
             ${eLocation?`<span class="hs-meta-pill" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);padding:3px 9px;border-radius:999px;border:1px solid var(--border);">🌐 ${esc(eLocation)}</span>`:''}
             ${isDisq?`<span class="ld-chip bad" style="font-size:10px;">Disqualified</span>`:''}
             ${paidCustomerBadge(lead)}
