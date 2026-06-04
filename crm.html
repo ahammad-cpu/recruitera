@@ -7782,6 +7782,26 @@ body .ld-tab-content {
           <input id="proposal-amount" type="text" inputmode="numeric" placeholder="0" style="flex:1;border:none;outline:none;padding:7px 10px;font:inherit;font-size:14px;background:transparent;color:var(--text-1);"/>
         </div>
       </label>
+      <div>
+        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-bottom:6px;">Probability to Close</div>
+        <div class="deal-prob-options" id="proposal-prob-options">
+          <button type="button" class="deal-prob-btn" data-prob="high" onclick="selectProposalProb(this)">
+            <span class="deal-prob-dot" style="background:#2F8F5C;"></span>
+            <span class="deal-prob-label">High</span>
+            <span class="deal-prob-pct">70&ndash;100%</span>
+          </button>
+          <button type="button" class="deal-prob-btn" data-prob="medium" onclick="selectProposalProb(this)">
+            <span class="deal-prob-dot" style="background:#B8761A;"></span>
+            <span class="deal-prob-label">Medium</span>
+            <span class="deal-prob-pct">30&ndash;69%</span>
+          </button>
+          <button type="button" class="deal-prob-btn" data-prob="low" onclick="selectProposalProb(this)">
+            <span class="deal-prob-dot" style="background:#B83A3A;"></span>
+            <span class="deal-prob-label">Low</span>
+            <span class="deal-prob-pct">&lt;30%</span>
+          </button>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <label style="font-size:11.5px;font-weight:600;color:var(--text-3);">Proposal sent
           <input id="proposal-sent" type="date" style="display:block;width:100%;padding:7px 9px;font:inherit;font-size:13px;border:1px solid var(--border);border-radius:7px;margin-top:3px;"/></label>
@@ -7800,6 +7820,11 @@ body .ld-tab-content {
 // ─── PROPOSAL stage modal ───────────────────────────────
 (function(){
   let _proposalId = null;
+  let _proposalProb = null;
+  window.selectProposalProb = function(btn){
+    _proposalProb = btn.dataset.prob;
+    document.querySelectorAll('#proposal-prob-options .deal-prob-btn').forEach(b => b.classList.toggle('selected', b===btn));
+  };
   window.openProposalModal = function(id){
     const lead = (window.leads||[]).find(l => l._id === id);
     if(!lead){ if(typeof toast==='function') toast('Lead not found','error'); return; }
@@ -7812,12 +7837,15 @@ body .ld-tab-content {
     const today = new Date().toISOString().slice(0,10);
     document.getElementById('proposal-sent').value     = lead.proposal_sent_date || today;
     document.getElementById('proposal-decision').value = lead.proposal_decision_date || lead.deal_close_date || '';
+    _proposalProb = lead.proposal_probability || null;
+    document.querySelectorAll('#proposal-prob-options .deal-prob-btn').forEach(b => b.classList.toggle('selected', b.dataset.prob === _proposalProb));
     document.getElementById('proposal-modal-bg').classList.add('open');
   };
   window.cancelProposal = function(){
     document.getElementById('proposal-modal-bg').classList.remove('open');
     if(typeof pendingStageChange !== 'undefined') pendingStageChange = null;
     _proposalId = null;
+    _proposalProb = null;
   };
   window.confirmProposal = async function(){
     const id = _proposalId;
@@ -7828,6 +7856,7 @@ body .ld-tab-content {
       proposal_amount:        isFinite(amt) ? amt : null,
       proposal_sent_date:     document.getElementById('proposal-sent').value || null,
       proposal_decision_date: document.getElementById('proposal-decision').value || null,
+      proposal_probability:   _proposalProb,
       proposal_filled_at:     new Date().toISOString(),
       proposal_filled_by:     (window.AUTH_PROFILE?.id) || null,
     };
@@ -8975,6 +9004,7 @@ async function sbFetch() {
     proposal_amount:        acc.proposal_amount ?? null,
     proposal_sent_date:     acc.proposal_sent_date || null,
     proposal_decision_date: acc.proposal_decision_date || null,
+    proposal_probability:   acc.proposal_probability || null,
     is_unreachable:   acc.is_unreachable === true,
     is_paid_customer: acc.is_paid_customer || false,
     paid_status:      acc.paid_status || null,
