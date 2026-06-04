@@ -7322,11 +7322,6 @@ body .ld-tab-content {
         <span class="sb-item-label">Sales Pipeline</span>
         <span class="sb-cnt" id="sb-pipe-count">0</span>
       </div>
-      <div class="sb-item" data-label="Tasks" id="sb-tasks-item" onclick="switchMainView('tasks')">
-        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        <span class="sb-item-label">Tasks</span>
-        <span class="sb-cnt" id="sb-tasks-count">0</span>
-      </div>
       <div class="sb-item" data-label="Renewal" id="sb-renewal-item" onclick="switchMainView('renewal')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
         <span class="sb-item-label">Renewal</span>
@@ -7692,8 +7687,6 @@ body .ld-tab-content {
 </div>
 
 <div id="home-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
-
-<div id="tasks-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
 
 <div id="logs-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
@@ -8309,202 +8302,7 @@ window.setHomeViewingAs = function(profileId){
   if(typeof renderHomeView === 'function') renderHomeView();
 };
 
-// ═══ STANDALONE TASKS PAGE ════════════════════════════════════════
-// All my tasks across every account I have access to, with bulk actions.
-window.TASKS_LIST = [];
-window.TASKS_SELECTED = new Set();
-window.TASKS_FILTER = 'open'; // open | done | all
-
-window.renderTasksView = async function(){
-  const root = document.getElementById('tasks-view'); if(!root) return;
-  root.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-3);">Loading tasks…</div>`;
-  const me = window.AUTH_PROFILE || {};
-  const myId = me.id;
-  const token = await _getValidAccessToken();
-  if(!token){ root.innerHTML = `<div style="padding:32px;color:var(--bad);text-align:center;">Not signed in.</div>`; return; }
-  // Fetch all my tasks (assigned to me OR authored by me, not archived).
-  const q = `or=(assigned_to.eq.${myId},author_id.eq.${myId})&type=eq.task&is_archived=eq.false&select=*&order=task_due_date.asc.nullslast,created_at.desc&limit=500`;
-  const r = await fetch(`${SB_URL}/rest/v1/activities?${q}`, { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token} });
-  if(!r.ok){ root.innerHTML = `<div style="padding:32px;color:var(--bad);text-align:center;">Failed to load tasks.</div>`; return; }
-  const rows = await r.json();
-  // Hydrate author email + account name for each task
-  const profById = {}; (window.PROFILES_DIR||[]).forEach(p => { if(p.id) profById[p.id] = p; });
-  const accBySbId = {}; (window.leads||[]).forEach(l => { if(l._supabase_id) accBySbId[l._supabase_id] = l; });
-  window.TASKS_LIST = rows.map(row => {
-    const it = dbActivityToLocal(row);
-    it.author = profById[row.author_id]?.email || '';
-    it._account = accBySbId[row.account_id] || null;
-    return it;
-  });
-  // Sidebar count = open + overdue
-  const cntEl = document.getElementById('sb-tasks-count');
-  const openCount = window.TASKS_LIST.filter(t => !t.task_done).length;
-  if(cntEl) cntEl.textContent = openCount;
-  paintTasksView();
-};
-
-function paintTasksView(){
-  const root = document.getElementById('tasks-view'); if(!root) return;
-  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
-  const f = window.TASKS_FILTER || 'open';
-  const list = (window.TASKS_LIST||[]).filter(t => {
-    if(f === 'open') return !t.task_done;
-    if(f === 'done') return !!t.task_done;
-    return true;
-  });
-  const today = new Date(); today.setHours(23,59,59,999);
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const weekEnd = todayStart.getTime() + 7*86400000;
-  const overdue = [];
-  const todays = [];
-  const week   = [];
-  const later  = [];
-  const done   = [];
-  list.forEach(t => {
-    if(t.task_done) return done.push(t);
-    if(!t.task_due) return later.push(t);
-    if(t.task_due < todayStart.getTime()) return overdue.push(t);
-    if(t.task_due <= today.getTime()) return todays.push(t);
-    if(t.task_due <= weekEnd) return week.push(t);
-    later.push(t);
-  });
-  const chipCounts = {
-    open: (window.TASKS_LIST||[]).filter(t => !t.task_done).length,
-    done: (window.TASKS_LIST||[]).filter(t => !!t.task_done).length,
-    all:  (window.TASKS_LIST||[]).length,
-  };
-  const chip = (id, label) => `<button onclick="setTasksFilter('${id}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;border:1px solid ${f===id?'var(--text-1)':'var(--border)'};background:${f===id?'var(--text-1)':'transparent'};color:${f===id?'var(--bg)':'var(--text-2)'};cursor:pointer;font-family:inherit;">${escFn(label)} · ${chipCounts[id]||0}</button>`;
-  const sel = window.TASKS_SELECTED;
-  const allIds = list.map(t => t.id);
-  const allSelected = allIds.length > 0 && allIds.every(id => sel.has(id));
-  const someSelected = sel.size > 0;
-  const ownerOpts = (window.PROFILES_DIR||[]).filter(p=>p.active!==false).map(p =>
-    `<option value="${esc(p.id)}">${esc(p.full_name||p.email||'')}</option>`).join('');
-  const bulkBar = someSelected ? `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;">
-      <span style="font-size:12.5px;font-weight:600;color:var(--text);">${sel.size} selected</span>
-      <button onclick="bulkTaskDone(true)" style="font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;color:var(--ok);">✓ Mark done</button>
-      <button onclick="bulkTaskDone(false)" style="font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;color:var(--text-2);">↺ Reopen</button>
-      <select onchange="if(this.value){bulkTaskReassign(this.value);this.value='';}" style="font-size:11.5px;font-weight:600;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;">
-        <option value="">↳ Reassign to…</option>
-        ${ownerOpts}
-      </select>
-      <button onclick="bulkTaskDelete()" style="font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:inherit;color:var(--bad);">🗑 Delete</button>
-      <button onclick="window.TASKS_SELECTED.clear();paintTasksView();" style="margin-left:auto;font-size:11.5px;background:none;border:none;color:var(--text-3);cursor:pointer;">Clear</button>
-    </div>` : '';
-  const groupRender = (title, items, color) => items.length ? `
-    <div style="margin-bottom:18px;">
-      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:${color||'var(--text-3)'};text-transform:uppercase;margin-bottom:6px;">${escFn(title)} · ${items.length}</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-        ${items.map(taskRowHtml).join('')}
-      </div>
-    </div>` : '';
-  root.innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap;">
-      <div>
-        <div style="font-size:22px;font-weight:700;color:var(--text);">My tasks</div>
-        <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Tasks assigned to you or that you created, across every account.</div>
-      </div>
-      <button onclick="renderTasksView()" style="font-size:12px;background:none;border:1px solid var(--border);border-radius:7px;padding:6px 12px;cursor:pointer;color:var(--text-2);font-family:inherit;">↻ Refresh</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
-      ${chip('open','Open')} ${chip('done','Done')} ${chip('all','All')}
-      <label style="margin-left:auto;font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:6px;cursor:pointer;">
-        <input type="checkbox" ${allSelected?'checked':''} onchange="bulkSelectAll(this.checked)" style="cursor:pointer;"/> Select all on screen
-      </label>
-    </div>
-    ${bulkBar}
-    ${list.length === 0 ? `<div style="padding:48px;text-align:center;color:var(--text-3);">No tasks ${f==='open'?'open':f==='done'?'done':''} yet. 🎉</div>` : ''}
-    ${f==='open' ? `
-      ${groupRender('Overdue', overdue, 'var(--bad)')}
-      ${groupRender('Today', todays, 'var(--text-1)')}
-      ${groupRender('This week', week, 'var(--text-2)')}
-      ${groupRender('Later / undated', later, 'var(--text-3)')}
-    ` : f==='done' ? groupRender('Completed', done, 'var(--ok)')
-      : groupRender('All tasks', list, 'var(--text-2)')}`;
-}
-
-function taskRowHtml(t){
-  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
-  const overdue = t.task_due && !t.task_done && t.task_due < Date.now();
-  const dueLbl = t.task_due ? new Date(t.task_due).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
-  const pri = {high:'🔴',medium:'🟡',low:'🟢'}[t.priority||'medium'];
-  const priColor = {high:'#B83A3A',medium:'#B8761A',low:'#7BAE3F'}[t.priority||'medium'];
-  const assignee = (window.PROFILES_DIR||[]).find(p => p.id === t.assigned_to);
-  const assigneeLabel = assignee ? (assignee.full_name||assignee.email) : '—';
-  const accName = t._account ? (typeof gName==='function' ? gName(t._account) : (t._account.name||'')) : '(no account)';
-  const accId = t._account?._id;
-  const selected = window.TASKS_SELECTED.has(t.id);
-  return `<div style="display:grid;grid-template-columns:30px 20px 1fr 100px 100px 130px 70px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border);background:${selected?'var(--bg-2)':'transparent'};">
-    <input type="checkbox" ${selected?'checked':''} onchange="bulkSelectOne('${t.id}', this.checked)" style="cursor:pointer;accent-color:var(--lime-700);"/>
-    <input type="checkbox" ${t.task_done?'checked':''} onchange="tasksToggleDone('${t.id}')" style="cursor:pointer;width:16px;height:16px;accent-color:var(--lime-700);" title="Mark done"/>
-    <div onclick="${accId?`openDrawer('${accId}','tasks')`:''}" style="min-width:0;cursor:${accId?'pointer':'default'};">
-      <div style="font-size:13px;font-weight:600;color:var(--text);${t.task_done?'text-decoration:line-through;color:var(--text-4);':''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(t.title||t.text||'(no title)')}${t.recur_rule&&t.recur_rule!=='none'?` <span style="font-size:10.5px;color:var(--text-4);">🔁 ${escFn(t.recur_rule)}</span>`:''}</div>
-      <div style="font-size:11px;color:var(--text-3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(accName)}</div>
-    </div>
-    <span style="font-size:11.5px;font-weight:600;color:${overdue?'var(--bad)':'var(--text-3)'};font-variant-numeric:tabular-nums;text-align:right;">${dueLbl}${overdue?' · ovd':''}</span>
-    <span style="font-size:11.5px;font-weight:600;color:${priColor};text-align:center;">${pri} ${escFn(t.priority||'medium')}</span>
-    <span style="font-size:11.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(assigneeLabel)}</span>
-    <span style="text-align:right;display:flex;gap:4px;justify-content:flex-end;">
-      ${accId?`<button onclick="openDrawer('${accId}','tasks')" title="Open lead" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:13px;">↗</button>`:''}
-    </span>
-  </div>`;
-}
-
-window.setTasksFilter = function(f){ window.TASKS_FILTER = f; window.TASKS_SELECTED.clear(); paintTasksView(); };
-window.bulkSelectOne = function(id, on){ if(on) window.TASKS_SELECTED.add(id); else window.TASKS_SELECTED.delete(id); paintTasksView(); };
-window.bulkSelectAll = function(on){
-  const f = window.TASKS_FILTER || 'open';
-  (window.TASKS_LIST||[]).forEach(t => {
-    const matches = f==='all' || (f==='open' && !t.task_done) || (f==='done' && t.task_done);
-    if(!matches) return;
-    if(on) window.TASKS_SELECTED.add(t.id); else window.TASKS_SELECTED.delete(t.id);
-  });
-  paintTasksView();
-};
-window.tasksToggleDone = async function(id){
-  const item = (window.TASKS_LIST||[]).find(t => t.id === id);
-  if(!item) return;
-  item.task_done = !item.task_done;
-  item.task_done_at = item.task_done ? Date.now() : null;
-  persistActivityPatch(id, { task_done: item.task_done });
-  paintTasksView();
-};
-window.bulkTaskDone = async function(done){
-  const ids = Array.from(window.TASKS_SELECTED);
-  if(!ids.length) return;
-  ids.forEach(id => {
-    const t = (window.TASKS_LIST||[]).find(x => x.id === id);
-    if(t){ t.task_done = !!done; t.task_done_at = done ? Date.now() : null; }
-    persistActivityPatch(id, { task_done: done });
-  });
-  window.TASKS_SELECTED.clear();
-  paintTasksView();
-  if(typeof toast==='function') toast(`Marked ${ids.length} ${done?'done':'reopen'}`,'success');
-};
-window.bulkTaskReassign = async function(newAssigneeId){
-  const ids = Array.from(window.TASKS_SELECTED);
-  if(!ids.length) return;
-  ids.forEach(id => {
-    const t = (window.TASKS_LIST||[]).find(x => x.id === id);
-    if(t) t.assigned_to = newAssigneeId;
-    persistActivityPatch(id, { assigned_to: newAssigneeId });
-  });
-  window.TASKS_SELECTED.clear();
-  paintTasksView();
-  if(typeof toast==='function') toast(`Reassigned ${ids.length}`,'success');
-};
-window.bulkTaskDelete = async function(){
-  const ids = Array.from(window.TASKS_SELECTED);
-  if(!ids.length) return;
-  if(!confirm(`Delete ${ids.length} task${ids.length===1?'':'s'}? Sub-items go too.`)) return;
-  ids.forEach(id => persistActivityPatch(id, { is_archived: true }));
-  window.TASKS_LIST = window.TASKS_LIST.filter(t => !ids.includes(t.id));
-  window.TASKS_SELECTED.clear();
-  paintTasksView();
-  if(typeof toast==='function') toast(`Deleted ${ids.length}`,'success');
-};
-
+// (Standalone Tasks page removed — tasks live on Lead Detail + Home widget.)
 // ─── REPS LEADERBOARD (rendered on Reports view) ──────────
 window.renderRepsLeaderboard = function(){
   const dashEl = document.getElementById('dashboard-view'); if(!dashEl) return;
@@ -13580,8 +13378,6 @@ function switchMainView(view) {
   if (view !== 'logs' && logsViewEl) logsViewEl.style.cssText = 'display:none;';
   const homeViewEl = document.getElementById('home-view');
   if (view !== 'home' && homeViewEl) homeViewEl.style.cssText = 'display:none;';
-  const tasksViewEl = document.getElementById('tasks-view');
-  if (view !== 'tasks' && tasksViewEl) tasksViewEl.style.cssText = 'display:none;';
   // Clear the active highlight off EVERY sidebar item first; each branch then
   // re-activates only its own. Prevents stale highlights when navigating
   // between views (e.g. Renewal staying lit after clicking Accounts).
@@ -13619,16 +13415,6 @@ function switchMainView(view) {
     setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Dashboard`;
     requestAnimationFrame(() => { if (typeof renderHomeView === 'function') renderHomeView(); });
-  } else if (view === 'tasks') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    hideUtm();
-    if (tasksViewEl) tasksViewEl.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;';
-    setActive(document.getElementById('sb-tasks-item'), true);
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = `Tasks`;
-    requestAnimationFrame(() => { if (typeof renderTasksView === 'function') renderTasksView(); });
   } else if (view === 'dashboard') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
     if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
