@@ -16378,10 +16378,12 @@ window.addEventListener('auth-ready', () => {
       ? '<div style="padding:30px;text-align:center;color:var(--text-4);font-size:12px;">No members in this role yet. Add some below.</div>'
       : members.map(m => {
           const teamPicker = role.requires_team
-            ? `<select onchange="abacMemberSetTeam('${m.id}', this.value)" style="font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;margin-left:8px;">
+            ? (_teamsCache.length === 0
+                ? `<button onclick="abacTeamsOpen()" title="This role is scoped by team, but no teams exist yet" style="margin-left:8px;font:inherit;font-size:11px;padding:3px 8px;border:1px dashed var(--purple-700,#7c3aed);border-radius:6px;background:var(--purple-100,#f0eef9);color:var(--purple-700,#7c3aed);cursor:pointer;">+ Create a team first</button>`
+                : `<select onchange="abacMemberSetTeam('${m.id}', this.value)" style="font:inherit;font-size:11.5px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;margin-left:8px;">
                  <option value="">— pick team —</option>
                  ${_teamsCache.map(t => `<option value="${t.id}" ${t.id===m.team_id?'selected':''}>${esc(t.name)}</option>`).join('')}
-               </select>`
+               </select>`)
             : '';
           return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px;">
