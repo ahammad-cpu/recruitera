@@ -7308,6 +7308,10 @@ body .ld-tab-content {
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <span class="sb-item-label">Dashboard</span>
       </div>
+      <div class="sb-item" data-label="Forecast" id="sb-forecast-item" onclick="switchMainView('forecast')">
+        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h2"/><path d="M20 12h2"/><path d="M12 2v2"/><path d="M12 20v2"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="9"/></svg>
+        <span class="sb-item-label">Forecast</span>
+      </div>
       <div class="sb-item" data-label="Reports" id="sb-dashboard-item" onclick="switchMainView('dashboard')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         <span class="sb-item-label">Reports</span>
@@ -7689,6 +7693,8 @@ body .ld-tab-content {
 </div>
 
 <div id="home-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
+
+<div id="forecast-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
 
 <div id="logs-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
@@ -8106,6 +8112,32 @@ async function loadMyTargets(profileId){
   window.MY_TARGETS = r.ok ? await r.json() : [];
 }
 
+// Pulls renewed/active cycles for any CS-owned account. Used to compute
+// renewal actuals for both Home widget and the leaderboard.
+window.CONTRACT_CYCLES = window.CONTRACT_CYCLES || [];
+async function loadContractCycles(){
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/contract_cycles?select=account_id,status,started_at,value,plan_tier&order=started_at.desc&limit=2000`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  window.CONTRACT_CYCLES = r.ok ? await r.json() : [];
+}
+// Sum of renewed/active cycles started within window for accounts whose CS owner is profileId
+function _computeRenewalActual(profileId, winStartMs, winEndMs){
+  if(!profileId || !Array.isArray(window.CONTRACT_CYCLES)) return { amount:0, count:0 };
+  const myAccIds = new Set((window.leads||[]).filter(l => l.customer_success_id === profileId).map(l => l._supabase_id).filter(Boolean));
+  let amount = 0, count = 0;
+  window.CONTRACT_CYCLES.forEach(c => {
+    if(!myAccIds.has(c.account_id)) return;
+    if(c.status !== 'renewed' && c.status !== 'active') return;
+    const t = new Date(c.started_at).getTime();
+    if(t < winStartMs || t > winEndMs) return;
+    amount += parseFloat(c.value)||0;
+    count += 1;
+  });
+  return { amount, count };
+}
+
 function getMyTarget(category, periodKind, periodStartISO){
   return (window.MY_TARGETS||[]).find(t =>
     t.category === category &&
@@ -8148,6 +8180,7 @@ window.renderHomeView = async function(){
   try { await Promise.all([
     loadMyOpenTasks(viewingIdForFetch),
     loadMyTargets(viewingIdForFetch),
+    loadContractCycles(),
   ]); } catch(e){ console.warn('[home] load', e); }
   paintHomeView();
 };
@@ -8259,7 +8292,11 @@ function paintHomeView(){
       });
       actual = won.reduce((s,l) => s + (parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0), 0);
       dealCount = won.length;
-    } // Renewal actuals come from contract_cycles — computed server-side in a follow-up; show 0 with note for now.
+    } else if (category === 'renewal') {
+      const r = _computeRenewalActual(myId, win.start, win.end);
+      actual = r.amount;
+      dealCount = r.count;
+    }
     const pctP = tAmt ? Math.min(100, Math.round((actual/tAmt)*100)) : 0;
     const tierC = pctP>=80?'#2F8F5C':pctP>=50?'#7BAE3F':pctP>=25?'#B8761A':'#B83A3A';
     const daysL = Math.max(0, Math.ceil((win.end - Date.now())/86400000));
@@ -8289,7 +8326,7 @@ function paintHomeView(){
         <span style="font-size:13px;color:var(--text-3);">/ ${fmtEgp(tAmt)}</span>
         <span style="margin-left:auto;">${editBtn}</span>
       </div>
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;">${win.label} · ${daysL} day${daysL===1?'':'s'} left${category==='new_sales'?` · ${dealCount} deal${dealCount===1?'':'s'} closed`:' · renewal actuals coming soon'}</div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;">${win.label} · ${daysL} day${daysL===1?'':'s'} left · ${dealCount} ${category==='renewal'?'renewal'+(dealCount===1?'':'s')+' closed':'deal'+(dealCount===1?'':'s')+' closed'}</div>
       <div style="height:10px;background:var(--bg-2);border-radius:5px;overflow:hidden;margin-bottom:10px;">
         <div style="height:100%;width:${pctP}%;background:${tierC};transition:width 320ms ease;"></div>
       </div>
@@ -8411,6 +8448,177 @@ window.setHomeViewingAs = function(profileId){
   if(typeof renderHomeView === 'function') renderHomeView();
 };
 
+// ═══ FORECAST VIEW ════════════════════════════════════════════════
+// Stage-weighted pipeline projection vs target. Per-user (own or "Viewing as").
+window.FORECAST_PERIOD = window.FORECAST_PERIOD || 'quarter';
+window.FORECAST_CAT    = window.FORECAST_CAT    || 'new_sales';
+window.FORECAST_VIEW_AS = window.FORECAST_VIEW_AS || null;
+const FORECAST_WEIGHTS = { won:1.0, proposal:0.65, demo:0.4, sql:0.2 };
+
+window.setForecastPeriod = function(p){ window.FORECAST_PERIOD = p; renderForecastView(); };
+window.setForecastCat    = function(c){ window.FORECAST_CAT    = c; paintForecastView(); };
+window.setForecastViewAs = function(id){ window.FORECAST_VIEW_AS = id || null; renderForecastView(); };
+
+window.renderForecastView = async function(){
+  const root = document.getElementById('forecast-view'); if(!root) return;
+  root.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-3);">Loading…</div>`;
+  const auth = window.AUTH_PROFILE || {};
+  const viewingId = window.FORECAST_VIEW_AS || auth.id;
+  // Pull data
+  const token = await _getValidAccessToken();
+  const tasks = [];
+  if (token){
+    const win = _periodWindow(window.FORECAST_PERIOD);
+    tasks.push(fetch(`${SB_URL}/rest/v1/targets?owner_kind=eq.profile&owner_id=eq.${viewingId}&category=eq.${window.FORECAST_CAT}&period_kind=eq.${window.FORECAST_PERIOD}&period_start=eq.${win.startISO}&select=*`, { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token} }).then(r=>r.ok?r.json():[]).then(rows => { window._FORECAST_TARGET = rows[0]||null; }));
+  }
+  if (!Array.isArray(window.CONTRACT_CYCLES) || window.CONTRACT_CYCLES.length === 0) tasks.push(loadContractCycles());
+  if (tasks.length) await Promise.all(tasks);
+  paintForecastView();
+};
+
+function paintForecastView(){
+  const root = document.getElementById('forecast-view'); if(!root) return;
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const fmtEgp = n => 'EGP ' + (Math.round(n)||0).toLocaleString('en-US');
+  const auth = window.AUTH_PROFILE || {};
+  const isAdmin = auth.role === 'admin';
+  const viewingId = window.FORECAST_VIEW_AS || auth.id;
+  const viewing = (window.PROFILES_DIR||[]).find(p => p.id === viewingId) || auth;
+  const viewingEmail = (viewing.email||'').toLowerCase();
+  const win = _periodWindow(window.FORECAST_PERIOD);
+  const category = window.FORECAST_CAT;
+  const tRow = window._FORECAST_TARGET || null;
+  const target = tRow?.amount_egp ?? null;
+
+  // ── Compute closed + weighted forecast ──
+  let closed = 0, closedDeals = 0, weighted = 0;
+  const stageBuckets = {};   // stage → {count, value, weighted}
+  const topDeals = [];        // [{leadId, name, stage, value, weighted}]
+
+  if (category === 'new_sales') {
+    const myAccs = (window.leads||[]).filter(l => {
+      const am = (gAmMail(l) || gOwner(l._id) || '').toLowerCase();
+      return am === viewingEmail;
+    });
+    myAccs.forEach(l => {
+      const stage = gStage(l._id);
+      const val   = parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0;
+      const closeT = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
+      if (stage === 'won' && closeT >= win.start && closeT <= win.end) {
+        closed += val; closedDeals += 1;
+        weighted += val * 1.0;
+        if (!stageBuckets.won) stageBuckets.won = {count:0,value:0,weighted:0};
+        stageBuckets.won.count++; stageBuckets.won.value += val; stageBuckets.won.weighted += val*1.0;
+      } else if (FORECAST_WEIGHTS[stage] !== undefined && stage !== 'won' && stage !== 'lost' && val > 0) {
+        const w = FORECAST_WEIGHTS[stage];
+        weighted += val * w;
+        if (!stageBuckets[stage]) stageBuckets[stage] = {count:0,value:0,weighted:0};
+        stageBuckets[stage].count++; stageBuckets[stage].value += val; stageBuckets[stage].weighted += val*w;
+        topDeals.push({ leadId: l._id, name: gName(l), stage, value: val, weighted: val*w });
+      }
+    });
+  } else {
+    // Renewal
+    const r = _computeRenewalActual(viewingId, win.start, win.end);
+    closed = r.amount; closedDeals = r.count;
+    weighted = r.amount;
+    if (closedDeals) stageBuckets.renewed = {count: closedDeals, value: closed, weighted: closed};
+    // Pipeline contribution: active cycles whose end falls within window = at-risk renewals
+    const myAccIds = new Set((window.leads||[]).filter(l => l.customer_success_id === viewingId).map(l => l._supabase_id).filter(Boolean));
+    (window.CONTRACT_CYCLES||[]).forEach(c => {
+      if(!myAccIds.has(c.account_id)) return;
+      if(c.status !== 'active' && c.status !== 'negotiating') return;
+      // If contract ends in the window, that's a renewal opportunity
+      // Use ends_at if we had it; without it, fall back to started_at + 1 year as approx.
+      // (contract_cycles.value × 0.65 = expected to renew based on track record)
+      const val = parseFloat(c.value)||0;
+      if (val > 0) {
+        const w = 0.65;
+        weighted += val * w;
+        if (!stageBuckets[c.status]) stageBuckets[c.status] = {count:0,value:0,weighted:0};
+        stageBuckets[c.status].count++; stageBuckets[c.status].value += val; stageBuckets[c.status].weighted += val*w;
+        const lead = (window.leads||[]).find(l => l._supabase_id === c.account_id);
+        if (lead) topDeals.push({ leadId: lead._id, name: gName(lead), stage: c.status, value: val, weighted: val*w });
+      }
+    });
+  }
+  topDeals.sort((a,b) => b.weighted - a.weighted);
+
+  const targetGap        = target != null ? Math.max(0, target - closed) : null;
+  const projectedGap     = target != null ? Math.max(0, target - weighted) : null;
+  const pctClosed        = target ? Math.round((closed / target) * 100) : 0;
+  const pctProjected     = target ? Math.round((weighted / target) * 100) : 0;
+  const hitColor = pctProjected >= 100 ? '#2F8F5C' : pctProjected >= 80 ? '#7BAE3F' : pctProjected >= 50 ? '#B8761A' : '#B83A3A';
+
+  const periodBtn = (k,l) => `<button onclick="setForecastPeriod('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${window.FORECAST_PERIOD===k?'var(--text-1)':'var(--border)'};background:${window.FORECAST_PERIOD===k?'var(--text-1)':'transparent'};color:${window.FORECAST_PERIOD===k?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
+  const catBtn = (k,l) => `<button onclick="setForecastCat('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${category===k?'var(--lime-700)':'var(--border)'};background:${category===k?'var(--lime-200,#ECF8C0)':'transparent'};color:${category===k?'var(--text-1)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
+
+  let viewerPicker = '';
+  if (isAdmin || (window.PROFILES_DIR||[]).some(p => p.reports_to === auth.id)){
+    const eligible = isAdmin ? (window.PROFILES_DIR||[]).filter(p => p.active!==false) : [auth, ...(window.PROFILES_DIR||[]).filter(p => p.reports_to === auth.id)];
+    viewerPicker = `<select onchange="setForecastViewAs(this.value)" style="font:inherit;font-size:12.5px;font-weight:600;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-1);">
+      <option value="">Me · ${escFn(auth.full_name||auth.email||'')}</option>
+      ${eligible.filter(p => p.id !== auth.id).map(p => `<option value="${p.id}"${viewingId===p.id?' selected':''}>${escFn(p.full_name||p.email||'')}</option>`).join('')}
+    </select>`;
+  }
+
+  const kpiCard = (label, value, sub, color) => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;">${escFn(label)}</div>
+    <div style="font-size:22px;font-weight:700;color:${color||'var(--text)'};margin-top:4px;font-variant-numeric:tabular-nums;">${escFn(value)}</div>
+    ${sub?`<div style="font-size:11px;color:var(--text-3);margin-top:2px;">${escFn(sub)}</div>`:''}
+  </div>`;
+
+  const stageLabel = s => ({won:'Won',proposal:'Proposal',demo:'Demo',sql:'SQL','active':'Renewal (active)','negotiating':'Renewal (negotiating)','renewed':'Renewed'})[s]||s;
+
+  root.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:14px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--text);">🔮 Forecast</div>
+        <div style="font-size:13px;color:var(--text-3);margin-top:2px;">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':'New-sales pipeline'} · weighted by stage probability</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        ${viewerPicker}<div style="width:8px;"></div>
+        ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}<div style="width:8px;"></div>
+        ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
+      ${kpiCard('Target',           target==null?'—':fmtEgp(target),  tRow ? `Set by admin/team lead` : 'No target set')}
+      ${kpiCard('Closed',           fmtEgp(closed),                    `${closedDeals} ${category==='renewal'?'renewal':'deal'}${closedDeals===1?'':'s'}`, '#2F8F5C')}
+      ${kpiCard('Weighted forecast', fmtEgp(weighted),                  target?`Projected ${pctProjected}% to hit`:'No target', hitColor)}
+      ${kpiCard('Gap to target',     targetGap==null?'—':fmtEgp(targetGap), projectedGap!=null?`${projectedGap===0?'Already covered':'Forecast gap '+fmtEgp(projectedGap)}`:'')}
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:18px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;">Pipeline breakdown by stage</div>
+      ${Object.keys(stageBuckets).length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text-3);">Nothing in pipeline.</div>` :
+        ['won','proposal','demo','sql','active','negotiating','renewed'].filter(s => stageBuckets[s]).map(s => {
+          const b = stageBuckets[s];
+          const wpct = weighted ? Math.round((b.weighted/weighted)*100) : 0;
+          const color = s==='won'||s==='renewed'?'#2F8F5C':s==='proposal'?'#CCED59':s==='demo'?'#392396':s==='sql'?'#7BAE3F':'#B8761A';
+          return `<div style="display:grid;grid-template-columns:140px 1fr 100px 120px 60px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;">
+            <span style="font-weight:600;color:var(--text);">${escFn(stageLabel(s))}</span>
+            <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${wpct}%;background:${color};transition:width 220ms ease;"></div></div>
+            <span style="font-size:11.5px;color:var(--text-3);text-align:right;">${b.count} deal${b.count===1?'':'s'}</span>
+            <span style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-2);">${fmtEgp(b.value)}</span>
+            <span style="text-align:right;font-weight:700;color:${color};font-variant-numeric:tabular-nums;">${fmtEgp(b.weighted)}</span>
+          </div>`;
+        }).join('')}
+    </div>
+
+    ${topDeals.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;">Top weighted deals (next to close)</div>
+      ${topDeals.slice(0,10).map(d => `<div onclick="openDrawer('${d.leadId}','forecast')" style="display:grid;grid-template-columns:1fr 100px 130px 130px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;">
+        <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(d.name)}</div>
+        <span style="font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--bg-2);color:var(--text-3);text-align:center;">${escFn(stageLabel(d.stage))}</span>
+        <span style="text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums;">${fmtEgp(d.value)}</span>
+        <span style="text-align:right;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;">${fmtEgp(d.weighted)} <span style="font-size:10.5px;color:var(--text-3);">weighted</span></span>
+      </div>`).join('')}
+    </div>` : ''}
+  `;
+}
+
 // (Standalone Tasks page removed — tasks live on Lead Detail + Home widget.)
 // ─── REPS LEADERBOARD (rendered on Reports view) ──────────
 // ─── REPS / TEAMS / ORG LEADERBOARD (Reports view) ────────
@@ -8422,21 +8630,24 @@ window.ALL_TARGETS_CACHE  = window.ALL_TARGETS_CACHE  || null;        // {period
 window.renderRepsLeaderboard = async function(){
   const dashEl = document.getElementById('dashboard-view'); if(!dashEl) return;
   const old = document.getElementById('reps-leaderboard'); if(old) old.remove();
-  // Pre-fetch all targets for the current period × category once.
+  // Pre-fetch all targets for the current period × category once + contract cycles (for renewal actuals).
   const win = _periodWindow(window.LEADERBOARD_PERIOD);
   const cacheKey = `${win.startISO}_${window.LEADERBOARD_PERIOD}`;
+  const tasks = [];
   if (!window.ALL_TARGETS_CACHE || window.ALL_TARGETS_CACHE._key !== cacheKey) {
     const token = await _getValidAccessToken();
     if (token) {
-      const r = await fetch(`${SB_URL}/rest/v1/targets?period_kind=eq.${window.LEADERBOARD_PERIOD}&period_start=eq.${win.startISO}&select=*`, {
+      tasks.push(fetch(`${SB_URL}/rest/v1/targets?period_kind=eq.${window.LEADERBOARD_PERIOD}&period_start=eq.${win.startISO}&select=*`, {
         headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
-      });
-      window.ALL_TARGETS_CACHE = r.ok ? await r.json() : [];
-      window.ALL_TARGETS_CACHE._key = cacheKey;
+      }).then(r => r.ok?r.json():[]).then(rows => { window.ALL_TARGETS_CACHE = rows; window.ALL_TARGETS_CACHE._key = cacheKey; }));
     } else {
       window.ALL_TARGETS_CACHE = [];
     }
   }
+  if (!Array.isArray(window.CONTRACT_CYCLES) || window.CONTRACT_CYCLES.length === 0){
+    tasks.push(loadContractCycles());
+  }
+  if (tasks.length) await Promise.all(tasks);
   paintLeaderboard();
 };
 
@@ -8471,8 +8682,11 @@ function paintLeaderboard(){
       });
       amount = won.reduce((s,l) => s + (parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0), 0);
       deals = won.length;
+    } else if (category === 'renewal') {
+      const r = _computeRenewalActual(p.id, win.start, win.end);
+      amount = r.amount;
+      deals = r.count;
     }
-    // Renewal actuals computed at team-rollup level by team_id rather than email
     const trow = targetsForCat.find(t => t.owner_kind==='profile' && t.owner_id===p.id);
     return { p, amount, deals, target: trow?.amount_egp ?? null };
   });
@@ -10715,6 +10929,7 @@ async function sbFetch() {
     proposal_decision_date: acc.proposal_decision_date || null,
     proposal_probability:   acc.proposal_probability || null,
     recruitera_score:       acc.recruitera_score ?? null,
+    customer_success_id:    acc.customer_success_id || null,
     recruitera_tier:        acc.recruitera_tier  || null,
     is_unreachable:   acc.is_unreachable === true,
     is_paid_customer: acc.is_paid_customer || false,
@@ -13724,6 +13939,8 @@ function switchMainView(view) {
   if (view !== 'logs' && logsViewEl) logsViewEl.style.cssText = 'display:none;';
   const homeViewEl = document.getElementById('home-view');
   if (view !== 'home' && homeViewEl) homeViewEl.style.cssText = 'display:none;';
+  const forecastViewEl = document.getElementById('forecast-view');
+  if (view !== 'forecast' && forecastViewEl) forecastViewEl.style.cssText = 'display:none;';
   // Clear the active highlight off EVERY sidebar item first; each branch then
   // re-activates only its own. Prevents stale highlights when navigating
   // between views (e.g. Renewal staying lit after clicking Accounts).
@@ -13761,6 +13978,16 @@ function switchMainView(view) {
     setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Dashboard`;
     requestAnimationFrame(() => { if (typeof renderHomeView === 'function') renderHomeView(); });
+  } else if (view === 'forecast') {
+    if (boardView)     { boardView.style.cssText = 'display:none;'; }
+    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
+    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
+    hideUtm();
+    if (forecastViewEl) forecastViewEl.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;';
+    setActive(document.getElementById('sb-forecast-item'), true);
+    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
+    if (topbarTitle)  topbarTitle.innerHTML = 'Forecast';
+    requestAnimationFrame(() => { if (typeof renderForecastView === 'function') renderForecastView(); });
   } else if (view === 'dashboard') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
     if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
