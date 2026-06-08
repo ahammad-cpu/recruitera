@@ -194,6 +194,27 @@ input,select,textarea{
 .sb-item-label{display:none;}
 .sidebar.collapsed .sb-item-label{display:none;}
 .sb-cnt{display:none;}
+
+/* ═══ SHARED PAGE SHELL — unified look across Home/Reports/Forecast ═══ */
+.page-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:14px;flex-wrap:wrap;}
+.page-title{font-size:22px;font-weight:700;color:var(--text);line-height:1.2;}
+.page-sub{font-size:13px;color:var(--text-3);margin-top:4px;}
+.page-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.page-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:16px;}
+.page-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap;}
+.page-card-title{font-size:13px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;text-transform:uppercase;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;}
+.kpi-value{font-size:22px;font-weight:700;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums;line-height:1.1;}
+.kpi-sub{font-size:11px;color:var(--text-3);margin-top:3px;}
+.pill-btn{font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;}
+.pill-btn:hover{border-color:var(--text-3);}
+.pill-btn.active{border-color:var(--text-1);background:var(--text-1);color:var(--bg);}
+.pill-btn.lime.active{border-color:var(--lime-700);background:var(--lime-200,#ECF8C0);color:var(--text-1);}
+.empty-state{padding:36px 18px;text-align:center;color:var(--text-3);font-size:13px;}
+.empty-state-icon{font-size:32px;margin-bottom:8px;}
+.empty-state-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;}
 .sidebar.collapsed .sb-cnt{display:none;}
 .sb-item.active .sb-cnt{display:none;}
 
@@ -8699,8 +8720,10 @@ function paintLeaderboard(){
   let rows = [];
   let subtitle = '';
   if (tab === 'reps') {
-    rows = repActual.filter(r => r.target || r.amount > 0).map(r => ({
-      label: r.p.full_name || r.p.email, sub: `${r.deals} deal${r.deals===1?'':'s'} closed`,
+    // Show every active profile so the user always sees who exists.
+    // Profiles without a target show "no target set" — admins can act on that.
+    rows = repActual.map(r => ({
+      label: r.p.full_name || r.p.email, sub: `${r.deals} ${category==='renewal'?'renewal':'deal'}${r.deals===1?'':'s'} closed`,
       amount: r.amount, target: r.target, pct: pctOf(r.amount, r.target)
     }));
     subtitle = 'Ranked by % to target';
@@ -8765,7 +8788,11 @@ function paintLeaderboard(){
       <div style="display:flex;gap:5px;">${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}</div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:6px;">
-      ${rows.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No data for this view.</div>` : rows.map((r,i) => {
+      ${rows.length === 0 ? `<div class="empty-state">
+        <div class="empty-state-icon">🎯</div>
+        <div class="empty-state-title">No data yet</div>
+        <div>Set targets in <b>Settings → Targets</b> or close some deals to populate this view.</div>
+      </div>` : rows.map((r,i) => {
         const pctLbl = r.pct == null ? '<span style="color:var(--text-4);">no target</span>' : `${Math.round(r.pct)}%`;
         const w = r.pct == null ? 0 : Math.min(100, Math.round(r.pct));
         const c = tierColor(r.pct);
