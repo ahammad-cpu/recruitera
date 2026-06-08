@@ -8495,18 +8495,82 @@ window.renderForecastView = async function(){
   const root = document.getElementById('forecast-view'); if(!root) return;
   if (window.FORECAST_MODE === 'targets'){ return renderForecastTargets(); }
   root.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-3);">Loading…</div>`;
-  const auth = window.AUTH_PROFILE || {};
-  const viewingId = window.FORECAST_VIEW_AS || auth.id;
   const token = await _getValidAccessToken();
   const tasks = [];
   if (token){
     const win = _periodWindow(window.FORECAST_PERIOD);
-    tasks.push(fetch(`${SB_URL}/rest/v1/targets?owner_kind=eq.profile&owner_id=eq.${viewingId}&category=eq.${window.FORECAST_CAT}&period_kind=eq.${window.FORECAST_PERIOD}&period_start=eq.${win.startISO}&select=*`, { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token} }).then(r=>r.ok?r.json():[]).then(rows => { window._FORECAST_TARGET = rows[0]||null; }));
+    // Fetch ALL targets for this period so we can compute per-person rows AND
+    // resolve any combination of 'all' / 'new_sales' / 'renewal' in the viewing user.
+    tasks.push(fetch(`${SB_URL}/rest/v1/targets?period_kind=eq.${window.FORECAST_PERIOD}&period_start=eq.${win.startISO}&select=*`, { headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token} }).then(r=>r.ok?r.json():[]).then(rows => { window._FORECAST_ALL_TARGETS = rows; }));
   }
   if (!Array.isArray(window.CONTRACT_CYCLES) || window.CONTRACT_CYCLES.length === 0) tasks.push(loadContractCycles());
   if (tasks.length) await Promise.all(tasks);
   paintForecastView();
 };
+
+// Compute closed + weighted + stage breakdown + top deals for a given user × category.
+// Returns the same shape used by the KPI cards regardless of category.
+function _computeForecastMetricsFor(profileId, category, win){
+  const out = { closed:0, closedDeals:0, weighted:0, stageBuckets:{}, topDeals:[] };
+  const prof = (window.PROFILES_DIR||[]).find(p => p.id === profileId) || {};
+  const email = (prof.email||'').toLowerCase();
+  if (category === 'new_sales' || category === 'all'){
+    const myAccs = (window.leads||[]).filter(l => {
+      const am = (gAmMail(l) || gOwner(l._id) || '').toLowerCase();
+      return am === email;
+    });
+    myAccs.forEach(l => {
+      const stage = gStage(l._id);
+      const val = parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0;
+      const closeT = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
+      if (stage === 'won' && closeT >= win.start && closeT <= win.end) {
+        out.closed += val; out.closedDeals += 1;
+        out.weighted += val * 1.0;
+        if (!out.stageBuckets.won) out.stageBuckets.won = {count:0,value:0,weighted:0};
+        out.stageBuckets.won.count++; out.stageBuckets.won.value += val; out.stageBuckets.won.weighted += val*1.0;
+      } else if (FORECAST_WEIGHTS[stage] !== undefined && stage !== 'won' && stage !== 'lost' && val > 0) {
+        const w = FORECAST_WEIGHTS[stage];
+        out.weighted += val * w;
+        if (!out.stageBuckets[stage]) out.stageBuckets[stage] = {count:0,value:0,weighted:0};
+        out.stageBuckets[stage].count++; out.stageBuckets[stage].value += val; out.stageBuckets[stage].weighted += val*w;
+        out.topDeals.push({ leadId: l._id, name: gName(l), stage, value: val, weighted: val*w });
+      }
+    });
+  }
+  if (category === 'renewal' || category === 'all'){
+    const r = _computeRenewalActual(profileId, win.start, win.end);
+    out.closed += r.amount; out.closedDeals += r.count; out.weighted += r.amount;
+    if (r.count){
+      if (!out.stageBuckets.renewed) out.stageBuckets.renewed = {count:0,value:0,weighted:0};
+      out.stageBuckets.renewed.count += r.count; out.stageBuckets.renewed.value += r.amount; out.stageBuckets.renewed.weighted += r.amount;
+    }
+    const myAccIds = new Set((window.leads||[]).filter(l => l.customer_success_id === profileId).map(l => l._supabase_id).filter(Boolean));
+    (window.CONTRACT_CYCLES||[]).forEach(c => {
+      if(!myAccIds.has(c.account_id)) return;
+      if(c.status !== 'active' && c.status !== 'negotiating') return;
+      const val = parseFloat(c.value)||0;
+      if (val > 0){
+        const w = 0.65;
+        out.weighted += val * w;
+        if (!out.stageBuckets[c.status]) out.stageBuckets[c.status] = {count:0,value:0,weighted:0};
+        out.stageBuckets[c.status].count++; out.stageBuckets[c.status].value += val; out.stageBuckets[c.status].weighted += val*w;
+        const lead = (window.leads||[]).find(l => l._supabase_id === c.account_id);
+        if (lead) out.topDeals.push({ leadId: lead._id, name: gName(lead), stage: c.status, value: val, weighted: val*w });
+      }
+    });
+  }
+  out.topDeals.sort((a,b) => b.weighted - a.weighted);
+  return out;
+}
+// Sum a user's targets across categories
+function _resolveTargetFor(profileId, category){
+  const rows = window._FORECAST_ALL_TARGETS || [];
+  if (category === 'all'){
+    return rows.filter(t => t.owner_kind==='profile' && t.owner_id===profileId).reduce((s,t) => s + (t.amount_egp||0), 0) || null;
+  }
+  const r = rows.find(t => t.owner_kind==='profile' && t.owner_id===profileId && t.category===category);
+  return r ? r.amount_egp : null;
+}
 
 window.renderForecastTargets = async function(){
   const root = document.getElementById('forecast-view'); if(!root) return;
@@ -8557,62 +8621,12 @@ function paintForecastView(){
   const viewingEmail = (viewing.email||'').toLowerCase();
   const win = _periodWindow(window.FORECAST_PERIOD);
   const category = window.FORECAST_CAT;
-  const tRow = window._FORECAST_TARGET || null;
-  const target = tRow?.amount_egp ?? null;
-
-  // ── Compute closed + weighted forecast ──
-  let closed = 0, closedDeals = 0, weighted = 0;
-  const stageBuckets = {};   // stage → {count, value, weighted}
-  const topDeals = [];        // [{leadId, name, stage, value, weighted}]
-
-  if (category === 'new_sales') {
-    const myAccs = (window.leads||[]).filter(l => {
-      const am = (gAmMail(l) || gOwner(l._id) || '').toLowerCase();
-      return am === viewingEmail;
-    });
-    myAccs.forEach(l => {
-      const stage = gStage(l._id);
-      const val   = parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0;
-      const closeT = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
-      if (stage === 'won' && closeT >= win.start && closeT <= win.end) {
-        closed += val; closedDeals += 1;
-        weighted += val * 1.0;
-        if (!stageBuckets.won) stageBuckets.won = {count:0,value:0,weighted:0};
-        stageBuckets.won.count++; stageBuckets.won.value += val; stageBuckets.won.weighted += val*1.0;
-      } else if (FORECAST_WEIGHTS[stage] !== undefined && stage !== 'won' && stage !== 'lost' && val > 0) {
-        const w = FORECAST_WEIGHTS[stage];
-        weighted += val * w;
-        if (!stageBuckets[stage]) stageBuckets[stage] = {count:0,value:0,weighted:0};
-        stageBuckets[stage].count++; stageBuckets[stage].value += val; stageBuckets[stage].weighted += val*w;
-        topDeals.push({ leadId: l._id, name: gName(l), stage, value: val, weighted: val*w });
-      }
-    });
-  } else {
-    // Renewal
-    const r = _computeRenewalActual(viewingId, win.start, win.end);
-    closed = r.amount; closedDeals = r.count;
-    weighted = r.amount;
-    if (closedDeals) stageBuckets.renewed = {count: closedDeals, value: closed, weighted: closed};
-    // Pipeline contribution: active cycles whose end falls within window = at-risk renewals
-    const myAccIds = new Set((window.leads||[]).filter(l => l.customer_success_id === viewingId).map(l => l._supabase_id).filter(Boolean));
-    (window.CONTRACT_CYCLES||[]).forEach(c => {
-      if(!myAccIds.has(c.account_id)) return;
-      if(c.status !== 'active' && c.status !== 'negotiating') return;
-      // If contract ends in the window, that's a renewal opportunity
-      // Use ends_at if we had it; without it, fall back to started_at + 1 year as approx.
-      // (contract_cycles.value × 0.65 = expected to renew based on track record)
-      const val = parseFloat(c.value)||0;
-      if (val > 0) {
-        const w = 0.65;
-        weighted += val * w;
-        if (!stageBuckets[c.status]) stageBuckets[c.status] = {count:0,value:0,weighted:0};
-        stageBuckets[c.status].count++; stageBuckets[c.status].value += val; stageBuckets[c.status].weighted += val*w;
-        const lead = (window.leads||[]).find(l => l._supabase_id === c.account_id);
-        if (lead) topDeals.push({ leadId: lead._id, name: gName(lead), stage: c.status, value: val, weighted: val*w });
-      }
-    });
-  }
-  topDeals.sort((a,b) => b.weighted - a.weighted);
+  const target = _resolveTargetFor(viewingId, category);
+  const metrics = _computeForecastMetricsFor(viewingId, category, win);
+  const { stageBuckets, topDeals } = metrics;
+  const closed = metrics.closed;
+  const closedDeals = metrics.closedDeals;
+  const weighted = metrics.weighted;
 
   const targetGap        = target != null ? Math.max(0, target - closed) : null;
   const projectedGap     = target != null ? Math.max(0, target - weighted) : null;
@@ -8652,12 +8666,12 @@ function paintForecastView(){
     <div class="page-head">
       <div>
         <div class="page-title">🔮 Forecast</div>
-        <div class="page-sub">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':'New-sales pipeline'} · weighted by stage probability</div>
+        <div class="page-sub">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':category==='all'?'Sales + Renewal combined':'New-sales pipeline'} · weighted by stage probability</div>
       </div>
       <div class="page-toolbar">
         ${viewerPicker}
         <div style="width:6px;"></div>
-        ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
+        ${catBtn('all','📦 All')}${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
         <div style="width:6px;"></div>
         ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
         <div style="width:6px;"></div>
@@ -8711,6 +8725,55 @@ function paintForecastView(){
         <span style="text-align:right;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;">${fmtEgp(d.weighted)} <span style="font-size:10.5px;color:var(--text-3);">weighted</span></span>
       </div>`).join('')}
     </div>
+
+    ${(() => {
+      // Per-rep performance table. Visible to: admin (all reps), team lead (own + reports), member (self only)
+      const directReports = (window.PROFILES_DIR||[]).filter(p => p.reports_to === auth.id);
+      const isTeamLead = directReports.length > 0;
+      let candidates;
+      if (isAdmin) candidates = (window.PROFILES_DIR||[]).filter(p => p.active !== false);
+      else if (isTeamLead) candidates = [auth, ...directReports];
+      else candidates = [auth];
+      const rows = candidates.map(p => {
+        const m = _computeForecastMetricsFor(p.id, category, win);
+        const t = _resolveTargetFor(p.id, category);
+        const pct = t ? Math.round((m.closed / t) * 100) : null;
+        const pctP = t ? Math.round((m.weighted / t) * 100) : null;
+        return { p, target: t, closed: m.closed, deals: m.closedDeals, weighted: m.weighted, pct, pctP };
+      }).sort((a,b) => {
+        if (a.pct == null && b.pct == null) return b.weighted - a.weighted;
+        if (a.pct == null) return 1;
+        if (b.pct == null) return -1;
+        return (b.pct||0) - (a.pct||0);
+      });
+      if (rows.length === 0) return '';
+      const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1);
+      const tierC = p => p==null?'var(--text-3)':p>=100?'#2F8F5C':p>=80?'#7BAE3F':p>=50?'#B8761A':'#B83A3A';
+      return `<div class="page-card">
+        <div class="page-card-head">
+          <div class="page-card-title">Weighted performance by sales person</div>
+          <div style="font-size:11px;color:var(--text-3);">${rows.length} ${rows.length===1?'person':'people'} · ${escFn(win.label)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:32px 1.4fr 1fr 1fr 1fr 80px;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:10.5px;font-weight:700;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;">
+          <span></span><span>Person</span><span style="text-align:right;">Target</span><span style="text-align:right;">Closed</span><span style="text-align:right;">Weighted</span><span style="text-align:right;">% to target</span>
+        </div>
+        ${rows.map((r,i) => {
+          const tcClosed = tierC(r.pct);
+          const tcWeight = tierC(r.pctP);
+          return `<div style="display:grid;grid-template-columns:32px 1.4fr 1fr 1fr 1fr 80px;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);font-size:13px;align-items:center;">
+            <span style="font-size:14px;text-align:center;">${medal(i)}</span>
+            <div style="min-width:0;">
+              <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(r.p.full_name||r.p.email)}</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:1px;">${r.deals} ${category==='renewal'?'renewal':'deal'}${r.deals===1?'':'s'}</div>
+            </div>
+            <span style="text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums;">${r.target==null?'—':fmtEgp(r.target)}</span>
+            <span style="text-align:right;font-weight:700;color:${tcClosed};font-variant-numeric:tabular-nums;">${fmtEgp(r.closed)}${r.pct!=null?` <span style="font-size:10.5px;color:var(--text-3);font-weight:500;">${r.pct}%</span>`:''}</span>
+            <span style="text-align:right;font-weight:700;color:${tcWeight};font-variant-numeric:tabular-nums;">${fmtEgp(r.weighted)}${r.pctP!=null?` <span style="font-size:10.5px;color:var(--text-3);font-weight:500;">${r.pctP}%</span>`:''}</span>
+            <span style="text-align:right;font-weight:700;color:${tcWeight};font-variant-numeric:tabular-nums;">${r.pctP==null?'—':r.pctP+'%'}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    })()}
   `;
 }
 
@@ -9035,7 +9098,7 @@ function paintSettingsTargets(){
         <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Type a number in any cell, tab or blur to save. Empty = no target.</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
+        ${catBtn('all','📦 All')}${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
         <div style="width:8px;"></div>
         ${periodBtn('month','Month')}${periodBtn('quarter','Quarter')}${periodBtn('year','Year')}
         <div style="width:8px;"></div>
