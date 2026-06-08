@@ -13521,10 +13521,85 @@ function renderLdRight(lead){
 }
 
 function renderLdTasks(lead,el){
-  const logs=gLog(lead._id).filter(l=>l.type==='task');
-  if(!logs.length){el.innerHTML=`<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">✅</div><div>No tasks yet</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">Log a task from the Activity tab</div></div>`;return;}
-  el.innerHTML=`<div class="ld-panel-card"><div class="ld-panel-body">${logs.map(t=>`<div class="ld-task-item"><div class="ld-act-icon task" style="width:28px;height:28px;font-size:12px;">✅</div><div style="flex:1;"><div class="ld-task-title">${esc(t.text)}</div><div class="ld-task-meta">${esc(t.author||'—')} · ${fmtT(t.ts)}</div></div></div>`).join('')}</div></div>`;
+  const logs = gLog(lead._id).filter(l => l.type==='task' && !l.is_archived && !l.parent_id);
+  const open = logs.filter(t => !t.task_done);
+  const done = logs.filter(t =>  t.task_done);
+  // Build the assignee picker from the live directory (active profiles).
+  const me = window.AUTH_PROFILE || {};
+  const assignees = (window.PROFILES_DIR||[]).filter(p => p.active !== false).map(p => ({ id: p.id, name: p.full_name || p.email }));
+  const assignOpts = assignees.map(a => `<option value="${a.id}"${a.id===me.id?' selected':''}>${esc(a.name)}</option>`).join('');
+  const composer = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+      <input id="ld-tasks-quick-title" type="text" placeholder="What needs to happen?" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:inherit;font-size:13.5px;color:var(--text-1);box-sizing:border-box;font-weight:600;"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
+        <input id="ld-tasks-quick-due" type="date" style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--text-1);box-sizing:border-box;"/>
+        <select id="ld-tasks-quick-pri" style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--text-1);box-sizing:border-box;">
+          <option value="low">🟢 Low</option>
+          <option value="medium" selected>🟡 Medium</option>
+          <option value="high">🔴 High</option>
+        </select>
+        <select id="ld-tasks-quick-ass" style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--text-1);box-sizing:border-box;">
+          ${assignOpts}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;">
+        <span style="font-size:11px;color:var(--text-3);">💡 Press <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">Enter</code> in the title to save</span>
+        <button onclick="ldTasksQuickSave('${lead._id}')" class="ld-save-btn" style="padding:7px 16px;font-size:12.5px;">✓ Add task</button>
+      </div>
+    </div>`;
+  const taskRow = (t, isDone) => {
+    const ass = assignees.find(a => a.id === t.assigned_to);
+    const dueTxt = t.task_due ? new Date(t.task_due).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    const overdue = !isDone && t.task_due && t.task_due < Date.now();
+    const priDot = ({low:'🟢',medium:'🟡',high:'🔴'})[t.priority||'medium'] || '🟡';
+    return `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-bottom:6px;${isDone?'opacity:0.55;':''}">
+        <input type="checkbox" ${isDone?'checked':''} onchange="ldToggleTask('${t.id}')" style="width:17px;height:17px;margin-top:1px;cursor:pointer;accent-color:var(--lime-700);flex-shrink:0;"/>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13.5px;font-weight:600;color:var(--text-1);${isDone?'text-decoration:line-through;':''}line-height:1.35;">${esc(t.title || t.text || '(untitled)')}</div>
+          <div style="font-size:11.5px;color:var(--text-3);margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${dueTxt ? `<span style="${overdue?'color:#B83A3A;font-weight:600;':''}">📅 ${dueTxt}${overdue?' · overdue':''}</span>` : ''}
+            <span>${priDot}</span>
+            ${ass ? `<span>👤 ${esc(ass.name)}</span>` : ''}
+          </div>
+        </div>
+        <button onclick="ldDeleteItem('${t.id}')" title="Delete" style="background:none;border:none;color:var(--text-4);font-size:14px;cursor:pointer;padding:0 4px;">🗑</button>
+      </div>`;
+  };
+  const openHtml = open.length
+    ? `<div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin:14px 0 8px;">Open · ${open.length}</div>${open.map(t=>taskRow(t,false)).join('')}`
+    : `<div class="ld-act-empty" style="padding:20px;"><div style="font-size:28px;margin-bottom:6px;">✅</div><div>No open tasks</div></div>`;
+  const doneHtml = done.length
+    ? `<div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin:18px 0 8px;">Completed · ${done.length}</div>${done.map(t=>taskRow(t,true)).join('')}`
+    : '';
+  el.innerHTML = composer + openHtml + doneHtml;
+  const titleEl = document.getElementById('ld-tasks-quick-title');
+  if (titleEl) {
+    titleEl.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); ldTasksQuickSave(lead._id); }});
+    titleEl.focus();
+  }
 }
+
+window.ldTasksQuickSave = function(leadId){
+  const title = document.getElementById('ld-tasks-quick-title')?.value.trim();
+  if (!title) { if (typeof toast==='function') toast('Task needs a title','error'); return; }
+  const due = document.getElementById('ld-tasks-quick-due')?.value;
+  const priority = document.getElementById('ld-tasks-quick-pri')?.value || 'medium';
+  const assigned_to = document.getElementById('ld-tasks-quick-ass')?.value || null;
+  const extras = {
+    title,
+    task_due: due ? new Date(due).getTime() : null,
+    priority,
+    assigned_to,
+  };
+  const author = (window.AUTH_PROFILE?.email) || gOwner(leadId);
+  pushLog(leadId, 'task', '', author, extras);
+  if (typeof toast==='function') toast('Task added','success');
+  const lead = (window.leads||[]).find(l => l._id === leadId);
+  const tabBody = document.querySelector('#ld-tab-body');
+  if (lead && tabBody) renderLdTasks(lead, tabBody);
+  if (lead && typeof updateLdTabCounts === 'function') updateLdTabCounts(lead);
+};
 
 function ldSaveContact(){
   if(!curId)return;
