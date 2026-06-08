@@ -8618,8 +8618,10 @@ function paintForecastView(){
   const pctProjected     = target ? Math.round((weighted / target) * 100) : 0;
   const hitColor = pctProjected >= 100 ? '#2F8F5C' : pctProjected >= 80 ? '#7BAE3F' : pctProjected >= 50 ? '#B8761A' : '#B83A3A';
 
-  const periodBtn = (k,l) => `<button onclick="setForecastPeriod('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${window.FORECAST_PERIOD===k?'var(--text-1)':'var(--border)'};background:${window.FORECAST_PERIOD===k?'var(--text-1)':'transparent'};color:${window.FORECAST_PERIOD===k?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
-  const catBtn = (k,l) => `<button onclick="setForecastCat('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${category===k?'var(--lime-700)':'var(--border)'};background:${category===k?'var(--lime-200,#ECF8C0)':'transparent'};color:${category===k?'var(--text-1)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
+  // Toolbar buttons use the shared .pill-btn classes — guarantees visibility
+  // (the previous inline-styled Q button was rendering invisible).
+  const periodBtn = (k,l) => `<button class="pill-btn${window.FORECAST_PERIOD===k?' active':''}" onclick="setForecastPeriod('${k}')">${l}</button>`;
+  const catBtn = (k,l) => `<button class="pill-btn lime${category===k?' active':''}" onclick="setForecastCat('${k}')">${l}</button>`;
 
   let viewerPicker = '';
   if (isAdmin || (window.PROFILES_DIR||[]).some(p => p.reports_to === auth.id)){
@@ -8630,15 +8632,20 @@ function paintForecastView(){
     </select>`;
   }
 
-  const kpiCard = (label, value, sub, color) => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
-    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;">${escFn(label)}</div>
-    <div style="font-size:22px;font-weight:700;color:${color||'var(--text)'};margin-top:4px;font-variant-numeric:tabular-nums;">${escFn(value)}</div>
-    ${sub?`<div style="font-size:11px;color:var(--text-3);margin-top:2px;">${escFn(sub)}</div>`:''}
+  // Empty-state KPI card: no semantic colors when there's nothing to grade.
+  const isAdminUser = window.AUTH_PROFILE?.role === 'admin';
+  const noTarget = (target == null);
+  const noClosed = (closed === 0);
+  const noWeighted = (weighted === 0);
+
+  const kpiCard = (label, value, sub, color) => `<div class="kpi-card">
+    <div class="kpi-label">${escFn(label)}</div>
+    <div class="kpi-value" style="color:${color||'var(--text)'};">${escFn(value)}</div>
+    ${sub?`<div class="kpi-sub">${escFn(sub)}</div>`:''}
   </div>`;
 
   const stageLabel = s => ({won:'Won',proposal:'Proposal',demo:'Demo',sql:'SQL','active':'Renewal (active)','negotiating':'Renewal (negotiating)','renewed':'Renewed'})[s]||s;
 
-  const isAdminUser = window.AUTH_PROFILE?.role === 'admin';
   root.innerHTML = `
     <div class="page-head">
       <div>
@@ -8646,26 +8653,33 @@ function paintForecastView(){
         <div class="page-sub">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':'New-sales pipeline'} · weighted by stage probability</div>
       </div>
       <div class="page-toolbar">
+        ${viewerPicker}
+        <div style="width:6px;"></div>
+        ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
+        <div style="width:6px;"></div>
+        ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
+        <div style="width:6px;"></div>
         <button class="pill-btn active">📊 Overview</button>
         ${isAdminUser ? `<button class="pill-btn" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
       </div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:6px;flex-wrap:wrap;">
-      ${viewerPicker}<div style="width:8px;"></div>
-      ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}<div style="width:8px;"></div>
-      ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:18px;">
+      ${kpiCard('Target',           noTarget?'—':fmtEgp(target),       noTarget?'Ask admin to set one':'Set by admin/team lead')}
+      ${kpiCard('Closed',           noClosed?'EGP 0':fmtEgp(closed),   noClosed?'Nothing won yet in this period':`${closedDeals} ${category==='renewal'?'renewal':'deal'}${closedDeals===1?'':'s'}`, noClosed?undefined:'#2F8F5C')}
+      ${kpiCard('Weighted forecast', noWeighted?'EGP 0':fmtEgp(weighted), noTarget?'Set a target to compare':(noWeighted?'No deals in pipeline':`Projected ${pctProjected}% to hit`), noWeighted||noTarget?undefined:hitColor)}
+      ${kpiCard('Gap to target',     noTarget?'—':fmtEgp(targetGap),    noTarget?'Set a target to see your gap':(projectedGap===0?'Already covered':'Forecast gap '+fmtEgp(projectedGap)))}
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
-      ${kpiCard('Target',           target==null?'—':fmtEgp(target),  tRow ? `Set by admin/team lead` : 'No target set')}
-      ${kpiCard('Closed',           fmtEgp(closed),                    `${closedDeals} ${category==='renewal'?'renewal':'deal'}${closedDeals===1?'':'s'}`, '#2F8F5C')}
-      ${kpiCard('Weighted forecast', fmtEgp(weighted),                  target?`Projected ${pctProjected}% to hit`:'No target', hitColor)}
-      ${kpiCard('Gap to target',     targetGap==null?'—':fmtEgp(targetGap), projectedGap!=null?`${projectedGap===0?'Already covered':'Forecast gap '+fmtEgp(projectedGap)}`:'')}
-    </div>
-
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:18px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;">Pipeline breakdown by stage</div>
-      ${Object.keys(stageBuckets).length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text-3);">Nothing in pipeline.</div>` :
+    <div class="page-card">
+      <div class="page-card-head">
+        <div class="page-card-title">Pipeline breakdown by stage</div>
+      </div>
+      ${Object.keys(stageBuckets).length === 0 ? `<div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <div class="empty-state-title">No deals in pipeline for this period</div>
+        <div>${category==='renewal' ? 'Contract cycles starting in this window will appear here.' : 'Leads move into the forecast once they reach SQL, Demo, or Proposal — drag a card into one of those columns in Sales Pipeline.'}</div>
+      </div>` :
         ['won','proposal','demo','sql','active','negotiating','renewed'].filter(s => stageBuckets[s]).map(s => {
           const b = stageBuckets[s];
           const wpct = weighted ? Math.round((b.weighted/weighted)*100) : 0;
@@ -8680,15 +8694,21 @@ function paintForecastView(){
         }).join('')}
     </div>
 
-    ${topDeals.length ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;">Top weighted deals (next to close)</div>
-      ${topDeals.slice(0,10).map(d => `<div onclick="openDrawer('${d.leadId}','forecast')" style="display:grid;grid-template-columns:1fr 100px 130px 130px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;">
+    <div class="page-card">
+      <div class="page-card-head">
+        <div class="page-card-title">Top weighted deals (next to close)</div>
+      </div>
+      ${topDeals.length === 0 ? `<div class="empty-state">
+        <div class="empty-state-icon">🎯</div>
+        <div class="empty-state-title">No weighted deals yet</div>
+        <div>This shows your highest-value deals expected to close, weighted by stage probability. Move a lead to SQL+ to see it here.</div>
+      </div>` : topDeals.slice(0,10).map(d => `<div onclick="openDrawer('${d.leadId}','forecast')" style="display:grid;grid-template-columns:1fr 100px 130px 130px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;">
         <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(d.name)}</div>
         <span style="font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--bg-2);color:var(--text-3);text-align:center;">${escFn(stageLabel(d.stage))}</span>
         <span style="text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums;">${fmtEgp(d.value)}</span>
         <span style="text-align:right;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;">${fmtEgp(d.weighted)} <span style="font-size:10.5px;color:var(--text-3);">weighted</span></span>
       </div>`).join('')}
-    </div>` : ''}
+    </div>
   `;
 }
 
@@ -14065,7 +14085,7 @@ function switchMainView(view) {
     if (forecastViewEl) forecastViewEl.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;';
     setActive(document.getElementById('sb-forecast-item'), true);
     setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = 'Forecast';
+    if (topbarTitle)  topbarTitle.innerHTML = '';
     requestAnimationFrame(() => { if (typeof renderForecastView === 'function') renderForecastView(); });
   } else if (view === 'dashboard') {
     if (boardView)     { boardView.style.cssText = 'display:none;'; }
