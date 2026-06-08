@@ -12225,6 +12225,17 @@ function initMentionsForTextarea(ta) {
   ta.addEventListener('blur', () => setTimeout(closeMentionDropdown, 200));
 }
 
+// Close mention dropdown on any ancestor scroll or window resize — the
+// fixed-positioned popup would otherwise stay glued to its old coords.
+function _mentionScrollClose(){
+  if (mentionDropdownEl && mentionDropdownEl.classList.contains('open')) closeMentionDropdown();
+}
+if (!window._mentionScrollBound){
+  window._mentionScrollBound = true;
+  window.addEventListener('scroll', _mentionScrollClose, true);  // capture = catch nested scrolls
+  window.addEventListener('resize', _mentionScrollClose);
+}
+
 function handleMentionInput(e) {
   const ta = e.target;
   const cursorPos = ta.selectionStart;
