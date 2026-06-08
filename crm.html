@@ -8701,22 +8701,22 @@ function paintForecastView(){
     <div class="page-head">
       <div>
         <div class="page-title">🔮 Forecast</div>
-        <div class="page-sub">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':category==='all'?'Sales + Renewal combined':'New-sales pipeline'} · weighted by stage probability</div>
+        <div class="page-sub">${escFn(win.label)} · ${isAllView?`All team (${_eligibleAll.length})`:escFn(viewing.full_name||viewing.email||'')} · ${category==='renewal'?'Renewal pipeline':category==='all'?'Sales + Renewal combined':'New-sales pipeline'}</div>
       </div>
-      <div class="page-toolbar">
+      <div class="page-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
         ${viewerPicker}
-        <div style="width:6px;"></div>
-        ${catBtn('all','📦 All')}${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
-        <div style="width:6px;"></div>
-        ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
-        <div style="width:6px;"></div>
+        <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
+        <div style="display:inline-flex;gap:4px;">${catBtn('all','All')}${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}</div>
+        <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
+        <div style="display:inline-flex;gap:4px;">${periodBtn('month','Month')}${periodBtn('quarter','Quarter')}${periodBtn('year','Year')}</div>
+        <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
         <button class="pill-btn active">📊 Overview</button>
         ${isAdminUser ? `<button class="pill-btn" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
       </div>
     </div>
 
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:18px;">
-      ${kpiCard('Target',           noTarget?'—':fmtEgp(target),       noTarget?'Ask admin to set one':'Set by admin/team lead')}
+      ${kpiCard('Target',           noTarget?'—':fmtEgp(target),       noTarget?'Ask admin to set one':`${win.label} target`)}
       ${kpiCard('Closed',           noClosed?'EGP 0':fmtEgp(closed),   noClosed?'Nothing won yet in this period':`${closedDeals} ${category==='renewal'?'renewal':'deal'}${closedDeals===1?'':'s'}`, noClosed?undefined:'#2F8F5C')}
       ${kpiCard('Weighted forecast', noWeighted?'EGP 0':fmtEgp(weighted), noTarget?'Set a target to compare':(noWeighted?'No deals in pipeline':`Projected ${pctProjected}% to hit`), noWeighted||noTarget?undefined:hitColor)}
       ${kpiCard('Gap to target',     noTarget?'—':fmtEgp(targetGap),    noTarget?'Set a target to see your gap':(projectedGap===0?'Already covered':'Forecast gap '+fmtEgp(projectedGap)))}
@@ -8745,21 +8745,18 @@ function paintForecastView(){
         }).join('')}
     </div>
 
-    <div class="page-card">
+    ${topDeals.length === 0 ? '' : `<div class="page-card">
       <div class="page-card-head">
         <div class="page-card-title">Top weighted deals (next to close)</div>
+        <div style="font-size:11px;color:var(--text-3);">Showing ${Math.min(10, topDeals.length)} of ${topDeals.length}</div>
       </div>
-      ${topDeals.length === 0 ? `<div class="empty-state">
-        <div class="empty-state-icon">🎯</div>
-        <div class="empty-state-title">No weighted deals yet</div>
-        <div>This shows your highest-value deals expected to close, weighted by stage probability. Move a lead to SQL+ to see it here.</div>
-      </div>` : topDeals.slice(0,10).map(d => `<div onclick="openDrawer('${d.leadId}','forecast')" style="display:grid;grid-template-columns:1fr 100px 130px 130px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;">
+      ${topDeals.slice(0,10).map(d => `<div onclick="openDrawer('${d.leadId}','forecast')" style="display:grid;grid-template-columns:1fr 100px 130px 130px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;">
         <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(d.name)}</div>
         <span style="font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--bg-2);color:var(--text-3);text-align:center;">${escFn(stageLabel(d.stage))}</span>
         <span style="text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums;">${fmtEgp(d.value)}</span>
         <span style="text-align:right;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;">${fmtEgp(d.weighted)} <span style="font-size:10.5px;color:var(--text-3);">weighted</span></span>
       </div>`).join('')}
-    </div>
+    </div>`}
 
     ${(() => {
       // Per-rep performance table. Visible to: admin (all reps), team lead (own + reports), member (self only)
