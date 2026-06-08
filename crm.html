@@ -44,6 +44,7 @@
 
   /* ─── Text ─── */
   --text:  #2D3844;
+  --text-1: #2D3844;     /* alias for --text — many inline styles use --text-1 */
   --text-2:#575F69;
   --text-3:#81878E;
   --text-4:#ABAFB4;
@@ -208,10 +209,10 @@ input,select,textarea{
 .kpi-label{font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;}
 .kpi-value{font-size:22px;font-weight:700;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums;line-height:1.1;}
 .kpi-sub{font-size:11px;color:var(--text-3);margin-top:3px;}
-.pill-btn{font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;}
-.pill-btn:hover{border-color:var(--text-3);}
-.pill-btn.active{border-color:var(--text-1);background:var(--text-1);color:var(--bg);}
-.pill-btn.lime.active{border-color:var(--lime-700);background:var(--lime-200,#ECF8C0);color:var(--text-1);}
+.pill-btn{font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-3);cursor:pointer;font-family:inherit;line-height:1.2;}
+.pill-btn:hover{border-color:var(--text-3);color:var(--text);}
+.pill-btn.active{border-color:var(--text);background:var(--text);color:var(--surface);}
+.pill-btn.lime.active{border-color:var(--lime-700);background:var(--lime-200,#ECF8C0);color:var(--text);}
 .empty-state{padding:36px 18px;text-align:center;color:var(--text-3);font-size:13px;}
 .empty-state-icon{font-size:32px;margin-bottom:8px;}
 .empty-state-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;}
@@ -2725,6 +2726,7 @@ input,select,textarea{
   --border:   #2D3450;
   --border-2: #3A4060;
   --text:     #E8ECF2;
+  --text-1:   #E8ECF2;
   --text-2:   #8F98B0;
   --text-3:   #5A6480;
   --text-4:   #3A4060;
