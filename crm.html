@@ -10154,6 +10154,34 @@ if(!window.AUTH_TOKEN){
 // Fire-and-forget — the rest of init() can run while this resolves; isAdmin checks
 // will re-evaluate on the next render once AUTH_PROFILE is set.
 window.AUTH_PROFILE = null;
+window.MODULE_ACCESS = null;
+
+// Apply the user's role.module_access JSON to the sidebar — hide items the
+// role doesn't have access to. Admins always see everything (override).
+window.applySidebarModuleAccess = function applySidebarModuleAccess(){
+  const p = window.AUTH_PROFILE || {};
+  if ((p.role||'').toLowerCase() === 'admin') return;  // admins bypass
+  const m = window.MODULE_ACCESS;
+  if (!m) return;  // no override → leave defaults
+  const map = {
+    dashboard:      'sb-home-item',
+    team_targeting: 'sb-forecast-item',
+    reports:        'sb-dashboard-item',
+    accounts:       'sb-accounts-item',
+    sales_pipeline: 'sb-pipeline-item',
+    renewal:        'sb-renewal-item',
+    logs:           'sb-logs-item',
+    settings:       'sb-settings-item',
+    utm_generator:  'sb-utm-item',
+  };
+  Object.entries(map).forEach(([key, elId]) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    // module_access[key] === false → hide; anything else (true/missing) → show
+    const blocked = m[key] === false;
+    el.classList.toggle('sb-locked', blocked);
+  });
+};
 (async function loadProfile(){
   try{
     // Decode the JWT for the user id (sub) without external libs
@@ -10161,7 +10189,7 @@ window.AUTH_PROFILE = null;
     const uid = payload?.sub;
     const email = payload?.email;
     if(!uid){ return; }
-    const res = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${uid}&select=id,email,full_name,role,avatar_url,quarterly_target_egp&limit=1`, {
+    const res = await fetch(`${SB_URL}/rest/v1/profiles?id=eq.${uid}&select=id,email,full_name,role,role_id,avatar_url,quarterly_target_egp,roles(module_access)&limit=1`, {
       headers: {
         'apikey': SB_KEY,
         'Authorization': 'Bearer ' + window.AUTH_TOKEN,
@@ -10171,10 +10199,14 @@ window.AUTH_PROFILE = null;
     const rows = await res.json();
     if(rows && rows[0]){
       window.AUTH_PROFILE = rows[0];
+      // Extract module_access from the joined roles() and stash for sidebar gating
+      window.MODULE_ACCESS = (rows[0].roles && rows[0].roles.module_access) || null;
     } else {
       // No profile row yet — fall back to JWT claims
       window.AUTH_PROFILE = { id: uid, email, role: 'user', full_name: email };
+      window.MODULE_ACCESS = null;
     }
+    try { applySidebarModuleAccess(); } catch {}
     // Populate sidebar user block
     try{
       const p = window.AUTH_PROFILE;
@@ -10193,9 +10225,8 @@ window.AUTH_PROFILE = null;
           avEl.textContent = initials.toUpperCase();
         }
       }
-      // Reveal admin-only sidebar entries + buttons. Toggle the .sb-locked class
-      // (more specific than `.sb-item{display:flex!important}`) instead of inline
-      // display, which that !important rule would otherwise override.
+      // Reveal admin-only sidebar entries + buttons. The per-role module_access
+      // overlay (applySidebarModuleAccess) refines this further.
       const _isAdmin = (p.role === 'admin');
       const utmItem = document.getElementById('sb-utm-item');
       if (utmItem) utmItem.classList.toggle('sb-locked', !_isAdmin);
@@ -10203,6 +10234,8 @@ window.AUTH_PROFILE = null;
       if (_sbSet) _sbSet.classList.toggle('sb-locked', !_isAdmin);
       const _sbLog = document.getElementById('sb-logs-item');
       if (_sbLog) _sbLog.classList.toggle('sb-locked', !_isAdmin);
+      // Apply per-role module access overlay (set in Settings → Roles → Module access).
+      try { applySidebarModuleAccess(); } catch {}
       const dupBtn = document.getElementById('acc-find-dupes-btn');
       if (dupBtn) dupBtn.style.display = (p.role === 'admin') ? '' : 'none';
       const manMergeBtn = document.getElementById('acc-manual-merge-btn');
@@ -19317,6 +19350,20 @@ window.addEventListener('auth-ready', () => {
 
   // ─── Roles & Permissions tab (toggle UI over ABAC policies) ──
   // Permission catalog: each toggle = one ABAC policy named auto:<role_id>:<action>
+  // Sidebar modules — toggled per role via roles.module_access (jsonb).
+  // Keys match the switchMainView identifiers used in the sidebar.
+  const MODULE_CATALOG = [
+    { key:'dashboard',      label:'🏠 Dashboard',          desc:'Personal home view with KPIs, tasks, target.' },
+    { key:'team_targeting', label:'🎯 Team Targeting',      desc:'Sales forecasts and per-rep performance.' },
+    { key:'reports',        label:'📊 Reports',             desc:'Pipeline analytics + leaderboard.' },
+    { key:'accounts',       label:'👥 Accounts',            desc:'Company list with filters, tabs, search.' },
+    { key:'sales_pipeline', label:'📋 Sales Pipeline',      desc:'Kanban board of MQL → Won.' },
+    { key:'renewal',        label:'🔄 Renewal',             desc:'Contract cycles + customer health.' },
+    { key:'logs',           label:'📄 Logs',                desc:'Sync logs and audit trail (admin-only by default).' },
+    { key:'settings',       label:'⚙️ Settings',            desc:'Roles, templates, target editor (admin-only by default).' },
+    { key:'utm_generator',  label:'🔗 UTM Generator',       desc:'Build trackable UTM links.' },
+  ];
+
   const PERM_CATALOG = [
     { group: 'Visibility & Editing', items: [
       { key:'read',           label:'View accounts',     desc:'See companies in Pipeline, Accounts and Dashboard.' },
@@ -19437,7 +19484,7 @@ window.addEventListener('auth-ready', () => {
     let roles, teams, profiles, autoPolicies;
     try {
       [roles, teams, profiles, autoPolicies] = await Promise.all([
-        _restGet('roles?select=id,name,type,description,is_system,requires_team&order=is_system.desc,name.asc'),
+        _restGet('roles?select=id,name,type,description,is_system,requires_team,module_access&order=is_system.desc,name.asc'),
         _restGet('teams?select=id,name,description&order=name.asc'),
         _restGet('profiles?select=id,email,full_name,role,team_id,role_id,reports_to,quarterly_target_egp&order=email.asc'),
         _restGet('abac_policies?select=*&name=like.auto:*'),
@@ -19502,7 +19549,30 @@ window.addEventListener('auth-ready', () => {
       </div>`;
 
     // Permissions panel (when sub-tab = 'permissions')
-    const groupHtml = PERM_CATALOG.map(g => `
+    // Module access section — toggles which sidebar modules this role can open.
+    const moduleAccess = role.module_access || {};
+    const moduleHtml = `
+      <div style="margin-bottom:18px;">
+        <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;">Module access</div>
+        ${MODULE_CATALOG.map(m => {
+          const on = moduleAccess[m.key] !== false;  // default ON unless explicitly set false
+          return `
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border);">
+            <div style="flex:1;padding-right:18px;">
+              <div style="font-size:13.5px;font-weight:600;color:var(--text-1);margin-bottom:2px;">${esc(m.label)}</div>
+              <div style="font-size:12px;color:var(--text-3);line-height:1.4;">${esc(m.desc)}</div>
+            </div>
+            <label class="abac-toggle" style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;margin-top:2px;">
+              <input type="checkbox" ${on?'checked':''} ${isAdminRole?'disabled':''} onchange="abacRoleToggleModule('${role.id}','${m.key}', this.checked)" style="opacity:0;width:0;height:0;"/>
+              <span style="position:absolute;cursor:${isAdminRole?'not-allowed':'pointer'};inset:0;background:${on?'var(--lime-700)':'var(--bg-2,#e5e7eb)'};border-radius:999px;transition:background 150ms;${isAdminRole?'opacity:0.55;':''}"></span>
+              <span style="position:absolute;top:2px;left:${on?'22px':'2px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:left 150ms;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></span>
+            </label>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+
+    const groupHtml = moduleHtml + PERM_CATALOG.map(g => `
       <div style="margin-bottom:18px;">
         <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;">${esc(g.group)}</div>
         ${g.items.map(item => {
@@ -19881,6 +19951,33 @@ window.addEventListener('auth-ready', () => {
 
   // Toggle a permission for a role: upsert an auto-policy. Cache is mutated
   // in-place so we can re-render the panel without re-fetching.
+  // Persist a single module access toggle by patching roles.module_access JSON.
+  window.abacRoleToggleModule = async function(roleId, moduleKey, enabled){
+    const role = _rolesCache.find(r => r.id === roleId);
+    if(!role) return;
+    const current = Object.assign({}, role.module_access || {});
+    current[moduleKey] = !!enabled;
+    // Optimistic
+    role.module_access = current;
+    _paintRolesFromCache();
+    try {
+      await _restWrite(`roles?id=eq.${roleId}`, 'PATCH', { module_access: current });
+      // Reflect immediately for the current viewer if they edited their own role
+      if (window.AUTH_PROFILE?.role_id === roleId && typeof applySidebarModuleAccess === 'function') {
+        window.MODULE_ACCESS = current;
+        applySidebarModuleAccess();
+      }
+      if (typeof toast === 'function') toast('Module access saved','success');
+    } catch (e) {
+      // Roll back
+      const prev = current[moduleKey];
+      current[moduleKey] = !prev;
+      role.module_access = current;
+      _paintRolesFromCache();
+      if (typeof toast === 'function') toast('Save failed: ' + (e?.message||''),'error');
+    }
+  };
+
   window.abacRoleToggle = async function(roleId, action, enabled){
     const role = _rolesCache.find(r => r.id === roleId);
     if(!role) return;
