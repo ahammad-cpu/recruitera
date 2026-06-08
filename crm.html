@@ -12197,14 +12197,24 @@ let mentionStartPos = -1;
 
 // Source mention candidates from the live team directory (profiles).
 // id = email-prefix handle (matches the @[a-zA-Z0-9._-]+ extractor).
+// De-duped by handle: if two profiles share the same email-prefix (e.g.
+// a.hammad@icareer.ai vs a.hammad@recruitera.ai) prefer the one with
+// full_name set, then the most-recent (last in the array).
 function _mentionCandidates(){
   const profiles = (window.PROFILES_DIR||[]).filter(p => p.active !== false && p.email);
-  return profiles.map(p => {
+  const byHandle = {};
+  profiles.forEach(p => {
     const handle = (p.email||'').split('@')[0].toLowerCase();
+    if (!handle) return;
+    const cur = byHandle[handle];
+    // prefer the one with full_name; otherwise keep first
+    if (!cur || (!cur.full_name && p.full_name)) byHandle[handle] = p;
+  });
+  return Object.entries(byHandle).map(([handle, p]) => {
     const name   = p.full_name || p.email || handle;
     const initials = (name.split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('') || handle.slice(0,2)).toUpperCase();
     return { id: handle, name, email: p.email, initials, color: '#392396', profile_id: p.id };
-  });
+  }).sort((a,b) => a.name.localeCompare(b.name));
 }
 
 function initMentionsForTextarea(ta) {
@@ -12245,11 +12255,22 @@ function showMentionDropdown(ta) {
   }
   mentionDropdownEl = dropdown;
   mentionSelectedIdx = 0;
-  const rect = ta.getBoundingClientRect();
-  dropdown.style.left = (rect.left + 12) + 'px';
-  dropdown.style.top = (rect.bottom + 4) + 'px';
+  // Render first so we know its height, then position with viewport clamping.
   renderMentionDropdown(ta);
   dropdown.classList.add('open');
+  const rect = ta.getBoundingClientRect();
+  const ddRect = dropdown.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  // Anchor near the caret line (top of textarea + line offset based on cursor row)
+  const lineH = parseInt(getComputedStyle(ta).lineHeight) || 18;
+  const linesBefore = ta.value.substring(0, ta.selectionStart).split('\n').length;
+  let top = rect.top + linesBefore * lineH + 6;
+  // Flip up if it would overflow viewport
+  if (top + ddRect.height > vh - 8) top = Math.max(8, rect.top - ddRect.height - 6);
+  let left = rect.left + 12;
+  if (left + ddRect.width > vw - 8) left = Math.max(8, vw - ddRect.width - 8);
+  dropdown.style.left = left + 'px';
+  dropdown.style.top  = top  + 'px';
 }
 
 function renderMentionDropdown(ta) {
