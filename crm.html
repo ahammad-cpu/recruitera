@@ -9344,6 +9344,15 @@ function renderNotifDropdown(){
 window.toggleNotifDropdown = function(){
   const dd = document.getElementById('notif-dropdown'); if(!dd) return;
   if(dd.style.display === 'flex'){ dd.style.display = 'none'; return; }
+  // Reparent to <body> and use position:fixed so no ancestor's overflow/z-index can hide it
+  if(dd.parentElement !== document.body) document.body.appendChild(dd);
+  const bell = document.getElementById('notif-bell');
+  const r = bell ? bell.getBoundingClientRect() : { right: window.innerWidth - 20, bottom: 60 };
+  dd.style.position = 'fixed';
+  dd.style.top  = (r.bottom + 6) + 'px';
+  dd.style.left = Math.max(8, r.right - 380) + 'px';
+  dd.style.right = 'auto';
+  dd.style.zIndex = 100000;
   dd.style.display = 'flex';
   renderNotifDropdown();
 };
