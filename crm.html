@@ -8774,12 +8774,17 @@ function paintForecastView(){
 
     ${(() => {
       // Per-rep performance table. Visible to: admin (all reps), team lead (own + reports), member (self only)
+      // Excludes admins — they're not sales people, they shouldn't appear in the sales leaderboard.
+      const _isSalesRole = p => {
+        const role = (p.role || '').toLowerCase();
+        return role !== 'admin' && role !== 'customer_success';
+      };
       const directReports = (window.PROFILES_DIR||[]).filter(p => p.reports_to === auth.id);
       const isTeamLead = directReports.length > 0;
       let candidates;
-      if (isAdmin) candidates = (window.PROFILES_DIR||[]).filter(p => p.active !== false);
-      else if (isTeamLead) candidates = [auth, ...directReports];
-      else candidates = [auth];
+      if (isAdmin) candidates = (window.PROFILES_DIR||[]).filter(p => p.active !== false && _isSalesRole(p));
+      else if (isTeamLead) candidates = [auth, ...directReports].filter(_isSalesRole);
+      else candidates = [auth].filter(_isSalesRole);
       const rows = candidates.map(p => {
         const m = _computeForecastMetricsFor(p.id, category, win);
         const t = _resolveTargetFor(p.id, category);
