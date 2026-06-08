@@ -197,6 +197,9 @@ input,select,textarea{
 .sidebar.collapsed .sb-item-label{display:none;}
 .sb-cnt{display:none;}
 
+/* ═══ Notification popup (auto pop-up when new notification arrives) ═══ */
+@keyframes notifPopIn { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
+
 /* ═══ @-mention dropdown ═══ */
 .mention-dropdown{position:fixed;z-index:10000;min-width:240px;max-width:320px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.15);padding:6px;display:none;font-family:inherit;}
 .mention-dropdown.open{display:block;}
@@ -14733,8 +14736,58 @@ async function loadNotifications(){
     headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
   });
   if(!r.ok) return;
-  window.NOTIFICATIONS = await r.json();
+  const fresh = await r.json();
+  // Detect brand-new unread notifications since the previous poll and pop them
+  // up as toasts in the bottom-right corner. First load is a "baseline" — we
+  // remember the IDs without toasting so existing unread don't all flood in
+  // when the page first loads.
+  const prevIds = new Set((window.NOTIFICATIONS || []).map(n => n.id));
+  const firstLoad = !window._NOTIF_INITED;
+  window._NOTIF_INITED = true;
+  window.NOTIFICATIONS = fresh;
   if(typeof renderNotifBell === 'function') renderNotifBell();
+  if (!firstLoad){
+    const newOnes = fresh.filter(n => !n.read_at && !prevIds.has(n.id));
+    newOnes.slice(0, 3).forEach(n => showNotifPopup(n));
+  }
+}
+
+// In-app popup for newly-arrived notifications. Stacks bottom-right.
+function showNotifPopup(n){
+  let stack = document.getElementById('notif-popup-stack');
+  if (!stack){
+    stack = document.createElement('div');
+    stack.id = 'notif-popup-stack';
+    stack.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:2147483647;display:flex;flex-direction:column-reverse;gap:10px;pointer-events:none;max-width:380px;';
+    document.body.appendChild(stack);
+  }
+  const accById = {}; (window.leads||[]).forEach(l => { if(l._supabase_id) accById[l._supabase_id] = l; });
+  const acc = accById[n.account_id];
+  const leadId = acc ? acc._id : '';
+  const kindIcon = {mention:'💬',task_assigned:'✅',task_due:'⏰',task_overdue:'🚨',meeting_soon:'🗓️'}[n.kind] || '🔔';
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const card = document.createElement('div');
+  card.style.cssText = 'pointer-events:auto;background:#fff;color:#1d2129;border:1px solid #d6dae0;border-radius:12px;box-shadow:0 14px 38px rgba(0,0,0,0.22);padding:14px 16px;min-width:300px;max-width:380px;cursor:pointer;animation:notifPopIn 240ms ease-out;font-family:inherit;';
+  card.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <span style="font-size:22px;line-height:1;flex-shrink:0;">${kindIcon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:#1d2129;line-height:1.35;">${escFn(n.title||'New notification')}</div>
+        ${n.body?`<div style="font-size:12px;color:#5a6473;margin-top:4px;line-height:1.4;">${escFn(n.body.slice(0,160))}${n.body.length>160?'…':''}</div>`:''}
+      </div>
+      <button onclick="event.stopPropagation();this.closest('div[data-notif-card]')?.remove()" style="background:none;border:none;color:#8a93a0;font-size:18px;cursor:pointer;padding:0 2px;line-height:1;margin-top:-2px;">×</button>
+    </div>`;
+  card.setAttribute('data-notif-card', '1');
+  card.onclick = function(){
+    try { if (typeof markNotifRead === 'function') markNotifRead(n.id); } catch {}
+    if (leadId && typeof openDrawer === 'function') openDrawer(leadId, 'pipeline');
+    card.remove();
+  };
+  stack.appendChild(card);
+  // Auto-dismiss after 8 seconds
+  setTimeout(() => { card.style.transition='opacity 240ms,transform 240ms';card.style.opacity='0';card.style.transform='translateX(20px)'; setTimeout(()=>card.remove(),260); }, 8000);
+  // Cap stack at 4 visible
+  while (stack.children.length > 4) stack.firstChild.remove();
 }
 function startNotifPolling(){
   if(window._notifPollTimer) clearInterval(window._notifPollTimer);
