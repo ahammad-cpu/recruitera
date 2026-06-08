@@ -12184,6 +12184,18 @@ let mentionSelectedIdx = 0;
 let mentionFilteredOwners = [];
 let mentionStartPos = -1;
 
+// Source mention candidates from the live team directory (profiles).
+// id = email-prefix handle (matches the @[a-zA-Z0-9._-]+ extractor).
+function _mentionCandidates(){
+  const profiles = (window.PROFILES_DIR||[]).filter(p => p.active !== false && p.email);
+  return profiles.map(p => {
+    const handle = (p.email||'').split('@')[0].toLowerCase();
+    const name   = p.full_name || p.email || handle;
+    const initials = (name.split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('') || handle.slice(0,2)).toUpperCase();
+    return { id: handle, name, email: p.email, initials, color: '#392396', profile_id: p.id };
+  });
+}
+
 function initMentionsForTextarea(ta) {
   if (!ta || ta.dataset.mentionInit) return;
   ta.dataset.mentionInit = '1';
@@ -12200,7 +12212,8 @@ function handleMentionInput(e) {
   if (atMatch) {
     mentionStartPos = cursorPos - atMatch[1].length - 1;
     const query = atMatch[1].toLowerCase();
-    mentionFilteredOwners = OWNERS.filter(o => o.name.toLowerCase().includes(query) || o.id.toLowerCase().includes(query)).slice(0, 6);
+    const pool = _mentionCandidates();
+    mentionFilteredOwners = pool.filter(o => o.name.toLowerCase().includes(query) || o.id.toLowerCase().includes(query) || (o.email||'').toLowerCase().includes(query)).slice(0, 8);
     if (mentionFilteredOwners.length > 0) {
       showMentionDropdown(ta);
     } else {
@@ -12232,10 +12245,10 @@ function renderMentionDropdown(ta) {
   if (!mentionDropdownEl) return;
   mentionDropdownEl.innerHTML = mentionFilteredOwners.map((o, i) => `
     <div class="mention-item ${i === mentionSelectedIdx ? 'selected' : ''}" data-idx="${i}" onclick="insertMention(${i})">
-      <div class="mention-item-av" style="background:${o.color || 'var(--surface-2)'}22;color:${o.color || 'var(--text-3)'};">${o.id}</div>
+      <div class="mention-item-av" style="background:${o.color || 'var(--surface-2)'}22;color:${o.color || 'var(--text-3)'};">${o.initials || o.id.slice(0,2).toUpperCase()}</div>
       <div class="mention-item-info">
         <div class="mention-item-name">${o.name}</div>
-        <div class="mention-item-role">${o.id}</div>
+        <div class="mention-item-role">@${o.id}</div>
       </div>
     </div>
   `).join('');
@@ -12280,9 +12293,10 @@ function closeMentionDropdown() {
 
 function renderTextWithMentions(text) {
   if (!text) return '';
-  return esc(text).replace(/@(\w+)/g, (match, ownerId) => {
-    const owner = OWNERS.find(o => o.id.toLowerCase() === ownerId.toLowerCase());
-    if (owner) return `<span class="mention-pill" title="${esc(owner.name)}">${esc(owner.id)}</span>`;
+  const pool = _mentionCandidates();
+  return esc(text).replace(/@([a-zA-Z0-9._-]+)/g, (match, handle) => {
+    const owner = pool.find(o => o.id.toLowerCase() === handle.toLowerCase());
+    if (owner) return `<span class="mention-pill" title="${esc(owner.name)} · ${esc(owner.email||'')}">@${esc(owner.id)}</span>`;
     return match;
   });
 }
