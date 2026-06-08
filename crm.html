@@ -8565,11 +8565,35 @@ function _computeForecastMetricsFor(profileId, category, win){
 // Sum a user's targets across categories
 function _resolveTargetFor(profileId, category){
   const rows = window._FORECAST_ALL_TARGETS || [];
+  if (profileId === '__all__'){
+    const ids = (window._FORECAST_AGG_IDS || []);
+    const subset = rows.filter(t => t.owner_kind==='profile' && ids.includes(t.owner_id) && (category==='all' || t.category===category));
+    const sum = subset.reduce((s,t) => s + (t.amount_egp||0), 0);
+    return sum || null;
+  }
   if (category === 'all'){
     return rows.filter(t => t.owner_kind==='profile' && t.owner_id===profileId).reduce((s,t) => s + (t.amount_egp||0), 0) || null;
   }
   const r = rows.find(t => t.owner_kind==='profile' && t.owner_id===profileId && t.category===category);
   return r ? r.amount_egp : null;
+}
+// Aggregate metrics across multiple people (when "All team" is picked)
+function _aggregateForecastMetrics(profileIds, category, win){
+  const agg = { closed:0, closedDeals:0, weighted:0, stageBuckets:{}, topDeals:[] };
+  profileIds.forEach(pid => {
+    const m = _computeForecastMetricsFor(pid, category, win);
+    agg.closed += m.closed; agg.closedDeals += m.closedDeals; agg.weighted += m.weighted;
+    Object.entries(m.stageBuckets).forEach(([k,v]) => {
+      if (!agg.stageBuckets[k]) agg.stageBuckets[k] = {count:0,value:0,weighted:0};
+      agg.stageBuckets[k].count += v.count; agg.stageBuckets[k].value += v.value; agg.stageBuckets[k].weighted += v.weighted;
+    });
+    agg.topDeals.push(...m.topDeals);
+  });
+  // de-dupe by leadId (a deal could appear under owner + customer_success)
+  const seen = new Set();
+  agg.topDeals = agg.topDeals.filter(d => { if(seen.has(d.leadId)) return false; seen.add(d.leadId); return true; });
+  agg.topDeals.sort((a,b) => b.weighted - a.weighted);
+  return agg;
 }
 
 window.renderForecastTargets = async function(){
@@ -8617,12 +8641,22 @@ function paintForecastView(){
   const auth = window.AUTH_PROFILE || {};
   const isAdmin = auth.role === 'admin';
   const viewingId = window.FORECAST_VIEW_AS || auth.id;
-  const viewing = (window.PROFILES_DIR||[]).find(p => p.id === viewingId) || auth;
+  const viewing = viewingId === '__all__'
+    ? { full_name: 'All team', email: '' }
+    : ((window.PROFILES_DIR||[]).find(p => p.id === viewingId) || auth);
   const viewingEmail = (viewing.email||'').toLowerCase();
   const win = _periodWindow(window.FORECAST_PERIOD);
   const category = window.FORECAST_CAT;
+  // Build eligible-list early so '__all__' aggregation knows whom to sum
+  const _eligibleAll = isAdmin
+    ? (window.PROFILES_DIR||[]).filter(p => p.active!==false)
+    : [auth, ...(window.PROFILES_DIR||[]).filter(p => p.reports_to === auth.id)];
+  window._FORECAST_AGG_IDS = _eligibleAll.map(p => p.id);
+  const isAllView = viewingId === '__all__';
   const target = _resolveTargetFor(viewingId, category);
-  const metrics = _computeForecastMetricsFor(viewingId, category, win);
+  const metrics = isAllView
+    ? _aggregateForecastMetrics(window._FORECAST_AGG_IDS, category, win)
+    : _computeForecastMetricsFor(viewingId, category, win);
   const { stageBuckets, topDeals } = metrics;
   const closed = metrics.closed;
   const closedDeals = metrics.closedDeals;
@@ -8643,6 +8677,7 @@ function paintForecastView(){
   if (isAdmin || (window.PROFILES_DIR||[]).some(p => p.reports_to === auth.id)){
     const eligible = isAdmin ? (window.PROFILES_DIR||[]).filter(p => p.active!==false) : [auth, ...(window.PROFILES_DIR||[]).filter(p => p.reports_to === auth.id)];
     viewerPicker = `<select onchange="setForecastViewAs(this.value)" style="font:inherit;font-size:12.5px;font-weight:600;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text-1);">
+      <option value="__all__"${viewingId==='__all__'?' selected':''}>🌐 All team (${eligible.length})</option>
       <option value="">Me · ${escFn(auth.full_name||auth.email||'')}</option>
       ${eligible.filter(p => p.id !== auth.id).map(p => `<option value="${p.id}"${viewingId===p.id?' selected':''}>${escFn(p.full_name||p.email||'')}</option>`).join('')}
     </select>`;
