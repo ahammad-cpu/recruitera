@@ -9341,6 +9341,32 @@ function renderNotifDropdown(){
   }).join('');
   dd.innerHTML = header + `<div style="overflow-y:auto;max-height:430px;flex:1;">${body}</div>`;
 };
+// Bind the bell click handler as soon as the bell element exists, without
+// waiting for any async data loaders. The earlier inline `onclick` attribute
+// could be swallowed if a subscript broke definition timing.
+function _bindNotifBell(){
+  const bell = document.getElementById('notif-bell');
+  if (!bell || bell.dataset.notifBound) return;
+  bell.dataset.notifBound = '1';
+  bell.addEventListener('click', function(ev){
+    if (ev) ev.stopPropagation();
+    console.log('[notif] bell clicked');
+    if (typeof toggleNotifDropdown === 'function') toggleNotifDropdown(ev);
+    else console.error('[notif] toggleNotifDropdown not defined yet');
+  });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _bindNotifBell);
+} else {
+  _bindNotifBell();
+}
+// Re-try every 500ms for the first 5s in case the topbar renders late
+let _bindAttempts = 0;
+const _bindInterval = setInterval(() => {
+  _bindNotifBell();
+  if (++_bindAttempts >= 10 || (document.getElementById('notif-bell')?.dataset.notifBound)) clearInterval(_bindInterval);
+}, 500);
+
 window.toggleNotifDropdown = function(ev){
   if (ev && ev.stopPropagation) ev.stopPropagation();
   const dd = document.getElementById('notif-dropdown'); if(!dd) return;
@@ -10211,17 +10237,6 @@ window.AUTH_PROFILE = null;
     try { await loadActivityTemplates(); } catch(e) { console.warn('[tpl] load failed', e); }
     try { await loadTeamsDirectory(); } catch(e) { console.warn('[teams] load failed', e); }
     try { await loadNotifications(); startNotifPolling(); } catch(e) { console.warn('[notif] load failed', e); }
-    // Defensive: bind the bell click via JS too, in case the inline onclick
-    // attribute is being stripped or shadowed by a higher-priority listener.
-    const _bell = document.getElementById('notif-bell');
-    if (_bell && !_bell.dataset.notifBound) {
-      _bell.dataset.notifBound = '1';
-      _bell.addEventListener('click', function(ev){
-        console.log('[notif] bell clicked');
-        if (typeof toggleNotifDropdown === 'function') toggleNotifDropdown(ev);
-        else console.error('[notif] toggleNotifDropdown not defined');
-      });
-    }
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
     // flash zeros over the loading state. The bootstrap IIFE calls init() (which
