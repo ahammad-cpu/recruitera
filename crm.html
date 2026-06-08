@@ -10211,6 +10211,17 @@ window.AUTH_PROFILE = null;
     try { await loadActivityTemplates(); } catch(e) { console.warn('[tpl] load failed', e); }
     try { await loadTeamsDirectory(); } catch(e) { console.warn('[teams] load failed', e); }
     try { await loadNotifications(); startNotifPolling(); } catch(e) { console.warn('[notif] load failed', e); }
+    // Defensive: bind the bell click via JS too, in case the inline onclick
+    // attribute is being stripped or shadowed by a higher-priority listener.
+    const _bell = document.getElementById('notif-bell');
+    if (_bell && !_bell.dataset.notifBound) {
+      _bell.dataset.notifBound = '1';
+      _bell.addEventListener('click', function(ev){
+        console.log('[notif] bell clicked');
+        if (typeof toggleNotifDropdown === 'function') toggleNotifDropdown(ev);
+        else console.error('[notif] toggleNotifDropdown not defined');
+      });
+    }
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
     // flash zeros over the loading state. The bootstrap IIFE calls init() (which
