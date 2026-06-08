@@ -8070,6 +8070,49 @@ window.renderLogsList = function(){
 // 4 widgets: Quarter target · My tasks today · Today's calls/meetings ·
 // New accounts assigned to me.
 window.HOME_VIEWING_AS = window.HOME_VIEWING_AS || null;
+window.HOME_PERIOD   = window.HOME_PERIOD   || 'quarter';   // month | quarter | year
+window.HOME_CATEGORY = window.HOME_CATEGORY || 'new_sales'; // new_sales | renewal
+window.MY_TARGETS    = window.MY_TARGETS    || [];
+
+// Compute current period bounds + label
+function _periodWindow(kind, ref){
+  ref = ref || new Date();
+  let start, end, label;
+  if (kind === 'month') {
+    start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+    end   = new Date(ref.getFullYear(), ref.getMonth() + 1, 0, 23, 59, 59, 999);
+    label = start.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  } else if (kind === 'year') {
+    start = new Date(ref.getFullYear(), 0, 1);
+    end   = new Date(ref.getFullYear(), 11, 31, 23, 59, 59, 999);
+    label = String(ref.getFullYear());
+  } else { // quarter
+    const qStartMonth = Math.floor(ref.getMonth()/3)*3;
+    start = new Date(ref.getFullYear(), qStartMonth, 1);
+    end   = new Date(ref.getFullYear(), qStartMonth + 3, 0, 23, 59, 59, 999);
+    label = `Q${Math.floor(ref.getMonth()/3)+1} ${ref.getFullYear()}`;
+  }
+  return { start: start.getTime(), end: end.getTime(), label, startISO: start.toISOString().slice(0,10) };
+}
+
+async function loadMyTargets(profileId){
+  if(!profileId){ window.MY_TARGETS = []; return; }
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/targets?owner_kind=eq.profile&owner_id=eq.${profileId}&select=*&order=period_start.desc`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  window.MY_TARGETS = r.ok ? await r.json() : [];
+}
+
+function getMyTarget(category, periodKind, periodStartISO){
+  return (window.MY_TARGETS||[]).find(t =>
+    t.category === category &&
+    t.period_kind === periodKind &&
+    t.period_start === periodStartISO
+  );
+}
+window.setHomePeriod   = function(p){ window.HOME_PERIOD = p; renderHomeView(); };
+window.setHomeCategory = function(c){ window.HOME_CATEGORY = c; if(typeof paintHomeView==='function') paintHomeView(); };
 // Cache of open tasks (assigned to me or authored by me), refreshed on each Home view render.
 window.MY_OPEN_TASKS = window.MY_OPEN_TASKS || [];
 async function loadMyOpenTasks(profileId){
@@ -8099,10 +8142,11 @@ async function loadMyOpenTasks(profileId){
 
 window.renderHomeView = async function(){
   const root = document.getElementById('home-view'); if(!root) return;
-  // Pre-fetch my tasks from the DB before painting; otherwise the widget
-  // looks at empty localStorage caches and shows zero.
   const viewingIdForFetch = window.HOME_VIEWING_AS || window.AUTH_PROFILE?.id;
-  try { await loadMyOpenTasks(viewingIdForFetch); } catch(e){ console.warn('[home] tasks load', e); }
+  try { await Promise.all([
+    loadMyOpenTasks(viewingIdForFetch),
+    loadMyTargets(viewingIdForFetch),
+  ]); } catch(e){ console.warn('[home] load', e); }
   paintHomeView();
 };
 
@@ -8195,27 +8239,60 @@ function paintHomeView(){
     <div style="flex:1;min-height:0;">${body}</div>
   </div>`;
 
-  // Quarter target widget
+  // ─── Target widget — period switcher + Sales/Renewal tabs ───
   const targetWidget = (() => {
-    if(target == null){
-      return card('🎯 Quarterly target', `
-        <div style="text-align:center;padding:24px 0;">
-          <div style="font-size:32px;margin-bottom:8px;">🎯</div>
-          <div style="font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:4px;">No target set yet</div>
-          <div style="font-size:12px;color:var(--text-3);">Ask your admin or team lead to set your ${qLabel} target in Settings → Roles.</div>
-        </div>`);
+    const period = window.HOME_PERIOD || 'quarter';
+    const category = window.HOME_CATEGORY || 'new_sales';
+    const win = _periodWindow(period);
+    const tRow = getMyTarget(category, period, win.startISO);
+    const tAmt = tRow?.amount_egp ?? null;
+    // Compute actual revenue for this period × category
+    let actual = 0;
+    let dealCount = 0;
+    if (category === 'new_sales') {
+      const won = myAccounts.filter(l => {
+        if (gStage(l._id) !== 'won') return false;
+        const closed = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
+        return closed >= win.start && closed <= win.end;
+      });
+      actual = won.reduce((s,l) => s + (parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0), 0);
+      dealCount = won.length;
+    } // Renewal actuals come from contract_cycles — computed server-side in a follow-up; show 0 with note for now.
+    const pctP = tAmt ? Math.min(100, Math.round((actual/tAmt)*100)) : 0;
+    const tierC = pctP>=80?'#2F8F5C':pctP>=50?'#7BAE3F':pctP>=25?'#B8761A':'#B83A3A';
+    const daysL = Math.max(0, Math.ceil((win.end - Date.now())/86400000));
+    const periodBtn = (k, label) => `<button onclick="setHomePeriod('${k}')" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;border:1px solid ${period===k?'var(--text-1)':'var(--border)'};background:${period===k?'var(--text-1)':'transparent'};color:${period===k?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${label}</button>`;
+    const catBtn = (c, label) => `<button onclick="setHomeCategory('${c}')" style="font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${category===c?'var(--lime-700)':'var(--border)'};background:${category===c?'var(--lime-200,#ECF8C0)':'transparent'};color:${category===c?'var(--text-1)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${label}</button>`;
+    const editBtn = (isAdmin || me.reports_to === auth.id) ? `<button onclick="openTargetEditor('${myId}','${category}','${period}','${win.startISO}')" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-3);cursor:pointer;">${tAmt==null?'+ Set target':'Edit'}</button>` : '';
+    const header = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-2);letter-spacing:0.04em;text-transform:uppercase;">🎯 Target</div>
+      <div style="display:flex;gap:4px;">${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}</div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}</div>`;
+    if (tAmt == null) {
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;">
+        ${header}
+        <div style="text-align:center;padding:18px 0;">
+          <div style="font-size:30px;margin-bottom:6px;">🎯</div>
+          <div style="font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:4px;">No ${category==='renewal'?'renewal':'sales'} target for ${win.label}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:12px;">Ask your admin or team lead to set one.</div>
+          ${editBtn}
+        </div>
+      </div>`;
     }
-    return card('🎯 Quarterly target', `
-      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
-        <span style="font-size:30px;font-weight:700;color:${tierColor};line-height:1;font-variant-numeric:tabular-nums;">${fmtEgp(closedAmount)}</span>
-        <span style="font-size:13px;color:var(--text-3);">/ ${fmtEgp(target)}</span>
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;">
+      ${header}
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;">
+        <span style="font-size:30px;font-weight:700;color:${tierC};line-height:1;font-variant-numeric:tabular-nums;">${fmtEgp(actual)}</span>
+        <span style="font-size:13px;color:var(--text-3);">/ ${fmtEgp(tAmt)}</span>
+        <span style="margin-left:auto;">${editBtn}</span>
       </div>
-      <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;">${qLabel} · ${daysLeft} day${daysLeft===1?'':'s'} left · ${wonThisQ.length} deal${wonThisQ.length===1?'':'s'} closed</div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;">${win.label} · ${daysL} day${daysL===1?'':'s'} left${category==='new_sales'?` · ${dealCount} deal${dealCount===1?'':'s'} closed`:' · renewal actuals coming soon'}</div>
       <div style="height:10px;background:var(--bg-2);border-radius:5px;overflow:hidden;margin-bottom:10px;">
-        <div style="height:100%;width:${pct}%;background:${tierColor};transition:width 320ms ease;"></div>
+        <div style="height:100%;width:${pctP}%;background:${tierC};transition:width 320ms ease;"></div>
       </div>
-      <div style="font-size:11px;color:var(--text-3);text-align:right;font-variant-numeric:tabular-nums;">${pct}%</div>`,
-      (isAdmin || me.reports_to === auth.id) ? `<button onclick="openTargetEditor('${myId}')" style="font-size:11px;background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--text-3);cursor:pointer;">${target==null?'+ Set target':'Edit'}</button>` : '');
+      <div style="font-size:11px;color:var(--text-3);text-align:right;font-variant-numeric:tabular-nums;">${pctP}%</div>
+    </div>`;
   })();
 
   // My tasks widget
@@ -8408,27 +8485,47 @@ window.renderRepsLeaderboard = function(){
   dashEl.insertBefore(widget, dashEl.firstChild);
 };
 
-window.openTargetEditor = function(profileId){
+window.openTargetEditor = function(profileId, category, periodKind, periodStartISO){
+  // Backward compat: if only profileId passed, treat as the current Home selection.
+  category      = category      || window.HOME_CATEGORY || 'new_sales';
+  periodKind    = periodKind    || window.HOME_PERIOD   || 'quarter';
+  if(!periodStartISO){
+    const w = (typeof _periodWindow==='function') ? _periodWindow(periodKind) : null;
+    periodStartISO = w ? w.startISO : new Date().toISOString().slice(0,10);
+  }
   const prof = (window.PROFILES_DIR||[]).find(p => p.id === profileId) || AUTH_PROFILE;
-  const cur = prof?.quarterly_target_egp;
   const who = prof?.full_name || prof?.email || 'this rep';
-  const v = prompt(`Quarterly target (EGP) for ${who}:\n\nLeave empty to clear.`, cur ?? '');
+  const existing = (window.MY_TARGETS||[]).find(t => t.owner_id===profileId && t.category===category && t.period_kind===periodKind && t.period_start===periodStartISO);
+  const cur = existing?.amount_egp;
+  const labelMap = {month:'monthly',quarter:'quarterly',year:'yearly'};
+  const catMap = {new_sales:'Sales',renewal:'Renewal'};
+  const v = prompt(`${catMap[category]} ${labelMap[periodKind]} target (EGP) for ${who}\n(period starting ${periodStartISO}):\n\nLeave empty to clear.`, cur ?? '');
   if(v === null) return;
   const num = v.trim() === '' ? null : parseInt(v.replace(/[^\d]/g,''),10);
   if(v.trim() !== '' && (isNaN(num) || num < 0)){ toast('Invalid number','error'); return; }
   (async () => {
     const token = await _getValidAccessToken(); if(!token) return;
-    const r = await fetch(`${SB_URL}/rest/v1/rpc/set_quarterly_target`, {
+    const rpc = num == null ? 'clear_target' : 'set_target';
+    const body = num == null
+      ? { p_owner_kind:'profile', p_owner_id:profileId, p_category:category, p_period_kind:periodKind, p_period_start:periodStartISO }
+      : { p_owner_kind:'profile', p_owner_id:profileId, p_category:category, p_period_kind:periodKind, p_period_start:periodStartISO, p_amount:num, p_notes:null };
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/${rpc}`, {
       method:'POST',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body: JSON.stringify({ p_profile_id: profileId, p_amount: num })
+      body: JSON.stringify(body)
     });
     if(r.ok){
-      // Mirror locally so the UI reflects without re-fetch
-      if(prof) prof.quarterly_target_egp = num;
-      if(AUTH_PROFILE && AUTH_PROFILE.id === profileId) AUTH_PROFILE.quarterly_target_egp = num;
+      // Update in-memory list
+      if(num == null){
+        window.MY_TARGETS = (window.MY_TARGETS||[]).filter(t => !(t.owner_id===profileId && t.category===category && t.period_kind===periodKind && t.period_start===periodStartISO));
+      } else if (existing){
+        existing.amount_egp = num;
+      } else {
+        window.MY_TARGETS = (window.MY_TARGETS||[]);
+        window.MY_TARGETS.push({owner_kind:'profile',owner_id:profileId,category,period_kind:periodKind,period_start:periodStartISO,amount_egp:num,is_override:true});
+      }
       toast(num==null ? 'Target cleared' : 'Target updated','success');
-      if(typeof renderHomeView === 'function') renderHomeView();
+      if(typeof paintHomeView === 'function') paintHomeView();
     } else {
       let msg = 'Update failed';
       try { msg = (await r.json()).message || msg; } catch {}
