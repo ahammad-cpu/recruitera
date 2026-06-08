@@ -5,5 +5,19 @@
     { "source": "/crm", "destination": "/crm.html" },
     { "source": "/migrate", "destination": "/migrate.html" },
     { "source": "/sync-admin", "destination": "/sync-admin.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(crm|login|migrate|sync-admin)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(crm|login|migrate|sync-admin).html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=0, must-revalidate" }
+      ]
+    }
   ]
 }
