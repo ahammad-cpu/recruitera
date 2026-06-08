@@ -13371,8 +13371,23 @@ function renderLdRight(lead){
 
     <!-- ── MARKETING ATTRIBUTION (first / last touch) ── -->
     ${(()=>{
-      const mt = (window.MT_BY_ACCOUNT||{})[lead._supabase_id];
-      if(!mt) return '';
+      // Multi-key resolver — handles Demo (Webflow MT id) AND Trial (System MT id)
+      const mt = (typeof window.resolveMT === 'function') ? window.resolveMT(lead) : (window.MT_BY_ACCOUNT||{})[lead._supabase_id];
+      if(!mt) return `
+      <div class="ld-panel-card">
+        <div class="ld-panel-head" style="background:transparent;border-bottom:none;padding-bottom:4px;">
+          <div class="ld-panel-title" style="color:var(--text-3);font-weight:700;letter-spacing:0.08em;">
+            <span style="font-size:14px;">📡</span> ATTRIBUTION
+          </div>
+        </div>
+        <div class="ld-panel-body" style="padding-top:6px;">
+          <div style="font-size:12px;color:var(--text-4);font-style:italic;line-height:1.5;">
+            No marketing tracking row matched this account.
+            ${(lead.source||'').toLowerCase().includes('demo') ? '<br/>Demo source: tries Webflow Marketing Tracking ID.' : ''}
+            ${(lead.source||'').toLowerCase().includes('trial') || lead.has_trial ? '<br/>Trial source: tries System Marketing Tracking ID + Company Ref.' : ''}
+          </div>
+        </div>
+      </div>`;
       const fmtD = d => d ? (()=>{try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d;}})() : '';
       const srcColor = (s) => {
         const k = (s||'').toLowerCase();
@@ -14951,19 +14966,57 @@ function startNotifPolling(){
 }
 
 // Marketing tracking — first/last touch attribution. Loaded once after auth.
-// Keyed by account_id so the Lead Detail panel can render in O(1).
+// We build THREE indexes so the lead-detail Attribution panel can find a
+// matching row no matter how the account was linked:
+//   - account_id        (direct FK)
+//   - company_ref       (Bubble's Company_Ref string)
+//   - bubble MT id      (raw_data->>'_id' on marketing_tracking) — used when:
+//       Demo  → accounts.raw_data['Webflow Marketing Tracking']
+//       Trial → accounts.raw_data['System Marketing Tracking']
 window.MT_BY_ACCOUNT = {};
+window.MT_BY_COMPANY_REF = {};
+window.MT_BY_BUBBLE_ID = {};
 async function loadMarketingTracking(){
   const token = await _getValidAccessToken(); if(!token) return;
-  const res = await fetch(`${SB_URL}/rest/v1/marketing_tracking?select=account_id,company_ref,first_source,first_medium,first_campaign,first_content,first_term,first_landing_page,first_referrer,first_date,last_source,last_medium,last_campaign,last_content,last_term,last_landing_page,last_referrer,last_date,touch_count,days_to_convert,device_type,signup_language,cta_clicked&account_id=not.is.null`, {
+  // Include raw_data so we can index by mt.raw_data._id (the Bubble MT id).
+  // Drop the account_id=not.is.null filter — orphan tracking rows still link
+  // via the Demo/Trial bubble-id paths.
+  const res = await fetch(`${SB_URL}/rest/v1/marketing_tracking?select=account_id,company_ref,first_source,first_medium,first_campaign,first_content,first_term,first_landing_page,first_referrer,first_date,last_source,last_medium,last_campaign,last_content,last_term,last_landing_page,last_referrer,last_date,touch_count,days_to_convert,device_type,signup_language,cta_clicked,raw_data`, {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + token }
   });
   if(!res.ok){ console.warn('[mt] load failed', res.status); return; }
   const rows = await res.json();
   window.MT_BY_ACCOUNT = {};
-  (Array.isArray(rows) ? rows : []).forEach(r => { if(r.account_id) window.MT_BY_ACCOUNT[r.account_id] = r; });
-  console.log('[mt] loaded', Object.keys(window.MT_BY_ACCOUNT).length, 'tracking rows');
+  window.MT_BY_COMPANY_REF = {};
+  window.MT_BY_BUBBLE_ID = {};
+  (Array.isArray(rows) ? rows : []).forEach(r => {
+    if(r.account_id)  window.MT_BY_ACCOUNT[r.account_id] = r;
+    if(r.company_ref) window.MT_BY_COMPANY_REF[r.company_ref] = r;
+    const bubbleId = r.raw_data && r.raw_data._id;
+    if(bubbleId) window.MT_BY_BUBBLE_ID[bubbleId] = r;
+  });
+  console.log('[mt] loaded', rows.length, 'tracking rows — indexes:', Object.keys(window.MT_BY_ACCOUNT).length, 'by acc,', Object.keys(window.MT_BY_COMPANY_REF).length, 'by ref,', Object.keys(window.MT_BY_BUBBLE_ID).length, 'by bubble-id');
 }
+
+// Resolve a marketing_tracking row for a given lead using the multi-key index.
+// Order: account_id → source-specific bubble ID → company_ref. First hit wins.
+window.resolveMT = function(lead){
+  if(!lead) return null;
+  if(lead._supabase_id && window.MT_BY_ACCOUNT[lead._supabase_id]) return window.MT_BY_ACCOUNT[lead._supabase_id];
+  const rd = lead.raw_data || {};
+  const src = (lead.source || rd.Source || '').toString().toLowerCase();
+  if (src.includes('demo')){
+    const webflowId = rd['Webflow Marketing Tracking'];
+    if (webflowId && window.MT_BY_BUBBLE_ID[webflowId]) return window.MT_BY_BUBBLE_ID[webflowId];
+  }
+  if (src.includes('trial') || lead.has_trial || lead.company_ref){
+    const systemId = rd['System Marketing Tracking'];
+    if (systemId && window.MT_BY_BUBBLE_ID[systemId]) return window.MT_BY_BUBBLE_ID[systemId];
+  }
+  const cref = lead.company_ref || rd.Company_Ref;
+  if (cref && window.MT_BY_COMPANY_REF[cref]) return window.MT_BY_COMPANY_REF[cref];
+  return null;
+};
 
 // Profiles directory: email (lowercased) -> profile row. Loaded once after auth.
 window.PROFILES_DIR = [];
