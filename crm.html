@@ -7407,7 +7407,7 @@ body .ld-tab-content {
       <div style="flex:1;"></div>
       <div class="tb-actions">
         <div id="notif-bell-wrap" style="position:relative;">
-          <button id="notif-bell" onclick="toggleNotifDropdown()" title="Notifications" style="background:none;border:1px solid var(--border);border-radius:8px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);position:relative;">
+          <button id="notif-bell" onclick="toggleNotifDropdown(event)" title="Notifications" style="background:none;border:1px solid var(--border);border-radius:8px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);position:relative;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             <span id="notif-bell-count" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--bad);color:#fff;font-size:9.5px;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 4px;">0</span>
           </button>
@@ -9341,7 +9341,8 @@ function renderNotifDropdown(){
   }).join('');
   dd.innerHTML = header + `<div style="overflow-y:auto;max-height:430px;flex:1;">${body}</div>`;
 };
-window.toggleNotifDropdown = function(){
+window.toggleNotifDropdown = function(ev){
+  if (ev && ev.stopPropagation) ev.stopPropagation();
   const dd = document.getElementById('notif-dropdown'); if(!dd) return;
   if(dd.style.display === 'flex'){ dd.style.display = 'none'; return; }
   // Reparent to <body> and use position:fixed so no ancestor's overflow/z-index can hide it
@@ -9352,6 +9353,14 @@ window.toggleNotifDropdown = function(){
   dd.style.top  = (r.bottom + 6) + 'px';
   dd.style.left = Math.max(8, r.right - 380) + 'px';
   dd.style.right = 'auto';
+  dd.style.width = '380px';
+  dd.style.maxHeight = '520px';
+  dd.style.background = 'var(--surface)';
+  dd.style.border = '1px solid var(--border)';
+  dd.style.borderRadius = '10px';
+  dd.style.boxShadow = '0 12px 32px rgba(0,0,0,0.18)';
+  dd.style.overflow = 'hidden';
+  dd.style.flexDirection = 'column';
   dd.style.zIndex = 100000;
   dd.style.display = 'flex';
   renderNotifDropdown();
@@ -9359,7 +9368,11 @@ window.toggleNotifDropdown = function(){
 document.addEventListener('click', (e) => {
   const dd = document.getElementById('notif-dropdown');
   const wrap = document.getElementById('notif-bell-wrap');
-  if(dd && dd.style.display==='flex' && wrap && !wrap.contains(e.target)){ dd.style.display = 'none'; }
+  if(!dd || dd.style.display!=='flex') return;
+  // Clicks INSIDE the bell wrap (the toggle button) OR inside the dropdown itself = stay open
+  if (wrap && wrap.contains(e.target)) return;
+  if (dd.contains(e.target)) return;
+  dd.style.display = 'none';
 });
 window.openFromNotif = async function(notifId, leadId){
   await markNotifRead(notifId);
