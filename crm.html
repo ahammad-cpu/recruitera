@@ -12930,7 +12930,22 @@ window.ldSubmitLog = function(){
   const lead = leads.find(l => l._id === curId);
   if(lead) updateLdTabCounts(lead);
   if(typeof renderBoard === 'function') renderBoard();
-  if(typeof toast === 'function') toast(editId ? 'Updated' : 'Logged','success');
+  // Surface who got pinged so the author knows mentions worked.
+  let toastMsg = editId ? 'Updated' : 'Logged';
+  try {
+    const blob = `${text||''} ${extras.title||''} ${extras.email_subject||''}`;
+    const handles = Array.from(new Set((blob.match(/@[a-zA-Z0-9._-]+/g)||[])
+      .map(m => m.slice(1).toLowerCase())));
+    if (handles.length){
+      const pool = (typeof _mentionCandidates==='function') ? _mentionCandidates() : [];
+      const mePrefix = (AUTH_PROFILE?.email||'').split('@')[0].toLowerCase();
+      const named = handles
+        .filter(h => h !== mePrefix)
+        .map(h => (pool.find(p => p.id === h)?.name) || ('@'+h));
+      if (named.length) toastMsg = `${toastMsg} · pinged ${named.join(', ')}`;
+    }
+  } catch {}
+  if(typeof toast === 'function') toast(toastMsg,'success');
 };
 
 // ─── Feed renderer ───────────────────────────────────────
