@@ -9369,40 +9369,25 @@ const _bindInterval = setInterval(() => {
 
 window.toggleNotifDropdown = function(ev){
   if (ev && ev.stopPropagation) ev.stopPropagation();
-  const dd = document.getElementById('notif-dropdown'); if(!dd) return;
-  if(dd.style.display === 'flex'){ dd.style.display = 'none'; return; }
-  // Reparent to <body> and use position:fixed so no ancestor's overflow/z-index can hide it
-  if(dd.parentElement !== document.body) document.body.appendChild(dd);
-  const bell = document.getElementById('notif-bell');
-  const r = bell ? bell.getBoundingClientRect() : { right: window.innerWidth - 20, bottom: 60 };
-  dd.style.position = 'fixed';
-  dd.style.top  = (r.bottom + 6) + 'px';
-  dd.style.left = Math.max(8, r.right - 380) + 'px';
-  dd.style.right = 'auto';
-  dd.style.width = '380px';
-  dd.style.maxHeight = '520px';
-  dd.style.background = 'var(--surface)';
-  dd.style.border = '1px solid var(--border)';
-  dd.style.borderRadius = '10px';
-  dd.style.boxShadow = '0 12px 32px rgba(0,0,0,0.18)';
-  dd.style.overflow = 'hidden';
-  dd.style.flexDirection = 'column';
-  dd.style.zIndex = 100000;
-  dd.style.display = 'flex';
+  // Brand-new overlay approach — no dropdown, no positioning issues. A full
+  // backdrop covers the screen, with a notification panel anchored top-right.
+  let overlay = document.getElementById('notif-overlay');
+  if (overlay){ overlay.remove(); return; }  // already open → close
+  overlay = document.createElement('div');
+  overlay.id = 'notif-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.18);display:flex;align-items:flex-start;justify-content:flex-end;padding:64px 22px;';
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  const panel = document.createElement('div');
+  panel.id = 'notif-dropdown';  // keep id so existing render code targets it
+  panel.style.cssText = 'width:400px;max-width:calc(100vw - 44px);max-height:calc(100vh - 110px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;display:flex;flex-direction:column;';
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
   renderNotifDropdown();
 };
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('notif-dropdown');
-  const wrap = document.getElementById('notif-bell-wrap');
-  if(!dd || dd.style.display!=='flex') return;
-  // Clicks INSIDE the bell wrap (the toggle button) OR inside the dropdown itself = stay open
-  if (wrap && wrap.contains(e.target)) return;
-  if (dd.contains(e.target)) return;
-  dd.style.display = 'none';
-});
+// (outside-click handler removed — the overlay self-handles backdrop clicks)
 window.openFromNotif = async function(notifId, leadId){
   await markNotifRead(notifId);
-  document.getElementById('notif-dropdown').style.display = 'none';
+  const ov = document.getElementById('notif-overlay'); if (ov) ov.remove();
   if(leadId && typeof openDrawer === 'function') openDrawer(leadId, 'pipeline');
 };
 window.markNotifRead = async function(notifId){
