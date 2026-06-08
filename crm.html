@@ -7676,12 +7676,14 @@ body .ld-tab-content {
     <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
     <div class="settings-tab"        data-tab="templates" onclick="settingsSwitchTab('templates')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Manage shared notes / email / meeting / call templates">Templates <span class="settings-tab-cnt" id="settings-cnt-templates" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
+    <div class="settings-tab"        data-tab="targets"   onclick="settingsSwitchTab('targets')"   style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Bulk-set sales / renewal targets for everyone">Targets <span class="settings-tab-cnt" id="settings-cnt-targets" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
   <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--text-1)!important;} .settings-tab.active .settings-tab-cnt{background:var(--lime-200,#ECF8C0)!important;color:var(--text-1)!important;}</style>
   <div id="settings-pane-roles"     style="flex:1;min-height:0;"></div>
   <div id="settings-pane-simulator" style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-templates" style="flex:1;min-height:0;display:none;"></div>
+  <div id="settings-pane-targets"   style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-policies"  style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-teams"     style="display:none;"></div>
 </div>
@@ -8616,6 +8618,139 @@ window.openTargetEditor = function(profileId, category, periodKind, periodStartI
     }
   })();
 };
+
+// ═══ SETTINGS → TARGETS (bulk admin grid) ════════════════════════════
+// Rows = active profiles, columns = month/quarter/year cells, two
+// categories (Sales/Renewal). Inline-edit, save on blur via set_target RPC.
+
+window.SETT_TARGETS_PERIOD = window.SETT_TARGETS_PERIOD || 'month';
+window.SETT_TARGETS_CAT    = window.SETT_TARGETS_CAT    || 'new_sales';
+window.SETT_TARGETS_YEAR   = window.SETT_TARGETS_YEAR   || (new Date()).getFullYear();
+window.SETT_TARGETS_DATA   = window.SETT_TARGETS_DATA   || [];
+
+function _settTargetsColumns(){
+  const y = window.SETT_TARGETS_YEAR;
+  if (window.SETT_TARGETS_PERIOD === 'month') {
+    return Array.from({length:12}, (_,i) => {
+      const d = new Date(y, i, 1);
+      return { startISO: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{month:'short'}) };
+    });
+  } else if (window.SETT_TARGETS_PERIOD === 'quarter') {
+    return Array.from({length:4}, (_,i) => {
+      const d = new Date(y, i*3, 1);
+      return { startISO: d.toISOString().slice(0,10), label: `Q${i+1}` };
+    });
+  } else {
+    return [{ startISO: `${y}-01-01`, label: String(y) }];
+  }
+}
+
+window.renderSettingsTargets = async function(){
+  const root = document.getElementById('settings-pane-targets'); if(!root) return;
+  if (window.AUTH_PROFILE?.role !== 'admin'){ root.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);">Admin only.</div>'; return; }
+  root.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);">Loading…</div>';
+
+  // Pull every target for this period_kind in the calendar year
+  const token = await _getValidAccessToken();
+  const yStart = `${window.SETT_TARGETS_YEAR}-01-01`;
+  const yEnd   = `${window.SETT_TARGETS_YEAR}-12-31`;
+  const r = await fetch(`${SB_URL}/rest/v1/targets?period_kind=eq.${window.SETT_TARGETS_PERIOD}&period_start=gte.${yStart}&period_start=lte.${yEnd}&select=*`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  window.SETT_TARGETS_DATA = r.ok ? await r.json() : [];
+  const cnt = document.getElementById('settings-cnt-targets');
+  if (cnt) cnt.textContent = window.SETT_TARGETS_DATA.length;
+  paintSettingsTargets();
+};
+
+window.setSettTargetsPeriod = function(p){ window.SETT_TARGETS_PERIOD = p; renderSettingsTargets(); };
+window.setSettTargetsCat    = function(c){ window.SETT_TARGETS_CAT    = c; paintSettingsTargets(); };
+window.setSettTargetsYear   = function(y){ window.SETT_TARGETS_YEAR   = parseInt(y,10); renderSettingsTargets(); };
+
+window.settTargetSave = async function(profileId, periodStartISO, raw){
+  const num = String(raw||'').replace(/[^\d]/g,'');
+  const amount = num === '' ? null : parseInt(num,10);
+  const token = await _getValidAccessToken(); if(!token) return;
+  const rpc = amount == null ? 'clear_target' : 'set_target';
+  const body = amount == null
+    ? { p_owner_kind:'profile', p_owner_id:profileId, p_category:window.SETT_TARGETS_CAT, p_period_kind:window.SETT_TARGETS_PERIOD, p_period_start:periodStartISO }
+    : { p_owner_kind:'profile', p_owner_id:profileId, p_category:window.SETT_TARGETS_CAT, p_period_kind:window.SETT_TARGETS_PERIOD, p_period_start:periodStartISO, p_amount:amount, p_notes:null };
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/${rpc}`, {
+    method:'POST', headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (!res.ok){
+    let msg = 'Save failed'; try { msg = (await res.json()).message || msg; } catch {}
+    toast(msg,'error'); return;
+  }
+  // Update in-memory list
+  const i = window.SETT_TARGETS_DATA.findIndex(t => t.owner_kind==='profile' && t.owner_id===profileId && t.category===window.SETT_TARGETS_CAT && t.period_kind===window.SETT_TARGETS_PERIOD && t.period_start===periodStartISO);
+  if (amount == null && i >= 0) window.SETT_TARGETS_DATA.splice(i,1);
+  else if (amount != null && i >= 0) window.SETT_TARGETS_DATA[i].amount_egp = amount;
+  else if (amount != null) window.SETT_TARGETS_DATA.push({owner_kind:'profile',owner_id:profileId,category:window.SETT_TARGETS_CAT,period_kind:window.SETT_TARGETS_PERIOD,period_start:periodStartISO,amount_egp:amount,is_override:true});
+  // Update only the cell footer (year total) without full repaint to keep focus
+  const tot = document.getElementById(`tot-${profileId}`);
+  if (tot){
+    const sum = window.SETT_TARGETS_DATA.filter(t => t.owner_kind==='profile' && t.owner_id===profileId && t.category===window.SETT_TARGETS_CAT && t.period_kind===window.SETT_TARGETS_PERIOD).reduce((s,t) => s + (t.amount_egp||0), 0);
+    tot.textContent = sum ? 'EGP ' + sum.toLocaleString('en-US') : '—';
+  }
+};
+
+function paintSettingsTargets(){
+  const root = document.getElementById('settings-pane-targets'); if(!root) return;
+  const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
+  const profiles = (window.PROFILES_DIR||[]).filter(p => p.active !== false).sort((a,b) => (a.full_name||a.email||'').localeCompare(b.full_name||b.email||''));
+  const cols = _settTargetsColumns();
+  const cat = window.SETT_TARGETS_CAT;
+  const period = window.SETT_TARGETS_PERIOD;
+  const year = window.SETT_TARGETS_YEAR;
+  const dataByKey = {};
+  window.SETT_TARGETS_DATA.filter(t => t.owner_kind==='profile' && t.category===cat && t.period_kind===period).forEach(t => {
+    dataByKey[`${t.owner_id}_${t.period_start}`] = t.amount_egp;
+  });
+  const totalFor = p => cols.reduce((s,c) => s + (dataByKey[`${p.id}_${c.startISO}`]||0), 0);
+  const fmtEgp = n => n ? 'EGP ' + n.toLocaleString('en-US') : '—';
+  const periodBtn = (k,l) => `<button onclick="setSettTargetsPeriod('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${period===k?'var(--text-1)':'var(--border)'};background:${period===k?'var(--text-1)':'transparent'};color:${period===k?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
+  const catBtn = (k,l) => `<button onclick="setSettTargetsCat('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${cat===k?'var(--lime-700)':'var(--border)'};background:${cat===k?'var(--lime-200,#ECF8C0)':'transparent'};color:${cat===k?'var(--text-1)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
+  const yearOpts = [year-1, year, year+1].map(y => `<option value="${y}"${y===year?' selected':''}>${y}</option>`).join('');
+  root.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:14px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:var(--text-1);">Targets — bulk editor</div>
+        <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Type a number in any cell, tab or blur to save. Empty = no target.</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
+        <div style="width:8px;"></div>
+        ${periodBtn('month','Month')}${periodBtn('quarter','Quarter')}${periodBtn('year','Year')}
+        <div style="width:8px;"></div>
+        <select onchange="setSettTargetsYear(this.value)" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text-1);">${yearOpts}</select>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:var(--bg-2);">
+            <th style="text-align:left;padding:10px 14px;font-size:10.5px;font-weight:700;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;position:sticky;left:0;background:var(--bg-2);min-width:200px;">Person</th>
+            ${cols.map(c => `<th style="text-align:right;padding:10px 8px;font-size:10.5px;font-weight:700;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;min-width:90px;">${escFn(c.label)}</th>`).join('')}
+            <th style="text-align:right;padding:10px 14px;font-size:10.5px;font-weight:700;letter-spacing:0.06em;color:var(--text-3);text-transform:uppercase;background:var(--bg-2);">Year total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${profiles.length === 0 ? `<tr><td colspan="${cols.length+2}" style="padding:24px;text-align:center;color:var(--text-3);">No active profiles.</td></tr>` :
+          profiles.map(p => `<tr style="border-top:1px solid var(--border);">
+            <td style="padding:8px 14px;font-weight:600;color:var(--text);position:sticky;left:0;background:var(--surface);">${escFn(p.full_name||p.email)}<div style="font-size:11px;font-weight:500;color:var(--text-4);">${escFn(p.email||'')}</div></td>
+            ${cols.map(c => {
+              const k = `${p.id}_${c.startISO}`;
+              const v = dataByKey[k];
+              return `<td style="padding:4px 4px;text-align:right;"><input type="text" inputmode="numeric" placeholder="—" value="${v?v.toLocaleString('en-US'):''}" onblur="settTargetSave('${p.id}','${c.startISO}',this.value)" onkeydown="if(event.key==='Enter')this.blur();" style="width:88px;padding:5px 7px;font:inherit;font-size:12px;border:1px solid var(--border);border-radius:6px;text-align:right;background:transparent;color:var(--text-1);font-variant-numeric:tabular-nums;"/></td>`;
+            }).join('')}
+            <td id="tot-${p.id}" style="padding:8px 14px;text-align:right;font-weight:600;color:var(--text);background:var(--bg-2);font-variant-numeric:tabular-nums;">${fmtEgp(totalFor(p))}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
 
 // ─── SETTINGS → TEMPLATES ─────────────────────────────────
 window.renderSettingsTemplates = async function(){
@@ -18562,7 +18697,7 @@ window.addEventListener('auth-ready', () => {
 
   // ─── Tab switcher ─────────────────────────────────────
   function settingsSwitchTab(tab){
-    ['roles','policies','teams','simulator','templates'].forEach(function(t){
+    ['roles','policies','teams','simulator','templates','targets'].forEach(function(t){
       var tabEl = document.querySelector('.settings-tab[data-tab="'+t+'"]');
       if (tabEl) tabEl.classList.toggle('active', t === tab);
       var pane = document.getElementById('settings-pane-'+t);
@@ -18573,6 +18708,7 @@ window.addEventListener('auth-ready', () => {
     if (tab === 'teams'     && typeof renderSettingsTeams     === 'function') renderSettingsTeams();
     if (tab === 'simulator' && typeof renderSettingsSimulator === 'function') renderSettingsSimulator();
     if (tab === 'templates' && typeof renderSettingsTemplates === 'function') renderSettingsTemplates();
+    if (tab === 'targets'   && typeof renderSettingsTargets   === 'function') renderSettingsTargets();
   }
   window.settingsSwitchTab = settingsSwitchTab;
 
