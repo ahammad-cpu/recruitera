@@ -14024,7 +14024,7 @@ function switchMainView(view) {
     }
     setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,true); setActive(utmItem,false);
     if (topbarTitle)  topbarTitle.innerHTML = `Reports`;
-    requestAnimationFrame(() => { renderDashboard(); if(typeof renderRepsLeaderboard==='function') renderRepsLeaderboard(); });
+    requestAnimationFrame(() => { renderDashboard(); });
   } else if (view === 'utm') {
     // Admin-only gate (defense in depth — sidebar item is already hidden for non-admins)
     if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
