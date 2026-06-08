@@ -15000,18 +15000,34 @@ async function loadMarketingTracking(){
 
 // Resolve a marketing_tracking row for a given lead using the multi-key index.
 // Order: account_id → source-specific bubble ID → company_ref. First hit wins.
+// Tries the ID both exact AND with trailing zeros stripped, because Bubble
+// sync sometimes corrupts long IDs via JS Number precision loss (appends 0s).
+function _tryBubbleId(id){
+  if (!id) return null;
+  if (window.MT_BY_BUBBLE_ID[id]) return window.MT_BY_BUBBLE_ID[id];
+  // Strip trailing zeros (common precision-loss signature)
+  const stripped = id.replace(/0+$/, '');
+  if (stripped !== id && window.MT_BY_BUBBLE_ID[stripped]) return window.MT_BY_BUBBLE_ID[stripped];
+  // Also try truncating to canonical 13+x+16-digit format
+  const m = id.match(/^(\d{13})x(\d+)$/);
+  if (m){
+    const truncated = m[1] + 'x' + m[2].slice(0, 16);
+    if (truncated !== id && window.MT_BY_BUBBLE_ID[truncated]) return window.MT_BY_BUBBLE_ID[truncated];
+  }
+  return null;
+}
 window.resolveMT = function(lead){
   if(!lead) return null;
   if(lead._supabase_id && window.MT_BY_ACCOUNT[lead._supabase_id]) return window.MT_BY_ACCOUNT[lead._supabase_id];
   const rd = lead.raw_data || {};
   const src = (lead.source || rd.Source || '').toString().toLowerCase();
   if (src.includes('demo')){
-    const webflowId = rd['Webflow Marketing Tracking'];
-    if (webflowId && window.MT_BY_BUBBLE_ID[webflowId]) return window.MT_BY_BUBBLE_ID[webflowId];
+    const hit = _tryBubbleId(rd['Webflow Marketing Tracking']);
+    if (hit) return hit;
   }
   if (src.includes('trial') || lead.has_trial || lead.company_ref){
-    const systemId = rd['System Marketing Tracking'];
-    if (systemId && window.MT_BY_BUBBLE_ID[systemId]) return window.MT_BY_BUBBLE_ID[systemId];
+    const hit = _tryBubbleId(rd['System Marketing Tracking']);
+    if (hit) return hit;
   }
   const cref = lead.company_ref || rd.Company_Ref;
   if (cref && window.MT_BY_COMPANY_REF[cref]) return window.MT_BY_COMPANY_REF[cref];
