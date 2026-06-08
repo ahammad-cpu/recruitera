@@ -9343,28 +9343,10 @@ function renderNotifDropdown(){
 // Bind the bell click handler as soon as the bell element exists, without
 // waiting for any async data loaders. The earlier inline `onclick` attribute
 // could be swallowed if a subscript broke definition timing.
-function _bindNotifBell(){
-  const bell = document.getElementById('notif-bell');
-  if (!bell || bell.dataset.notifBound) return;
-  bell.dataset.notifBound = '1';
-  bell.addEventListener('click', function(ev){
-    if (ev) ev.stopPropagation();
-    console.log('[notif] bell clicked');
-    if (typeof toggleNotifDropdown === 'function') toggleNotifDropdown(ev);
-    else console.error('[notif] toggleNotifDropdown not defined yet');
-  });
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', _bindNotifBell);
-} else {
-  _bindNotifBell();
-}
-// Re-try every 500ms for the first 5s in case the topbar renders late
-let _bindAttempts = 0;
-const _bindInterval = setInterval(() => {
-  _bindNotifBell();
-  if (++_bindAttempts >= 10 || (document.getElementById('notif-bell')?.dataset.notifBound)) clearInterval(_bindInterval);
-}, 500);
+// (Removed _bindNotifBell + setInterval — they double-fired the click with the
+//  inline onclick on the bell button, opening the overlay and then immediately
+//  closing it via toggleNotifDropdown in the same event tick. The inline
+//  onclick is now the single source of truth.)
 
 window.toggleNotifDropdown = function(ev){
   if (ev && ev.stopPropagation) ev.stopPropagation();
