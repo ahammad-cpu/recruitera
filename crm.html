@@ -10115,8 +10115,31 @@ window.openQualHistory = async function(leadId){
 const STORAGE_PREFIX='rcrm5_';
 
 // ── Supabase (primary data source + writes) ──────────────────────────────
-const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
-const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+// ── Environment routing ──────────────────────────────────────────────
+// Staging hostname → staging Supabase project. Anything else → production.
+// This lets the SAME crm.html file serve both environments. Team trains
+// at staging-crm.recruitera.ai with zero risk to real customer data.
+const _IS_STAGING = (typeof location !== 'undefined') && (
+  location.hostname === 'staging-crm.recruitera.ai' ||
+  location.hostname.startsWith('staging.') ||
+  location.hostname.startsWith('staging-')
+);
+const SB_URL = _IS_STAGING
+  ? 'https://__STAGING_PROJECT_REF__.supabase.co'  // filled after Supabase project created
+  : 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
+const SB_KEY = _IS_STAGING
+  ? '__STAGING_PUBLISHABLE_KEY__'                  // filled after Supabase project created
+  : 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+// Add a top-banner on staging so users always know which environment they're in.
+if (_IS_STAGING) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:repeating-linear-gradient(45deg,#FFE8A3,#FFE8A3 12px,#F5C842 12px,#F5C842 24px);color:#3A2C00;font:600 12px system-ui;padding:5px 14px;text-align:center;letter-spacing:0.04em;box-shadow:0 2px 6px rgba(0,0,0,0.12);';
+    b.textContent = '🛠 STAGING ENVIRONMENT — data here is sandbox, not production';
+    document.body.appendChild(b);
+    document.body.style.paddingTop = '24px';
+  });
+}
 const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
 
 // ─── AUTH GATE — runs synchronously before anything else ─────────
