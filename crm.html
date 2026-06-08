@@ -9317,7 +9317,11 @@ function renderNotifDropdown(){
     <button onclick="markAllNotifRead()" style="background:none;border:none;color:var(--text-3);font-size:11.5px;cursor:pointer;padding:2px 4px;">Mark all read</button>
   </div>`;
   if(!rows.length){
-    dd.innerHTML = header + `<div style="padding:32px;text-align:center;color:var(--text-3);font-size:12.5px;">No notifications yet.</div>`;
+    dd.innerHTML = header + `<div style="padding:28px 22px;text-align:center;color:var(--text-3);font-size:12.5px;line-height:1.6;">
+      <div style="font-size:32px;margin-bottom:8px;">🔔</div>
+      <div style="font-weight:600;color:var(--text-2);margin-bottom:6px;">You're all caught up</div>
+      <div style="font-size:11.5px;">You'll be pinged here when a teammate <b>@-mentions you</b>, <b>assigns you a task</b>, or one of <b>your tasks comes due</b>.</div>
+    </div>`;
     return;
   }
   const body = rows.slice(0,20).map(n => {
