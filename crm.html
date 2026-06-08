@@ -10793,6 +10793,17 @@ function toggleTaskDone(accId, itemId){
   if(i >= 0){ arr[i].task_done = !arr[i].task_done; arr[i].task_done_at = arr[i].task_done ? Date.now() : null; sLog(accId, arr); newDone = arr[i].task_done; recurRule = arr[i].recur_rule; }
   if(ri >= 0){ rArr[ri].task_done = newDone !== undefined ? newDone : !rArr[ri].task_done; rArr[ri].task_done_at = rArr[ri].task_done ? Date.now() : null; newDone = rArr[ri].task_done; recurRule = recurRule || rArr[ri].recur_rule; }
   try { persistActivityPatch(itemId, { task_done: newDone }); } catch {}
+  // Keep Home dashboard "My tasks" widget in sync: drop completed task / add back if un-checked
+  if(Array.isArray(window.MY_OPEN_TASKS)){
+    if(newDone){
+      window.MY_OPEN_TASKS = window.MY_OPEN_TASKS.filter(t => t.id !== itemId);
+    }
+    // Re-paint home if it's currently visible
+    const homeEl = document.getElementById('home-view');
+    if(homeEl && homeEl.style.display !== 'none' && typeof paintHomeView === 'function'){
+      try { paintHomeView(); } catch {}
+    }
+  }
   // Recurring trigger fires server-side; refetch on next render to pick up the new instance
   if(newDone && recurRule && recurRule !== 'none' && sbId){
     setTimeout(() => loadActivitiesForAccount(sbId).then(() => {
