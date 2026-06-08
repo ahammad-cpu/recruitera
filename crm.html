@@ -10128,7 +10128,9 @@ const SB_URL = _IS_STAGING
   ? 'https://oswuvlahxlktxjzqudxg.supabase.co'  // filled after Supabase project created
   : 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
 const SB_KEY = _IS_STAGING
-  ? 'sb_publishable_nQim2RapEVAlZJ3OuZaCHA_NkBwlGnS'                  // filled after Supabase project created
+  // Staging PostgREST rejects sb_publishable_* — falls back to the legacy
+  // JWT-format anon key. Same security model, just an older transport.
+  ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zd3V2bGFoeGxrdHhqenF1ZHhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDY1NDgsImV4cCI6MjA5NjUyMjU0OH0.AYxOsZw9UxYURWo-TIxuFbGzHEs0Ci1eevQ6d6i5lFk'
   : 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
 // Add a top-banner on staging so users always know which environment they're in.
 if (_IS_STAGING) {
