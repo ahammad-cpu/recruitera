@@ -7701,14 +7701,12 @@ body .ld-tab-content {
     <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
     <div class="settings-tab"        data-tab="templates" onclick="settingsSwitchTab('templates')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Manage shared notes / email / meeting / call templates">Templates <span class="settings-tab-cnt" id="settings-cnt-templates" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
-    <div class="settings-tab"        data-tab="targets"   onclick="settingsSwitchTab('targets')"   style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Bulk-set sales / renewal targets for everyone">Targets <span class="settings-tab-cnt" id="settings-cnt-targets" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
   <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--text-1)!important;} .settings-tab.active .settings-tab-cnt{background:var(--lime-200,#ECF8C0)!important;color:var(--text-1)!important;}</style>
   <div id="settings-pane-roles"     style="flex:1;min-height:0;"></div>
   <div id="settings-pane-simulator" style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-templates" style="flex:1;min-height:0;display:none;"></div>
-  <div id="settings-pane-targets"   style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-policies"  style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-teams"     style="display:none;"></div>
 </div>
@@ -8471,6 +8469,7 @@ window.setHomeViewingAs = function(profileId){
 
 // ═══ FORECAST VIEW ════════════════════════════════════════════════
 // Stage-weighted pipeline projection vs target. Per-user (own or "Viewing as").
+window.FORECAST_MODE   = window.FORECAST_MODE   || 'overview'; // overview | targets
 window.FORECAST_PERIOD = window.FORECAST_PERIOD || 'quarter';
 window.FORECAST_CAT    = window.FORECAST_CAT    || 'new_sales';
 window.FORECAST_VIEW_AS = window.FORECAST_VIEW_AS || null;
@@ -8480,12 +8479,22 @@ window.setForecastPeriod = function(p){ window.FORECAST_PERIOD = p; renderForeca
 window.setForecastCat    = function(c){ window.FORECAST_CAT    = c; paintForecastView(); };
 window.setForecastViewAs = function(id){ window.FORECAST_VIEW_AS = id || null; renderForecastView(); };
 
+window.setForecastMode = function(m){
+  window.FORECAST_MODE = m;
+  if (m === 'targets'){
+    // Reuse the settings-targets grid pipeline but render into forecast-view
+    renderForecastTargets();
+  } else {
+    renderForecastView();
+  }
+};
+
 window.renderForecastView = async function(){
   const root = document.getElementById('forecast-view'); if(!root) return;
+  if (window.FORECAST_MODE === 'targets'){ return renderForecastTargets(); }
   root.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-3);">Loading…</div>`;
   const auth = window.AUTH_PROFILE || {};
   const viewingId = window.FORECAST_VIEW_AS || auth.id;
-  // Pull data
   const token = await _getValidAccessToken();
   const tasks = [];
   if (token){
@@ -8496,6 +8505,44 @@ window.renderForecastView = async function(){
   if (tasks.length) await Promise.all(tasks);
   paintForecastView();
 };
+
+window.renderForecastTargets = async function(){
+  const root = document.getElementById('forecast-view'); if(!root) return;
+  if (window.AUTH_PROFILE?.role !== 'admin'){
+    root.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔒</div><div class="empty-state-title">Admin only</div><div>Bulk-edit targets is restricted to admins. Ask one to set your numbers.</div></div>`;
+    return;
+  }
+  root.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);">Loading targets…</div>';
+  const token = await _getValidAccessToken();
+  const yStart = `${window.SETT_TARGETS_YEAR}-01-01`;
+  const yEnd   = `${window.SETT_TARGETS_YEAR}-12-31`;
+  const r = await fetch(`${SB_URL}/rest/v1/targets?period_kind=eq.${window.SETT_TARGETS_PERIOD}&period_start=gte.${yStart}&period_start=lte.${yEnd}&select=*`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  window.SETT_TARGETS_DATA = r.ok ? await r.json() : [];
+  paintForecastTargets();
+};
+
+function paintForecastTargets(){
+  const root = document.getElementById('forecast-view'); if(!root) return;
+  // Re-use the existing settings-targets paint logic but inject into forecast-view
+  // by temporarily swapping the DOM target.
+  root.innerHTML = `<div id="forecast-targets-tabs"></div><div id="settings-pane-targets" style="flex:1;min-height:0;"></div>`;
+  // Render the mode toggle on top
+  const tabs = document.getElementById('forecast-targets-tabs');
+  tabs.innerHTML = `
+    <div class="page-head" style="margin-bottom:14px;">
+      <div>
+        <div class="page-title">🔮 Forecast</div>
+        <div class="page-sub">Project vs target across periods. Admins can bulk-edit targets here.</div>
+      </div>
+      <div class="page-toolbar">
+        <button class="pill-btn ${window.FORECAST_MODE==='overview'?'active':''}" onclick="setForecastMode('overview')">📊 Overview</button>
+        ${window.AUTH_PROFILE?.role==='admin' ? `<button class="pill-btn ${window.FORECAST_MODE==='targets'?'active':''}" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
+      </div>
+    </div>`;
+  paintSettingsTargets();
+}
 
 function paintForecastView(){
   const root = document.getElementById('forecast-view'); if(!root) return;
@@ -8591,17 +8638,22 @@ function paintForecastView(){
 
   const stageLabel = s => ({won:'Won',proposal:'Proposal',demo:'Demo',sql:'SQL','active':'Renewal (active)','negotiating':'Renewal (negotiating)','renewed':'Renewed'})[s]||s;
 
+  const isAdminUser = window.AUTH_PROFILE?.role === 'admin';
   root.innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:14px;flex-wrap:wrap;">
+    <div class="page-head">
       <div>
-        <div style="font-size:22px;font-weight:700;color:var(--text);">🔮 Forecast</div>
-        <div style="font-size:13px;color:var(--text-3);margin-top:2px;">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':'New-sales pipeline'} · weighted by stage probability</div>
+        <div class="page-title">🔮 Forecast</div>
+        <div class="page-sub">${escFn(win.label)} · ${category==='renewal'?'Renewal pipeline':'New-sales pipeline'} · weighted by stage probability</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        ${viewerPicker}<div style="width:8px;"></div>
-        ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}<div style="width:8px;"></div>
-        ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
+      <div class="page-toolbar">
+        <button class="pill-btn active">📊 Overview</button>
+        ${isAdminUser ? `<button class="pill-btn" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
       </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;gap:6px;flex-wrap:wrap;">
+      ${viewerPicker}<div style="width:8px;"></div>
+      ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}<div style="width:8px;"></div>
+      ${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
@@ -18951,7 +19003,7 @@ window.addEventListener('auth-ready', () => {
 
   // ─── Tab switcher ─────────────────────────────────────
   function settingsSwitchTab(tab){
-    ['roles','policies','teams','simulator','templates','targets'].forEach(function(t){
+    ['roles','policies','teams','simulator','templates'].forEach(function(t){
       var tabEl = document.querySelector('.settings-tab[data-tab="'+t+'"]');
       if (tabEl) tabEl.classList.toggle('active', t === tab);
       var pane = document.getElementById('settings-pane-'+t);
@@ -18962,7 +19014,6 @@ window.addEventListener('auth-ready', () => {
     if (tab === 'teams'     && typeof renderSettingsTeams     === 'function') renderSettingsTeams();
     if (tab === 'simulator' && typeof renderSettingsSimulator === 'function') renderSettingsSimulator();
     if (tab === 'templates' && typeof renderSettingsTemplates === 'function') renderSettingsTemplates();
-    if (tab === 'targets'   && typeof renderSettingsTargets   === 'function') renderSettingsTargets();
   }
   window.settingsSwitchTab = settingsSwitchTab;
 
