@@ -8411,69 +8411,153 @@ window.setHomeViewingAs = function(profileId){
 
 // (Standalone Tasks page removed — tasks live on Lead Detail + Home widget.)
 // ─── REPS LEADERBOARD (rendered on Reports view) ──────────
-window.renderRepsLeaderboard = function(){
+// ─── REPS / TEAMS / ORG LEADERBOARD (Reports view) ────────
+window.LEADERBOARD_TAB    = window.LEADERBOARD_TAB    || 'reps';      // reps | teams | org
+window.LEADERBOARD_PERIOD = window.LEADERBOARD_PERIOD || 'quarter';   // month | quarter | year
+window.LEADERBOARD_CAT    = window.LEADERBOARD_CAT    || 'new_sales'; // new_sales | renewal
+window.ALL_TARGETS_CACHE  = window.ALL_TARGETS_CACHE  || null;        // {periodStartISO_periodKind: rows[]}
+
+window.renderRepsLeaderboard = async function(){
   const dashEl = document.getElementById('dashboard-view'); if(!dashEl) return;
-  // Remove previous render
+  const old = document.getElementById('reps-leaderboard'); if(old) old.remove();
+  // Pre-fetch all targets for the current period × category once.
+  const win = _periodWindow(window.LEADERBOARD_PERIOD);
+  const cacheKey = `${win.startISO}_${window.LEADERBOARD_PERIOD}`;
+  if (!window.ALL_TARGETS_CACHE || window.ALL_TARGETS_CACHE._key !== cacheKey) {
+    const token = await _getValidAccessToken();
+    if (token) {
+      const r = await fetch(`${SB_URL}/rest/v1/targets?period_kind=eq.${window.LEADERBOARD_PERIOD}&period_start=eq.${win.startISO}&select=*`, {
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+      });
+      window.ALL_TARGETS_CACHE = r.ok ? await r.json() : [];
+      window.ALL_TARGETS_CACHE._key = cacheKey;
+    } else {
+      window.ALL_TARGETS_CACHE = [];
+    }
+  }
+  paintLeaderboard();
+};
+
+window.setLeaderboardTab    = function(t){ window.LEADERBOARD_TAB = t; paintLeaderboard(); };
+window.setLeaderboardCat    = function(c){ window.LEADERBOARD_CAT = c; paintLeaderboard(); };
+window.setLeaderboardPeriod = function(p){ window.LEADERBOARD_PERIOD = p; window.ALL_TARGETS_CACHE = null; renderRepsLeaderboard(); };
+
+function paintLeaderboard(){
+  const dashEl = document.getElementById('dashboard-view'); if(!dashEl) return;
   const old = document.getElementById('reps-leaderboard'); if(old) old.remove();
   const profiles = (window.PROFILES_DIR||[]).filter(p => p.active !== false);
   if(!profiles.length) return;
   const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
-  const fmtEgp = n => 'EGP ' + (n||0).toLocaleString('en-US');
-  const now = new Date();
-  const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1).getTime();
-  const qEnd   = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3 + 3, 1).getTime() - 1;
-  const qLabel = `Q${Math.floor(now.getMonth()/3)+1} ${now.getFullYear()}`;
+  const fmtEgp = n => 'EGP ' + (Math.round(n)||0).toLocaleString('en-US');
+  const win = _periodWindow(window.LEADERBOARD_PERIOD);
+  const category = window.LEADERBOARD_CAT;
+  const tab = window.LEADERBOARD_TAB;
+  const targetsForCat = (window.ALL_TARGETS_CACHE||[]).filter(t => t.category === category);
+  const profById = {}; profiles.forEach(p => { profById[p.id] = p; });
 
-  // Compute per-rep closed amount this quarter
-  const rows = profiles.map(p => {
+  // ── Per-rep actual amount in window × category
+  const repActual = profiles.map(p => {
     const email = (p.email||'').toLowerCase();
-    const won = (window.leads||[]).filter(l => {
-      const am = (gAmMail(l) || gOwner(l._id) || '').toLowerCase();
-      if (am !== email) return false;
-      if (gStage(l._id) !== 'won') return false;
-      const t = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
-      return t >= qStart && t <= qEnd;
-    });
-    const amount = won.reduce((s,l) => s + (parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0), 0);
-    const target = p.quarterly_target_egp;
-    const pct = target ? (amount / target * 100) : null;
-    return { p, amount, target, pct, deals: won.length };
-  }).filter(r => r.target || r.amount > 0); // only show reps with a target OR closed deals
+    let amount = 0, deals = 0;
+    if (category === 'new_sales') {
+      const won = (window.leads||[]).filter(l => {
+        const am = (gAmMail(l) || gOwner(l._id) || '').toLowerCase();
+        if (am !== email) return false;
+        if (gStage(l._id) !== 'won') return false;
+        const t = new Date(gClose(l._id) || gCreated(l) || 0).getTime();
+        return t >= win.start && t <= win.end;
+      });
+      amount = won.reduce((s,l) => s + (parseFloat(String(gAcv(l._id)).replace(/[^\d.\-]/g,''))||0), 0);
+      deals = won.length;
+    }
+    // Renewal actuals computed at team-rollup level by team_id rather than email
+    const trow = targetsForCat.find(t => t.owner_kind==='profile' && t.owner_id===p.id);
+    return { p, amount, deals, target: trow?.amount_egp ?? null };
+  });
 
-  if (!rows.length) return;
+  const tierColor = pct => pct==null?'#A0A6AE':pct>=80?'#2F8F5C':pct>=50?'#7BAE3F':pct>=25?'#B8761A':'#B83A3A';
+  const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+  const pctOf = (a,t) => t ? (a/t*100) : null;
+
+  // ── Build rows by tab
+  let rows = [];
+  let subtitle = '';
+  if (tab === 'reps') {
+    rows = repActual.filter(r => r.target || r.amount > 0).map(r => ({
+      label: r.p.full_name || r.p.email, sub: `${r.deals} deal${r.deals===1?'':'s'} closed`,
+      amount: r.amount, target: r.target, pct: pctOf(r.amount, r.target)
+    }));
+    subtitle = 'Ranked by % to target';
+  } else if (tab === 'teams') {
+    const byTeam = {};
+    repActual.forEach(r => {
+      const tid = r.p.team_id || '_no_team';
+      if (!byTeam[tid]) byTeam[tid] = { label: '', members:0, amount:0, deals:0, sumTargets:0, override:null };
+      byTeam[tid].members += 1;
+      byTeam[tid].amount += r.amount;
+      byTeam[tid].deals  += r.deals;
+      byTeam[tid].sumTargets += (r.target||0);
+    });
+    // Team-level overrides
+    (window.ALL_TARGETS_CACHE||[]).filter(t => t.owner_kind==='team' && t.category===category).forEach(t => {
+      if (byTeam[t.owner_id]) byTeam[t.owner_id].override = t.amount_egp;
+    });
+    rows = Object.entries(byTeam).map(([tid, x]) => {
+      const team = (window.TEAMS_DIR||[]).find(t => t.id === tid);
+      const finalTarget = x.override != null ? x.override : (x.sumTargets > 0 ? x.sumTargets : null);
+      return {
+        label: team?.name || (tid==='_no_team' ? '⚠️ No team assigned' : tid.slice(0,8)),
+        sub: `${x.members} member${x.members===1?'':'s'} · ${x.deals} deal${x.deals===1?'':'s'}${x.override!=null?' · target overridden':''}`,
+        amount: x.amount, target: finalTarget, pct: pctOf(x.amount, finalTarget)
+      };
+    }).filter(r => r.target || r.amount > 0);
+    subtitle = 'Team rollup — target = sum of members unless overridden';
+  } else { // org
+    const totalAmount = repActual.reduce((s,r) => s + r.amount, 0);
+    const totalDeals  = repActual.reduce((s,r) => s + r.deals, 0);
+    const orgOverride = (window.ALL_TARGETS_CACHE||[]).find(t => t.owner_kind==='org' && t.category===category)?.amount_egp;
+    const sumIndividual = repActual.reduce((s,r) => s + (r.target||0), 0);
+    const finalTarget = orgOverride != null ? orgOverride : (sumIndividual > 0 ? sumIndividual : null);
+    rows = [{ label: 'Recruitera (org)', sub: `${profiles.length} people · ${totalDeals} deals · ${orgOverride!=null?'org target set':'sum of individuals'}`, amount: totalAmount, target: finalTarget, pct: pctOf(totalAmount, finalTarget) }];
+    subtitle = 'Whole-company performance';
+  }
 
   rows.sort((a,b) => {
-    // No-target reps go to the bottom; sort by pct desc, then amount desc.
     if (a.pct == null && b.pct == null) return b.amount - a.amount;
     if (a.pct == null) return 1;
     if (b.pct == null) return -1;
     return b.pct - a.pct;
   });
 
-  const tierColor = pct => pct==null?'#A0A6AE':pct>=80?'#2F8F5C':pct>=50?'#7BAE3F':pct>=25?'#B8761A':'#B83A3A';
-  const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+  const tabBtn = (id, label) => `<button onclick="setLeaderboardTab('${id}')" style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:7px;border:1px solid ${tab===id?'var(--text-1)':'var(--border)'};background:${tab===id?'var(--text-1)':'transparent'};color:${tab===id?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${label}</button>`;
+  const catBtn = (id, label) => `<button onclick="setLeaderboardCat('${id}')" style="font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:6px;border:1px solid ${category===id?'var(--lime-700)':'var(--border)'};background:${category===id?'var(--lime-200,#ECF8C0)':'transparent'};color:${category===id?'var(--text-1)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${label}</button>`;
+  const periodBtn = (id, label) => `<button onclick="setLeaderboardPeriod('${id}')" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;border:1px solid ${window.LEADERBOARD_PERIOD===id?'var(--text-1)':'var(--border)'};background:${window.LEADERBOARD_PERIOD===id?'var(--text-1)':'transparent'};color:${window.LEADERBOARD_PERIOD===id?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${label}</button>`;
 
   const widget = document.createElement('div');
   widget.id = 'reps-leaderboard';
   widget.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px;';
   widget.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap;">
       <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);">🏆 Reps leaderboard</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${qLabel} · ranked by % to quarterly target</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">🏆 Leaderboard</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${escFn(win.label)} · ${escFn(subtitle)}</div>
       </div>
+      <div style="display:flex;gap:4px;">${periodBtn('month','M')}${periodBtn('quarter','Q')}${periodBtn('year','Y')}</div>
     </div>
-    <div>
-      ${rows.map((r,i) => {
-        const pctLbl = r.pct == null ? '<span style="color:var(--text-4);">no target set</span>'
-                     : `${Math.round(r.pct)}%`;
+    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;">${tabBtn('reps','👤 Reps')}${tabBtn('teams','👥 Teams')}${tabBtn('org','🏢 Org')}</div>
+      <div style="display:flex;gap:5px;">${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}</div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:6px;">
+      ${rows.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No data for this view.</div>` : rows.map((r,i) => {
+        const pctLbl = r.pct == null ? '<span style="color:var(--text-4);">no target</span>' : `${Math.round(r.pct)}%`;
         const w = r.pct == null ? 0 : Math.min(100, Math.round(r.pct));
         const c = tierColor(r.pct);
         return `<div style="display:grid;grid-template-columns:28px 1fr 1fr 160px 60px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;">
           <span style="font-size:18px;text-align:center;">${medal(i)||(i+1)}</span>
           <div style="min-width:0;">
-            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(r.p.full_name||r.p.email)}</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:1px;">${r.deals} deal${r.deals===1?'':'s'} closed</div>
+            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escFn(r.label)}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:1px;">${escFn(r.sub)}</div>
           </div>
           <div style="font-variant-numeric:tabular-nums;color:var(--text-2);">${fmtEgp(r.amount)}${r.target?` / <span style="color:var(--text-3);">${fmtEgp(r.target)}</span>`:''}</div>
           <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${w}%;background:${c};transition:width 220ms ease;"></div></div>
@@ -8481,9 +8565,8 @@ window.renderRepsLeaderboard = function(){
         </div>`;
       }).join('')}
     </div>`;
-  // Insert at the very top of dashboard-view
   dashEl.insertBefore(widget, dashEl.firstChild);
-};
+}
 
 window.openTargetEditor = function(profileId, category, periodKind, periodStartISO){
   // Backward compat: if only profileId passed, treat as the current Home selection.
@@ -9544,6 +9627,7 @@ window.AUTH_PROFILE = null;
     try { await loadProfilesDirectory(); } catch(e) { console.warn('[profiles] dir load failed', e); }
     try { await loadMarketingTracking(); } catch(e) { console.warn('[mt] load failed', e); }
     try { await loadActivityTemplates(); } catch(e) { console.warn('[tpl] load failed', e); }
+    try { await loadTeamsDirectory(); } catch(e) { console.warn('[teams] load failed', e); }
     try { await loadNotifications(); startNotifPolling(); } catch(e) { console.warn('[notif] load failed', e); }
     // Re-render so admin/owner gates pick up the role — but only if leads are loaded.
     // If profile resolves before sbFetch, leads is still empty and a re-render would
@@ -13933,6 +14017,16 @@ async function toggleUnreachable(leadId){
 
 // ── ownerFromEmail: build display object from email ──
 const OWNER_COLORS=['#CCED59','#6C8EF5','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#14B8A6'];
+
+// Teams directory — loaded once after auth.
+window.TEAMS_DIR = [];
+async function loadTeamsDirectory(){
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/teams?select=id,name&order=name.asc`, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+token}
+  });
+  if(r.ok) window.TEAMS_DIR = await r.json();
+}
 
 // Activity templates — shared + personal. Loaded once after auth.
 window.TEMPLATES_BY_KIND = { note:[], email:[], meeting:[], call:[], task:[] };
