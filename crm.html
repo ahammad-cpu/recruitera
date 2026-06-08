@@ -16987,10 +16987,22 @@ function renderDashboard(){
   const stageCounts = {};
   stageOrder.forEach(s => { stageCounts[s] = active.filter(l => gStage(l._id) === s).length; });
 
-  // Sources distribution
+  // Sources distribution — prefer real marketing channel from MT row (LinkedIn,
+  // Google, Direct, etc.); fall back to the high-level source bucket (Trial /
+  // Demo / Inbound / etc.) when no MT row exists yet.
+  const _channelOf = l => {
+    const mt = (typeof window.resolveMT === 'function') ? window.resolveMT(l) : null;
+    const ch = mt && (mt.last_source || mt.first_source);
+    if (ch && String(ch).trim()) {
+      // Normalize: "(direct)" → "Direct", first letter upper
+      const s = String(ch).replace(/^\(|\)$/g,'').trim();
+      return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    }
+    return gSource(l) || 'Unknown';
+  };
   const srcMap = {};
-  active.forEach(l => { const s = gSource(l)||'Unknown'; srcMap[s] = (srcMap[s]||0)+1; });
-  const sortedSrcs = Object.entries(srcMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  active.forEach(l => { const s = _channelOf(l); srcMap[s] = (srcMap[s]||0)+1; });
+  const sortedSrcs = Object.entries(srcMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const totalSrc = sortedSrcs.reduce((s,[,c])=>s+c,0) || 1;
 
   // Loss reasons
@@ -17053,19 +17065,40 @@ function renderDashboard(){
   const wlMax = Math.max(1, ...weeklyWonLost.flatMap(w=>[w.won,w.lost]));
 
   // ─── Cycle by source (days from creation to "now" for won deals) ───
+  // Bucket by acquisition channel from MT — falls back to high-level source.
+  // When no won deals exist yet, surface days_to_convert from MT as a proxy so
+  // the panel isn't empty for users in early days of pipeline.
   const cycleBySrc = {};
   won.forEach(l => {
-    const src = gSource(l) || 'Unknown';
+    const src = _channelOf(l);
     const t = _createdTs(l);
     if (!t) return;
     const days = Math.max(1, Math.round((now - t)/day));
     if (!cycleBySrc[src]) cycleBySrc[src] = [];
     cycleBySrc[src].push(days);
   });
-  const cycleEntries = Object.entries(cycleBySrc)
+  let cycleEntries = Object.entries(cycleBySrc)
     .map(([s,arr]) => [s, Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)])
     .sort((a,b)=>a[1]-b[1])
     .slice(0,8);
+  // Fallback: use MT days_to_convert across active leads when no won deals exist
+  let cycleFallback = false;
+  if (cycleEntries.length === 0){
+    const fall = {};
+    active.forEach(l => {
+      const mt = (typeof window.resolveMT === 'function') ? window.resolveMT(l) : null;
+      const d = mt && mt.days_to_convert;
+      if (d == null) return;
+      const src = _channelOf(l);
+      if (!fall[src]) fall[src] = [];
+      fall[src].push(Number(d));
+    });
+    cycleEntries = Object.entries(fall)
+      .map(([s,arr]) => [s, Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)])
+      .sort((a,b)=>a[1]-b[1])
+      .slice(0,8);
+    cycleFallback = cycleEntries.length > 0;
+  }
   const cycleMax = Math.max(1, ...cycleEntries.map(([,d])=>d));
   const avgCycle = cycleEntries.length ? Math.round(cycleEntries.reduce((s,[,d])=>s+d,0)/cycleEntries.length) : 0;
 
@@ -17309,8 +17342,8 @@ function renderDashboard(){
     <div class="dsh-card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;">
         <div>
-          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">Days from MQL → Won</div>
-          <div style="font-size:13px;font-weight:600;margin-top:6px;">Average cycle by acquisition source</div>
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:600;">${cycleFallback ? 'Visit → Trial signup' : 'Days from MQL → Won'}</div>
+          <div style="font-size:13px;font-weight:600;margin-top:6px;">Average cycle by acquisition source${cycleFallback ? ' <span style="font-size:10.5px;font-weight:500;color:var(--text-3);">(from marketing tracking — no won deals yet)</span>' : ''}</div>
         </div>
         ${cycleEntries.length?`<span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:var(--lime-200);color:#4F5E1B;font-variant-numeric:tabular-nums;">avg ${avgCycle}d</span>`:''}
       </div>
