@@ -16615,14 +16615,20 @@ let dshFilterFrom  = '';      // 'YYYY-MM-DD' (only used when range==='custom')
 let dshFilterTo    = '';      // 'YYYY-MM-DD'
 
 function dshSetRange(r){
+  console.log('[reports] dshSetRange called with', r, '→ was', dshFilterRange);
   dshFilterRange = r;
   if (r !== 'custom') { dshFilterFrom = ''; dshFilterTo = ''; }
-  renderDashboard();
+  try { renderDashboard(); } catch(e){ console.error('[reports] renderDashboard threw', e); }
 }
 function dshSetOwner(v){
+  console.log('[reports] dshSetOwner called with', v, '→ was', dshFilterOwner);
   dshFilterOwner = v;
-  renderDashboard();
+  try { renderDashboard(); } catch(e){ console.error('[reports] renderDashboard threw', e); }
 }
+// Also expose explicitly on window so inline onclick can always reach them
+// even if a future refactor wraps this scope in an IIFE.
+window.dshSetRange = dshSetRange;
+window.dshSetOwner = dshSetOwner;
 function dshSetCustomFrom(v){
   dshFilterFrom = v;
   dshFilterRange = 'custom';
@@ -17873,7 +17879,7 @@ function renderDashboard(){
         ${ownerOptions.map(o=>`<option value="${esc(o.email)}"${dshFilterOwner===o.email?' selected':''}>${esc(o.name)}</option>`).join('')}
       </select>
       <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:3px;margin-left:8px;">
-        ${['all','7d','30d','90d','QTD','YTD'].map(r=>`<button onclick="dshSetRange('${r}')" style="padding:5px 12px;font-size:11px;font-weight:600;color:${dshFilterRange===r?'#fff':'var(--text-3)'};background:${dshFilterRange===r?'var(--cg-900)':'transparent'};border:none;border-radius:6px;cursor:pointer;font-family:inherit;">${r==='all'?'All':r}</button>`).join('')}
+        ${['all','7d','30d','90d','QTD','YTD'].map(r=>`<button type="button" onclick="dshSetRange('${r}');return false;" style="padding:5px 12px;font-size:11px;font-weight:600;color:${dshFilterRange===r?'#fff':'var(--text-3)'};background:${dshFilterRange===r?'var(--cg-900)':'transparent'};border:none;border-radius:6px;cursor:pointer;font-family:inherit;pointer-events:auto;">${r==='all'?'All':r}</button>`).join('')}
       </div>
       <span style="margin-left:auto;display:inline-flex;align-items:center;gap:10px;font-size:11px;color:var(--text-3);">
         <span title="Active date window" style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2);font-weight:600;color:var(--text-2);">
