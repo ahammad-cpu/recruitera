@@ -7086,6 +7086,184 @@ body .ld-tab-content {
   color: var(--text) !important;
 }
 
+/* ═══════════ COMPETITIVE HUB — scoped under .ci-scope ═══════════
+   All rules below only target descendants of #competitive-view so
+   common class names (.card / .panel / .tab / .input / .grid) can't
+   collide with CRM styles. Color tokens reuse CRM variables where
+   possible; the rest are hardcoded to match the source design. */
+.ci-scope{--ci-lime:var(--lime-500,#BAE85B);--ci-lime-hover:#A8D848;--ci-lime-subtle:rgba(186,232,91,.08);--ci-lime-muted:rgba(186,232,91,.16);--ci-navy:#1C2333;--ci-navy-50:#f4f5f6;--ci-navy-800:#161D2A;--ci-text:var(--text-1);--ci-text-sec:var(--text-2);--ci-text-muted:var(--text-3);--ci-border:var(--border);--ci-border-subtle:var(--border-2,#eff0f3);--ci-surface:var(--surface);--ci-bg:var(--bg);--ci-radius:12px;--ci-radius-lg:16px;--ci-radius-sm:8px;--ci-radius-xs:6px;--ci-radius-full:9999px;--ci-green:#10b981;--ci-green-bg:rgba(16,185,129,.07);--ci-green-border:rgba(16,185,129,.18);--ci-green-text:#047857;--ci-red:#ef4444;--ci-red-bg:rgba(239,68,68,.06);--ci-red-border:rgba(239,68,68,.14);--ci-red-text:#b91c1c;--ci-blue:#3b82f6;--ci-blue-bg:rgba(59,130,246,.06);--ci-blue-border:rgba(59,130,246,.14);--ci-blue-text:#1d4ed8;--ci-amber:#f59e0b;--ci-amber-bg:rgba(245,158,11,.07);--ci-amber-border:rgba(245,158,11,.16);--ci-amber-text:#92400e;--ci-purple:#8b5cf6;--ci-shadow-xs:0 1px 2px rgba(0,0,0,.03);--ci-shadow-sm:0 1px 3px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.02);--ci-shadow-md:0 4px 12px rgba(0,0,0,.05);font-family:inherit;color:var(--ci-text);position:relative;}
+@keyframes ci-spin{to{transform:rotate(360deg)}}
+@keyframes ci-fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ci-livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.ci-scope .ci-nav{background:var(--ci-surface);border-bottom:1px solid var(--ci-border);position:sticky;top:0;z-index:5;padding:0 24px;display:flex;overflow-x:auto;flex-shrink:0;}
+.ci-scope .ci-tab{padding:14px 18px;cursor:pointer;font-size:13px;font-weight:500;color:var(--ci-text-muted);border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;user-select:none;}
+.ci-scope .ci-tab:hover{color:var(--ci-text-sec);}
+.ci-scope .ci-tab.active{color:var(--ci-text);font-weight:600;border-bottom-color:var(--ci-lime);}
+.ci-scope .ci-tab-badge{font-size:8px;font-weight:800;background:var(--ci-lime-muted);color:var(--ci-navy);padding:2px 6px;border-radius:var(--ci-radius-full);margin-left:6px;letter-spacing:.4px;text-transform:uppercase;vertical-align:middle;}
+.ci-scope .ci-main{padding:24px 32px 48px;}
+.ci-scope .ci-sec{display:none;animation:ci-fadeUp .35s cubic-bezier(.4,0,.2,1);}
+.ci-scope .ci-sec.active{display:block;}
+.ci-scope .ci-sec-header{margin-bottom:24px;}
+.ci-scope .ci-sec-header h2{font-size:20px;font-weight:800;color:var(--ci-text);letter-spacing:-.5px;margin-bottom:4px;}
+.ci-scope .ci-sec-header p{font-size:13px;color:var(--ci-text-sec);font-weight:400;line-height:1.5;}
+.ci-scope .ci-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-bottom:28px;}
+.ci-scope .ci-card{background:var(--ci-surface);border-radius:var(--ci-radius-lg);padding:22px;border:1px solid var(--ci-border);transition:all .25s;cursor:pointer;position:relative;overflow:hidden;}
+.ci-scope .ci-card:hover{box-shadow:var(--ci-shadow-md);transform:translateY(-2px);}
+.ci-scope .ci-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.ci-scope .ci-card.home::before{background:var(--ci-lime);}
+.ci-scope .ci-card.direct::before{background:var(--ci-amber);}
+.ci-scope .ci-card.bench::before{background:var(--ci-blue);}
+.ci-scope .ci-tier-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--ci-radius-full);}
+.ci-scope .ci-tier-badge.home{color:var(--ci-navy);background:var(--ci-lime-muted);}
+.ci-scope .ci-tier-badge.direct{color:var(--ci-amber-text);background:var(--ci-amber-bg);}
+.ci-scope .ci-tier-badge.bench{color:var(--ci-blue-text);background:var(--ci-blue-bg);}
+.ci-scope .ci-card h3{font-size:17px;font-weight:700;margin-bottom:4px;letter-spacing:-.3px;color:var(--ci-text);}
+.ci-scope .ci-card-sub{font-size:12px;color:var(--ci-text-muted);margin-bottom:14px;line-height:1.4;}
+.ci-scope .ci-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ci-scope .ci-card-stat{font-size:11px;color:var(--ci-text-muted);}
+.ci-scope .ci-card-stat strong{display:block;font-size:15px;color:var(--ci-text);font-weight:700;letter-spacing:-.3px;margin-bottom:1px;}
+.ci-scope .ci-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.ci-scope .ci-input,.ci-scope .ci-select-input{padding:9px 14px;border:1px solid var(--ci-border);border-radius:var(--ci-radius-sm);font-size:13px;background:var(--ci-surface);font-family:inherit;color:var(--ci-text);outline:none;transition:all .2s;}
+.ci-scope .ci-input:focus,.ci-scope .ci-select-input:focus{border-color:var(--ci-lime);box-shadow:0 0 0 3px var(--ci-lime-subtle);}
+.ci-scope .ci-input{flex:1;min-width:220px;}
+.ci-scope .ci-btn-primary{padding:9px 20px;background:var(--ci-lime);color:var(--ci-navy);border:0;border-radius:var(--ci-radius-sm);font-weight:700;cursor:pointer;font-size:13px;font-family:inherit;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+.ci-scope .ci-btn-primary:hover{background:var(--ci-lime-hover);box-shadow:var(--ci-shadow-sm);transform:translateY(-1px);}
+.ci-scope .ci-table-wrap{overflow-x:auto;border-radius:var(--ci-radius);border:1px solid var(--ci-border);background:var(--ci-surface);}
+.ci-scope .ci-ft{width:100%;border-collapse:collapse;font-size:13px;}
+.ci-scope .ci-ft thead{background:var(--ci-navy);}
+.ci-scope .ci-ft th{padding:11px 14px;text-align:left;font-weight:600;font-size:11px;white-space:nowrap;color:#fff;letter-spacing:.3px;text-transform:uppercase;}
+.ci-scope .ci-ft td{padding:9px 14px;border-bottom:1px solid var(--ci-border-subtle);}
+.ci-scope .ci-ft tbody tr:last-child td{border-bottom:0;}
+.ci-scope .ci-ft tbody tr:hover td{background:var(--ci-lime-subtle);}
+.ci-scope .ci-ft tbody tr:nth-child(even) td{background:var(--ci-navy-50);}
+.ci-scope .ci-ft tbody tr:nth-child(even):hover td{background:var(--ci-lime-subtle);}
+.ci-scope .ci-y{color:var(--ci-green);font-weight:700;}
+.ci-scope .ci-n{color:var(--ci-red);opacity:.35;}
+.ci-scope .ci-p{color:var(--ci-amber);font-weight:600;}
+.ci-scope .ci-panel{background:var(--ci-surface);border-radius:var(--ci-radius-lg);padding:24px;border:1px solid var(--ci-border);box-shadow:var(--ci-shadow-xs);}
+.ci-scope .ci-panel-title{font-size:11px;font-weight:700;color:var(--ci-text-muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:.8px;}
+.ci-scope .ci-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;}
+@media(max-width:768px){.ci-scope .ci-chart-grid{grid-template-columns:1fr;}}
+.ci-scope .ci-chart-box{background:var(--ci-surface);border-radius:var(--ci-radius-lg);padding:22px;border:1px solid var(--ci-border);box-shadow:var(--ci-shadow-xs);}
+.ci-scope .ci-chart-box h3{font-size:14px;font-weight:700;letter-spacing:-.2px;color:var(--ci-text);margin-bottom:14px;}
+.ci-scope .ci-intel-layout{display:grid;grid-template-columns:1fr 360px;gap:22px;}
+@media(max-width:960px){.ci-scope .ci-intel-layout{grid-template-columns:1fr;}}
+.ci-scope .ci-intel-main{min-width:0;}
+.ci-scope .ci-intel-side{display:flex;flex-direction:column;gap:18px;}
+.ci-scope .ci-swot-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+@media(max-width:640px){.ci-scope .ci-swot-grid{grid-template-columns:1fr;}}
+.ci-scope .ci-swot-card{border-radius:var(--ci-radius);padding:20px;border:1px solid transparent;min-height:150px;}
+.ci-scope .ci-swot-card h5{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.ci-scope .ci-swot-card ul{list-style:none;padding:0;margin:0;}
+.ci-scope .ci-swot-card li{font-size:12.5px;padding:5px 0 5px 18px;position:relative;line-height:1.55;}
+.ci-scope .ci-swot-card li::before{content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:50%;}
+.ci-scope .ci-swot-s{background:var(--ci-green-bg);border-color:var(--ci-green-border);}
+.ci-scope .ci-swot-s h5{color:var(--ci-green-text);} .ci-scope .ci-swot-s li::before{background:var(--ci-green);}
+.ci-scope .ci-swot-w{background:var(--ci-red-bg);border-color:var(--ci-red-border);}
+.ci-scope .ci-swot-w h5{color:var(--ci-red-text);} .ci-scope .ci-swot-w li::before{background:var(--ci-red);}
+.ci-scope .ci-swot-o{background:var(--ci-blue-bg);border-color:var(--ci-blue-border);}
+.ci-scope .ci-swot-o h5{color:var(--ci-blue-text);} .ci-scope .ci-swot-o li::before{background:var(--ci-blue);}
+.ci-scope .ci-swot-t{background:var(--ci-amber-bg);border-color:var(--ci-amber-border);}
+.ci-scope .ci-swot-t h5{color:var(--ci-amber-text);} .ci-scope .ci-swot-t li::before{background:var(--ci-amber);}
+.ci-scope .ci-battleground{margin-top:18px;padding:18px 22px;background:var(--ci-navy-50);border-radius:var(--ci-radius);font-size:13px;line-height:1.7;border:1px solid var(--ci-border);}
+.ci-scope .ci-battleground strong{color:var(--ci-text);font-weight:700;}
+.ci-scope .ci-tag{display:inline-block;padding:3px 9px;border-radius:var(--ci-radius-xs);font-size:10px;font-weight:600;margin:2px 3px 2px 0;}
+.ci-scope .ci-tag-green{background:rgba(16,185,129,.1);color:var(--ci-green-text);}
+.ci-scope .ci-tag-red{background:rgba(239,68,68,.08);color:var(--ci-red-text);}
+.ci-scope .ci-tag-lime{background:var(--ci-lime-muted);color:var(--ci-navy);}
+.ci-scope .ci-tag-blue{background:var(--ci-blue-bg);color:var(--ci-blue-text);}
+.ci-scope .ci-price-bar{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-size:12px;}
+.ci-scope .ci-price-bar .ci-pb-name{width:90px;text-align:right;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ci-text);font-size:12px;}
+.ci-scope .ci-price-bar .ci-pb-track{flex:1;height:22px;background:var(--ci-navy-50);border-radius:var(--ci-radius-xs);overflow:hidden;}
+.ci-scope .ci-price-bar .ci-pb-fill{height:100%;border-radius:var(--ci-radius-xs);transition:width .7s cubic-bezier(.4,0,.2,1);}
+.ci-scope .ci-price-bar .ci-pb-val{font-size:11px;color:var(--ci-text-sec);font-weight:600;white-space:nowrap;margin-left:6px;min-width:70px;}
+.ci-scope .ci-price-insight{margin-top:14px;padding:13px 16px;background:var(--ci-lime-subtle);border-radius:var(--ci-radius-sm);font-size:12px;color:var(--ci-text-sec);line-height:1.5;border-left:3px solid var(--ci-lime);}
+.ci-scope .ci-price-insight strong{color:var(--ci-text);}
+.ci-scope .ci-fe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px;}
+.ci-scope .ci-fe-chip{padding:9px 12px;background:var(--ci-surface);border:1px solid var(--ci-border);border-radius:var(--ci-radius-sm);cursor:pointer;text-align:center;font-size:11px;font-weight:600;transition:all .2s;color:var(--ci-text-sec);}
+.ci-scope .ci-fe-chip:hover{border-color:var(--ci-lime);color:var(--ci-text);}
+.ci-scope .ci-fe-chip.active{background:var(--ci-lime);color:var(--ci-navy);border-color:var(--ci-lime);}
+.ci-scope .ci-fe-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;border-radius:var(--ci-radius-full);background:var(--ci-navy-50);font-size:9px;font-weight:700;margin-left:6px;color:var(--ci-text-muted);padding:0 5px;}
+.ci-scope .ci-fe-chip.active .ci-fe-count{background:rgba(28,35,51,.12);color:var(--ci-navy);}
+.ci-scope .ci-legend-text{font-size:11px;color:var(--ci-text-muted);margin-top:12px;line-height:1.5;}
+.ci-scope .ci-pl-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px;}
+@media(max-width:960px){.ci-scope .ci-pl-grid{grid-template-columns:1fr;}}
+.ci-scope .ci-pl-card{background:var(--ci-surface);border-radius:var(--ci-radius-lg);border:1px solid var(--ci-border);overflow:hidden;box-shadow:var(--ci-shadow-xs);}
+.ci-scope .ci-pl-card.hl{border-color:var(--ci-lime);box-shadow:0 0 0 2px var(--ci-lime-muted);}
+.ci-scope .ci-pl-card-hdr{padding:16px 20px;border-bottom:1px solid var(--ci-border);display:flex;align-items:center;justify-content:space-between;}
+.ci-scope .ci-pl-card-hdr h3{font-size:16px;font-weight:700;letter-spacing:-.2px;}
+.ci-scope .ci-pl-card-hdr .ci-pl-model-badge{font-size:10px;font-weight:600;padding:4px 10px;border-radius:var(--ci-radius-full);background:var(--ci-navy-50);color:var(--ci-text-sec);}
+.ci-scope .ci-pl-tiers{padding:16px 20px;}
+.ci-scope .ci-pl-tier{padding:14px 16px;border-radius:var(--ci-radius);border:1px solid var(--ci-border);margin-bottom:10px;}
+.ci-scope .ci-pl-tier:last-child{margin-bottom:0;}
+.ci-scope .ci-pl-tier:hover{border-color:var(--ci-lime);background:var(--ci-lime-subtle);}
+.ci-scope .ci-pl-tier-name{font-size:14px;font-weight:700;color:var(--ci-text);margin-bottom:3px;}
+.ci-scope .ci-pl-tier-price{font-size:12px;color:var(--ci-text-sec);margin-bottom:8px;}
+.ci-scope .ci-pl-tier-tags{display:flex;flex-wrap:wrap;gap:4px;}
+.ci-scope .ci-porter-hero,.ci-scope .ci-aim-hero{text-align:center;padding:36px 22px 28px;border-radius:var(--ci-radius-lg);margin-bottom:24px;color:#fff;position:relative;overflow:hidden;}
+.ci-scope .ci-porter-hero{background:linear-gradient(135deg,var(--ci-navy) 0%,var(--ci-navy-800) 100%);}
+.ci-scope .ci-aim-hero{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#1e1b4b 100%);}
+.ci-scope .ci-porter-hero h2,.ci-scope .ci-aim-hero h2{font-size:23px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px;}
+.ci-scope .ci-porter-hero p,.ci-scope .ci-aim-hero p{font-size:13px;color:rgba(255,255,255,.55);}
+.ci-scope .ci-pf-forces{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;}
+@media(max-width:1000px){.ci-scope .ci-pf-forces{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:600px){.ci-scope .ci-pf-forces{grid-template-columns:1fr 1fr;}}
+.ci-scope .ci-pf-force{background:var(--ci-surface);border-radius:var(--ci-radius-lg);padding:20px;border:1px solid var(--ci-border);cursor:pointer;position:relative;overflow:hidden;}
+.ci-scope .ci-pf-force:hover{box-shadow:var(--ci-shadow-md);transform:translateY(-2px);}
+.ci-scope .ci-pf-force.selected{border-color:var(--ci-lime);box-shadow:0 0 0 2px var(--ci-lime-muted);}
+.ci-scope .ci-pf-force .ci-pf-accent{position:absolute;top:0;left:0;right:0;height:3px;}
+.ci-scope .ci-pf-force .ci-pf-icon{font-size:26px;margin-bottom:10px;display:block;}
+.ci-scope .ci-pf-force h3{font-size:12px;font-weight:700;color:var(--ci-text);margin-bottom:6px;line-height:1.3;}
+.ci-scope .ci-pf-force .ci-pf-level{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+.ci-scope .ci-pf-gauge{height:5px;background:var(--ci-navy-50);border-radius:3px;overflow:hidden;margin-bottom:9px;}
+.ci-scope .ci-pf-gauge-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1);}
+.ci-scope .ci-pf-force .ci-pf-desc{font-size:11px;color:var(--ci-text-muted);line-height:1.5;}
+.ci-scope .ci-pf-detail{background:var(--ci-surface);border-radius:var(--ci-radius-lg);padding:26px;border:1px solid var(--ci-border);margin-bottom:24px;box-shadow:var(--ci-shadow-xs);animation:ci-fadeUp .3s ease;}
+.ci-scope .ci-pf-detail h3{font-size:18px;font-weight:800;margin-bottom:8px;letter-spacing:-.3px;}
+.ci-scope .ci-pf-detail>p{font-size:13px;color:var(--ci-text-sec);line-height:1.7;margin-bottom:18px;}
+.ci-scope .ci-pf-insight{padding:16px 20px;border-radius:var(--ci-radius);margin-bottom:16px;font-size:13px;line-height:1.6;}
+.ci-scope .ci-pf-insight h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.ci-scope .ci-pf-insight.market{background:var(--ci-navy-50);border-left:3px solid var(--ci-navy);}
+.ci-scope .ci-pf-insight.market h4{color:var(--ci-text-sec);}
+.ci-scope .ci-pf-insight.recruitera{background:var(--ci-lime-subtle);border-left:3px solid var(--ci-lime);}
+.ci-scope .ci-pf-insight.recruitera h4{color:var(--ci-lime-hover);}
+.ci-scope .ci-pf-heatmap{width:100%;border-collapse:collapse;font-size:12px;}
+.ci-scope .ci-pf-heatmap th{padding:9px 12px;background:var(--ci-navy-50);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--ci-text-muted);text-align:center;border-bottom:1px solid var(--ci-border);}
+.ci-scope .ci-pf-heatmap th:first-child{text-align:left;}
+.ci-scope .ci-pf-heatmap td{padding:9px 12px;border-bottom:1px solid var(--ci-border-subtle);}
+.ci-scope .ci-pf-heat-1{background:#ecfdf5;color:#047857;text-align:center;font-weight:700;}
+.ci-scope .ci-pf-heat-2{background:#fefce8;color:#a16207;text-align:center;font-weight:700;}
+.ci-scope .ci-pf-heat-3{background:#fffbeb;color:#d97706;text-align:center;font-weight:700;}
+.ci-scope .ci-pf-heat-4{background:#fff7ed;color:#ea580c;text-align:center;font-weight:700;}
+.ci-scope .ci-pf-heat-5{background:#fef2f2;color:#dc2626;text-align:center;font-weight:700;}
+.ci-scope .ci-aim-levels{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+.ci-scope .ci-aim-level{padding:5px 12px;border-radius:var(--ci-radius-full);font-size:10px;font-weight:700;letter-spacing:.3px;}
+.ci-scope .ci-aim-l1{background:#fef2f2;color:#dc2626;} .ci-scope .ci-aim-l2{background:#fff7ed;color:#ea580c;}
+.ci-scope .ci-aim-l3{background:#fefce8;color:#d97706;} .ci-scope .ci-aim-l4{background:#ecfdf5;color:#047857;}
+.ci-scope .ci-aim-l5{background:#eff6ff;color:#2563eb;}
+.ci-scope .ci-aim-compare{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px;}
+@media(max-width:960px){.ci-scope .ci-aim-compare{grid-template-columns:1fr;}}
+.ci-scope .ci-pnav{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+.ci-scope .ci-pbtn{padding:8px 16px;border:1px solid var(--ci-border);border-radius:var(--ci-radius-full);background:var(--ci-surface);cursor:pointer;font-size:12px;font-weight:500;font-family:inherit;color:var(--ci-text-sec);}
+.ci-scope .ci-pbtn:hover{border-color:var(--ci-lime);color:var(--ci-text);background:var(--ci-lime-subtle);}
+.ci-scope .ci-pbtn.active{background:var(--ci-lime);color:var(--ci-navy);border-color:var(--ci-lime);font-weight:600;}
+.ci-scope .ci-pd{background:var(--ci-surface);border-radius:var(--ci-radius-lg);padding:28px;border:1px solid var(--ci-border);box-shadow:var(--ci-shadow-xs);}
+.ci-scope .ci-pd h2{font-size:22px;margin-bottom:4px;font-weight:800;letter-spacing:-.5px;color:var(--ci-text);}
+.ci-scope .ci-pd .ci-sub{font-size:13px;color:var(--ci-text-muted);margin-bottom:22px;}
+.ci-scope .ci-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+.ci-scope .ci-detail-card{background:var(--ci-bg);border-radius:var(--ci-radius);padding:20px;border:1px solid var(--ci-border-subtle);}
+.ci-scope .ci-detail-card h4{font-size:10px;font-weight:700;color:var(--ci-lime-hover);margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px;}
+.ci-scope .ci-detail-card h4::before{content:'';width:3px;height:13px;background:var(--ci-lime);border-radius:2px;}
+.ci-scope .ci-detail-card p,.ci-scope .ci-detail-card ul{font-size:13px;color:var(--ci-text-sec);line-height:1.65;}
+.ci-scope .ci-detail-card ul{padding-left:16px;margin:0;}
+.ci-scope .ci-detail-card li{margin-bottom:4px;}
+.ci-scope .ci-road-item{display:flex;align-items:center;gap:9px;padding:4px 0;font-size:12px;}
+.ci-scope .ci-road-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.ci-scope .ci-road-dot.done{background:var(--ci-green);} .ci-scope .ci-road-dot.todo{background:var(--ci-amber);} .ci-scope .ci-road-dot.prog{background:var(--ci-blue);}
+.ci-scope .ci-map-legend{display:flex;gap:18px;margin-bottom:18px;padding:14px 18px;background:var(--ci-surface);border-radius:var(--ci-radius);border:1px solid var(--ci-border);}
+.ci-scope .ci-map-legend-item{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--ci-text-sec);}
+.ci-scope .ci-map-dot{width:10px;height:10px;border-radius:50%;}
+
 </style>
 
 <script>
@@ -7738,15 +7916,102 @@ body .ld-tab-content {
 
 <div id="forecast-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
 
-<!-- Competitive Hub: iframes the standalone /ci-hub.html in embedded mode.
-     The hub fetches its own data from staging Supabase (oswuvlahxlktxjzqudxg)
-     and renders with overridden tokens so it visually matches the CRM. -->
-<div id="competitive-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow:hidden;">
-  <iframe id="ci-hub-frame"
-          src=""
-          title="Competitive Hub"
-          loading="lazy"
-          style="border:0;width:100%;height:100%;background:var(--bg);"></iframe>
+<!-- ═══════════ COMPETITIVE HUB (native, inlined) ═══════════
+     8-tab competitive intelligence dashboard. Data lives in the
+     staging Supabase project (oswuvlahxlktxjzqudxg). All CSS rules
+     are scoped to .ci-scope so .card / .panel / .input / .tab don't
+     collide with the CRM's own styles. Chart.js is lazy-loaded the
+     first time the user opens this view. -->
+<div id="competitive-view" class="ci-scope" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow:auto;">
+  <div class="ci-nav" id="ci-tabs">
+    <div class="ci-tab active" data-tab="ci-dashboard">Dashboard</div>
+    <div class="ci-tab" data-tab="ci-intel">Intel Center</div>
+    <div class="ci-tab" data-tab="ci-explorer">Feature Explorer</div>
+    <div class="ci-tab" data-tab="ci-pricing">Pricing Lab</div>
+    <div class="ci-tab" data-tab="ci-porter">Five Forces<span class="ci-tab-badge">New</span></div>
+    <div class="ci-tab" data-tab="ci-aimat">AI Maturity<span class="ci-tab-badge">New</span></div>
+    <div class="ci-tab" data-tab="ci-profiles">Profiles</div>
+    <div class="ci-tab" data-tab="ci-market">Market Map</div>
+  </div>
+  <div class="ci-main">
+    <div class="ci-sec active" id="ci-dashboard">
+      <div class="ci-sec-header"><h2>Competitive Landscape</h2><p>Real-time overview of Recruitera vs 7 competitors across features, AI, pricing, and market positioning</p></div>
+      <div class="ci-grid" id="ci-dg"></div>
+      <div class="ci-chart-grid">
+        <div class="ci-chart-box"><h3>🤖 AI Maturity (1–10)</h3><canvas id="ci-aiC" height="180"></canvas></div>
+        <div class="ci-chart-box"><h3>🔗 Integration Ecosystem</h3><canvas id="ci-intC" height="180"></canvas></div>
+      </div>
+      <div class="ci-chart-grid">
+        <div class="ci-chart-box"><h3>⚡ Porter's Five Forces — Industry Threat</h3><canvas id="ci-porterOverviewC" height="200"></canvas></div>
+        <div class="ci-chart-box"><h3>📍 Price vs Feature Depth</h3><canvas id="ci-posC" height="200"></canvas></div>
+      </div>
+    </div>
+    <div class="ci-sec" id="ci-intel">
+      <div class="ci-sec-header"><h2>Intelligence Center</h2><p>Generate SWOT analysis with feature differentiation, AI maturity gaps, and pricing comparison against any competitor</p></div>
+      <div class="ci-intel-layout">
+        <div class="ci-intel-main">
+          <div class="ci-panel" style="margin-bottom:24px"><div class="ci-toolbar">
+            <select id="ci-swSel" class="ci-select-input" style="min-width:220px"><option value="">Choose a competitor...</option></select>
+            <button class="ci-btn-primary" onclick="ciGenSWOT()">Generate SWOT Analysis</button>
+          </div></div>
+          <div id="ci-swR"></div>
+        </div>
+        <div class="ci-intel-side">
+          <div class="ci-panel">
+            <div class="ci-panel-title">💰 Annual Price Comparison</div>
+            <div id="ci-pBars"></div>
+            <div class="ci-price-insight"><strong>Insight:</strong> Recruitera is positioned as the most accessible ATS option for MENA teams — 7× cheaper than the median competitor.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ci-sec" id="ci-explorer">
+      <div class="ci-sec-header"><h2>Feature Explorer</h2><p>Search and compare 57 features across all competitors — filter by dimension to find gaps and advantages</p></div>
+      <div class="ci-panel" style="margin-bottom:24px"><div class="ci-toolbar"><input type="text" id="ci-feSrch" class="ci-input" placeholder="Search features... e.g. WhatsApp, AI scoring, onboarding, GDPR"></div></div>
+      <div class="ci-fe-grid" id="ci-feChips"></div>
+      <div class="ci-table-wrap"><table class="ci-ft" id="ci-feT"><thead><tr><th style="min-width:200px">Feature</th><th>Dimension</th><th>Recruitera</th><th>Talentera</th><th>ZenATS</th><th>Workable</th><th>Teamtailor</th><th>Recruitee</th><th>Ashby</th><th>Zoho Recruit</th></tr></thead><tbody id="ci-feB"></tbody></table></div>
+      <div class="ci-legend-text" id="ci-feCnt"></div>
+    </div>
+    <div class="ci-sec" id="ci-pricing">
+      <div class="ci-sec-header"><h2>Pricing Lab</h2><p>Compare pricing models, free plans, trial options, and tier breakdowns across the competitive landscape</p></div>
+      <div class="ci-panel" style="margin-bottom:24px"><div class="ci-panel-title">📊 Pricing Overview — All Competitors</div><div class="ci-table-wrap"><table class="ci-ft" id="ci-priceOverview"></table></div></div>
+      <div class="ci-panel"><div class="ci-panel-title">⚖️ Tier Comparator — Recruitera vs Competitor</div><div class="ci-toolbar" style="margin-top:4px"><select id="ci-plComp" class="ci-select-input" style="min-width:200px"><option value="">Pick a competitor...</option></select><button class="ci-btn-primary" onclick="ciCompareTiers()">Compare Tiers</button></div></div>
+      <div id="ci-plResult"></div>
+    </div>
+    <div class="ci-sec" id="ci-porter">
+      <div class="ci-porter-hero"><h2>Porter's Five Forces Analysis</h2><p>Strategic threat assessment for the ATS / recruitment software market</p></div>
+      <div class="ci-pf-forces" id="ci-pfForces"></div>
+      <div id="ci-pfDetail"></div>
+      <div class="ci-chart-grid">
+        <div class="ci-chart-box"><h3>🎯 Force Impact by Competitor</h3><canvas id="ci-pfRadar" height="280"></canvas></div>
+        <div class="ci-chart-box"><h3>🛡️ Competitive Shield Score</h3><div id="ci-pfShield"></div></div>
+      </div>
+    </div>
+    <div class="ci-sec" id="ci-aimat">
+      <div class="ci-aim-hero"><h2>AI Maturity Assessment</h2><p>7-dimension framework measuring AI depth: resume parsing, matching, chatbots, predictive analytics, content generation, autonomous agents, and governance</p></div>
+      <div class="ci-aim-levels"><span class="ci-aim-level ci-aim-l1">L1 Initial (1–2)</span><span class="ci-aim-level ci-aim-l2">L2 Developing (3–4)</span><span class="ci-aim-level ci-aim-l3">L3 Defined (5–6)</span><span class="ci-aim-level ci-aim-l4">L4 Advanced (7–8)</span><span class="ci-aim-level ci-aim-l5">L5 Optimizing (9–10)</span></div>
+      <div class="ci-panel" style="margin-bottom:24px"><div class="ci-panel-title">🔬 AI Maturity Heatmap — All Competitors</div><div class="ci-table-wrap"><table class="ci-ft" id="ci-aimHeatmap"></table></div></div>
+      <div class="ci-aim-compare">
+        <div class="ci-chart-box"><h3>📡 AI Maturity Radar</h3><div class="ci-toolbar" style="margin-bottom:16px"><select id="ci-aimSel1" class="ci-select-input"></select><select id="ci-aimSel2" class="ci-select-input"></select><button class="ci-btn-primary" onclick="ciRenderAimRadar()">Compare</button></div><canvas id="ci-aimRadarC" height="280"></canvas></div>
+        <div class="ci-chart-box"><h3>📋 Capability Breakdown</h3><div id="ci-aimBreakdown"></div></div>
+      </div>
+    </div>
+    <div class="ci-sec" id="ci-profiles">
+      <div class="ci-sec-header"><h2>Competitor Profiles</h2><p>Deep-dive into each competitor's features, AI maturity, pricing, market positioning, and strategic outlook</p></div>
+      <div class="ci-pnav" id="ci-pN"></div>
+      <div id="ci-pD"></div>
+    </div>
+    <div class="ci-sec" id="ci-market">
+      <div class="ci-sec-header"><h2>Market Map</h2><p>Geographic coverage, company size targeting, and competitive positioning across the ATS landscape</p></div>
+      <div class="ci-map-legend"><div class="ci-map-legend-item"><div class="ci-map-dot" style="background:var(--lime-500,#BAE85B)"></div>Home</div><div class="ci-map-legend-item"><div class="ci-map-dot" style="background:#f59e0b"></div>Direct (MENA)</div><div class="ci-map-legend-item"><div class="ci-map-dot" style="background:#3b82f6"></div>Benchmark</div></div>
+      <div class="ci-chart-box" style="margin-bottom:20px"><h3>Geographic Coverage</h3><div class="ci-table-wrap"><table class="ci-ft" id="ci-gT"></table></div></div>
+      <div class="ci-chart-grid">
+        <div class="ci-chart-box"><h3>Target Company Size</h3><canvas id="ci-szC" height="240"></canvas></div>
+        <div class="ci-chart-box"><h3>Positioning: Price vs Feature Depth</h3><canvas id="ci-posC2" height="240"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div id="ci-loading" style="position:absolute;inset:0;background:var(--bg);z-index:2;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;"><div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--lime-500,#BAE85B);border-radius:50%;animation:ci-spin .8s linear infinite"></div><div style="font-size:13px;color:var(--text-3);">Loading competitive intelligence…</div></div>
 </div>
 
 <div id="logs-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
@@ -14625,13 +14890,11 @@ function switchMainView(view) {
     if (dashboardView) dashboardView.style.cssText = 'display:none;';
     hideUtm();
     const ciView = document.getElementById('competitive-view');
-    if (ciView) ciView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow:hidden;';
-    // Lazy-load the iframe on first visit so the standalone hub bundle
-    // (Chart.js, fonts, Supabase fetch) doesn't run unless the user opens it.
-    const frame = document.getElementById('ci-hub-frame');
-    if (frame && !frame.src) frame.src = '/ci-hub.html?embedded=1';
+    if (ciView) ciView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow:auto;';
     setActive(document.getElementById('sb-competitive-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = 'Competitive Hub';
+    // Lazy-init: load Chart.js + fetch data only the first time the user opens this view.
+    if (typeof initCompetitiveHub === 'function') initCompetitiveHub();
   } else if (view === 'logs') {
     if (window.AUTH_PROFILE?.role !== 'admin') {
       console.warn('[Logs] non-admin blocked'); return;
@@ -21074,5 +21337,366 @@ window.addEventListener('auth-ready', () => {
 })();
 </script>
 
+<!-- ═══════════ COMPETITIVE HUB MODULE ═══════════
+     Lazy-loaded data + Chart.js render for the Competitive Hub tab.
+     Runs only when the user opens the view (init guarded by a flag).
+     Data lives in the staging Supabase project (oswuvlahxlktxjzqudxg). -->
+<script>
+(function(){
+  const CI_SB_URL = 'https://oswuvlahxlktxjzqudxg.supabase.co';
+  const CI_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zd3V2bGFoeGxrdHhqenF1ZHhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDY1NDgsImV4cCI6MjA5NjUyMjU0OH0.AYxOsZw9UxYURWo-TIxuFbGzHEs0Ci1eevQ6d6i5lFk';
+  const CI_HDR = { apikey: CI_SB_KEY, Authorization: 'Bearer ' + CI_SB_KEY };
+  async function ciGet(table, params){
+    const r = await fetch(`${CI_SB_URL}/rest/v1/${table}?select=*${params||''}`, { headers: CI_HDR });
+    if(!r.ok) throw new Error(table + ' fetch failed: ' + r.status);
+    return r.json();
+  }
+  function loadChartJs(){
+    if (window.Chart) return Promise.resolve();
+    if (window.__ciChartLoading) return window.__ciChartLoading;
+    window.__ciChartLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js';
+      s.integrity = 'sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi';
+      s.crossOrigin = 'anonymous';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Chart.js failed to load'));
+      document.head.appendChild(s);
+    });
+    return window.__ciChartLoading;
+  }
+
+  // Sub-tab switching within the CI hub
+  function bindCiTabs(){
+    document.querySelectorAll('#ci-tabs .ci-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('#ci-tabs .ci-tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#competitive-view .ci-sec').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const target = document.getElementById(t.dataset.tab);
+        if (target) target.classList.add('active');
+      });
+    });
+  }
+
+  // The full hub renderer — fires once.
+  window.initCompetitiveHub = async function initCompetitiveHub(){
+    if (window.__ciHubInited) return;
+    window.__ciHubInited = true;
+
+    try {
+      await loadChartJs();
+      const [rawC, rawF, rawB, rawP, rawA] = await Promise.all([
+        ciGet('ci_competitors', '&order=display_order'),
+        ciGet('ci_features',    '&order=sort_order'),
+        ciGet('ci_battles'),
+        ciGet('ci_porter_forces'),
+        ciGet('ci_ai_dimensions'),
+      ]);
+
+      const C = rawC.map(c => ({
+        name:c.name, tier:c.tier, tl:c.tagline, pr:c.pricing,
+        pt:(c.pricing_tiers||[]).map(t => `${t.name}: ${t.price}`),
+        tiers:c.pricing_tiers||[], pm:c.pricing_model||{},
+        ai:c.ai_score, int:c.integrations_count, g2:c.g2_rating, mkt:c.market,
+        geo:c.geo_scores, sz:c.size_scores, pos:c.position_xy,
+        feat:c.features_text, ai_s:c.ai_summary, int_s:c.integrations_summary,
+        ux_s:c.ux_summary, position:c.position_summary, mkt_d:c.market_detail,
+        roadmap:c.roadmap, sw:c.swot, porter:c.porter_scores, porter_n:c.porter_notes, aim:c.aim_scores,
+      }));
+
+      const F=[]; let lastCat='';
+      rawF.forEach(f => {
+        if (f.category !== lastCat) { F.push({cat:f.category}); lastCat=f.category; }
+        F.push({n:f.feature_name, d:f.category, r:f.recruitera, ta:f.talentera, z:f.zenats, w:f.workable, tt:f.teamtailor, re:f.recruitee, a:f.ashby, zo:f.zoho_recruit});
+      });
+
+      const BATTLES={}; rawB.forEach(b => { BATTLES[b.competitor_name] = b.battle_guide; });
+      const PORTER_FORCES = rawP.map(p => ({id:p.force_id, icon:p.icon, name:p.name, level:Number(p.level), color:p.color, desc:p.description, implications:p.implications, recruitera:p.recruitera_note}));
+      const AIM_DIMS = rawA.map(d => ({key:d.dim_key, name:d.name, desc:d.description}));
+
+      // Make accessible to inline onclick handlers
+      window.__CI = { C, F, BATTLES, PORTER_FORCES, AIM_DIMS };
+
+      const loading = document.getElementById('ci-loading');
+      if (loading) loading.style.display = 'none';
+
+      Chart.defaults.font.family = "Inter,system-ui,-apple-system,sans-serif";
+      Chart.defaults.font.size = 11;
+      Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-3') || '#6b7280';
+      bindCiTabs();
+
+      const chartGrid = '#eff0f3';
+      const NM = C.map(c => c.name);
+      const CL = C.map(c => c.tier === 'home' ? '#BAE85B' : c.tier === 'direct' ? '#f59e0b' : '#3b82f6');
+
+      // ── DASHBOARD CARDS ──
+      document.getElementById('ci-dg').innerHTML = C.map(c => {
+        const tc = c.tier === 'home' ? 'home' : c.tier === 'direct' ? 'direct' : 'bench';
+        return `<div class="ci-card ${tc}" onclick="ciShowProfile('${c.name}')"><div class="ci-tier-badge ${tc}">${c.tier==='home'?'Home':c.tier==='direct'?'Direct Rival':'Benchmark'}</div><h3>${c.name}</h3><div class="ci-card-sub">${c.tl}</div><div class="ci-card-stats"><div class="ci-card-stat"><strong>${c.pr.entry}</strong>Entry Price</div><div class="ci-card-stat"><strong>${c.ai}/10</strong>AI Maturity</div><div class="ci-card-stat"><strong>${c.int}+</strong>Integrations</div><div class="ci-card-stat"><strong>${c.g2}</strong>G2 Rating</div></div></div>`;
+      }).join('');
+
+      // ── DASHBOARD CHARTS ──
+      new Chart(document.getElementById('ci-aiC'), {type:'bar', data:{labels:NM, datasets:[{data:C.map(c=>c.ai), backgroundColor:CL, borderRadius:6, borderSkipped:false}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{max:10, beginAtZero:true, grid:{color:chartGrid}}, x:{grid:{display:false}}}}});
+      new Chart(document.getElementById('ci-intC'), {type:'bar', data:{labels:NM, datasets:[{data:C.map(c=>c.int), backgroundColor:CL, borderRadius:6, borderSkipped:false}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, grid:{color:chartGrid}}, x:{grid:{display:false}}}}});
+      new Chart(document.getElementById('ci-porterOverviewC'), {type:'bar', data:{labels:PORTER_FORCES.map(f=>f.name.replace('Bargaining Power of ','')), datasets:[{data:PORTER_FORCES.map(f=>f.level), backgroundColor:PORTER_FORCES.map(f=>f.color+'cc'), borderRadius:6, borderSkipped:false}]}, options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{max:5, beginAtZero:true, grid:{color:chartGrid}, ticks:{stepSize:1}}, y:{grid:{display:false}}}}});
+      new Chart(document.getElementById('ci-posC'), {type:'scatter', data:{datasets:C.map(c=>({label:c.name, data:[{x:c.pos.x,y:c.pos.y}], backgroundColor:c.tier==='home'?'#BAE85B':c.tier==='direct'?'#f59e0b':'#3b82f6', pointRadius:10, pointHoverRadius:14, borderColor:c.tier==='home'?'#1C2333':'transparent', borderWidth:c.tier==='home'?2:0}))}, options:{responsive:true, scales:{x:{title:{display:true,text:'Price (1=cheapest)',font:{weight:'600'}}, min:0, max:10, grid:{color:chartGrid}}, y:{title:{display:true,text:'Feature Depth (1=basic)',font:{weight:'600'}}, min:0, max:10, grid:{color:chartGrid}}}, plugins:{legend:{position:'bottom', labels:{font:{size:10}, usePointStyle:true, pointStyle:'circle', padding:14}}, tooltip:{callbacks:{label: ctx => ctx.dataset.label}}}}});
+
+      // ── INTEL CENTER ──
+      const swSel = document.getElementById('ci-swSel');
+      C.filter(c => c.tier !== 'home').forEach(c => { swSel.innerHTML += `<option value="${c.name}">${c.name}</option>`; });
+
+      window.ciGenSWOT = function(){
+        const n = swSel.value; if(!n) return;
+        const comp = C.find(c => c.name === n), home = C[0], el = document.getElementById('ci-swR');
+        const keyMap = {Talentera:'ta', ZenATS:'z', Workable:'w', Teamtailor:'tt', Recruitee:'re', Ashby:'a', 'Zoho Recruit':'zo'};
+        const ck = keyMap[n];
+        const hasF = v => v && v !== 'N';
+        const rWins = [], rLoses = [];
+        F.forEach(f => {
+          if (!f.n || f.cat) return;
+          if (hasF(f.r) && !hasF(f[ck])) rWins.push(f.n + (f.r !== 'Y' ? ' (' + f.r + ')' : ''));
+          if (!hasF(f.r) && hasF(f[ck])) rLoses.push(f.n + (f[ck] !== 'Y' ? ' (' + f[ck] + ')' : ''));
+        });
+        let rCount = 0, cCount = 0;
+        F.forEach(f => { if (!f.n || f.cat) return; if (hasF(f.r)) rCount++; if (hasF(f[ck])) cCount++; });
+        const aimDims = [{key:'parsing',name:'Resume Parsing'},{key:'matching',name:'Candidate Matching'},{key:'chatbots',name:'Conversational AI'},{key:'predictive',name:'Predictive Analytics'},{key:'content',name:'Content Gen'},{key:'agents',name:'Autonomous Agents'},{key:'governance',name:'AI Governance'}];
+        const aimCompare = aimDims.map(d => ({name:d.name, r:home.aim[d.key], c:comp.aim[d.key], diff:home.aim[d.key]-comp.aim[d.key]}));
+        const aiWins = aimCompare.filter(a => a.diff > 0).length, aiLoses = aimCompare.filter(a => a.diff < 0).length;
+
+        let h = `<h3 style="margin-bottom:16px;font-size:18px;font-weight:800;letter-spacing:-.4px;color:var(--ci-text)">Recruitera vs. ${n}</h3>`;
+        h += `<div class="ci-swot-grid"><div class="ci-swot-card ci-swot-s"><h5>💪 Strengths (Recruitera)</h5><ul>${home.sw.s.map(s=>`<li>${s}</li>`).join('')}</ul></div><div class="ci-swot-card ci-swot-w"><h5>⚠️ Weaknesses (Recruitera)</h5><ul>${home.sw.w.map(s=>`<li>${s}</li>`).join('')}</ul></div><div class="ci-swot-card ci-swot-o"><h5>🚀 Opportunities (vs ${n})</h5><ul>${home.sw.o.map(s=>`<li>${s}</li>`).join('')}${comp.sw.w.map(s=>`<li><em>${n} weakness:</em> ${s}</li>`).join('')}</ul></div><div class="ci-swot-card ci-swot-t"><h5>🔥 Threats (from ${n})</h5><ul>${comp.sw.s.map(s=>`<li>${s}</li>`).join('')}</ul></div></div>`;
+        h += `<div style="margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px"><div style="background:var(--ci-green-bg);border:1px solid var(--ci-green-border);border-radius:var(--ci-radius);padding:20px"><h5 style="font-size:13px;font-weight:700;color:var(--ci-green-text);margin-bottom:10px">✓ Recruitera Has, ${n} Doesn't (${rWins.length})</h5>${rWins.length?`<div style="display:flex;flex-wrap:wrap;gap:5px">${rWins.map(f=>'<span class="ci-tag ci-tag-green">'+f+'</span>').join('')}</div>`:'<span style="font-size:12px;color:var(--ci-text-muted)">No exclusive features</span>'}</div><div style="background:var(--ci-red-bg);border:1px solid var(--ci-red-border);border-radius:var(--ci-radius);padding:20px"><h5 style="font-size:13px;font-weight:700;color:var(--ci-red-text);margin-bottom:10px">✗ ${n} Has, Recruitera Doesn't (${rLoses.length})</h5>${rLoses.length?`<div style="display:flex;flex-wrap:wrap;gap:5px">${rLoses.map(f=>'<span class="ci-tag ci-tag-red">'+f+'</span>').join('')}</div>`:'<span style="font-size:12px;color:var(--ci-text-muted)">No gaps</span>'}</div></div>`;
+        h += `<div style="margin-top:16px;background:var(--ci-surface);border:1px solid var(--ci-border);border-radius:var(--ci-radius-lg);padding:20px"><div class="ci-panel-title">🤖 AI Maturity — Recruitera ${home.ai}/10 vs ${n} ${comp.ai}/10</div>`;
+        h += aimCompare.map(a => {
+          const col = a.diff > 0 ? 'var(--ci-green)' : a.diff < 0 ? 'var(--ci-red)' : 'var(--ci-amber)';
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:130px;font-size:12px;font-weight:500">${a.name}</span><div style="flex:1;display:flex;gap:4px;align-items:center"><div style="height:5px;flex:1;background:var(--ci-navy-50);border-radius:3px;overflow:hidden"><div style="height:100%;width:${a.r*10}%;background:var(--ci-lime);border-radius:3px"></div></div><span style="font-size:11px;font-weight:700;width:16px">${a.r}</span><span style="font-size:10px;color:var(--ci-text-muted)">vs</span><span style="font-size:11px;font-weight:700;width:16px">${a.c}</span><div style="height:5px;flex:1;background:var(--ci-navy-50);border-radius:3px;overflow:hidden"><div style="height:100%;width:${a.c*10}%;background:var(--ci-blue);border-radius:3px"></div></div></div><span style="font-size:11px;font-weight:700;color:${col};width:30px;text-align:right">${a.diff>0?'+':''}${a.diff}</span></div>`;
+        }).join('');
+        h += `<div style="margin-top:10px;font-size:12px;color:var(--ci-text-sec)">Recruitera leads in <strong>${aiWins}</strong> dimensions, trails in <strong>${aiLoses}</strong></div></div>`;
+        h += `<div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div style="background:var(--ci-bg);border-radius:var(--ci-radius);padding:14px;text-align:center;border:1px solid var(--ci-border)"><div style="font-size:22px;font-weight:800">${rCount}</div><div style="font-size:11px;color:var(--ci-text-muted)">Recruitera features</div></div><div style="background:var(--ci-bg);border-radius:var(--ci-radius);padding:14px;text-align:center;border:1px solid var(--ci-border)"><div style="font-size:22px;font-weight:800">${cCount}</div><div style="font-size:11px;color:var(--ci-text-muted)">${n} features</div></div><div style="background:var(--ci-green-bg);border-radius:var(--ci-radius);padding:14px;text-align:center;border:1px solid var(--ci-green-border)"><div style="font-size:22px;font-weight:800;color:var(--ci-green)">${rWins.length}</div><div style="font-size:11px;color:var(--ci-text-muted)">Recruitera exclusive</div></div><div style="background:var(--ci-red-bg);border-radius:var(--ci-radius);padding:14px;text-align:center;border:1px solid var(--ci-red-border)"><div style="font-size:22px;font-weight:800;color:var(--ci-red)">${rLoses.length}</div><div style="font-size:11px;color:var(--ci-text-muted)">Feature gaps</div></div></div>`;
+        h += `<div class="ci-battleground"><strong>Key Battleground:</strong> ${BATTLES[n]||''}</div>`;
+        el.innerHTML = h;
+      };
+
+      const sorted = [...C].sort((a,b) => a.pr.usd - b.pr.usd), maxP = Math.max(...C.map(c => c.pr.usd));
+      document.getElementById('ci-pBars').innerHTML = sorted.map(c => {
+        const w = Math.max((c.pr.usd / maxP) * 100, 4);
+        const col = c.tier === 'home' ? 'var(--ci-lime)' : c.tier === 'direct' ? 'var(--ci-amber)' : 'var(--ci-blue)';
+        return `<div class="ci-price-bar"><span class="ci-pb-name">${c.name}</span><div class="ci-pb-track"><div class="ci-pb-fill" style="width:${w}%;background:${col}"></div></div><span class="ci-pb-val">$${c.pr.usd.toLocaleString()}/yr</span></div>`;
+      }).join('');
+
+      // ── FEATURE EXPLORER ──
+      const cc = v => v === 'Y' ? '<span class="ci-y">✓</span>' : v === 'N' ? '<span class="ci-n">✗</span>' : `<span class="ci-p">${v}</span>`;
+      const dims = [...new Set(F.filter(f => f.d).map(f => f.d))];
+      let activeDim = '';
+      document.getElementById('ci-feChips').innerHTML = `<div class="ci-fe-chip active" onclick="ciSetDim('')">All<span class="ci-fe-count">${F.filter(f => f.n).length}</span></div>` + dims.map(d => `<div class="ci-fe-chip" onclick="ciSetDim('${d}')">${d}<span class="ci-fe-count">${F.filter(f => f.d === d).length}</span></div>`).join('');
+      window.ciSetDim = function(d){
+        activeDim = d;
+        document.querySelectorAll('#ci-feChips .ci-fe-chip').forEach((c, i) => { c.classList.toggle('active', d === '' ? i === 0 : c.textContent.startsWith(d)); });
+        renderExplorer();
+      };
+      function renderExplorer(){
+        const q = (document.getElementById('ci-feSrch').value || '').toLowerCase();
+        const tb = document.getElementById('ci-feB');
+        let rows = [], cnt = 0;
+        F.forEach(f => {
+          if (f.cat) return;
+          if (activeDim && f.d !== activeDim) return;
+          if (q && !f.n.toLowerCase().includes(q)) return;
+          cnt++;
+          rows.push(`<tr><td><strong>${f.n}</strong></td><td style="font-size:11px;color:var(--ci-text-muted)">${f.d}</td><td>${cc(f.r)}</td><td>${cc(f.ta)}</td><td>${cc(f.z)}</td><td>${cc(f.w)}</td><td>${cc(f.tt)}</td><td>${cc(f.re)}</td><td>${cc(f.a)}</td><td>${cc(f.zo)}</td></tr>`);
+        });
+        tb.innerHTML = rows.join('');
+        document.getElementById('ci-feCnt').textContent = `Showing ${cnt} feature${cnt!==1?'s':''}. Legend: ✓ Yes  ✗ No  Pro/Ent/Pre = tier-gated  Adv/Opt = plan-specific  Add = paid add-on  P = Partial`;
+      }
+      document.getElementById('ci-feSrch').addEventListener('input', renderExplorer);
+      renderExplorer();
+
+      // ── PRICING LAB ──
+      const pmFields = [
+        {key:'model',label:'Pricing Model'}, {key:'free_plan',label:'Free Plan'}, {key:'start_mo',label:'Starting Monthly Price'},
+        {key:'user_limit',label:'User Limitations'}, {key:'free_trial',label:'Free Trial'}, {key:'addons',label:'Add-on Features'},
+        {key:'best_for',label:'Best For'}, {key:'gtm',label:'GTM Model'}
+      ];
+      let poHTML = '<thead><tr><th style="min-width:140px">Category</th>' + C.map(c => `<th>${c.name}</th>`).join('') + '</tr></thead><tbody>';
+      pmFields.forEach(f => {
+        poHTML += `<tr><td><strong>${f.label}</strong></td>`;
+        C.forEach(c => {
+          let v = c.pm[f.key];
+          if (f.key === 'free_plan') v = v === 'Yes' ? '<span class="ci-y">✓ ' + v + '</span>' : v === 'No' ? '<span class="ci-n">✗ No</span>' : v;
+          if (f.key === 'free_trial') v = (v || '').toLowerCase().includes('no') ? '<span class="ci-n">✗ ' + v + '</span>' : '<span class="ci-y">✓ ' + v + '</span>';
+          poHTML += `<td>${v}</td>`;
+        });
+        poHTML += '</tr>';
+      });
+      document.getElementById('ci-priceOverview').innerHTML = poHTML + '</tbody>';
+
+      const plComp = document.getElementById('ci-plComp');
+      C.filter(c => c.tier !== 'home').forEach(c => { plComp.innerHTML += `<option value="${c.name}">${c.name}</option>`; });
+
+      window.ciCompareTiers = function(){
+        const n = plComp.value; if(!n) return;
+        const comp = C.find(c => c.name === n), home = C[0], el = document.getElementById('ci-plResult');
+        let h = '<div class="ci-pl-grid">';
+        h += `<div class="ci-pl-card hl"><div class="ci-pl-card-hdr"><h3>Recruitera</h3><div class="ci-pl-model-badge">${home.pm.model}</div></div><div class="ci-pl-tiers">`;
+        home.tiers.forEach(t => { h += `<div class="ci-pl-tier"><div class="ci-pl-tier-name">${t.name}</div><div class="ci-pl-tier-price">${t.price}</div><div class="ci-pl-tier-tags">${t.features.map(f => '<span class="ci-tag ci-tag-lime">' + f + '</span>').join('')}</div></div>`; });
+        h += '</div></div>';
+        h += `<div class="ci-pl-card"><div class="ci-pl-card-hdr"><h3>${n}</h3><div class="ci-pl-model-badge">${comp.pm.model}</div></div><div class="ci-pl-tiers">`;
+        comp.tiers.forEach(t => { h += `<div class="ci-pl-tier"><div class="ci-pl-tier-name">${t.name}</div><div class="ci-pl-tier-price">${t.price}</div><div class="ci-pl-tier-tags">${t.features.map(f => '<span class="ci-tag ci-tag-blue">' + f + '</span>').join('')}</div></div>`; });
+        h += '</div></div></div>';
+        h += `<div class="ci-panel" style="margin-top:20px"><div class="ci-panel-title">📋 Key Pricing Differences</div><div class="ci-table-wrap"><table class="ci-ft"><thead><tr><th>Dimension</th><th>Recruitera</th><th>${n}</th></tr></thead><tbody>`;
+        [['Pricing Model',home.pm.model,comp.pm.model],['Entry Price',home.pr.entry,comp.pr.entry],['Free Plan',home.pm.free_plan,comp.pm.free_plan],['Free Trial',home.pm.free_trial,comp.pm.free_trial],['User Limits',home.pm.user_limit,comp.pm.user_limit],['Add-ons',home.pm.addons,comp.pm.addons],['Best For',home.pm.best_for,comp.pm.best_for]].forEach(d => { h += `<tr><td><strong>${d[0]}</strong></td><td>${d[1]}</td><td>${d[2]}</td></tr>`; });
+        h += '</tbody></table></div></div>';
+        el.innerHTML = h;
+      };
+
+      // ── PORTER'S FIVE FORCES ──
+      let selectedForce = null;
+      function renderPorterForces(){
+        const el = document.getElementById('ci-pfForces');
+        el.innerHTML = PORTER_FORCES.map(f => {
+          const pct = (f.level / 5) * 100;
+          const levelText = f.level >= 4 ? 'HIGH' : f.level >= 3 ? 'MEDIUM' : f.level >= 2 ? 'LOW-MED' : 'LOW';
+          const sel = selectedForce === f.id ? 'selected' : '';
+          return `<div class="ci-pf-force ${sel}" onclick="ciSelectForce('${f.id}')"><div class="ci-pf-accent" style="background:${f.color}"></div><span class="ci-pf-icon">${f.icon}</span><h3>${f.name}</h3><div class="ci-pf-level" style="color:${f.color}">${levelText} (${f.level}/5)</div><div class="ci-pf-gauge"><div class="ci-pf-gauge-fill" style="width:${pct}%;background:${f.color}"></div></div><div class="ci-pf-desc">${f.desc.substring(0,80)}...</div></div>`;
+        }).join('');
+      }
+      window.ciSelectForce = function(id){
+        selectedForce = selectedForce === id ? null : id;
+        renderPorterForces();
+        const el = document.getElementById('ci-pfDetail');
+        if (!selectedForce) { el.innerHTML = ''; return; }
+        const f = PORTER_FORCES.find(x => x.id === id);
+        let hm = `<table class="ci-pf-heatmap"><tr><th>Competitor</th><th>Impact (1-5)</th><th>Analysis</th></tr>`;
+        C.forEach(c => {
+          const v = c.porter[id];
+          hm += `<tr><td><strong>${c.name}</strong></td><td class="ci-pf-heat-${v}">${v}/5 ${'●'.repeat(v)}${'○'.repeat(5-v)}</td><td style="font-size:12px;color:var(--ci-text-sec);text-align:left">${c.porter_n[id]}</td></tr>`;
+        });
+        hm += '</table>';
+        el.innerHTML = `<div class="ci-pf-detail"><h3>${f.icon} ${f.name}</h3><p>${f.desc}</p><div class="ci-pf-insight market"><h4>Implications for ATS Market</h4><p>${f.implications}</p></div><div class="ci-pf-insight recruitera"><h4>Recruitera's Position</h4><p>${f.recruitera}</p></div><div class="ci-panel-title" style="margin-top:4px">📊 Impact by Competitor</div><div class="ci-table-wrap">${hm}</div></div>`;
+      };
+      renderPorterForces();
+
+      new Chart(document.getElementById('ci-pfRadar'), {
+        type:'radar',
+        data:{
+          labels: PORTER_FORCES.map(f => f.name.replace('Bargaining Power of ','')),
+          datasets:[
+            {label:'Recruitera', data:Object.values(C[0].porter), borderColor:'#BAE85B', backgroundColor:'rgba(186,232,91,.1)', pointBackgroundColor:'#BAE85B', borderWidth:2},
+            {label:'Talentera',  data:Object.values(C[1].porter), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.08)', pointBackgroundColor:'#f59e0b', borderWidth:2},
+            {label:'Ashby',      data:Object.values(C[6].porter), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.05)',  pointBackgroundColor:'#3b82f6', borderWidth:2},
+            {label:'Workable',   data:Object.values(C[3].porter), borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.05)',  pointBackgroundColor:'#10b981', borderWidth:2},
+          ]
+        },
+        options:{responsive:true, scales:{r:{min:0,max:5,ticks:{display:false,stepSize:1},grid:{color:chartGrid},angleLines:{color:chartGrid}}}, plugins:{legend:{position:'bottom', labels:{font:{size:10}, usePointStyle:true, pointStyle:'circle', padding:14}}}}
+      });
+
+      const shields = C.map(c => {
+        const total = Object.values(c.porter).reduce((a,b) => a+b, 0);
+        return {name:c.name, shield: Math.round(((25-total)/25)*100), total, tier:c.tier};
+      }).sort((a,b) => b.shield - a.shield);
+      document.getElementById('ci-pfShield').innerHTML = `<p style="font-size:12px;color:var(--ci-text-muted);margin-bottom:14px">Higher score = better protected from market forces (lower combined threat exposure)</p>` + shields.map(s => {
+        const col = s.tier === 'home' ? 'var(--ci-lime)' : s.tier === 'direct' ? 'var(--ci-amber)' : 'var(--ci-blue)';
+        return `<div class="ci-price-bar"><span class="ci-pb-name">${s.name}</span><div class="ci-pb-track"><div class="ci-pb-fill" style="width:${s.shield}%;background:${col}"></div></div><span class="ci-pb-val">${s.shield}% shield</span></div>`;
+      }).join('');
+
+      // ── AI MATURITY ──
+      let aimHTML = '<thead><tr><th style="min-width:100px">Competitor</th>' + AIM_DIMS.map(d => `<th title="${d.desc}">${d.name.split(' ').slice(0,2).join(' ')}</th>`).join('') + '<th>Overall</th><th>Level</th></tr></thead><tbody>';
+      C.forEach(c => {
+        const avg = Math.round(AIM_DIMS.map(d => c.aim[d.key]).reduce((a,b) => a+b, 0) / AIM_DIMS.length * 10) / 10;
+        const lvl = avg >= 9 ? 'L5 Optimizing' : avg >= 7 ? 'L4 Advanced' : avg >= 5 ? 'L3 Defined' : avg >= 3 ? 'L2 Developing' : 'L1 Initial';
+        const lc  = avg >= 9 ? 'ci-aim-l5' : avg >= 7 ? 'ci-aim-l4' : avg >= 5 ? 'ci-aim-l3' : avg >= 3 ? 'ci-aim-l2' : 'ci-aim-l1';
+        aimHTML += `<tr><td><strong>${c.name}</strong></td>`;
+        AIM_DIMS.forEach(d => {
+          const v = c.aim[d.key];
+          const bg = v >= 8 ? '#ecfdf5' : v >= 6 ? '#eff6ff' : v >= 4 ? '#fefce8' : v >= 2 ? '#fff7ed' : '#fef2f2';
+          const fg = v >= 8 ? '#047857' : v >= 6 ? '#2563eb' : v >= 4 ? '#d97706' : v >= 2 ? '#ea580c' : '#dc2626';
+          aimHTML += `<td style="background:${bg};color:${fg};font-weight:700;text-align:center">${v}</td>`;
+        });
+        aimHTML += `<td style="font-weight:800;font-size:14px;text-align:center">${avg}</td><td><span class="ci-aim-level ${lc}" style="font-size:9px">${lvl}</span></td></tr>`;
+      });
+      document.getElementById('ci-aimHeatmap').innerHTML = aimHTML + '</tbody>';
+
+      const aimSel1 = document.getElementById('ci-aimSel1'), aimSel2 = document.getElementById('ci-aimSel2');
+      C.forEach((c, i) => {
+        aimSel1.innerHTML += `<option value="${i}"${i===0?' selected':''}>${c.name}</option>`;
+        aimSel2.innerHTML += `<option value="${i}"${i===6?' selected':''}>${c.name}</option>`;
+      });
+
+      let aimChart = null;
+      window.ciRenderAimRadar = function(){
+        const i1 = parseInt(aimSel1.value), i2 = parseInt(aimSel2.value);
+        const c1 = C[i1], c2 = C[i2];
+        const labels = AIM_DIMS.map(d => d.name.split('&')[0].trim());
+        if (aimChart) aimChart.destroy();
+        aimChart = new Chart(document.getElementById('ci-aimRadarC'), {
+          type:'radar',
+          data:{labels, datasets:[
+            {label:c1.name, data:AIM_DIMS.map(d => c1.aim[d.key]), borderColor:c1.tier==='home'?'#BAE85B':'#f59e0b', backgroundColor:c1.tier==='home'?'rgba(186,232,91,.12)':'rgba(245,158,11,.08)', pointBackgroundColor:c1.tier==='home'?'#BAE85B':'#f59e0b', borderWidth:2},
+            {label:c2.name, data:AIM_DIMS.map(d => c2.aim[d.key]), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.08)', pointBackgroundColor:'#3b82f6', borderWidth:2},
+          ]},
+          options:{responsive:true, scales:{r:{min:0,max:10,ticks:{display:false,stepSize:2},grid:{color:chartGrid},angleLines:{color:chartGrid}}}, plugins:{legend:{position:'bottom', labels:{font:{size:10}, usePointStyle:true, pointStyle:'circle', padding:14}}}}
+        });
+
+        const bd = document.getElementById('ci-aimBreakdown');
+        let bh = '';
+        AIM_DIMS.forEach(d => {
+          const v1 = c1.aim[d.key], v2 = c2.aim[d.key], diff = v1 - v2;
+          const diffLabel = diff > 0 ? `<span style="color:var(--ci-green);font-weight:700">+${diff} ${c1.name}</span>` : diff < 0 ? `<span style="color:var(--ci-red);font-weight:700">${diff} (${c2.name} leads)</span>` : '<span style="color:var(--ci-amber);font-weight:700">Tied</span>';
+          bh += `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:12px;font-weight:600;color:var(--ci-text)">${d.name}</span>${diffLabel}</div><div style="display:flex;gap:8px;align-items:center"><span style="font-size:11px;width:65px;text-align:right;color:var(--ci-text-sec)">${c1.name}</span><div style="flex:1;height:6px;background:var(--ci-navy-50);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v1*10}%;background:${c1.tier==='home'?'#BAE85B':'#f59e0b'};border-radius:3px"></div></div><span style="font-size:11px;font-weight:700;width:20px">${v1}</span></div><div style="display:flex;gap:8px;align-items:center;margin-top:4px"><span style="font-size:11px;width:65px;text-align:right;color:var(--ci-text-sec)">${c2.name}</span><div style="flex:1;height:6px;background:var(--ci-navy-50);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v2*10}%;background:#3b82f6;border-radius:3px"></div></div><span style="font-size:11px;font-weight:700;width:20px">${v2}</span></div></div>`;
+        });
+        bd.innerHTML = bh;
+      };
+      window.ciRenderAimRadar();
+
+      // ── PROFILES ──
+      document.getElementById('ci-pN').innerHTML = C.map(c => `<button class="ci-pbtn${c.name==='Recruitera'?' active':''}" onclick="ciShowProfile('${c.name}', this)">${c.name}</button>`).join('');
+      window.ciShowProfile = function(n, btn){
+        // jump to Profiles tab
+        document.querySelectorAll('#ci-tabs .ci-tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#competitive-view .ci-sec').forEach(x => x.classList.remove('active'));
+        document.querySelector('#ci-tabs [data-tab="ci-profiles"]').classList.add('active');
+        document.getElementById('ci-profiles').classList.add('active');
+        const c = C.find(x => x.name === n), el = document.getElementById('ci-pD');
+        let roadmapHTML = '';
+        if (c.roadmap) roadmapHTML = `<div class="ci-detail-card"><h4>Product Roadmap (from Jira)</h4>${c.roadmap.map(r => `<div class="ci-road-item"><div class="ci-road-dot ${r.s}"></div><span>${r.t}</span></div>`).join('')}<div style="margin-top:10px;font-size:11px;color:var(--ci-text-muted)">Source: Jira project RC</div></div>`;
+        const aimAvg = Math.round(AIM_DIMS.map(d => c.aim[d.key]).reduce((a,b) => a+b, 0) / AIM_DIMS.length * 10) / 10;
+        const aimHTML = `<div class="ci-detail-card"><h4>AI Maturity (${aimAvg}/10)</h4>${AIM_DIMS.map(d => {
+          const v = c.aim[d.key];
+          return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px"><span>${d.name}</span><strong>${v}/10</strong></div><div style="height:4px;background:var(--ci-navy-50);border-radius:2px;overflow:hidden"><div style="height:100%;width:${v*10}%;background:linear-gradient(90deg,var(--ci-purple),var(--ci-blue));border-radius:2px"></div></div></div>`;
+        }).join('')}</div>`;
+        el.innerHTML = `<div class="ci-pd"><h2>${c.name}</h2><div class="ci-sub">${c.tl} • ${c.tier==='home'?'Home':c.tier==='direct'?'Direct Rival':'Benchmark'} • G2: ${c.g2}</div><div class="ci-detail-grid"><div class="ci-detail-card"><h4>Features</h4><p>${c.feat}</p></div><div class="ci-detail-card"><h4>AI / Model</h4><p>${c.ai_s}</p></div><div class="ci-detail-card"><h4>Pricing</h4><p>${c.pr.range}<br>${c.pt.join('<br>')}</p></div><div class="ci-detail-card"><h4>Market / Geo</h4><p>${c.mkt_d}</p></div><div class="ci-detail-card"><h4>Integrations</h4><p>${c.int_s}</p></div><div class="ci-detail-card"><h4>UX / Platform</h4><p>${c.ux_s}</p></div><div class="ci-detail-card"><h4>Positioning</h4><p>${c.position}</p></div>${aimHTML}${roadmapHTML}</div></div>`;
+        document.querySelectorAll('#ci-pN .ci-pbtn').forEach(b => b.classList.toggle('active', b.textContent === n));
+      };
+      window.ciShowProfile('Recruitera');
+
+      // ── MARKET MAP ──
+      const regs = ['Egypt','GCC','Levant','Europe','US','Global'], rk = ['egypt','gcc','levant','europe','us','global'];
+      const str = v => v === 3 ? '<span class="ci-y" style="font-size:14px">●●●</span>' : v === 2 ? '<span class="ci-p" style="font-size:14px">●●</span>' : v === 1 ? '<span style="color:#d1d5db;font-size:14px">●</span>' : '<span class="ci-n">—</span>';
+      document.getElementById('ci-gT').innerHTML = `<thead><tr><th>Company</th>${regs.map(r => `<th>${r}</th>`).join('')}</tr></thead><tbody>${C.map(c => `<tr><td><strong>${c.name}</strong></td>${rk.map(k => `<td>${str(c.geo[k])}</td>`).join('')}</tr>`).join('')}</tbody>`;
+      new Chart(document.getElementById('ci-szC'), {
+        type:'radar',
+        data:{labels:['Startup','SMB','Mid-Market','Enterprise'], datasets:[
+          {label:'Recruitera', data:C[0].sz, borderColor:'#BAE85B', backgroundColor:'rgba(186,232,91,.1)', pointBackgroundColor:'#BAE85B', borderWidth:2},
+          {label:'Talentera',  data:C[1].sz, borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.08)', pointBackgroundColor:'#f59e0b', borderWidth:2},
+          {label:'Workable',   data:C[3].sz, borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.05)', pointBackgroundColor:'#10b981', borderWidth:2},
+          {label:'Ashby',      data:C[6].sz, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.05)', pointBackgroundColor:'#3b82f6', borderWidth:2},
+        ]},
+        options:{responsive:true, scales:{r:{min:0,max:3,ticks:{display:false},grid:{color:chartGrid},angleLines:{color:chartGrid}}}, plugins:{legend:{position:'bottom', labels:{font:{size:10}, usePointStyle:true, pointStyle:'circle', padding:14}}}}
+      });
+      new Chart(document.getElementById('ci-posC2'), {
+        type:'scatter',
+        data:{datasets: C.map(c => ({label:c.name, data:[{x:c.pos.x,y:c.pos.y}], backgroundColor:c.tier==='home'?'#BAE85B':c.tier==='direct'?'#f59e0b':'#3b82f6', pointRadius:10, pointHoverRadius:14, borderColor:c.tier==='home'?'#1C2333':'transparent', borderWidth:c.tier==='home'?2:0}))},
+        options:{responsive:true, scales:{x:{title:{display:true,text:'Price (1=cheapest)',font:{weight:'600'}}, min:0, max:10, grid:{color:chartGrid}}, y:{title:{display:true,text:'Feature Depth (1=basic)',font:{weight:'600'}}, min:0, max:10, grid:{color:chartGrid}}}, plugins:{legend:{position:'bottom', labels:{font:{size:10}, usePointStyle:true, pointStyle:'circle', padding:14}}, tooltip:{callbacks:{label: ctx => ctx.dataset.label}}}}
+      });
+    } catch (err) {
+      const loading = document.getElementById('ci-loading');
+      if (loading) loading.innerHTML = `<div style="color:var(--bad,#dc2626);font-size:14px;text-align:center;max-width:400px;padding:24px;">Failed to load competitive data<br><small style="opacity:.7">${(err && err.message) || err}</small></div>`;
+      console.error('[CI Hub] init failed', err);
+      window.__ciHubInited = false; // allow retry on next open
+    }
+  };
+})();
+</script>
 </body>
 </html>
