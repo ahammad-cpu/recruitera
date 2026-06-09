@@ -11794,6 +11794,13 @@ function kpis(){
   // sb-acc-count is kept in sync by renderAccountsTable() (matches the All-tab count exactly)
   const _sbAcc = document.getElementById('sb-acc-count');
   if (_sbAcc) _sbAcc.textContent = leads.filter(l => hasRealData(l) && !gDisq(l._id)).length;
+  // sb-renewal-count = 1 per paid customer (same predicate the Renewal kanban uses).
+  // renderRenewalBoard() also updates this when the user opens that view, but
+  // computing here means the badge isn't stale at 0 on initial load.
+  const _sbRen = document.getElementById('sb-renewal-count');
+  if (_sbRen && typeof isLeadPaidCustomer === 'function') {
+    _sbRen.textContent = leads.filter(l => isLeadPaidCustomer(l)).length;
+  }
 }
 
 // ─── BOARD ────────────────────────────────────────────
