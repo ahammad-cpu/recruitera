@@ -17216,44 +17216,43 @@ function renderDashboard(){
   };
 
   // ─── Campaign performance (from marketing_tracking) ───
-  // Use the cached MT data if available. If not loaded yet, kick off a fetch
-  // that will re-render the dashboard once it lands. This makes Reports work
-  // even when the bootstrap loader is still in flight.
-  const accBySupabaseId = {};
-  (window.leads || []).forEach(l => { if (l._supabase_id) accBySupabaseId[l._supabase_id] = l; });
+  // Iterate over LEADS the same way the Sources panel does — falls through to
+  // UTM fields when no MT row matches. Previous version iterated MT_BY_* maps
+  // directly, which silently produced 0 results when renderDashboard ran
+  // before the bootstrap loadMarketingTracking promise resolved.
   const campMap = {};
-  const mtRowsSet = new Set();
-  Object.values(window.MT_BY_ACCOUNT   || {}).forEach(r => r && mtRowsSet.add(r));
-  Object.values(window.MT_BY_BUBBLE_ID || {}).forEach(r => r && mtRowsSet.add(r));
-  Object.values(window.MT_BY_COMPANY_REF || {}).forEach(r => r && mtRowsSet.add(r));
-  const mtRows = Array.from(mtRowsSet);
-  console.log('[reports] campaign scan:', mtRows.length, 'unique MT rows');
-  // If empty, trigger a fresh load and re-render after it returns
-  if (mtRows.length === 0 && typeof loadMarketingTracking === 'function' && !window._REPORTS_MT_REFETCH) {
+  (window.leads || []).forEach(l => {
+    if (!l) return;
+    const mt = (typeof window.resolveMT === 'function') ? window.resolveMT(l) : null;
+    const rd = l.raw_data || {};
+    const camp = (mt && (mt.last_campaign || mt.first_campaign))
+              || rd['UTM Campaign'] || rd.utm_campaign || l.utm_campaign || '';
+    if (!camp || !String(camp).trim()) return;
+    const key = String(camp).trim();
+    if (!campMap[key]) campMap[key] = { name: key, source: '', medium: '', leads: 0, demos: 0, trials: 0, won: 0, value: 0 };
+    campMap[key].leads++;
+    const src = (mt && (mt.last_source || mt.first_source)) || rd['UTM Source'] || l.utm_source || '';
+    const med = (mt && (mt.last_medium || mt.first_medium)) || rd['UTM Medium'] || l.utm_medium || '';
+    if (src) campMap[key].source = src;
+    if (med) campMap[key].medium = med;
+    const st = gStage(l._id);
+    if (st === 'demo') campMap[key].demos++;
+    if (l.has_trial || (gSource(l)||'').toLowerCase().includes('trial')) campMap[key].trials++;
+    if (st === 'won') { campMap[key].won++; campMap[key].value += parseAcv(gAcv(l._id)); }
+  });
+  // Tail-latency safety net: trigger MT refetch if both caches are empty
+  if (Object.keys(window.MT_BY_ACCOUNT||{}).length === 0
+      && Object.keys(window.MT_BY_BUBBLE_ID||{}).length === 0
+      && typeof loadMarketingTracking === 'function'
+      && !window._REPORTS_MT_REFETCH) {
     window._REPORTS_MT_REFETCH = true;
     loadMarketingTracking().then(() => {
       window._REPORTS_MT_REFETCH = false;
       if (currentMainView === 'dashboard') renderDashboard();
     }).catch(() => { window._REPORTS_MT_REFETCH = false; });
   }
-  mtRows.forEach(mt => {
-    if (!mt) return;
-    const camp = mt.last_campaign || mt.first_campaign;
-    if (!camp || !String(camp).trim()) return;
-    const key = String(camp).trim();
-    if (!campMap[key]) campMap[key] = { name: key, source: '', medium: '', leads: 0, demos: 0, trials: 0, won: 0, value: 0 };
-    campMap[key].leads++;
-    if (mt.last_source) campMap[key].source = mt.last_source;
-    if (mt.last_medium) campMap[key].medium = mt.last_medium;
-    const l = mt.account_id ? accBySupabaseId[mt.account_id] : null;
-    if (l) {
-      const st = gStage(l._id);
-      if (st === 'demo') campMap[key].demos++;
-      if (l.has_trial || (gSource(l)||'').toLowerCase().includes('trial')) campMap[key].trials++;
-      if (st === 'won') { campMap[key].won++; campMap[key].value += parseAcv(gAcv(l._id)); }
-    }
-  });
   const sortedCampaigns = Object.values(campMap).sort((a,b) => b.leads - a.leads).slice(0, 8);
+  console.log('[reports] campaign scan:', Object.keys(campMap).length, 'campaigns from', (window.leads||[]).length, 'leads');
 
   // Net retention proxy: (current customers + renewed) / (prior customers).
   // Use a simple stand-in until we wire contract_cycles directly.
