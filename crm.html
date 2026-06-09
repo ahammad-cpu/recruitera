@@ -14657,10 +14657,11 @@ function accFilteredLeads() {
   const fIcp   = document.getElementById('acc-ficp')?.value   || '';
   const fPaid   = document.getElementById('acc-fpaid')?.value  || '';
   const fTrial  = document.getElementById('acc-ftrial')?.value || '';
-  // Non-admins are forced to their own email; admins free-pick from the dropdown
+  // Admin + roles with module_access.all_accounts free-pick; everyone else is locked to their email
   const _isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const _seesAll = _isAdmin || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
   const _myEmail = window.AUTH_PROFILE?.email || '';
-  const fOwner = _isAdmin
+  const fOwner = _seesAll
     ? (document.getElementById('acc-fowner')?.value || '')
     : _myEmail;
 
@@ -14762,16 +14763,18 @@ function accSort(col) {
 function renderAccountsTable() {
   // Sync Reset-filters button visibility every time the table re-renders
   try { _accSyncResetVisibility(); } catch {}
-  // Populate owner filter (admins only — non-admins are locked to their own email)
+  // Populate owner filter (admin + roles with all_accounts module flag; others locked to own email)
   const _isAdminAcc = window.AUTH_PROFILE?.role === 'admin';
+  const _seesAllAcc = _isAdminAcc || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
   const ownerSel = document.getElementById('acc-fowner');
   if (ownerSel) {
-    if (!_isAdminAcc) {
+    if (!_seesAllAcc) {
       ownerSel.style.display = 'none';
       ownerSel.disabled = true;
     } else if (ownerSel.options.length <= 1) {
       ownerSel.style.display = '';
       ownerSel.disabled = false;
+      ownerSel.innerHTML = '<option value="">Owner: All</option>';
       const uniqueOwners = [...new Set(leads.map(l => gAmMail(l)).filter(Boolean))];
       uniqueOwners.forEach(e => {
         const opt = document.createElement('option');
