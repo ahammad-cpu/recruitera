@@ -7369,6 +7369,10 @@ body .ld-tab-content {
         <span class="sb-item-label">Renewal</span>
         <span class="sb-cnt" id="sb-renewal-count">0</span>
       </div>
+      <div class="sb-item" data-label="Competitive Hub" id="sb-competitive-item" onclick="switchMainView('competitive')">
+        <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 22h20"/><path d="M5 22V8l7-6 7 6v14"/><path d="M9 22V12h6v10"/><circle cx="12" cy="9" r="1"/></svg>
+        <span class="sb-item-label">Competitive Hub</span>
+      </div>
       <div class="sb-item sb-locked" data-label="Logs" id="sb-logs-item" onclick="switchMainView('logs')">
         <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>
         <span class="sb-item-label">Logs</span>
@@ -7733,6 +7737,17 @@ body .ld-tab-content {
 <div id="home-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
 
 <div id="forecast-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
+
+<!-- Competitive Hub: iframes the standalone /ci-hub.html in embedded mode.
+     The hub fetches its own data from staging Supabase (oswuvlahxlktxjzqudxg)
+     and renders with overridden tokens so it visually matches the CRM. -->
+<div id="competitive-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow:hidden;">
+  <iframe id="ci-hub-frame"
+          src=""
+          title="Competitive Hub"
+          loading="lazy"
+          style="border:0;width:100%;height:100%;background:var(--bg);"></iframe>
+</div>
 
 <div id="logs-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
@@ -10232,6 +10247,7 @@ window.applySidebarModuleAccess = function applySidebarModuleAccess(){
     logs:           'sb-logs-item',
     settings:       'sb-settings-item',
     utm_generator:  'sb-utm-item',
+    competitive_hub:'sb-competitive-item',
   };
   Object.entries(map).forEach(([key, elId]) => {
     const el = document.getElementById(elId);
@@ -14505,6 +14521,8 @@ function switchMainView(view) {
   if (view !== 'home' && homeViewEl) homeViewEl.style.cssText = 'display:none;';
   const forecastViewEl = document.getElementById('forecast-view');
   if (view !== 'forecast' && forecastViewEl) forecastViewEl.style.cssText = 'display:none;';
+  const competitiveViewEl = document.getElementById('competitive-view');
+  if (view !== 'competitive' && competitiveViewEl) competitiveViewEl.style.cssText = 'display:none;';
   // Clear the active highlight off EVERY sidebar item first; each branch then
   // re-activates only its own. Prevents stale highlights when navigating
   // between views (e.g. Renewal staying lit after clicking Accounts).
@@ -14601,6 +14619,19 @@ function switchMainView(view) {
     setActive(document.getElementById('sb-settings-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = 'Settings';
     requestAnimationFrame(() => renderSettingsRoles());
+  } else if (view === 'competitive') {
+    if (boardView)     boardView.style.cssText = 'display:none;';
+    if (accountsView)  accountsView.style.cssText = 'display:none;';
+    if (dashboardView) dashboardView.style.cssText = 'display:none;';
+    hideUtm();
+    const ciView = document.getElementById('competitive-view');
+    if (ciView) ciView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow:hidden;';
+    // Lazy-load the iframe on first visit so the standalone hub bundle
+    // (Chart.js, fonts, Supabase fetch) doesn't run unless the user opens it.
+    const frame = document.getElementById('ci-hub-frame');
+    if (frame && !frame.src) frame.src = '/ci-hub.html?embedded=1';
+    setActive(document.getElementById('sb-competitive-item'), true);
+    if (topbarTitle) topbarTitle.innerHTML = 'Competitive Hub';
   } else if (view === 'logs') {
     if (window.AUTH_PROFILE?.role !== 'admin') {
       console.warn('[Logs] non-admin blocked'); return;
