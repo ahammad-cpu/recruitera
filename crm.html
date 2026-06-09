@@ -9161,6 +9161,22 @@ function paintSettingsTargets(){
   });
   const totalFor = p => cols.reduce((s,c) => s + (dataByKey[`${p.id}_${c.startISO}`]||0), 0);
   const fmtEgp = n => n ? 'EGP ' + n.toLocaleString('en-US') : '—';
+  // Hierarchical period selector: Year ▸ Quarter ▸ Month
+  // Reads like a drill-down breadcrumb. Each level is clickable, the active
+  // one is filled with accent, others are subdued. Chevrons connect them so
+  // the hierarchy reads visually.
+  const _periodHierBtn = (k,l) => {
+    const active = period === k;
+    return `<button onclick="setSettTargetsPeriod('${k}')" style="font-size:12.5px;font-weight:${active?'700':'500'};padding:6px 14px;border:none;background:${active?'var(--text-1)':'transparent'};color:${active?'var(--bg)':'var(--text-2)'};cursor:pointer;font-family:inherit;letter-spacing:0.01em;transition:background 120ms;">${l}</button>`;
+  };
+  const _periodHierarchy = `
+    <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);">
+      ${_periodHierBtn('year','📅 Year')}
+      <span style="color:var(--text-4);font-size:12px;padding:0 2px;user-select:none;">›</span>
+      ${_periodHierBtn('quarter','Quarter')}
+      <span style="color:var(--text-4);font-size:12px;padding:0 2px;user-select:none;">›</span>
+      ${_periodHierBtn('month','Month')}
+    </div>`;
   const periodBtn = (k,l) => `<button onclick="setSettTargetsPeriod('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${period===k?'var(--text-1)':'var(--border)'};background:${period===k?'var(--text-1)':'transparent'};color:${period===k?'var(--bg)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
   const catBtn = (k,l) => `<button onclick="setSettTargetsCat('${k}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;border:1px solid ${cat===k?'var(--lime-700)':'var(--border)'};background:${cat===k?'var(--lime-200,#ECF8C0)':'transparent'};color:${cat===k?'var(--text-1)':'var(--text-3)'};cursor:pointer;font-family:inherit;">${l}</button>`;
   const yearOpts = [year-1, year, year+1].map(y => `<option value="${y}"${y===year?' selected':''}>${y}</option>`).join('');
@@ -9173,7 +9189,7 @@ function paintSettingsTargets(){
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         ${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}
         <div style="width:8px;"></div>
-        ${periodBtn('month','Month')}${periodBtn('quarter','Quarter')}${periodBtn('year','Year')}
+        ${_periodHierarchy}
         <div style="width:8px;"></div>
         <select onchange="setSettTargetsYear(this.value)" style="font:inherit;font-size:12px;padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text-1);">${yearOpts}</select>
       </div>
