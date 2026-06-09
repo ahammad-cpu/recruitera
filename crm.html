@@ -17222,12 +17222,16 @@ function renderDashboard(){
   const campMap = {};
   const accBySupabaseId = {};
   (window.leads || []).forEach(l => { if (l._supabase_id) accBySupabaseId[l._supabase_id] = l; });
-  const mtRows = Object.values(window.MT_BY_ACCOUNT || {}).concat(Object.values(window.MT_BY_BUBBLE_ID || {}));
-  // De-dupe by mt.id since the same row may appear in multiple indexes
-  const seenMt = new Set();
+  // Walk every loaded MT row, deduped by the row object identity (Set works
+  // because the same row appears as the SAME object in multiple indexes).
+  const mtRowsSet = new Set();
+  Object.values(window.MT_BY_ACCOUNT   || {}).forEach(r => r && mtRowsSet.add(r));
+  Object.values(window.MT_BY_BUBBLE_ID || {}).forEach(r => r && mtRowsSet.add(r));
+  Object.values(window.MT_BY_COMPANY_REF || {}).forEach(r => r && mtRowsSet.add(r));
+  const mtRows = Array.from(mtRowsSet);
+  console.log('[reports] campaign scan:', mtRows.length, 'unique MT rows');
   mtRows.forEach(mt => {
-    if (!mt || (mt.id && seenMt.has(mt.id))) return;
-    if (mt.id) seenMt.add(mt.id);
+    if (!mt) return;
     const camp = mt.last_campaign || mt.first_campaign;
     if (!camp || !String(camp).trim()) return;
     const key = String(camp).trim();
