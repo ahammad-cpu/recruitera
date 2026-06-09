@@ -8135,7 +8135,12 @@ function _periodWindow(kind, ref){
     end   = new Date(ref.getFullYear(), qStartMonth + 3, 0, 23, 59, 59, 999);
     label = `Q${Math.floor(ref.getMonth()/3)+1} ${ref.getFullYear()}`;
   }
-  return { start: start.getTime(), end: end.getTime(), label, startISO: start.toISOString().slice(0,10) };
+  // startISO must be computed from local Y/M/D — NOT via toISOString() which
+  // timezone-shifts Egypt's Jan 1 to Dec 31 of the previous year and breaks
+  // the period_start match against the targets table.
+  const _pad = n => String(n).padStart(2,'0');
+  const startISO = `${start.getFullYear()}-${_pad(start.getMonth()+1)}-${_pad(start.getDate())}`;
+  return { start: start.getTime(), end: end.getTime(), label, startISO };
 }
 
 async function loadMyTargets(profileId){
@@ -8252,7 +8257,11 @@ function paintHomeView(){
   const target = (function(){
     try {
       const rows = (window.MY_TARGETS || []).filter(t => t.owner_id === myId && t.category === 'new_sales');
-      const qStartISO = new Date(qStart).toISOString().slice(0,10);
+      // qStart was built with local-time Y/M/D — round-trip through toISOString
+      // would shift Egypt's Apr 1 to Mar 31 and break the match.
+      const _qd = new Date(qStart);
+      const _pad = n => String(n).padStart(2,'0');
+      const qStartISO = `${_qd.getFullYear()}-${_pad(_qd.getMonth()+1)}-${_pad(_qd.getDate())}`;
       const quarter = rows.find(t => t.period_kind === 'quarter' && t.period_start === qStartISO);
       if (quarter) return quarter.amount_egp;
       const monthSum = rows.filter(t => {
@@ -9076,20 +9085,22 @@ window.SETT_TARGETS_CAT    = window.SETT_TARGETS_CAT    || 'new_sales';
 window.SETT_TARGETS_YEAR   = window.SETT_TARGETS_YEAR   || (new Date()).getFullYear();
 window.SETT_TARGETS_DATA   = window.SETT_TARGETS_DATA   || [];
 
+// Build a YYYY-MM-DD string DIRECTLY from numeric parts. Never round-trips
+// through `Date.toISOString()` — that timezone-shifts and bites Egypt users
+// (Jan 1 2026 local → Dec 31 2025 UTC → wrong period_start in the targets table).
+function _isoDate(y, m /*1-12*/, d /*1-31*/){
+  const pad = n => String(n).padStart(2,'0');
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
 function _settTargetsColumns(){
   const y = window.SETT_TARGETS_YEAR;
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   if (window.SETT_TARGETS_PERIOD === 'month') {
-    return Array.from({length:12}, (_,i) => {
-      const d = new Date(y, i, 1);
-      return { startISO: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{month:'short'}) };
-    });
+    return Array.from({length:12}, (_,i) => ({ startISO: _isoDate(y, i+1, 1), label: MONTH_NAMES[i] }));
   } else if (window.SETT_TARGETS_PERIOD === 'quarter') {
-    return Array.from({length:4}, (_,i) => {
-      const d = new Date(y, i*3, 1);
-      return { startISO: d.toISOString().slice(0,10), label: `Q${i+1}` };
-    });
+    return Array.from({length:4}, (_,i) => ({ startISO: _isoDate(y, i*3 + 1, 1), label: `Q${i+1}` }));
   } else {
-    return [{ startISO: `${y}-01-01`, label: String(y) }];
+    return [{ startISO: _isoDate(y, 1, 1), label: String(y) }];
   }
 }
 
