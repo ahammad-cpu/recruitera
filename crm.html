@@ -11355,10 +11355,12 @@ function init(){
   });
   popFilters();
 
-  // Non-admin: auto-lock owner filter to their own email — they only see their leads
+  // Non-admin: auto-lock owner filter to their own email — they only see their leads.
+  // Customer Success / Team Lead get the `all_accounts` module flag so they keep the dropdown.
   const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const seesAll = isAdmin || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
   const myEmail = window.AUTH_PROFILE?.email || '';
-  if(!isAdmin && myEmail){
+  if(!seesAll && myEmail){
     const fown=document.getElementById('fowner');
     if(fown){ fown.value=myEmail; fown.disabled=true; fown.style.display='none'; }
     // Also hide the owner filter label for non-admins
@@ -11397,9 +11399,10 @@ function popFilters(){
   const own=document.getElementById('fowner');
   if(own){
     const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+    const seesAll = isAdmin || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
     const myEmail = window.AUTH_PROFILE?.email || '';
-    if(isAdmin){
-      // Admin sees all owners
+    if(seesAll){
+      // Admin / Customer Success / Team Lead see all owners
       const emails=[...new Set(leads.map(l=>gAmMail(l)).filter(Boolean))].sort();
       own.innerHTML='<option value="">All owners</option>'+
         emails.map(e=>{
@@ -11423,10 +11426,12 @@ function filtered(){
   const fscore=document.getElementById('fscore')?.value||'';
   const ftrial=document.getElementById('ftrial')?.value||'';
   const fsort=document.getElementById('fsort')?.value||'newest';
-  // Owner filter: admin picks from dropdown, non-admin always forced to their email
+  // Owner filter: admin / Customer Success / Team Lead pick from dropdown,
+  // everyone else is forced to their own email.
   const isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const seesAll = isAdmin || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
   const myEmail = window.AUTH_PROFILE?.email || '';
-  const fowner = isAdmin
+  const fowner = seesAll
     ? (document.getElementById('fowner')?.value||'')
     : myEmail;
 
