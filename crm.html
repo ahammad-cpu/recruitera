@@ -8237,27 +8237,6 @@ function paintHomeView(){
   const greeting = viewingSelf
     ? (h=>h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening')(new Date().getHours()) + ', ' + (auth.full_name || (auth.email||'').split('@')[0] || 'there')
     : "Viewing " + (myName);
-  // Resolve target for this quarter from the NEW targets table (multi-period
-  // aware). Falls back to legacy profiles.quarterly_target_egp if no rows yet.
-  const target = (function(){
-    const rows = (window.MY_TARGETS || []).filter(t => t.owner_id === myId && t.category === 'new_sales');
-    const qStartISO = new Date(qStart).toISOString().slice(0,10);
-    // 1) Exact quarter match
-    const quarter = rows.find(t => t.period_kind === 'quarter' && t.period_start === qStartISO);
-    if (quarter) return quarter.amount_egp;
-    // 2) Sum the 3 months in the quarter
-    const monthSum = rows.filter(t => {
-      if (t.period_kind !== 'month') return false;
-      const ts = new Date(t.period_start + 'T00:00:00').getTime();
-      return ts >= qStart && ts <= qEnd;
-    }).reduce((s,t) => s + (t.amount_egp || 0), 0);
-    if (monthSum > 0) return monthSum;
-    // 3) Annual target → /4
-    const year = rows.find(t => t.period_kind === 'year' && t.period_start.slice(0,4) === new Date(qStart).getFullYear().toString());
-    if (year) return Math.round(year.amount_egp / 4);
-    // 4) Legacy column fallback
-    return me.quarterly_target_egp || null;
-  })();
   const escFn = (typeof esc==='function') ? esc : (s=>String(s||''));
   const fmtEgp = n => 'EGP ' + (n||0).toLocaleString('en-US');
 
@@ -8267,6 +8246,26 @@ function paintHomeView(){
   const qEnd   = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3 + 3, 1).getTime() - 1;
   const qLabel = `Q${Math.floor(now.getMonth()/3)+1} ${now.getFullYear()}`;
   const daysLeft = Math.max(0, Math.ceil((qEnd - Date.now())/86400000));
+
+  // Resolve target for this quarter from the NEW targets table (multi-period
+  // aware). Falls back to legacy profiles.quarterly_target_egp if no rows yet.
+  const target = (function(){
+    try {
+      const rows = (window.MY_TARGETS || []).filter(t => t.owner_id === myId && t.category === 'new_sales');
+      const qStartISO = new Date(qStart).toISOString().slice(0,10);
+      const quarter = rows.find(t => t.period_kind === 'quarter' && t.period_start === qStartISO);
+      if (quarter) return quarter.amount_egp;
+      const monthSum = rows.filter(t => {
+        if (t.period_kind !== 'month') return false;
+        const ts = new Date(t.period_start + 'T00:00:00').getTime();
+        return ts >= qStart && ts <= qEnd;
+      }).reduce((s,t) => s + (t.amount_egp || 0), 0);
+      if (monthSum > 0) return monthSum;
+      const year = rows.find(t => t.period_kind === 'year' && (t.period_start||'').slice(0,4) === new Date(qStart).getFullYear().toString());
+      if (year) return Math.round(year.amount_egp / 4);
+    } catch (e) { console.warn('[home] target resolution failed', e); }
+    return me.quarterly_target_egp || null;
+  })();
 
   // ─── Won deals this quarter for me ───
   const myAccounts = (window.leads||[]).filter(l => {
