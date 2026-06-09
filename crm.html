@@ -8731,12 +8731,12 @@ function paintForecastView(){
   const stageLabel = s => ({won:'Won',proposal:'Proposal',demo:'Demo',sql:'SQL','active':'Renewal (active)','negotiating':'Renewal (negotiating)','renewed':'Renewed'})[s]||s;
 
   root.innerHTML = `
-    <div class="page-head">
+    <div class="page-head" style="flex-direction:column;align-items:stretch;gap:14px;">
       <div>
         <div class="page-title">🔮 Team Targeting</div>
         <div class="page-sub">${escFn(win.label)} · ${isAllView?`All team (${_eligibleAll.length})`:escFn(viewing.full_name||viewing.email||'')} · ${category==='renewal'?'Renewal pipeline':category==='all'?'Sales + Renewal combined':'New-sales pipeline'}</div>
       </div>
-      <div class="page-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+      <div class="page-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;">
         ${viewerPicker}
         <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
         <div style="display:inline-flex;gap:4px;">${catBtn('all','All')}${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}</div>
