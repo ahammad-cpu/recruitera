@@ -17780,42 +17780,45 @@ function renderDashboard(){
   (window.leads || []).forEach(l => { if (l._supabase_id) accBySupabaseId[l._supabase_id] = l; });
   // Exclude obvious test campaigns so they don't pollute the leaderboard.
   const _TEST_RE = /^(test|clean-test|bubble-flow|temp|demo-|dev-|sandbox)|[-_](test|sandbox)([-_]|$)/i;
+  // First pass: tally source/medium across all mt rows. Second pass below
+  // counts UNIQUE accounts (one row per company) so the "Leads" column
+  // matches Bubble's company count, not raw visitor sessions.
+  // Bug before: 80 mt rows for Events QR → "80 leads"; Bubble showed 20
+  // because only 20 distinct companies actually signed up.
   (window._CAMP_CACHE || []).forEach(mt => {
     const camp = mt.first_campaign || mt.last_campaign;
     if (!camp || !String(camp).trim()) return;
     const key = String(camp).trim();
     if (_TEST_RE.test(key)) return;
-    if (!campMap[key]) campMap[key] = { name: key, leads: 0, demos: 0, trials: 0, won: 0, value: 0, _srcTally: {}, _medTally: {} };
-    campMap[key].leads++;
-    // Tally source/medium across all mt rows in this campaign — the most
-    // frequent value wins. Prevents one outlier row from mis-labelling the
-    // campaign's true origin (previous bug: WhatsApp campaign mislabelled
-    // "Linkedin · Organic" because last-write-wins).
+    if (!campMap[key]) campMap[key] = { name: key, leads: 0, demos: 0, trials: 0, won: 0, value: 0, _srcTally: {}, _medTally: {}, _accIds: new Set() };
+    if (mt.account_id) campMap[key]._accIds.add(mt.account_id);
     const src = (mt.first_source || mt.last_source || '').trim();
     const med = (mt.first_medium || mt.last_medium || '').trim();
     if (src) campMap[key]._srcTally[src] = (campMap[key]._srcTally[src] || 0) + 1;
     if (med) campMap[key]._medTally[med] = (campMap[key]._medTally[med] || 0) + 1;
-    const l = mt.account_id ? accBySupabaseId[mt.account_id] : null;
-    if (l) {
+  });
+  // Second pass: per unique account, classify the lead exactly once.
+  Object.values(campMap).forEach(c => {
+    c.leads = c._accIds.size;
+    c._accIds.forEach(accId => {
+      const l = accBySupabaseId[accId];
+      if (!l) return;
       const st = gStage(l._id);
-      if (st === 'demo') campMap[key].demos++;
-      // Trial = the account is, or ever was, a paid_customer (we know it
-      // signed up for the product). Falls back to has_trial / source hints.
+      if (st === 'demo') c.demos++;
       const isTrial = l.has_trial
-                   || !!l._supabase_id && Array.isArray(window.CONTRACT_CYCLES)
-                        && window.CONTRACT_CYCLES.some(c => c.account_id === l._supabase_id)
+                   || (Array.isArray(window.CONTRACT_CYCLES) && window.CONTRACT_CYCLES.some(cy => cy.account_id === accId))
                    || (gSource(l)||'').toLowerCase().includes('trial')
                    || (typeof isLeadPaidCustomer === 'function' && isLeadPaidCustomer(l));
-      if (isTrial) campMap[key].trials++;
+      if (isTrial) c.trials++;
       if (st === 'won') {
-        campMap[key].won++;
-        // Prefer real contract value over manually-typed gAcv (same fix as ARR).
+        c.won++;
         const cycleVal = (Array.isArray(window.CONTRACT_CYCLES))
-          ? (window.CONTRACT_CYCLES.find(c => c.account_id === l._supabase_id && c.status === 'active')?.value || 0)
+          ? (window.CONTRACT_CYCLES.find(cy => cy.account_id === accId && cy.status === 'active')?.value || 0)
           : 0;
-        campMap[key].value += (parseFloat(cycleVal) || parseAcv(gAcv(l._id)));
+        c.value += (parseFloat(cycleVal) || parseAcv(gAcv(l._id)));
       }
-    }
+    });
+    delete c._accIds;
   });
   // Resolve tallies → mode (most frequent), and drop helper fields.
   const _mode = obj => Object.entries(obj || {}).sort((a,b) => b[1]-a[1])[0]?.[0] || '';
