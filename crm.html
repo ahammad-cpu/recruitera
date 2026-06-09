@@ -19838,13 +19838,6 @@ window.addEventListener('auth-ready', () => {
               ${leadPicker}
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;color:var(--text-3);font-weight:600;letter-spacing:0.04em;">EGP /Q</span>
-            <input type="number" min="0" step="1000" value="${m.quarterly_target_egp ?? ''}" placeholder="—"
-                   onblur="abacMemberSetTarget('${m.id}', this.value)"
-                   onkeydown="if(event.key==='Enter')this.blur();"
-                   style="width:110px;font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;text-align:right;font-variant-numeric:tabular-nums;"/>
-          </div>
           <button class="btn btn-secondary" onclick="abacRoleRemoveMember('${m.id}')" style="padding:4px 10px;font-size:11px;color:var(--bad);border-color:var(--bad);">Remove</button>
         </div>`;
         }).join('');
