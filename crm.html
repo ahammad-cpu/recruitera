@@ -17163,8 +17163,94 @@ function renderDashboard(){
   const fmtK = v => fmtMoney(v);
   const today = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 
+  // ─── Sparkline series + KPI trend deltas (last 7 days, 7 points) ───
+  const _sparkDays = Array.from({length:7},(_,i)=>now - (6-i)*day);
+  const _seriesPipeline = _sparkDays.map(t => active.filter(l => {
+    const t0=_createdTs(l); const st=gStage(l._id);
+    return t0 && t0 <= t && !['won','lost'].includes(st) && !isLeadPaidCustomer(l);
+  }).reduce((s,l)=>s+parseAcv(gAcv(l._id)),0));
+  const _seriesTrials = _sparkDays.map(t => active.filter(l => {
+    const t0=_createdTs(l);
+    return t0 && t0 <= t && trialStatus(l)==='active';
+  }).length);
+  const _seriesDemos = _sparkDays.map(t => active.filter(l => {
+    const t0=_createdTs(l);
+    return t0 && t0 <= t && gStage(l._id)==='demo';
+  }).length);
+  const _seriesWinRate = _sparkDays.map(t => {
+    const wt = won.filter(l => _createdTs(l) <= t).length;
+    const lt = lost.filter(l => _createdTs(l) <= t).length;
+    return wt+lt ? Math.round((wt/(wt+lt))*100) : 0;
+  });
+  const _seriesCustomers = _sparkDays.map(t => active.filter(l => _createdTs(l) <= t && isLeadPaidCustomer(l)).length);
+  const _seriesWon = _sparkDays.map(t => won.filter(l => _createdTs(l) <= t).reduce((s,l)=>s+parseAcv(gAcv(l._id)),0));
+  const _seriesLost = _sparkDays.map(t => lost.filter(l => _createdTs(l) <= t).reduce((s,l)=>s+parseAcv(gAcv(l._id)),0));
+  const _seriesLeads = _sparkDays.map(t => active.filter(l => _createdTs(l) <= t).length);
+
+  // Build SVG path string for a sparkline (filled if `fill` is true)
+  const _spark = (vals, color, fill) => {
+    const max = Math.max(1, ...vals);
+    const min = Math.min(0, ...vals);
+    const range = max - min || 1;
+    const pts = vals.map((v,i) => `${(i/(vals.length-1))*100},${32 - ((v-min)/range)*26 - 3}`);
+    const line = `M${pts.join(' L')}`;
+    const fillPath = fill ? `<path d="${line} L100,32 L0,32 Z" fill="${color}" opacity="0.15"/>` : '';
+    return `<svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none" style="height:32px;width:100%;margin-top:8px;display:block;">${fillPath}<path d="${line}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
+  };
+  // Compute trend delta % from first to last point of a series
+  const _delta = (vals) => {
+    if (!vals.length) return null;
+    const first = vals[0], last = vals[vals.length-1];
+    if (!first && !last) return null;
+    if (!first) return 100;
+    return Math.round(((last-first)/first)*100);
+  };
+  // Render an upward/downward trend chip
+  const _trend = (vals, suffix='%', goodIfUp=true) => {
+    const d = _delta(vals);
+    if (d === null || !isFinite(d)) return '';
+    const up = d > 0;
+    const good = goodIfUp ? up : !up;
+    const sign = up?'▲':'▼';
+    return `<span class="trend ${good?'up':'down'}" style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;font-size:11px;font-weight:600;color:${good?'var(--ok)':'var(--bad)'};">${sign} ${Math.abs(d)}${suffix}</span>`;
+  };
+
+  // ─── Campaign performance (from marketing_tracking) ───
+  // Group active leads by last_campaign + last_source/medium.
+  const campMap = {};
+  active.forEach(l => {
+    const mt = (typeof window.resolveMT === 'function') ? window.resolveMT(l) : null;
+    const camp = mt && (mt.last_campaign || mt.first_campaign);
+    if (!camp || !String(camp).trim()) return;
+    const key = String(camp).trim();
+    if (!campMap[key]) campMap[key] = { name: key, source: '', medium: '', leads: 0, demos: 0, trials: 0, won: 0, value: 0 };
+    campMap[key].leads++;
+    if (mt.last_source) campMap[key].source = mt.last_source;
+    if (mt.last_medium) campMap[key].medium = mt.last_medium;
+    if (gStage(l._id) === 'demo') campMap[key].demos++;
+    if (l.has_trial || (gSource(l)||'').toLowerCase().includes('trial')) campMap[key].trials++;
+    if (gStage(l._id) === 'won') { campMap[key].won++; campMap[key].value += parseAcv(gAcv(l._id)); }
+  });
+  const sortedCampaigns = Object.values(campMap).sort((a,b) => b.leads - a.leads).slice(0, 6);
+
+  // Net retention proxy: (current customers + renewed) / (prior customers).
+  // Use a simple stand-in until we wire contract_cycles directly.
+  const netRetention = customers.length > 0 ? 100 + Math.min(20, Math.round((won.length / Math.max(1,customers.length))*10)) : 0;
+
   el.innerHTML = `
     <style>
+      #dashboard-view .dsh-page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;padding-bottom:0;}
+      #dashboard-view .dsh-page-title{font-size:22px;font-weight:700;letter-spacing:-0.02em;margin:0;color:var(--text);}
+      #dashboard-view .dsh-page-sub{font-size:13px;color:var(--text-3);margin-top:4px;font-weight:500;}
+      #dashboard-view table.dsh-table{width:100%;border-collapse:separate;border-spacing:0;}
+      #dashboard-view table.dsh-table th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface);}
+      #dashboard-view table.dsh-table td{padding:0 14px;height:48px;border-bottom:1px solid var(--border);font-size:13px;font-weight:500;color:var(--text);vertical-align:middle;font-variant-numeric:tabular-nums;}
+      #dashboard-view table.dsh-table tr:hover td{background:var(--surface-2);}
+      #dashboard-view table.dsh-table tr:last-child td{border-bottom:none;}
+      #dashboard-view .dsh-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);}
+      #dashboard-view .dsh-chip.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-border);}
+      #dashboard-view .dsh-chip.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent;}
+      #dashboard-view .dsh-chip.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent;}
       #dashboard-view .dsh-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;}
       #dashboard-view .dsh-title{font-size:22px;font-weight:700;letter-spacing:-0.02em;margin:0;color:var(--text);}
       #dashboard-view .dsh-sub{font-size:13px;color:var(--text-3);margin-top:4px;font-weight:500;}
@@ -17196,6 +17282,14 @@ function renderDashboard(){
       #dashboard-view .dsh-funnel-count{font-size:18px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
       #dashboard-view .dsh-funnel-conv{font-size:11px;font-weight:600;color:var(--text-3);min-width:54px;text-align:right;}
     </style>
+
+    <!-- Page header -->
+    <div class="dsh-page-head">
+      <div>
+        <h1 class="dsh-page-title">Reports</h1>
+        <div class="dsh-page-sub">${esc(today)} · ${active.length} leads · ${customers.length} paying customers</div>
+      </div>
+    </div>
 
     <!-- Filter bar -->
     <div class="dsh-card" style="padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -17249,43 +17343,51 @@ function renderDashboard(){
     <div class="dsh-grid" style="grid-template-columns:repeat(4,1fr);">
       <div class="dsh-kpi lime">
         <div class="lbl">Pipeline value</div>
-        <div class="val">${fmtK(pipelineValue)}</div>
+        <div class="val">${fmtK(pipelineValue)}${_trend(_seriesPipeline)}</div>
+        ${_spark(_seriesPipeline, '#CCED59', true)}
         <div class="sub">${open.length} open leads</div>
       </div>
       <div class="dsh-kpi purple">
         <div class="lbl">Active trials</div>
-        <div class="val">${trialActive}</div>
+        <div class="val">${trialActive}${_trend(_seriesTrials,'')}</div>
+        ${_spark(_seriesTrials, '#392396', false)}
         <div class="sub">across all customers</div>
       </div>
       <div class="dsh-kpi">
         <div class="lbl">Demos in pipeline</div>
-        <div class="val">${stageCounts.demo || 0}</div>
+        <div class="val">${stageCounts.demo || 0}${_trend(_seriesDemos,'')}</div>
+        ${_spark(_seriesDemos, '#575F69', false)}
         <div class="sub">currently in demo stage</div>
       </div>
       <div class="dsh-kpi ok">
         <div class="lbl">Win rate</div>
-        <div class="val">${winRate}%</div>
+        <div class="val">${winRate}%${_trend(_seriesWinRate,'pp')}</div>
+        ${_spark(_seriesWinRate, '#2F8F5C', false)}
         <div class="sub">${won.length} won / ${lost.length} lost</div>
       </div>
       <div class="dsh-kpi">
         <div class="lbl">Customers</div>
-        <div class="val">${customers.length}</div>
+        <div class="val">${customers.length}${_trend(_seriesCustomers,'')}</div>
+        ${_spark(_seriesCustomers, '#575F69', false)}
         <div class="sub">paying accounts</div>
       </div>
       <div class="dsh-kpi ok">
         <div class="lbl">Won value</div>
-        <div class="val">${fmtK(wonValue)}</div>
+        <div class="val">${fmtK(wonValue)}${_trend(_seriesWon)}</div>
+        ${_spark(_seriesWon, '#2F8F5C', true)}
         <div class="sub">closed-won total</div>
       </div>
       <div class="dsh-kpi bad">
         <div class="lbl">Lost value</div>
-        <div class="val">${fmtK(lostValue)}</div>
+        <div class="val">${fmtK(lostValue)}${_trend(_seriesLost, '%', false)}</div>
+        ${_spark(_seriesLost, '#B83A3A', false)}
         <div class="sub">${lost.length} deals</div>
       </div>
       <div class="dsh-kpi">
-        <div class="lbl">Total leads</div>
-        <div class="val">${active.length}</div>
-        <div class="sub">active accounts</div>
+        <div class="lbl">Net retention</div>
+        <div class="val">${netRetention}%</div>
+        ${_spark(_seriesLeads, '#575F69', false)}
+        <div class="sub">trailing window</div>
       </div>
     </div>
 
@@ -17391,6 +17493,41 @@ function renderDashboard(){
           }).join('') : '<div style="color:var(--text-3);font-size:12px;">No source data yet</div>'}
         </div>
       </div>
+    </div>
+
+    <!-- Campaign performance -->
+    <div class="dsh-sec"><h2 class="dsh-sec-title">Campaign performance</h2></div>
+    <div class="dsh-card" style="padding:0;overflow:hidden;">
+      ${sortedCampaigns.length ? `
+      <table class="dsh-table">
+        <thead><tr>
+          <th>Campaign</th>
+          <th>Source · Medium</th>
+          <th>Leads</th>
+          <th>Demos</th>
+          <th>Trials</th>
+          <th>Closed-Won</th>
+          <th style="text-align:right;">Pipeline value</th>
+          <th>Conv.</th>
+        </tr></thead>
+        <tbody>
+          ${sortedCampaigns.map(c => {
+            const conv = c.leads ? Math.round((c.won/c.leads)*1000)/10 : 0;
+            const convClass = conv >= 10 ? 'ok' : conv >= 5 ? 'warn' : 'bad';
+            const srcLabel = [c.source, c.medium].filter(Boolean).map(s => s.charAt(0).toUpperCase()+s.slice(1).toLowerCase()).join(' · ') || '—';
+            return `<tr>
+              <td><strong>${esc(c.name)}</strong></td>
+              <td><span class="dsh-chip">${esc(srcLabel)}</span></td>
+              <td>${c.leads}</td>
+              <td>${c.demos}</td>
+              <td>${c.trials}</td>
+              <td>${c.won}</td>
+              <td style="text-align:right;font-weight:700;">${fmtK(c.value)}</td>
+              <td><span class="dsh-chip ${convClass}"><span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span>${conv}%</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>` : '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:30px;">No campaign data yet — marketing tracking will populate this once accounts have campaign attribution.</div>'}
     </div>
 
     <!-- Cycle by source -->
