@@ -13567,13 +13567,20 @@ function renderLdRight(lead){
       </div>
       <div class="ld-panel-body">
         <div id="ld-tags-list" style="display:flex;flex-wrap:wrap;gap:5px;">
-          ${gTags(id).length === 0
-            ? `<span style="font-size:11.5px;color:var(--text-4);font-style:italic;">No tags yet</span>`
-            : gTags(id).map(t => `
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;border-radius:999px;font-size:11px;font-weight:500;background:${tagColor(t)}18;color:${tagColor(t)};border:1px solid ${tagColor(t)}44;">
-                ${esc(t)}
-                <button onclick="removeTagFromLead('${id}','${esc(t)}');renderLdRight(leads.find(l=>l._id==='${id}'));renderBoard();" style="background:none;border:none;color:inherit;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">×</button>
-              </span>`).join('')}
+          ${(() => {
+            const sbId = lead._supabase_id;
+            const tagIds = (sbId && window.ACC_TAGS_BY_ACC && window.ACC_TAGS_BY_ACC[sbId]) || [];
+            if (!tagIds.length) return `<span style="font-size:11.5px;color:var(--text-4);font-style:italic;">No tags yet</span>`;
+            return tagIds.map(tid => {
+              const t = window.TAG_BY_ID && window.TAG_BY_ID[tid];
+              if (!t) return '';
+              const c = t.color || '#7B5CFF';
+              return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;border-radius:999px;font-size:11px;font-weight:500;background:${c}18;color:${c};border:1px solid ${c}44;">
+                ${esc(t.label)}
+                <button onclick="toggleTag('${id}','${esc(t.id)}')" style="background:none;border:none;color:inherit;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">×</button>
+              </span>`;
+            }).join('');
+          })()}
         </div>
       </div>
     </div>
@@ -14704,14 +14711,14 @@ function _tagsForLead(lead){
 function renderRowTags(lead){
   const tags = _tagsForLead(lead);
   if(!tags.length){
-    return `<button class="row-tag-add" onclick="event.stopPropagation();openTagPicker(event,'${lead._supabase_id}')" title="Add tag" style="background:transparent;border:1px dashed var(--border);color:var(--text-3);font-size:10.5px;padding:2px 7px;border-radius:999px;cursor:pointer;">+ tag</button>`;
+    return `<button class="row-tag-add" onclick="event.stopPropagation();openAccountTagPicker(event,'${lead._supabase_id}')" title="Add tag" style="background:transparent;border:1px dashed var(--border);color:var(--text-3);font-size:10.5px;padding:2px 7px;border-radius:999px;cursor:pointer;">+ tag</button>`;
   }
-  return tags.map(t => `<span onclick="event.stopPropagation();openTagPicker(event,'${lead._supabase_id}')" style="display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:${esc(t.color||'#7B5CFF')}22;color:${esc(t.color||'#7B5CFF')};border:1px solid ${esc(t.color||'#7B5CFF')}55;cursor:pointer;margin-right:3px;">${esc(t.label)}</span>`).join('') +
-    `<button class="row-tag-add" onclick="event.stopPropagation();openTagPicker(event,'${lead._supabase_id}')" title="Edit tags" style="background:transparent;border:0;color:var(--text-3);font-size:11px;padding:0 4px;cursor:pointer;">+</button>`;
+  return tags.map(t => `<span onclick="event.stopPropagation();openAccountTagPicker(event,'${lead._supabase_id}')" style="display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:${esc(t.color||'#7B5CFF')}22;color:${esc(t.color||'#7B5CFF')};border:1px solid ${esc(t.color||'#7B5CFF')}55;cursor:pointer;margin-right:3px;">${esc(t.label)}</span>`).join('') +
+    `<button class="row-tag-add" onclick="event.stopPropagation();openAccountTagPicker(event,'${lead._supabase_id}')" title="Edit tags" style="background:transparent;border:0;color:var(--text-3);font-size:11px;padding:0 4px;cursor:pointer;">+</button>`;
 }
 
 let _tagPickerEl = null;
-function openTagPicker(ev, accountId){
+function openAccountTagPicker(ev, accountId){
   if(_tagPickerEl){ _tagPickerEl.remove(); _tagPickerEl = null; }
   const wrap = document.createElement('div');
   wrap.style.cssText = 'position:fixed;z-index:9999;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.18);padding:10px;min-width:240px;font-size:13px;';
@@ -14740,9 +14747,9 @@ function openTagPicker(ev, accountId){
   setTimeout(()=>document.addEventListener('mousedown', _tagPickerOutside),0);
 }
 function _tagPickerOutside(e){
-  if(_tagPickerEl && !_tagPickerEl.contains(e.target)) closeTagPicker();
+  if(_tagPickerEl && !_tagPickerEl.contains(e.target)) closeAccountTagPicker();
 }
-function closeTagPicker(){
+function closeAccountTagPicker(){
   if(_tagPickerEl){ _tagPickerEl.remove(); _tagPickerEl = null; }
   document.removeEventListener('mousedown', _tagPickerOutside);
 }
@@ -16108,46 +16115,87 @@ async function handleFileUpload(leadId, file) {
   toast('File uploaded', 'success');
 }
 
+// Lead-detail Tags modal — DB-backed (shares window.TAGS / window.ACC_TAGS_BY_ACC
+// with the Accounts page picker). `leadId` here is the bubble_id; we resolve to
+// the Supabase account UUID via leads[]._supabase_id.
+function _sbIdForLead(leadId){
+  const l = leads.find(l => l._id === leadId);
+  return l && l._supabase_id ? l._supabase_id : null;
+}
 function openTagPicker(leadId) {
-  document.getElementById('tag-picker-bg').classList.add('open');
-  document.getElementById('tag-picker-bg').dataset.leadId = leadId;
+  const bg = document.getElementById('tag-picker-bg');
+  bg.classList.add('open');
+  bg.dataset.leadId = leadId;
   renderTagPicker(leadId);
 }
 function closeTagPicker() {
-  document.getElementById('tag-picker-bg').classList.remove('open');
+  const bg = document.getElementById('tag-picker-bg');
+  if (bg) bg.classList.remove('open');
 }
 function renderTagPicker(leadId) {
-  const currentTags = gTags(leadId);
+  const sbId = _sbIdForLead(leadId);
+  const have = new Set((sbId && window.ACC_TAGS_BY_ACC[sbId]) || []);
   const list = document.getElementById('tag-picker-list');
-  const allTags = getAllUsedTags();
-  list.innerHTML = allTags.map(t => {
-    const active = currentTags.includes(t);
-    const color = tagColor(t);
-    return `<button onclick="toggleTag('${leadId}','${esc(t)}')" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:500;background:${active ? color+'22' : 'var(--surface-2)'};color:${active ? color : 'var(--text-3)'};border:1.5px solid ${active ? color : 'var(--border)'};cursor:pointer;font-family:inherit;transition:all 120ms;">
-      ${active ? '✓ ' : ''}${esc(t)}
+  if (!list) return;
+  list.innerHTML = (window.TAGS||[]).map(t => {
+    const active = have.has(t.id);
+    const color = t.color || '#7B5CFF';
+    return `<button onclick="toggleTag('${leadId}','${esc(t.id)}')" style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:500;background:${active ? color+'22' : 'var(--surface-2)'};color:${active ? color : 'var(--text-3)'};border:1.5px solid ${active ? color : 'var(--border)'};cursor:pointer;font-family:inherit;transition:all 120ms;">
+      ${active ? '✓ ' : ''}${esc(t.label)}
     </button>`;
   }).join('');
 }
-function toggleTag(leadId, tag) {
-  const tags = gTags(leadId);
-  if (tags.includes(tag)) removeTagFromLead(leadId, tag);
-  else addTagToLead(leadId, tag);
+async function toggleTag(leadId, tagId) {
+  const sbId = _sbIdForLead(leadId);
+  if (!sbId) { toast('Account not synced to DB yet','error'); return; }
+  const token = await _getValidAccessToken(); if(!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json' };
+  const list = window.ACC_TAGS_BY_ACC[sbId] = window.ACC_TAGS_BY_ACC[sbId] || [];
+  if (list.includes(tagId)) {
+    list.splice(list.indexOf(tagId), 1);
+    await fetch(`${SB_URL}/rest/v1/account_tags?account_id=eq.${sbId}&tag_id=eq.${tagId}`, { method:'DELETE', headers });
+  } else {
+    list.push(tagId);
+    await fetch(`${SB_URL}/rest/v1/account_tags`, { method:'POST', headers, body: JSON.stringify({ account_id: sbId, tag_id: tagId }) });
+  }
   renderTagPicker(leadId);
   const lead = leads.find(l => l._id === leadId);
   if (lead) renderLdRight(lead);
-  renderBoard();
+  if (typeof renderAccountsTable === 'function') renderAccountsTable();
 }
-function addCustomTag() {
+async function addCustomTag() {
   const input = document.getElementById('tag-picker-custom');
-  const tag = input.value.trim();
-  if (!tag) return;
+  const label = (input?.value || '').trim();
+  if (!label) return;
   const leadId = document.getElementById('tag-picker-bg').dataset.leadId;
-  addTagToLead(leadId, tag);
+  const sbId = _sbIdForLead(leadId);
+  if (!sbId) { toast('Account not synced to DB yet','error'); return; }
+  const token = await _getValidAccessToken(); if(!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=representation' };
+
+  // Reuse existing tag (case-insensitive); otherwise create it.
+  let tag = (window.TAGS||[]).find(t => (t.label||'').toLowerCase() === label.toLowerCase());
+  if (!tag) {
+    const palette = ['#E54B4B','#7B5CFF','#F2A93B','#2F8F5C','#3478F6','#B83A8C','#0FA3B1','#A86E2E'];
+    const color = palette[Math.floor(Math.random()*palette.length)];
+    const res = await fetch(`${SB_URL}/rest/v1/tags`, { method:'POST', headers, body: JSON.stringify({ label, color, is_preset:false }) });
+    if (!res.ok) { alert('Failed to create tag: ' + (await res.text()).slice(0,200)); return; }
+    const rows = await res.json();
+    tag = rows[0];
+    window.TAGS.push(tag);
+    window.TAG_BY_ID[tag.id] = tag;
+    if (typeof _populateTagFilter === 'function') _populateTagFilter();
+  }
+  const list = window.ACC_TAGS_BY_ACC[sbId] = window.ACC_TAGS_BY_ACC[sbId] || [];
+  if (!list.includes(tag.id)) {
+    list.push(tag.id);
+    await fetch(`${SB_URL}/rest/v1/account_tags`, { method:'POST', headers, body: JSON.stringify({ account_id: sbId, tag_id: tag.id }) });
+  }
   input.value = '';
   renderTagPicker(leadId);
   const lead = leads.find(l => l._id === leadId);
   if (lead) renderLdRight(lead);
-  renderBoard();
+  if (typeof renderAccountsTable === 'function') renderAccountsTable();
 }
 
 
