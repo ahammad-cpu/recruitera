@@ -8671,7 +8671,7 @@ function paintForecastTargets(){
         <div class="page-title">🔮 Team Targeting</div>
         <div class="page-sub">Project vs target across periods. Admins can bulk-edit targets here.</div>
       </div>
-      <div class="page-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;">
+      <div class="page-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;width:100%;">
         <button class="pill-btn ${window.FORECAST_MODE==='overview'?'active':''}" onclick="setForecastMode('overview')">📊 Overview</button>
         ${window.AUTH_PROFILE?.role==='admin' ? `<button class="pill-btn ${window.FORECAST_MODE==='targets'?'active':''}" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
       </div>
