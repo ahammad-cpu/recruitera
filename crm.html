@@ -17541,8 +17541,20 @@ function renderDashboard(){
   const wonValue      = won.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
   const lostValue     = lost.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
 
-  // ARR proxy: sum of paid customers' deal value
-  const arr = customers.reduce((s,l)=>s+parseAcv(gAcv(l._id)),0);
+  // ARR: for each paid customer, prefer the latest active contract_cycle value
+  // (the real source of truth, synced from Bubble). Fall back to gAcv()
+  // (manually-entered deal value) when no active cycle exists yet.
+  const _activeCycleValueFor = (sbId) => {
+    if (!sbId || !Array.isArray(window.CONTRACT_CYCLES)) return 0;
+    const active = window.CONTRACT_CYCLES.filter(c => c.account_id === sbId && c.status === 'active');
+    if (!active.length) return 0;
+    // Take the most recent active cycle (started_at desc is already the load order)
+    return parseFloat(active[0].value) || 0;
+  };
+  const arr = customers.reduce((s,l) => {
+    const cycleVal = _activeCycleValueFor(l._supabase_id);
+    return s + (cycleVal > 0 ? cycleVal : parseAcv(gAcv(l._id)));
+  }, 0);
   const avgArr = customers.length ? arr/customers.length : 0;
 
   // Trial counts
