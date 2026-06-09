@@ -7647,6 +7647,9 @@ body .ld-tab-content {
         <option value="expired">Trial expired</option>
         <option value="none">No trial</option>
       </select>
+      <select class="acc-select" id="acc-ftag" onchange="renderAccountsTable()">
+        <option value="">Tag: All</option>
+      </select>
       <button class="acc-filter-reset" onclick="resetAccountsFilters()" title="Reset all filters" style="display:none;">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>
         Reset filters
@@ -14650,6 +14653,153 @@ function _accSyncResetVisibility(){
   btn.style.display = anyActive ? '' : 'none';
 }
 
+// ── TAGS (DB-backed) ─────────────────────────────────
+window.TAGS = window.TAGS || [];            // [{id,label,color,is_preset}]
+window.TAG_BY_ID = window.TAG_BY_ID || {};
+window.ACC_TAGS_BY_ACC = window.ACC_TAGS_BY_ACC || {}; // accountId(sb uuid) → [tag_id,…]
+
+async function loadTagsAndLinks(){
+  const token = (typeof _getValidAccessToken === 'function') ? await _getValidAccessToken() : null;
+  if(!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  try {
+    const [tRes, atRes] = await Promise.all([
+      fetch(`${SB_URL}/rest/v1/tags?select=id,label,color,is_preset&order=label.asc`,           { headers }),
+      fetch(`${SB_URL}/rest/v1/account_tags?select=account_id,tag_id`,                            { headers }),
+    ]);
+    if(tRes.ok){
+      window.TAGS = await tRes.json();
+      window.TAG_BY_ID = {};
+      window.TAGS.forEach(t => window.TAG_BY_ID[t.id] = t);
+    }
+    if(atRes.ok){
+      const links = await atRes.json();
+      window.ACC_TAGS_BY_ACC = {};
+      links.forEach(l => {
+        (window.ACC_TAGS_BY_ACC[l.account_id] = window.ACC_TAGS_BY_ACC[l.account_id] || []).push(l.tag_id);
+      });
+    }
+    // Refresh dropdown + table
+    _populateTagFilter();
+    if(typeof renderAccountsTable === 'function') renderAccountsTable();
+  } catch(e){ console.warn('[tags] load failed', e); }
+}
+
+function _populateTagFilter(){
+  const sel = document.getElementById('acc-ftag');
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tag: All</option>' +
+    (window.TAGS||[]).map(t => `<option value="${esc(t.id)}">${esc(t.label)}</option>`).join('') +
+    '<option value="__none__">— No tag</option>';
+  sel.value = cur || '';
+}
+
+function _tagsForLead(lead){
+  const sbId = lead._supabase_id;
+  if(!sbId) return [];
+  return (window.ACC_TAGS_BY_ACC[sbId] || []).map(id => window.TAG_BY_ID[id]).filter(Boolean);
+}
+
+function renderRowTags(lead){
+  const tags = _tagsForLead(lead);
+  if(!tags.length){
+    return `<button class="row-tag-add" onclick="event.stopPropagation();openTagPicker(event,'${lead._supabase_id}')" title="Add tag" style="background:transparent;border:1px dashed var(--border);color:var(--text-3);font-size:10.5px;padding:2px 7px;border-radius:999px;cursor:pointer;">+ tag</button>`;
+  }
+  return tags.map(t => `<span onclick="event.stopPropagation();openTagPicker(event,'${lead._supabase_id}')" style="display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:${esc(t.color||'#7B5CFF')}22;color:${esc(t.color||'#7B5CFF')};border:1px solid ${esc(t.color||'#7B5CFF')}55;cursor:pointer;margin-right:3px;">${esc(t.label)}</span>`).join('') +
+    `<button class="row-tag-add" onclick="event.stopPropagation();openTagPicker(event,'${lead._supabase_id}')" title="Edit tags" style="background:transparent;border:0;color:var(--text-3);font-size:11px;padding:0 4px;cursor:pointer;">+</button>`;
+}
+
+let _tagPickerEl = null;
+function openTagPicker(ev, accountId){
+  if(_tagPickerEl){ _tagPickerEl.remove(); _tagPickerEl = null; }
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;z-index:9999;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.18);padding:10px;min-width:240px;font-size:13px;';
+  const r = ev.target.getBoundingClientRect();
+  wrap.style.left = Math.min(window.innerWidth - 260, r.left) + 'px';
+  wrap.style.top  = (r.bottom + 4) + 'px';
+  const have = new Set((window.ACC_TAGS_BY_ACC[accountId] || []));
+  wrap.innerHTML = `
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Tags</div>
+    <div id="tag-pick-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;max-height:180px;overflow:auto;">
+      ${(window.TAGS||[]).map(t => `
+        <span data-tid="${esc(t.id)}" onclick="toggleTagOnAccount('${accountId}','${esc(t.id)}',this)"
+          style="cursor:pointer;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;
+                 background:${have.has(t.id)?esc(t.color||'#7B5CFF'):'transparent'};
+                 color:${have.has(t.id)?'#fff':esc(t.color||'var(--text-2)')};
+                 border:1px solid ${esc(t.color||'#7B5CFF')}88;">${esc(t.label)}</span>`).join('')}
+    </div>
+    <div style="display:flex;gap:6px;">
+      <input id="tag-new-input" placeholder="New tag…" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px;background:var(--bg);color:var(--text);"/>
+      <button onclick="createTagAndAdd('${accountId}')" style="padding:6px 11px;border:0;border-radius:7px;background:var(--lime-500);color:#1a1a1a;font-weight:700;cursor:pointer;font-size:12px;">Add</button>
+    </div>
+    <div style="text-align:right;margin-top:6px;"><button onclick="closeTagPicker()" style="background:none;border:0;font-size:11px;color:var(--text-3);cursor:pointer;">Close</button></div>
+  `;
+  document.body.appendChild(wrap);
+  _tagPickerEl = wrap;
+  setTimeout(()=>document.addEventListener('mousedown', _tagPickerOutside),0);
+}
+function _tagPickerOutside(e){
+  if(_tagPickerEl && !_tagPickerEl.contains(e.target)) closeTagPicker();
+}
+function closeTagPicker(){
+  if(_tagPickerEl){ _tagPickerEl.remove(); _tagPickerEl = null; }
+  document.removeEventListener('mousedown', _tagPickerOutside);
+}
+
+async function toggleTagOnAccount(accountId, tagId, chipEl){
+  const token = await _getValidAccessToken(); if(!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json' };
+  const list = window.ACC_TAGS_BY_ACC[accountId] = window.ACC_TAGS_BY_ACC[accountId] || [];
+  const have = list.includes(tagId);
+  if(have){
+    list.splice(list.indexOf(tagId), 1);
+    await fetch(`${SB_URL}/rest/v1/account_tags?account_id=eq.${accountId}&tag_id=eq.${tagId}`, { method:'DELETE', headers });
+  } else {
+    list.push(tagId);
+    await fetch(`${SB_URL}/rest/v1/account_tags`, { method:'POST', headers, body: JSON.stringify({ account_id: accountId, tag_id: tagId }) });
+  }
+  // Visual update
+  const t = window.TAG_BY_ID[tagId];
+  if(chipEl && t){
+    const on = list.includes(tagId);
+    chipEl.style.background = on ? (t.color||'#7B5CFF') : 'transparent';
+    chipEl.style.color      = on ? '#fff' : (t.color||'var(--text-2)');
+  }
+  if(typeof renderAccountsTable === 'function') renderAccountsTable();
+}
+
+async function createTagAndAdd(accountId){
+  const inp = document.getElementById('tag-new-input');
+  const label = (inp?.value||'').trim();
+  if(!label){ inp?.focus(); return; }
+  const token = await _getValidAccessToken(); if(!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=representation' };
+  // Try to find an existing tag (case-insensitive)
+  let existing = (window.TAGS||[]).find(t => (t.label||'').toLowerCase() === label.toLowerCase());
+  let tag = existing;
+  if(!tag){
+    // Random pleasant color
+    const palette = ['#E54B4B','#7B5CFF','#F2A93B','#2F8F5C','#3478F6','#B83A8C','#0FA3B1','#A86E2E'];
+    const color = palette[Math.floor(Math.random()*palette.length)];
+    const res = await fetch(`${SB_URL}/rest/v1/tags`, { method:'POST', headers, body: JSON.stringify({ label, color, is_preset:false }) });
+    if(!res.ok){ alert('Failed to create tag: ' + (await res.text()).slice(0,200)); return; }
+    const rows = await res.json();
+    tag = rows[0];
+    window.TAGS.push(tag);
+    window.TAG_BY_ID[tag.id] = tag;
+  }
+  // Attach to account if not already
+  const list = window.ACC_TAGS_BY_ACC[accountId] = window.ACC_TAGS_BY_ACC[accountId] || [];
+  if(!list.includes(tag.id)){
+    list.push(tag.id);
+    await fetch(`${SB_URL}/rest/v1/account_tags`, { method:'POST', headers, body: JSON.stringify({ account_id: accountId, tag_id: tag.id }) });
+  }
+  closeTagPicker();
+  _populateTagFilter();
+  if(typeof renderAccountsTable === 'function') renderAccountsTable();
+}
+
 function accFilteredLeads() {
   const q      = (document.getElementById('acc-search')?.value || '').toLowerCase().trim();
   const fSrc   = document.getElementById('acc-fsrc')?.value   || '';
@@ -14657,6 +14807,7 @@ function accFilteredLeads() {
   const fIcp   = document.getElementById('acc-ficp')?.value   || '';
   const fPaid   = document.getElementById('acc-fpaid')?.value  || '';
   const fTrial  = document.getElementById('acc-ftrial')?.value || '';
+  const fTag    = document.getElementById('acc-ftag')?.value   || '';
   // Admin + roles with module_access.all_accounts free-pick; everyone else is locked to their email
   const _isAdmin = window.AUTH_PROFILE?.role === 'admin';
   const _seesAll = _isAdmin || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
@@ -14715,6 +14866,11 @@ function accFilteredLeads() {
       if (fIcp === 'B'    && (score < 50 || score >= 80 || !hasIcp)) return false;
       if (fIcp === 'C'    && (score < 20 || score >= 50 || !hasIcp)) return false;
       if (fIcp === 'D'    && (score >= 20 || !hasIcp))     return false;
+    }
+    if (fTag) {
+      const ids = (window.ACC_TAGS_BY_ACC && window.ACC_TAGS_BY_ACC[lead._supabase_id]) || [];
+      if (fTag === '__none__') { if (ids.length) return false; }
+      else                     { if (!ids.includes(fTag)) return false; }
     }
     return true;
   });
@@ -15548,6 +15704,7 @@ function buildAccountRow(lead) {
           </div>
           ${metaHtml ? `<div class="acc-meta">${metaHtml}</div>` : ''}
           ${contactHtml}
+          ${lead._supabase_id ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;">${renderRowTags(lead)}</div>` : ''}
         </div>
       </div>
     </td>
@@ -17858,6 +18015,8 @@ function renderActivityFeed(el) {
     } catch(e) { console.warn('[CRM] stage cache reconcile failed', e); }
     // Fire-and-forget: preload active contracts so renewal pills can render on the Accounts table.
     try { if (typeof preloadActiveContractsForAccounts === 'function') preloadActiveContractsForAccounts(); } catch {}
+    // Fire-and-forget: load tags + account→tag links for the Accounts table tag filter / chips.
+    try { if (typeof loadTagsAndLinks === 'function') loadTagsAndLinks(); } catch {}
     // Fire-and-forget: persist Recruitera scores for any row whose stored
     // score has drifted from the live-computed one. Throttled, max 200/load.
     try { if (typeof persistRecruiteraScores === 'function') persistRecruiteraScores(leads); } catch(e){ console.warn('[score] persist failed', e); }
