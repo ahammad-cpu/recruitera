@@ -8665,13 +8665,16 @@ function paintForecastTargets(){
   // Match the Overview view's layout — title block on top, toolbar (Overview
   // / Set targets mode toggle) on its own row below. Keeps the mode buttons
   // in a stable spot across both views so they don't jump on tab switch.
+  // Mode toggle (Overview/Set targets) is rendered as a fixed absolute slot
+  // in the top-right of the page-head, so its position is IDENTICAL across
+  // Overview and Set-targets views — no horizontal jump on tab switch.
   tabs.innerHTML = `
-    <div class="page-head" style="margin-bottom:14px;flex-direction:column;align-items:stretch;gap:14px;">
+    <div class="page-head" style="margin-bottom:14px;flex-direction:column;align-items:stretch;gap:14px;position:relative;">
       <div>
         <div class="page-title">🔮 Team Targeting</div>
         <div class="page-sub">Project vs target across periods. Admins can bulk-edit targets here.</div>
       </div>
-      <div class="page-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;width:100%;">
+      <div class="page-toolbar" style="position:absolute;top:0;right:0;display:flex;gap:6px;align-items:center;">
         <button class="pill-btn ${window.FORECAST_MODE==='overview'?'active':''}" onclick="setForecastMode('overview')">📊 Overview</button>
         ${window.AUTH_PROFILE?.role==='admin' ? `<button class="pill-btn ${window.FORECAST_MODE==='targets'?'active':''}" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
       </div>
@@ -8743,7 +8746,7 @@ function paintForecastView(){
   const stageLabel = s => ({won:'Won',proposal:'Proposal',demo:'Demo',sql:'SQL','active':'Renewal (active)','negotiating':'Renewal (negotiating)','renewed':'Renewed'})[s]||s;
 
   root.innerHTML = `
-    <div class="page-head" style="flex-direction:column;align-items:stretch;gap:14px;">
+    <div class="page-head" style="flex-direction:column;align-items:stretch;gap:14px;position:relative;">
       <div>
         <div class="page-title">🔮 Team Targeting</div>
         <div class="page-sub">${escFn(win.label)} · ${isAllView?`All team (${_eligibleAll.length})`:escFn(viewing.full_name||viewing.email||'')} · ${category==='renewal'?'Renewal pipeline':category==='all'?'Sales + Renewal combined':'New-sales pipeline'}</div>
@@ -8754,7 +8757,9 @@ function paintForecastView(){
         <div style="display:inline-flex;gap:4px;">${catBtn('all','All')}${catBtn('new_sales','💰 Sales')}${catBtn('renewal','🔄 Renewal')}</div>
         <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
         <div style="display:inline-flex;gap:4px;">${periodBtn('month','Month')}${periodBtn('quarter','Quarter')}${periodBtn('year','Year')}</div>
-        <span style="width:1px;height:22px;background:var(--border);margin:0 4px;"></span>
+      </div>
+      <!-- Mode toggle pinned top-right of page-head — same coordinates in both views -->
+      <div style="position:absolute;top:0;right:0;display:flex;gap:6px;align-items:center;">
         <button class="pill-btn active">📊 Overview</button>
         ${isAdminUser ? `<button class="pill-btn" onclick="setForecastMode('targets')">🎯 Set targets</button>` : ''}
       </div>
