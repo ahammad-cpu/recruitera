@@ -11840,12 +11840,21 @@ function renderBoard(){
 
     {
       const isEmpty = stageLeads.length === 0;
+      // Admin-only "Re-check" button on the MQL column header — sweeps the
+      // current MQL leads and demotes any that fail the score-60 gate back
+      // to Lead. Lets the user clean up the 89 leftover MQLs that were
+      // promoted under the old (lax) rules before today's gate existed.
+      const _isAdminKb = window.AUTH_PROFILE?.role === 'admin';
+      const recheckBtn = (st.id === 'mql' && _isAdminKb && stageLeads.length > 0)
+        ? `<button onclick="event.stopPropagation();recheckMqlLeads()" title="Demote any MQL leads scoring &lt; 60 back to Lead" style="margin-left:6px;font-size:10.5px;padding:3px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-2);border-radius:999px;cursor:pointer;font-family:inherit;font-weight:600;">↺ Re-check</button>`
+        : '';
       col.innerHTML=`
         <div class="col-accent-bar" style="background:${st.color};"></div>
         <div class="col-hdr">
           <div class="col-name"><span class="col-name-dot" style="background:${st.color};box-shadow:0 0 0 3px ${st.color}30;"></span>${st.name}</div>
           <span class="col-count">${stageLeads.length}</span>
           <span class="col-hdr-total" style="font-size:11px;font-weight:600;color:${isEmpty?'var(--text-4)':'var(--text-2)'};background:${isEmpty?'transparent':st.color+'18'};padding:2px 8px;border-radius:999px;letter-spacing:-0.01em;margin-left:4px;white-space:nowrap;">${stageTotalStr}</span>
+          ${recheckBtn}
         </div>
         <div class="col-body" id="cb-${st.id}"></div>
         <div class="col-footer">
@@ -11999,7 +12008,11 @@ function ddr(e,sid){
   if(prev===sid) return;
 
   // MQL gate: must pass title/email/vacancies/name before entering MQL.
-  if(sid==='mql'){
+  // ONLY enforce on promotions (Lead → MQL). A demotion from SQL/Demo/
+  // Proposal back to MQL is the user undoing a forward move and shouldn't
+  // re-run qualification — they already qualified once to get past MQL.
+  // Without this, "Make a Deal then move company back to MQL" was blocked.
+  if(sid==='mql' && (!prev || prev === 'lead')){
     const lead=leads.find(l=>l._id===id);
     const v=validateMqlGate(lead);
     if(!v.ok){ openMqlGateModal(v.failures, lead); return; }
@@ -12161,6 +12174,28 @@ function updateDisqCount(){
 
 // ─── LOST REASON ──────────────────────────────────────
 let pendingStageChange=null;
+// Admin sweep — demote any MQL lead whose Recruitera score is below the
+// MQL gate threshold (cool/cold tier) back to Lead. Used to clean up
+// historical MQLs that were promoted before the score gate existed.
+window.recheckMqlLeads = async function recheckMqlLeads(){
+  if (window.AUTH_PROFILE?.role !== 'admin') { toast('Admin only','error'); return; }
+  const candidates = (window.leads || []).filter(l => gStage(l._id) === 'mql' && !gDisq(l._id));
+  if (!candidates.length) { toast('No MQL leads to check'); return; }
+  const toDemote = candidates.filter(l => {
+    const v = (typeof validateMqlGate === 'function') ? validateMqlGate(l) : { ok: true };
+    return !v.ok;
+  });
+  if (!toDemote.length) { toast('All ' + candidates.length + ' MQL leads pass the gate'); return; }
+  if (!confirm(`Demote ${toDemote.length} of ${candidates.length} MQL leads (score < 60) back to Lead?`)) return;
+  let done = 0, failed = 0;
+  for (const l of toDemote) {
+    try { applyStageChange(l._id, 'lead', 'mql'); done++; }
+    catch(e) { failed++; console.warn('[recheckMql] failed for', l._id, e); }
+  }
+  toast(`Demoted ${done} lead${done!==1?'s':''}${failed?` · ${failed} failed`:''}`);
+  renderBoard();
+};
+
 function applyStageChange(id,newSid,oldSid){
   sStage(id,newSid);
   const l=leads.find(x=>x._id===id);
