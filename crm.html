@@ -7902,12 +7902,14 @@ body .ld-tab-content {
     <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
     <div class="settings-tab"        data-tab="templates" onclick="settingsSwitchTab('templates')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Manage shared notes / email / meeting / call templates">Templates <span class="settings-tab-cnt" id="settings-cnt-templates" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
+    <div class="settings-tab"        data-tab="assignment" onclick="settingsSwitchTab('assignment')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Decide how new leads are auto-assigned to sales reps">Lead Assignment</div>
     <div class="settings-tab"        data-tab="policies"  onclick="settingsSwitchTab('policies')"  style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);margin-left:auto;">Advanced <span class="settings-tab-cnt" id="settings-cnt-policies" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
   </div>
   <style>.settings-tab.active{color:var(--text-1)!important;border-bottom-color:var(--text-1)!important;} .settings-tab.active .settings-tab-cnt{background:var(--lime-200,#ECF8C0)!important;color:var(--text-1)!important;}</style>
   <div id="settings-pane-roles"     style="flex:1;min-height:0;"></div>
   <div id="settings-pane-simulator" style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-templates" style="flex:1;min-height:0;display:none;"></div>
+  <div id="settings-pane-assignment" style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-policies"  style="flex:1;min-height:0;display:none;"></div>
   <div id="settings-pane-teams"     style="display:none;"></div>
 </div>
@@ -9521,6 +9523,222 @@ function paintSettingsTargets(){
 }
 
 // ─── SETTINGS → TEMPLATES ─────────────────────────────────
+// ─── Settings → Lead Assignment ─────────────────────────────────
+// Admin-only UI to configure how new leads are auto-assigned to sales reps.
+// Mirrors the DB function pick_next_account_manager() — Off / Round Robin /
+// Weighted / Score-based. Persists to app_settings.lead_assignment_config.
+window.renderSettingsAssignment = async function(){
+  const pane = document.getElementById('settings-pane-assignment');
+  if (!pane) return;
+  if (window.AUTH_PROFILE?.role !== 'admin') {
+    pane.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-3);">Admin only.</div>';
+    return;
+  }
+  pane.innerHTML = '<div style="padding:24px;color:var(--text-3);">Loading…</div>';
+  const token = await _getValidAccessToken();
+  if (!token) { pane.innerHTML = '<div style="padding:24px;color:var(--bad);">Session expired</div>'; return; }
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+
+  // Fetch current config + the list of profiles (sales reps + their teams)
+  const [cfgRes, profRes] = await Promise.all([
+    fetch(`${SB_URL}/rest/v1/app_settings?key=eq.lead_assignment_config&select=value`, { headers }),
+    fetch(`${SB_URL}/rest/v1/profiles?select=email,full_name,active&order=full_name.asc`, { headers }),
+  ]);
+  const cfgRow = cfgRes.ok ? (await cfgRes.json())[0] : null;
+  const profs  = profRes.ok ? await profRes.json() : [];
+  const cfg = cfgRow?.value || { mode:'off', members:[], weights:{}, score_rules:[] };
+  const eligible = profs.filter(p => p.active !== false && p.email);
+
+  const mode = cfg.mode || 'off';
+  const sel = (m) => mode === m;
+
+  pane.innerHTML = `
+    <div style="padding:24px;max-width:880px;">
+      <div style="margin-bottom:18px;">
+        <div style="font-size:18px;font-weight:700;color:var(--text-1);margin-bottom:3px;">Lead assignment</div>
+        <div style="font-size:13px;color:var(--text-3);">When a new account is created (Bubble sync or manual), pick the AM automatically. Overrides Bubble's AM Mail.</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;">
+        ${[
+          ['off','Off','No auto-assignment — keep Bubble\'s AM Mail value.'],
+          ['round_robin','Round-robin','Rotate one-by-one through the eligible reps in order.'],
+          ['weighted','Weighted','Random pick weighted by % per rep. Use for 60/30/10 splits.'],
+          ['score_based','Score-based','Match the lead\'s Recruitera score to a rep — e.g. 80+ → senior.'],
+        ].map(([id,name,desc]) => `
+          <div onclick="laSetMode('${id}')" style="cursor:pointer;padding:14px 16px;border:2px solid ${sel(id)?'var(--lime-700)':'var(--border)'};background:${sel(id)?'var(--lime-100)':'var(--surface)'};border-radius:10px;">
+            <div style="font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:4px;">${name}</div>
+            <div style="font-size:11px;color:var(--text-3);line-height:1.4;">${desc}</div>
+          </div>`).join('')}
+      </div>
+
+      <div id="la-detail"></div>
+
+      <div style="margin-top:24px;display:flex;gap:10px;align-items:center;">
+        <button onclick="laSaveConfig()" class="btn btn-primary" style="padding:9px 18px;font-weight:700;">Save</button>
+        <button onclick="laRedistribute()" class="btn" style="padding:9px 16px;border:1px solid var(--border);background:var(--surface);color:var(--text-1);border-radius:8px;font-weight:600;cursor:pointer;">↻ Redistribute existing leads</button>
+        <span id="la-status" style="font-size:12px;color:var(--text-3);"></span>
+      </div>
+    </div>
+  `;
+
+  // Build the per-mode editor area
+  window.__LA_STATE = { cfg, eligible };
+  _renderLaDetail();
+};
+
+function _renderLaDetail(){
+  const wrap = document.getElementById('la-detail');
+  if (!wrap) return;
+  const { cfg, eligible } = window.__LA_STATE;
+  const mode = cfg.mode || 'off';
+  const members = cfg.members || [];
+  const weights = cfg.weights || {};
+  const rules = cfg.score_rules || [];
+
+  if (mode === 'off') {
+    wrap.innerHTML = `<div style="padding:18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text-3);font-size:13px;">Auto-assignment is off. New leads keep whatever <code>am_mail</code> Bubble sends.</div>`;
+    return;
+  }
+
+  // Common: pick who's in the rotation
+  const memberPicker = `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Eligible reps</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">
+        ${eligible.map(p => `
+          <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);border-radius:8px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" data-email="${esc(p.email)}" class="la-member" ${members.includes(p.email)?'checked':''} onchange="_laOnMemberToggle(this)" />
+            <span style="flex:1;color:var(--text-1);">${esc(p.full_name||p.email)}</span>
+          </label>
+        `).join('')}
+      </div>
+    </div>`;
+
+  let modeEditor = '';
+  if (mode === 'round_robin') {
+    modeEditor = `<div style="padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--text-2);">Reps will be assigned in the order checked above, one after another. After the last rep the rotation starts over.</div>`;
+  } else if (mode === 'weighted') {
+    modeEditor = `
+      <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Weights (must sum to 100)</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${members.map(em => {
+          const prof = eligible.find(p => p.email === em);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);background:var(--surface);border-radius:8px;">
+            <span style="flex:1;font-size:13px;color:var(--text-1);">${esc(prof?.full_name || em)}</span>
+            <input type="number" min="0" max="100" data-email="${esc(em)}" value="${weights[em]||0}" class="la-weight" onchange="_laOnWeightChange(this)" style="width:80px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-align:right;background:var(--bg);color:var(--text-1);"/>
+            <span style="font-size:12px;color:var(--text-3);">%</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div id="la-weight-sum" style="margin-top:8px;font-size:12px;color:var(--text-3);">Current sum: <strong id="la-weight-sum-val">${_laWeightSum()}</strong>%</div>`;
+  } else if (mode === 'score_based') {
+    modeEditor = `
+      <div style="font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Score ranges</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:10px;">Recruitera score 0–100. First matching rule wins. Use 0–59 for a fallback row.</div>
+      <div id="la-rules" style="display:flex;flex-direction:column;gap:8px;">
+        ${rules.map((r,i) => _laRuleRow(r, i, eligible)).join('')}
+      </div>
+      <button onclick="_laAddRule()" style="margin-top:10px;padding:7px 14px;font-size:12px;font-weight:600;border:1px dashed var(--border);background:transparent;color:var(--text-2);border-radius:8px;cursor:pointer;">+ Add range</button>`;
+  }
+
+  wrap.innerHTML = memberPicker + modeEditor;
+}
+
+function _laRuleRow(r, i, eligible){
+  return `<div class="la-rule" data-i="${i}" style="display:grid;grid-template-columns:80px 80px 1fr 30px;gap:8px;align-items:center;padding:9px 12px;border:1px solid var(--border);background:var(--surface);border-radius:8px;">
+    <input type="number" min="0" max="100" placeholder="min" value="${r.min ?? 0}" class="la-rmin" onchange="_laOnRuleChange()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text-1);"/>
+    <input type="number" min="0" max="100" placeholder="max" value="${r.max ?? 100}" class="la-rmax" onchange="_laOnRuleChange()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text-1);"/>
+    <select class="la-rassignee" onchange="_laOnRuleChange()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text-1);">
+      <option value="">— Pick rep —</option>
+      ${eligible.map(p => `<option value="${esc(p.email)}" ${p.email===r.assignee?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}
+    </select>
+    <button onclick="_laRemoveRule(${i})" title="Remove" style="background:transparent;border:0;color:var(--bad);font-size:18px;cursor:pointer;">×</button>
+  </div>`;
+}
+
+window.laSetMode = function(m){ window.__LA_STATE.cfg.mode = m; _renderLaDetail(); };
+window._laOnMemberToggle = function(el){
+  const em = el.dataset.email;
+  const cfg = window.__LA_STATE.cfg;
+  cfg.members = cfg.members || [];
+  if (el.checked) { if (!cfg.members.includes(em)) cfg.members.push(em); }
+  else { cfg.members = cfg.members.filter(x => x !== em); }
+  _renderLaDetail();
+};
+window._laOnWeightChange = function(el){
+  const cfg = window.__LA_STATE.cfg;
+  cfg.weights = cfg.weights || {};
+  cfg.weights[el.dataset.email] = parseInt(el.value,10) || 0;
+  const sumEl = document.getElementById('la-weight-sum-val');
+  if (sumEl) sumEl.textContent = _laWeightSum();
+};
+window._laAddRule = function(){
+  const cfg = window.__LA_STATE.cfg;
+  cfg.score_rules = cfg.score_rules || [];
+  cfg.score_rules.push({ min: 0, max: 100, assignee: '' });
+  _renderLaDetail();
+};
+window._laRemoveRule = function(i){
+  const cfg = window.__LA_STATE.cfg;
+  cfg.score_rules.splice(i,1);
+  _renderLaDetail();
+};
+window._laOnRuleChange = function(){
+  const cfg = window.__LA_STATE.cfg;
+  cfg.score_rules = Array.from(document.querySelectorAll('.la-rule')).map(row => ({
+    min: parseInt(row.querySelector('.la-rmin').value,10) || 0,
+    max: parseInt(row.querySelector('.la-rmax').value,10) || 100,
+    assignee: row.querySelector('.la-rassignee').value || '',
+  }));
+};
+function _laWeightSum(){
+  const cfg = window.__LA_STATE.cfg;
+  return Object.values(cfg.weights || {}).reduce((s,v) => s + (parseInt(v,10)||0), 0);
+}
+
+window.laSaveConfig = async function(){
+  const status = document.getElementById('la-status');
+  const cfg = window.__LA_STATE.cfg;
+  if (cfg.mode === 'weighted') {
+    const sum = _laWeightSum();
+    if (sum !== 100) { status.style.color='var(--bad)'; status.textContent = `Weights must sum to 100 (current ${sum}).`; return; }
+  }
+  if (cfg.mode !== 'off' && (!cfg.members || cfg.members.length === 0)) {
+    status.style.color='var(--bad)'; status.textContent = 'Pick at least one eligible rep.'; return;
+  }
+  // Preserve round_robin_pointer (don't reset on save)
+  const token = await _getValidAccessToken();
+  const res = await fetch(`${SB_URL}/rest/v1/app_settings?key=eq.lead_assignment_config`, {
+    method:'PATCH',
+    headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json', Prefer:'return=minimal' },
+    body: JSON.stringify({ value: cfg }),
+  });
+  if (res.ok) { status.style.color='var(--ok)'; status.textContent = 'Saved.'; }
+  else        { status.style.color='var(--bad)'; status.textContent = 'Save failed: ' + res.status; }
+};
+
+window.laRedistribute = async function(){
+  const cfg = window.__LA_STATE.cfg;
+  if (cfg.mode === 'off') { alert('Choose an assignment mode first.'); return; }
+  if (!confirm('Redistribute every account using the current rule? This rewrites am_mail on all accounts.')) return;
+  const status = document.getElementById('la-status');
+  status.style.color='var(--text-3)'; status.textContent = 'Redistributing…';
+  const token = await _getValidAccessToken();
+  // Call the SQL helper via PostgREST RPC. We'll register that function next.
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/redistribute_all_accounts`, {
+    method:'POST',
+    headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: '{}',
+  });
+  if (res.ok) {
+    const out = await res.json();
+    status.style.color='var(--ok)'; status.textContent = `Reassigned ${out} account(s).`;
+  } else {
+    status.style.color='var(--bad)'; status.textContent = 'Failed: ' + res.status;
+  }
+};
+
 window.renderSettingsTemplates = async function(){
   const root = document.getElementById('settings-pane-templates'); if(!root) return;
   await loadActivityTemplates();
@@ -20387,7 +20605,7 @@ window.addEventListener('auth-ready', () => {
 
   // ─── Tab switcher ─────────────────────────────────────
   function settingsSwitchTab(tab){
-    ['roles','policies','teams','simulator','templates'].forEach(function(t){
+    ['roles','policies','teams','simulator','templates','assignment'].forEach(function(t){
       var tabEl = document.querySelector('.settings-tab[data-tab="'+t+'"]');
       if (tabEl) tabEl.classList.toggle('active', t === tab);
       var pane = document.getElementById('settings-pane-'+t);
@@ -20398,6 +20616,7 @@ window.addEventListener('auth-ready', () => {
     if (tab === 'teams'     && typeof renderSettingsTeams     === 'function') renderSettingsTeams();
     if (tab === 'simulator' && typeof renderSettingsSimulator === 'function') renderSettingsSimulator();
     if (tab === 'templates' && typeof renderSettingsTemplates === 'function') renderSettingsTemplates();
+    if (tab === 'assignment'&& typeof renderSettingsAssignment=== 'function') renderSettingsAssignment();
   }
   window.settingsSwitchTab = settingsSwitchTab;
 
