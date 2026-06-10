@@ -10510,20 +10510,6 @@ async function _getValidAccessToken(){
     const token         = session?.access_token;
     const refreshToken  = session?.refresh_token;
     if(!token) return null;
-    // Sanity-check the JWT structure. If localStorage got corrupted (e.g.
-    // after a JWT-key rotation that left a malformed token behind), don't
-    // keep handing it out — Supabase will 401 with "Expected 3 parts in JWT".
-    // Try to refresh once, otherwise clear and force a clean re-login.
-    if (typeof token !== 'string' || token.split('.').length !== 3) {
-      console.warn('[auth] malformed access_token in localStorage — attempting refresh');
-      if (!refreshToken) { localStorage.removeItem(SB_AUTH_KEY); return null; }
-      const newToken = await _refreshSession(refreshToken);
-      if (!newToken || newToken.split('.').length !== 3) {
-        localStorage.removeItem(SB_AUTH_KEY);
-        return null;
-      }
-      return newToken;
-    }
     let exp = session?.expires_at;
     if(!exp){
       try{ exp = JSON.parse(atob(token.split('.')[1]))?.exp; }catch{}
