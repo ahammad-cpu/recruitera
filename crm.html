@@ -10459,33 +10459,100 @@ const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
 const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
 
 // ─── AUTH GATE — runs synchronously before anything else ─────────
-function _getValidAccessToken(){
+// Token helper — returns a valid access_token, transparently refreshing via
+// the refresh_token when the access token is expired. Previous version threw
+// the entire session away on expiry, including the refresh_token, forcing the
+// user to log in again as soon as the 1-hour access token rolled over. With
+// the refresh path wired up, sessions effectively last as long as Supabase
+// Auth's refresh-token lifetime (weeks of inactivity reuse by default).
+let _refreshInflight = null;
+async function _refreshSession(refreshToken){
+  // Single-flight: dozens of concurrent _getValidAccessToken callers should
+  // all share one network refresh and the resulting new access_token.
+  if (_refreshInflight) return _refreshInflight;
+  _refreshInflight = (async () => {
+    try {
+      const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data?.access_token) return null;
+      // Persist the new session in the exact shape Supabase JS SDK stores it,
+      // so a later page load keeps working.
+      const stored = {
+        currentSession: {
+          access_token:  data.access_token,
+          refresh_token: data.refresh_token,
+          expires_in:    data.expires_in,
+          expires_at:    Math.floor(Date.now()/1000) + (data.expires_in || 3600),
+          token_type:    data.token_type || 'bearer',
+          user:          data.user,
+        },
+        expiresAt: Math.floor(Date.now()/1000) + (data.expires_in || 3600),
+      };
+      try { localStorage.setItem(SB_AUTH_KEY, JSON.stringify(stored)); } catch {}
+      return data.access_token;
+    } catch { return null; }
+    finally { _refreshInflight = null; }
+  })();
+  return _refreshInflight;
+}
+
+async function _getValidAccessToken(){
   try{
     const raw = localStorage.getItem(SB_AUTH_KEY);
     if(!raw) return null;
     const parsed = JSON.parse(raw);
     const session = parsed?.currentSession || parsed;
-    const token   = session?.access_token;
+    const token         = session?.access_token;
+    const refreshToken  = session?.refresh_token;
     if(!token) return null;
     let exp = session?.expires_at;
     if(!exp){
       try{ exp = JSON.parse(atob(token.split('.')[1]))?.exp; }catch{}
     }
-    if(!exp) return null;
-    // 60s buffer
-    if(Date.now()/1000 >= exp - 60){
+    // 60s buffer so we don't return an about-to-die token mid-request
+    const expired = !exp || (Date.now()/1000 >= exp - 60);
+    if (!expired) return token;
+    // Access token expired — try to refresh.
+    if (!refreshToken) {
       localStorage.removeItem(SB_AUTH_KEY);
       return null;
     }
-    return token;
+    const newToken = await _refreshSession(refreshToken);
+    if (!newToken) {
+      localStorage.removeItem(SB_AUTH_KEY);
+      return null;
+    }
+    return newToken;
   }catch{ return null; }
 }
-window.AUTH_TOKEN = _getValidAccessToken();
+
+// Boot path: we need a synchronous answer here for the early redirect-or-stay
+// decision. Try the cached access_token first (fast); if expired/missing,
+// kick off an async refresh and only redirect to login if THAT fails.
+(async function _bootAuth(){
+  const token = await _getValidAccessToken();
+  if (!token) {
+    const back = encodeURIComponent(location.pathname + location.search + location.hash);
+    location.replace('/login?back=' + back);
+    throw new Error('Auth required — redirecting to login');
+  }
+  window.AUTH_TOKEN = token;
+})();
+// Best-effort sync seed so any sync code that reads window.AUTH_TOKEN
+// immediately (rare) doesn't get undefined. The async boot above will
+// overwrite this with the refreshed value as soon as it resolves.
+try {
+  const _raw = localStorage.getItem(SB_AUTH_KEY);
+  if (_raw) window.AUTH_TOKEN = (JSON.parse(_raw)?.currentSession || JSON.parse(_raw))?.access_token;
+} catch {}
 if(!window.AUTH_TOKEN){
-  // Redirect to login, preserving the requested page so login can come back here
   const back = encodeURIComponent(location.pathname + location.search + location.hash);
   location.replace('/login?back=' + back);
-  // Throw to halt the rest of this script
   throw new Error('Auth required — redirecting to login');
 }
 
