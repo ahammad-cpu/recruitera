@@ -19194,21 +19194,43 @@ function renderActivityFeed(el) {
 // who owns it — without granting them full read access to the row.
 // Backed by the SECURITY DEFINER lookup_accounts() RPC.
 let _tbLookupTimer = null;
+function _tbLookupPositionDd(){
+  // Re-anchor the dropdown each time it shows. We use position:fixed so it
+  // escapes any ancestor overflow:hidden (the .content wrapper clips otherwise).
+  const dd = document.getElementById('tb-lookup-results');
+  const inp = document.getElementById('tb-lookup-input');
+  if (!dd || !inp) return;
+  const r = inp.getBoundingClientRect();
+  dd.style.position = 'fixed';
+  dd.style.top  = (r.bottom + 6) + 'px';
+  dd.style.left = Math.max(8, r.right - 380) + 'px';  // align right edge to input's right
+  dd.style.width = '380px';
+}
 async function tbLookupRun(q){
   const dd = document.getElementById('tb-lookup-results');
-  if (!dd) return;
+  if (!dd) { console.warn('[lookup] dropdown element missing'); return; }
   q = (q||'').trim();
   if (q.length < 2) { dd.style.display='none'; return; }
+  console.log('[lookup] querying', q);
   const token = await _getValidAccessToken();
-  if (!token) return;
+  if (!token) { console.warn('[lookup] no token'); return; }
   try {
     const r = await fetch(`${SB_URL}/rest/v1/rpc/lookup_accounts`, {
       method:'POST',
       headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify({ q }),
     });
-    if (!r.ok) { dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup failed: ${r.status}</div>`; dd.style.display='block'; return; }
+    if (!r.ok) {
+      const errTxt = await r.text();
+      console.warn('[lookup] RPC failed', r.status, errTxt);
+      _tbLookupPositionDd();
+      dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup failed (${r.status}): ${esc(errTxt.slice(0,200))}</div>`;
+      dd.style.display='block';
+      return;
+    }
     const rows = await r.json();
+    console.log('[lookup] got', rows.length, 'matches for', q);
+    _tbLookupPositionDd();
     if (!rows.length) {
       dd.innerHTML = `<div style="padding:14px;color:var(--text-3);font-size:12.5px;">No accounts match "${esc(q)}". Looks safe to add as a new lead.</div>`;
       dd.style.display='block'; return;
