@@ -7814,7 +7814,7 @@ body .ld-tab-content {
     <div class="acc-filter-bar">
       <div class="acc-search">
         <svg class="acc-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21L16.65 16.65"/></svg>
-        <input class="acc-search-input" id="acc-search" placeholder="Search company..." oninput="renderAccountsTable()"/>
+        <input class="acc-search-input" id="acc-search" placeholder="Search company…" oninput="renderAccountsTable();accSearchCollisionCheck(this.value)"/>
       </div>
       <div class="acc-filter-sep"></div>
       <select class="acc-select" id="acc-fpaid" onchange="renderAccountsTable()">
@@ -7850,6 +7850,10 @@ body .ld-tab-content {
 
     <!-- Stats bar (hidden, kept for JS compat) -->
     <div class="acc-stats-bar" id="acc-stats-bar" style="display:none;"></div>
+
+    <!-- Collision banner: when the search matches accounts outside the user's
+         visible book, show them inline so reps know who owns the company. -->
+    <div id="acc-collision-banner" style="display:none;margin-bottom:14px;"></div>
 
     <!-- Table in white rounded card -->
     <div class="acc-table-wrap">
@@ -19296,6 +19300,74 @@ window.tbLookupRequestHandoff = async function(id, name){
     }
   } catch(e) { toast('Failed: ' + (e.message||e), 'error'); }
 };
+
+// ─── ACCOUNTS PAGE COLLISION BANNER ──────────────────────────────
+// Hook into the existing "Search company…" input. While the user types,
+// also query the global lookup and surface matches that aren't in their
+// own book (i.e., owned by other reps). Rendered as a banner above the
+// table — visible whether their local result count is 0 or not.
+let _accCollisionTimer = null;
+window.accSearchCollisionCheck = function(q){
+  clearTimeout(_accCollisionTimer);
+  _accCollisionTimer = setTimeout(() => _accCollisionRun(q), 280);
+};
+async function _accCollisionRun(q){
+  const banner = document.getElementById('acc-collision-banner');
+  if (!banner) return;
+  q = (q||'').trim();
+  if (q.length < 2) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  const token = await _getValidAccessToken();
+  if (!token) return;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/lookup_accounts`, {
+      method:'POST',
+      headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ q }),
+    });
+    if (!r.ok) { banner.style.display = 'none'; return; }
+    const rows = await r.json();
+    // Filter to only rows the user can't already see in their local leads.
+    // For each match, check whether it's in window.leads — if yes, it's already
+    // in their book and the regular search handles it; we only want
+    // *unowned-by-me / cross-team* matches surfaced.
+    const myLeadSbIds = new Set((window.leads || []).map(l => l._supabase_id).filter(Boolean));
+    const collisions = rows.filter(m => !myLeadSbIds.has(m.id));
+    if (!collisions.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+    const myEmail = (window.AUTH_PROFILE?.email||'').toLowerCase();
+    banner.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:10px 14px;background:var(--bg-2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span style="font-size:11.5px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:0.06em;">${collisions.length} match${collisions.length===1?'':'es'} in the full book (outside your accounts)</span>
+        </div>
+        ${collisions.map(a => {
+          const mine = (a.am_email||'').toLowerCase() === myEmail;
+          const owned = a.am_email ? `Owned by <strong>${_tbEsc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
+          const stage = (a.stage||'lead').toUpperCase();
+          const last = a.last_activity_at ? new Date(a.last_activity_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
+          const paidPill = (a.paid_status==='Paid' || a.paid_status==='Without Charge')
+            ? `<span style="background:var(--ok-bg);color:var(--ok);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;letter-spacing:0.05em;margin-left:6px;">PAID</span>` : '';
+          const action = mine
+            ? `<button onclick="tbLookupOpen('${_tbEsc(a.id)}')" style="font-size:11px;padding:5px 11px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;color:var(--text-2);font-weight:600;">Open</button>`
+            : `<button onclick="tbLookupRequestHandoff('${_tbEsc(a.id)}','${_tbEsc(a.name||'')}')" style="font-size:11px;padding:5px 12px;border:0;background:var(--cg-900);color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Request handoff</button>`;
+          return `<div style="padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;">${_tbEsc(a.name||'(unnamed)')}${paidPill}</div>
+              <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${_tbEsc(a.domain||'no domain')} · ${owned} · stage <strong>${stage}</strong> · last activity ${last}</div>
+            </div>
+            ${action}
+          </div>`;
+        }).join('')}
+      </div>`;
+    // Strip the last border-bottom on the final row visually
+    const lastRow = banner.querySelector('div > div:last-child');
+    if (lastRow) lastRow.style.borderBottom = 'none';
+    banner.style.display = 'block';
+  } catch(e) {
+    banner.style.display = 'none';
+    console.warn('[collision] failed', e);
+  }
+}
 
 // Builds a transient modal showing collision matches + the user's options:
 // request handoff from the current owner, cancel, or "create anyway" if
