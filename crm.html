@@ -19194,6 +19194,9 @@ function renderActivityFeed(el) {
 // who owns it — without granting them full read access to the row.
 // Backed by the SECURITY DEFINER lookup_accounts() RPC.
 let _tbLookupTimer = null;
+// Local escape helper — `esc` defined in another script tag isn't visible
+// here (const doesn't bind to window across <script> blocks). Don't rely on it.
+const _tbEsc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function _tbLookupPositionDd(){
   // Re-anchor the dropdown each time it shows. We use position:fixed so it
   // escapes any ancestor overflow:hidden (the .content wrapper clips otherwise).
@@ -19224,7 +19227,7 @@ async function tbLookupRun(q){
       const errTxt = await r.text();
       console.warn('[lookup] RPC failed', r.status, errTxt);
       _tbLookupPositionDd();
-      dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup failed (${r.status}): ${esc(errTxt.slice(0,200))}</div>`;
+      dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup failed (${r.status}): ${_tbEsc(errTxt.slice(0,200))}</div>`;
       dd.style.display='block';
       return;
     }
@@ -19232,32 +19235,32 @@ async function tbLookupRun(q){
     console.log('[lookup] got', rows.length, 'matches for', q);
     _tbLookupPositionDd();
     if (!rows.length) {
-      dd.innerHTML = `<div style="padding:14px;color:var(--text-3);font-size:12.5px;">No accounts match "${esc(q)}". Looks safe to add as a new lead.</div>`;
+      dd.innerHTML = `<div style="padding:14px;color:var(--text-3);font-size:12.5px;">No accounts match "${_tbEsc(q)}". Looks safe to add as a new lead.</div>`;
       dd.style.display='block'; return;
     }
     const myEmail = (window.AUTH_PROFILE?.email||'').toLowerCase();
     dd.innerHTML = rows.map(a => {
       const mine = (a.am_email||'').toLowerCase() === myEmail;
-      const owned = a.am_email ? `Owned by <strong>${esc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
+      const owned = a.am_email ? `Owned by <strong>${_tbEsc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
       const stage = (a.stage||'lead').toUpperCase();
       const last = a.last_activity_at ? new Date(a.last_activity_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
       const paidPill = (a.paid_status==='Paid' || a.paid_status==='Without Charge') ? `<span style="background:var(--ok-bg);color:var(--ok);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;letter-spacing:0.05em;">PAID</span>` : '';
       const action = mine
-        ? `<button onclick="tbLookupOpen('${esc(a.id)}')" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;color:var(--text-2);font-weight:600;">Open</button>`
-        : `<button onclick="tbLookupRequestHandoff('${esc(a.id)}','${esc(a.name||'')}')" style="font-size:11px;padding:4px 9px;border:0;background:var(--cg-900);color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Request handoff</button>`;
+        ? `<button onclick="tbLookupOpen('${_tbEsc(a.id)}')" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;color:var(--text-2);font-weight:600;">Open</button>`
+        : `<button onclick="tbLookupRequestHandoff('${_tbEsc(a.id)}','${_tbEsc(a.name||'')}')" style="font-size:11px;padding:4px 9px;border:0;background:var(--cg-900);color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Request handoff</button>`;
       return `<div style="padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:6px;">
-            ${esc(a.name||'(unnamed)')} ${paidPill}
+            ${_tbEsc(a.name||'(unnamed)')} ${paidPill}
           </div>
-          <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${esc(a.domain||'')} ${a.domain?'·':''} ${owned} · ${stage} · last activity ${last}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${_tbEsc(a.domain||'')} ${a.domain?'·':''} ${owned} · ${stage} · last activity ${last}</div>
         </div>
         ${action}
       </div>`;
     }).join('');
     dd.style.display='block';
   } catch(e) {
-    dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup error: ${esc(e.message||e)}</div>`;
+    dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup error: ${_tbEsc(e.message||e)}</div>`;
     dd.style.display='block';
   }
 }
@@ -19308,17 +19311,17 @@ function showCollisionModal(matches, typedName){
   wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
   const rows = matches.map(a => {
     const mine = (a.am_email||'').toLowerCase() === myEmail;
-    const owned = a.am_email ? `Owned by <strong>${esc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
+    const owned = a.am_email ? `Owned by <strong>${_tbEsc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
     const last = a.last_activity_at ? new Date(a.last_activity_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'no activity logged';
     const stage = (a.stage||'lead').toUpperCase();
     const paidPill = (a.paid_status==='Paid' || a.paid_status==='Without Charge') ? `<span style="background:var(--ok-bg);color:var(--ok);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;letter-spacing:0.05em;margin-left:6px;">PAID</span>` : '';
     const action = mine
       ? ''
-      : `<button onclick="tbLookupRequestHandoff('${esc(a.id)}','${esc(a.name||'')}');document.getElementById('collision-modal-bg')?.remove();" style="font-size:12px;padding:6px 12px;border:0;background:var(--cg-900);color:#fff;border-radius:7px;cursor:pointer;font-weight:600;">Request handoff</button>`;
+      : `<button onclick="tbLookupRequestHandoff('${_tbEsc(a.id)}','${_tbEsc(a.name||'')}');document.getElementById('collision-modal-bg')?.remove();" style="font-size:12px;padding:6px 12px;border:0;background:var(--cg-900);color:#fff;border-radius:7px;cursor:pointer;font-weight:600;">Request handoff</button>`;
     return `<div style="padding:13px 16px;border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:12px;background:var(--bg);margin-bottom:8px;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:700;color:var(--text-1);display:flex;align-items:center;">${esc(a.name||'(unnamed)')}${paidPill}</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(a.domain||'no domain')} · ${owned} · stage <strong>${stage}</strong> · last activity ${last}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-1);display:flex;align-items:center;">${_tbEsc(a.name||'(unnamed)')}${paidPill}</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${_tbEsc(a.domain||'no domain')} · ${owned} · stage <strong>${stage}</strong> · last activity ${last}</div>
       </div>
       ${action}
     </div>`;
@@ -19330,7 +19333,7 @@ function showCollisionModal(matches, typedName){
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div>
-          <div style="font-size:16px;font-weight:700;color:var(--text-1);">"${esc(typedName)}" already exists</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text-1);">"${_tbEsc(typedName)}" already exists</div>
           <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${matches.length} match${matches.length===1?'':'es'} in the book. Coordinate before creating a duplicate.</div>
         </div>
       </div>
