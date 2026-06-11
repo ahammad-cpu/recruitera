@@ -7591,6 +7591,16 @@ body .ld-tab-content {
         <span class="tb-badge" id="tb-record-count">0 leads</span>
       </h1>
       <div style="flex:1;"></div>
+      <!-- Account collision lookup: any rep can type a company name to see if
+           it's already in the book and who owns it, without being granted
+           full read access to the row. Backed by lookup_accounts() RPC. -->
+      <div id="tb-lookup-wrap" style="position:relative;margin-right:10px;">
+        <div style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0 10px;height:34px;width:260px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="tb-lookup-input" type="text" placeholder="Search the book…" autocomplete="off" oninput="tbLookupOnInput(this)" onfocus="tbLookupOnInput(this)" onblur="setTimeout(()=>{const d=document.getElementById('tb-lookup-results');if(d)d.style.display='none';},180);" style="border:0;background:transparent;outline:0;font:inherit;font-size:13px;color:var(--text-1);flex:1;min-width:0;"/>
+        </div>
+        <div id="tb-lookup-results" style="display:none;position:absolute;top:38px;right:0;width:380px;max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,0.14);z-index:1000;"></div>
+      </div>
       <div class="tb-actions">
         <div id="notif-bell-wrap" style="position:relative;">
           <button id="notif-bell" title="Notifications" onclick="(function(b){var o=document.getElementById('notif-overlay');if(o){o.remove();return;}o=document.createElement('div');o.id='notif-overlay';o.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483647;background:rgba(0,0,0,0.55);display:flex;align-items:flex-start;justify-content:center;padding-top:80px;';o.onclick=function(e){if(e.target===o)o.remove();};var p=document.createElement('div');p.id='notif-dropdown';p.style.cssText='width:440px;max-width:calc(100vw - 32px);max-height:calc(100vh - 120px);background:#fff;color:#000;border:1px solid #ddd;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.4);overflow:hidden;display:flex;flex-direction:column;';o.appendChild(p);document.body.appendChild(o);try{renderNotifDropdown();}catch(e){p.innerHTML='<div style=padding:24px;color:#000>'+(window.NOTIFICATIONS||[]).map(function(n){return '<div style=\\\'padding:10px;border-bottom:1px solid #eee\\\'><b>'+(n.title||'')+'</b><br><small>'+(n.body||'')+'</small></div>';}).join('')+'</div>';}})(this);event.stopPropagation();" style="background:none;border:1px solid var(--border);border-radius:8px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);position:relative;">
@@ -19179,6 +19189,138 @@ function renderActivityFeed(el) {
 // ADD LEAD MODAL
 // ══════════════════════════════════════════════
 
+// ─── ACCOUNT COLLISION LOOKUP ─────────────────────────────────────
+// Lets any rep check whether a company already exists in the book and
+// who owns it — without granting them full read access to the row.
+// Backed by the SECURITY DEFINER lookup_accounts() RPC.
+let _tbLookupTimer = null;
+async function tbLookupRun(q){
+  const dd = document.getElementById('tb-lookup-results');
+  if (!dd) return;
+  q = (q||'').trim();
+  if (q.length < 2) { dd.style.display='none'; return; }
+  const token = await _getValidAccessToken();
+  if (!token) return;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/lookup_accounts`, {
+      method:'POST',
+      headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ q }),
+    });
+    if (!r.ok) { dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup failed: ${r.status}</div>`; dd.style.display='block'; return; }
+    const rows = await r.json();
+    if (!rows.length) {
+      dd.innerHTML = `<div style="padding:14px;color:var(--text-3);font-size:12.5px;">No accounts match "${esc(q)}". Looks safe to add as a new lead.</div>`;
+      dd.style.display='block'; return;
+    }
+    const myEmail = (window.AUTH_PROFILE?.email||'').toLowerCase();
+    dd.innerHTML = rows.map(a => {
+      const mine = (a.am_email||'').toLowerCase() === myEmail;
+      const owned = a.am_email ? `Owned by <strong>${esc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
+      const stage = (a.stage||'lead').toUpperCase();
+      const last = a.last_activity_at ? new Date(a.last_activity_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
+      const paidPill = (a.paid_status==='Paid' || a.paid_status==='Without Charge') ? `<span style="background:var(--ok-bg);color:var(--ok);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;letter-spacing:0.05em;">PAID</span>` : '';
+      const action = mine
+        ? `<button onclick="tbLookupOpen('${esc(a.id)}')" style="font-size:11px;padding:4px 9px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;color:var(--text-2);font-weight:600;">Open</button>`
+        : `<button onclick="tbLookupRequestHandoff('${esc(a.id)}','${esc(a.name||'')}')" style="font-size:11px;padding:4px 9px;border:0;background:var(--cg-900);color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Request handoff</button>`;
+      return `<div style="padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:6px;">
+            ${esc(a.name||'(unnamed)')} ${paidPill}
+          </div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${esc(a.domain||'')} ${a.domain?'·':''} ${owned} · ${stage} · last activity ${last}</div>
+        </div>
+        ${action}
+      </div>`;
+    }).join('');
+    dd.style.display='block';
+  } catch(e) {
+    dd.innerHTML = `<div style="padding:14px;color:var(--bad);font-size:12px;">Lookup error: ${esc(e.message||e)}</div>`;
+    dd.style.display='block';
+  }
+}
+window.tbLookupOnInput = function(input){
+  clearTimeout(_tbLookupTimer);
+  _tbLookupTimer = setTimeout(() => tbLookupRun(input.value), 250);
+};
+window.tbLookupOpen = function(id){
+  // The current user may not have ABAC read on this row, but if they do
+  // (admin / Customer Success with all_accounts) it opens the lead detail.
+  // Otherwise, just inform them.
+  if (typeof openDrawer === 'function') {
+    const l = (window.leads||[]).find(x => x._supabase_id === id);
+    if (l) { openDrawer(l._id, 'lookup'); return; }
+  }
+  alert('You don\'t have access to this account. Use Request Handoff to ask the current owner.');
+};
+window.tbLookupRequestHandoff = async function(id, name){
+  const reason = prompt(`Why do you need access to "${name}"?\n(Visible to the current owner)`, '');
+  if (reason === null) return;  // user cancelled
+  const token = await _getValidAccessToken();
+  if (!token) return;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/request_account_handoff`, {
+      method:'POST',
+      headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ p_account_id: id, p_reason: reason || null }),
+    });
+    if (r.ok) {
+      toast('Handoff request sent — owner will be notified', 'success');
+    } else {
+      toast('Failed to send request: ' + r.status, 'error');
+    }
+  } catch(e) { toast('Failed: ' + (e.message||e), 'error'); }
+};
+
+// Builds a transient modal showing collision matches + the user's options:
+// request handoff from the current owner, cancel, or "create anyway" if
+// it's genuinely a different company sharing the name.
+function showCollisionModal(matches, typedName){
+  // Remove any existing instance
+  const old = document.getElementById('collision-modal-bg');
+  if (old) old.remove();
+  const myEmail = (window.AUTH_PROFILE?.email||'').toLowerCase();
+  const wrap = document.createElement('div');
+  wrap.id = 'collision-modal-bg';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  wrap.onclick = e => { if (e.target === wrap) wrap.remove(); };
+  const rows = matches.map(a => {
+    const mine = (a.am_email||'').toLowerCase() === myEmail;
+    const owned = a.am_email ? `Owned by <strong>${esc(a.am_name||a.am_email)}</strong>${mine?' (you)':''}` : 'Unassigned';
+    const last = a.last_activity_at ? new Date(a.last_activity_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'no activity logged';
+    const stage = (a.stage||'lead').toUpperCase();
+    const paidPill = (a.paid_status==='Paid' || a.paid_status==='Without Charge') ? `<span style="background:var(--ok-bg);color:var(--ok);font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;letter-spacing:0.05em;margin-left:6px;">PAID</span>` : '';
+    const action = mine
+      ? ''
+      : `<button onclick="tbLookupRequestHandoff('${esc(a.id)}','${esc(a.name||'')}');document.getElementById('collision-modal-bg')?.remove();" style="font-size:12px;padding:6px 12px;border:0;background:var(--cg-900);color:#fff;border-radius:7px;cursor:pointer;font-weight:600;">Request handoff</button>`;
+    return `<div style="padding:13px 16px;border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:12px;background:var(--bg);margin-bottom:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-1);display:flex;align-items:center;">${esc(a.name||'(unnamed)')}${paidPill}</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(a.domain||'no domain')} · ${owned} · stage <strong>${stage}</strong> · last activity ${last}</div>
+      </div>
+      ${action}
+    </div>`;
+  }).join('');
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:560px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:var(--warn-bg);color:var(--warn);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--text-1);">"${esc(typedName)}" already exists</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${matches.length} match${matches.length===1?'':'es'} in the book. Coordinate before creating a duplicate.</div>
+        </div>
+      </div>
+      <div style="padding:16px 18px;max-height:50vh;overflow:auto;">${rows}</div>
+      <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <button onclick="document.getElementById('collision-modal-bg')?.remove();" style="padding:8px 16px;border:1px solid var(--border);background:transparent;color:var(--text-2);border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;">Cancel</button>
+        <button onclick="document.getElementById('collision-modal-bg')?.remove();window._AL_BYPASS_DUPE_CHECK=true;submitAddLead();" style="padding:8px 16px;border:1px solid var(--border);background:var(--bg-2);color:var(--text-1);border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;">Create anyway — it's different</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+}
+
 function openAddLeadModal() {
   // Pre-fill AM mail with current user
   const amMailInput = document.getElementById('al-am-mail');
@@ -19218,6 +19360,36 @@ async function submitAddLead() {
     document.getElementById('al-name').focus();
     return;
   }
+
+  // ── COLLISION CHECK ──────────────────────────────────────────
+  // Before creating, ask the DB whether this name already exists in
+  // the book (across teams). If so, surface who owns it + offer a
+  // handoff request flow instead of creating a duplicate. The
+  // lookup_accounts RPC is ABAC-bypassing but returns a minimal
+  // payload (name / domain / owner / stage / last activity).
+  // The user can confirm "Create anyway" if it's genuinely different.
+  if (!window._AL_BYPASS_DUPE_CHECK) {
+    try {
+      const tok = await _getValidAccessToken();
+      if (tok) {
+        const dr = await fetch(`${SB_URL}/rest/v1/rpc/lookup_accounts`, {
+          method:'POST',
+          headers:{ apikey:SB_KEY, Authorization:'Bearer '+tok, 'Content-Type':'application/json' },
+          body: JSON.stringify({ q: name }),
+        });
+        if (dr.ok) {
+          const matches = await dr.json();
+          // Strict match = exact name (case-insensitive) — that's the real collision.
+          const strict = matches.filter(m => (m.name||'').trim().toLowerCase() === name.toLowerCase());
+          if (strict.length > 0) {
+            showCollisionModal(strict, name);
+            return;  // halt — modal handles next step
+          }
+        }
+      }
+    } catch(e) { /* lookup is best-effort — don't block creation if it fails */ }
+  }
+  window._AL_BYPASS_DUPE_CHECK = false;
 
   const btn = document.getElementById('al-submit-btn');
   btn.style.opacity = '0.6';
