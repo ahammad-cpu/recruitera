@@ -9657,7 +9657,51 @@ function _laRuleRow(r, i, eligible){
   </div>`;
 }
 
-window.laSetMode = function(m){ window.__LA_STATE.cfg.mode = m; _renderLaDetail(); };
+window.laSetMode = function(m){
+  // The mode cards live OUTSIDE the detail wrapper, so re-rendering only
+  // the detail leaves the active card highlight stuck on the first mode.
+  // Re-render the whole Assignment pane so both the cards and the detail
+  // reflect the new mode.
+  window.__LA_STATE.cfg.mode = m;
+  if (typeof renderSettingsAssignment === 'function') {
+    // Avoid re-fetching profiles + config — reuse the existing state.
+    const { cfg, eligible } = window.__LA_STATE;
+    _laRedrawFromState(cfg, eligible);
+  }
+};
+// Re-paint the pane from already-loaded state (no network).
+function _laRedrawFromState(cfg, eligible){
+  const pane = document.getElementById('settings-pane-assignment');
+  if (!pane) return;
+  const mode = cfg.mode || 'off';
+  const sel = (m) => mode === m;
+  pane.innerHTML = `
+    <div style="padding:24px;max-width:880px;">
+      <div style="margin-bottom:18px;">
+        <div style="font-size:18px;font-weight:700;color:var(--text-1);margin-bottom:3px;">Lead assignment</div>
+        <div style="font-size:13px;color:var(--text-3);">When a new account is created (Bubble sync or manual), pick the AM automatically. Overrides Bubble's AM Mail.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;">
+        ${[
+          ['off','Off','No auto-assignment — keep Bubble\'s AM Mail value.'],
+          ['round_robin','Round-robin','Rotate one-by-one through the eligible reps in order.'],
+          ['weighted','Weighted','Random pick weighted by % per rep. Use for 60/30/10 splits.'],
+          ['score_based','Score-based','Match the lead\'s Recruitera score to a rep — e.g. 80+ → senior.'],
+        ].map(([id,name,desc]) => `
+          <div onclick="laSetMode('${id}')" style="cursor:pointer;padding:14px 16px;border:2px solid ${sel(id)?'var(--lime-700)':'var(--border)'};background:${sel(id)?'var(--lime-100)':'var(--surface)'};border-radius:10px;">
+            <div style="font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:4px;">${name}</div>
+            <div style="font-size:11px;color:var(--text-3);line-height:1.4;">${desc}</div>
+          </div>`).join('')}
+      </div>
+      <div id="la-detail"></div>
+      <div style="margin-top:24px;display:flex;gap:10px;align-items:center;">
+        <button onclick="laSaveConfig()" class="btn btn-primary" style="padding:9px 18px;font-weight:700;">Save</button>
+        <button onclick="laRedistribute()" class="btn" style="padding:9px 16px;border:1px solid var(--border);background:var(--surface);color:var(--text-1);border-radius:8px;font-weight:600;cursor:pointer;">↻ Redistribute existing leads</button>
+        <span id="la-status" style="font-size:12px;color:var(--text-3);"></span>
+      </div>
+    </div>`;
+  _renderLaDetail();
+}
 window._laOnMemberToggle = function(el){
   const em = el.dataset.email;
   const cfg = window.__LA_STATE.cfg;
