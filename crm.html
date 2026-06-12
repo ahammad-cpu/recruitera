@@ -11254,7 +11254,12 @@ const gStage=id=>{
   // last-resort fallback when the lead row isn't loaded.
   const l=leads.find(x=>x._id===id);
   if(l?._sb_stage) return l._sb_stage;
-  return ls.g('st_'+id) || 'mql';
+  // Default to 'lead' (pre-MQL bucket), NOT 'mql'. New Bubble-synced
+  // accounts arrive with stage=null and were being auto-shown in the MQL
+  // kanban column despite never passing the score-60 gate. Lead-stage
+  // accounts live in Accounts → Leads tab and stay out of the pipeline
+  // until validateMqlGate promotes them.
+  return ls.g('st_'+id) || 'lead';
 };
 const sStage=(id,s)=>ls.s('st_'+id,s);
 const gAcv=id=>{
@@ -11824,7 +11829,7 @@ async function sbFetch() {
     bubble_created_at: acc.bubble_created_at || null,
     created_at:        acc.created_at || null,
     // Pipeline state
-    _sb_stage:        acc.stage || 'mql',
+    _sb_stage:        acc.stage || 'lead',  // null stage → Lead (pre-MQL bucket), not auto-MQL
     _sb_is_disq:      acc.is_disqualified || false,
     disq_stage:       acc.disq_stage || null,
     disq_reason:      acc.disq_reason || null,
