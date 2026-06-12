@@ -10492,7 +10492,7 @@ window.openQualHistory = async function(leadId){
 
   window.validateMqlGate = function(lead){
     if(!lead) return { ok:false, failures:[{rule:'Lead', why:'Lead not found'}] };
-    // Delegate to the score. Block if cold or cool (score < 60) OR name is junk.
+    // Delegate to the score. Block if cold or cool (score < 50) OR name is junk.
     const s = calcRecruiteraScore(lead);
     if (s.tier === 'hot' || s.tier === 'warm') return {ok:true, score:s.score, tier:s.tier, breakdown:s.breakdown};
     return {
@@ -12467,7 +12467,7 @@ window.recheckMqlLeads = async function recheckMqlLeads(){
     return !v.ok;
   });
   if (!toDemote.length) { toast('All ' + candidates.length + ' MQL leads pass the gate'); return; }
-  if (!confirm(`Demote ${toDemote.length} of ${candidates.length} MQL leads (score < 60) back to Lead?`)) return;
+  if (!confirm(`Demote ${toDemote.length} of ${candidates.length} MQL leads (score < 50) back to Lead?`)) return;
   let done = 0, failed = 0;
   for (const l of toDemote) {
     try { applyStageChange(l._id, 'lead', 'mql'); done++; }
