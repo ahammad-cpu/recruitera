@@ -19499,17 +19499,13 @@ async function submitAddLead() {
   btn.innerHTML = '<span class="spinner"></span> Creating…';
 
   try {
-    // window._sbClient was never initialized in this codebase — the CRM uses
-    // raw REST against Supabase everywhere. Use the same pattern here so
-    // Add Lead actually works.
+    // Create via the create_lead RPC (SECURITY DEFINER). This sidesteps the
+    // INSERT...RETURNING RLS read-back problem: a rep creating a lead that the
+    // assignment engine routes to someone else can't SELECT the new row, so a
+    // raw POST with return=representation would 42501. The RPC runs as definer,
+    // inserts the account + contact + activity, and returns the new id.
     const token = await _getValidAccessToken();
     if (!token) throw new Error('Session expired — sign in again');
-    const sbHeaders = {
-      apikey: SB_KEY,
-      Authorization: 'Bearer ' + token,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    };
 
     const stage    = document.getElementById('al-stage').value    || 'lead';
     const source   = document.getElementById('al-source').value   || null;
@@ -19522,54 +19518,23 @@ async function submitAddLead() {
     const cName    = document.getElementById('al-contact-name').value.trim() || null;
     const cEmail   = document.getElementById('al-contact-email').value.trim() || null;
 
-    // Build bubble_id as a temp unique id
-    const tempExternalId = 'manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-
-    const row = {
-      name,
-      stage,
-      source,
-      campaign,
-      medium,
-      am_mail:   amMail,
-      rc_mail:   rcMail,
-      industry,
-      size,
-      bubble_id: tempExternalId,
-      raw_data:  {},
-    };
-
-    // Insert account (return=representation gives us the row + new id)
-    const accRes = await fetch(`${SB_URL}/rest/v1/accounts`, {
-      method:'POST', headers: sbHeaders, body: JSON.stringify(row),
+    const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/create_lead`, {
+      method:'POST',
+      headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        p_name: name, p_stage: stage, p_source: source, p_campaign: campaign,
+        p_medium: medium, p_am_mail: amMail, p_rc_mail: rcMail,
+        p_industry: industry, p_size: size,
+        p_contact_name: cName, p_contact_email: cEmail,
+      }),
     });
-    if (!accRes.ok) throw new Error(`Insert failed (${accRes.status}): ${(await accRes.text()).slice(0,250)}`);
-    const accRows = await accRes.json();
-    const accountId = accRows?.[0]?.id;
-    if (!accountId) throw new Error('No id returned from insert');
-
-    // Insert contact if provided (best-effort — don't fail the whole lead on this)
-    if (cName || cEmail) {
-      try {
-        await fetch(`${SB_URL}/rest/v1/contacts`, {
-          method:'POST', headers: sbHeaders,
-          body: JSON.stringify({ account_id: accountId, full_name: cName, email: cEmail, is_primary: true }),
-        });
-      } catch(e) { console.warn('[addLead] contact insert failed', e); }
-    }
-
-    // Log activity (best-effort)
-    try {
-      await fetch(`${SB_URL}/rest/v1/activities`, {
-        method:'POST', headers: sbHeaders,
-        body: JSON.stringify({
-          account_id: accountId,
-          author_id:  window.AUTH_PROFILE?.id || null,
-          type:       'note',
-          text:       `Lead created manually: ${name}`,
-        }),
-      });
-    } catch(e) { console.warn('[addLead] activity log failed', e); }
+    if (!rpcRes.ok) throw new Error(`Insert failed (${rpcRes.status}): ${(await rpcRes.text()).slice(0,250)}`);
+    const out = await rpcRes.json();
+    const accountId      = out?.id;
+    const tempExternalId = out?.bubble_id;
+    const assignedAm     = out?.am_mail;       // may differ from typed value if assignment engine is on
+    const finalStage     = out?.stage || stage;
+    if (!accountId) throw new Error('No id returned from create_lead');
 
     // Add to local leads array
     const newLead = {
@@ -19577,14 +19542,14 @@ async function submitAddLead() {
       _supabase_id: accountId,
       name,
       'Contact_Name': name,
-      'AM Mail':      amMail || '',
+      'AM Mail':      assignedAm || amMail || '',
       'RC Mail':      rcMail || '',
       Source:         source || '',
       Campaign:       campaign || '',
       Medium:         medium || '',
       WP_Industry:    industry || '',
       WP_Company_Size:size || '',
-      _sb_stage:      stage,
+      _sb_stage:      finalStage,
       _sb_is_disq:    false,
       raw_data:       {},
     };
@@ -19760,16 +19725,14 @@ async function submitBulkUpload() {
   let success = 0, failed = 0;
 
   try {
-    // window._sbClient was never initialized — use raw REST like Add Lead.
+    // Create each row via the create_lead RPC (definer) — same path as Add Lead.
     const token = await _getValidAccessToken();
     if (!token) throw new Error('Session expired — sign in again');
-    const sbHeaders = {
+    const rpcHeaders = {
       apikey: SB_KEY,
       Authorization: 'Bearer ' + token,
       'Content-Type': 'application/json',
-      Prefer: 'return=representation',
     };
-    const authorId = window.AUTH_PROFILE?.id || null;
 
     for (let i = 0; i < bulkRows.length; i++) {
       const r = bulkRows[i];
@@ -19777,59 +19740,38 @@ async function submitBulkUpload() {
 
       try {
         const stage = VALID_STAGES.includes((r.stage||'lead').toLowerCase()) ? (r.stage||'lead').toLowerCase() : 'lead';
-        const tempId = 'bulk_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,6);
 
-        const row = {
-          name:      r.company_name,
-          stage,
-          source:    r.source   || null,
-          campaign:  r.campaign || null,
-          medium:    r.medium   || null,
-          am_mail:   r.am_mail  || null,
-          rc_mail:   r.rc_mail  || null,
-          industry:  r.industry || null,
-          size:      r.size     || null,
-          bubble_id: tempId,
-          raw_data:  {},
-        };
-
-        const accRes = await fetch(`${SB_URL}/rest/v1/accounts`, {
-          method:'POST', headers: sbHeaders, body: JSON.stringify(row),
+        // Use the create_lead RPC (definer) — handles the RLS read-back +
+        // contact + activity in one call, same as Add Lead.
+        const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/create_lead`, {
+          method:'POST', headers: rpcHeaders,
+          body: JSON.stringify({
+            p_name: r.company_name, p_stage: stage,
+            p_source: r.source || null, p_campaign: r.campaign || null, p_medium: r.medium || null,
+            p_am_mail: r.am_mail || null, p_rc_mail: r.rc_mail || null,
+            p_industry: r.industry || null, p_size: r.size || null,
+            p_contact_name: r.contact_name || null, p_contact_email: r.contact_email || null,
+          }),
         });
-        if (!accRes.ok) { failed++; continue; }
-        const accRows = await accRes.json();
-        const accountId = accRows?.[0]?.id;
+        if (!rpcRes.ok) { failed++; continue; }
+        const out = await rpcRes.json();
+        const accountId = out?.id;
+        const tempId    = out?.bubble_id;
         if (!accountId) { failed++; continue; }
-
-        // Insert contact if provided (best-effort)
-        if (r.contact_name || r.contact_email) {
-          try {
-            await fetch(`${SB_URL}/rest/v1/contacts`, {
-              method:'POST', headers: sbHeaders,
-              body: JSON.stringify({
-                account_id: accountId,
-                full_name:  r.contact_name  || null,
-                email:      r.contact_email || null,
-                phone:      r.contact_phone || null,
-                is_primary: true,
-              }),
-            });
-          } catch {}
-        }
 
         // Add to local array
         leads.unshift({
           _id: tempId,
-          _supabase_id: accountId || null,
+          _supabase_id: accountId,
           name: r.company_name,
           'Contact_Name': r.company_name,
-          'AM Mail': r.am_mail || '',
+          'AM Mail': out?.am_mail || r.am_mail || '',
           Source: r.source || '',
           Campaign: r.campaign || '',
           Medium: r.medium || '',
           WP_Industry: r.industry || '',
           WP_Company_Size: r.size || '',
-          _sb_stage: stage,
+          _sb_stage: out?.stage || stage,
           _sb_is_disq: false,
           raw_data: {},
         });
