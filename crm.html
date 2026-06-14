@@ -13879,7 +13879,7 @@ window.ldNotesQuickSave = function(leadId){
   if (typeof toast==='function') toast(msg,'success');
   // Re-render the Notes tab to show the new note + refresh tab counts
   const lead = (window.leads||[]).find(l => l._id === leadId);
-  const tabBody = document.querySelector('#ld-tab-body');
+  const tabBody = document.getElementById('ld-tab-content');
   if (lead && tabBody) renderLdNotes(lead, tabBody);
   if (lead && typeof updateLdTabCounts === 'function') updateLdTabCounts(lead);
 };
