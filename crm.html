@@ -12075,12 +12075,19 @@ function kpis(){
   // sb-acc-count is kept in sync by renderAccountsTable() (matches the All-tab count exactly)
   const _sbAcc = document.getElementById('sb-acc-count');
   if (_sbAcc) _sbAcc.textContent = leads.filter(l => hasRealData(l) && !gDisq(l._id)).length;
-  // sb-renewal-count = 1 per paid customer (same predicate the Renewal kanban uses).
+  // sb-renewal-count = paid customers WITH a contract cycle (the contract-driven
+  // Renewal board renders one card per active/renewed/churned contract).
   // renderRenewalBoard() also updates this when the user opens that view, but
   // computing here means the badge isn't stale at 0 on initial load.
   const _sbRen = document.getElementById('sb-renewal-count');
   if (_sbRen && typeof isLeadPaidCustomer === 'function') {
-    _sbRen.textContent = leads.filter(l => isLeadPaidCustomer(l)).length;
+    // Estimate: paid customers that have at least one contract cycle (the
+    // board is contract-driven now). renderRenewalBoard() refines this to the
+    // exact card count when the view opens.
+    const _cycleAccIds = new Set((window.CONTRACT_CYCLES || []).map(c => c.account_id).filter(Boolean));
+    _sbRen.textContent = leads.filter(l =>
+      isLeadPaidCustomer(l) && l._supabase_id && _cycleAccIds.has(l._supabase_id)
+    ).length;
   }
 }
 
@@ -20559,17 +20566,19 @@ window.addEventListener('auth-ready', () => {
   // we use it to bucket by days-to-end + status. If they don't have any
   // contract on file yet, they land in the "Active (no contract)" column so
   // the team can add one. Items are { lead, cycle?, _daysLeft, _status }.
+  // Six-column renewal kanban. Active contracts bucket by days-to-renewal:
+  //   90 days  = 61+ (plan-ahead, includes everything further out)
+  //   60 days  = 31–60
+  //   30 days  = 0–30
+  //   Overdue  = past due
+  // Then by lifecycle status: Renewed / Churned.
   const RENEWAL_COLS = [
-    { id:'no_contract',name:'Active (no contract)', color:'#9CA3AF', match: it => !it.cycle && it._status==='active' },
-    // Gap-free active buckets. "Upcoming (90d+)" is the far-out column;
-    // 60/30/Due cover the nearer windows so nothing falls through.
-    { id:'upcoming90', name:'Upcoming (90d+)',      color:'#969BA1', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 90 },
-    { id:'in60',       name:'60–90 days',           color:'#6C737C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 60 && it._daysLeft < 90 },
-    { id:'in30',       name:'30–60 days',           color:'#B8761A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 30 && it._daysLeft < 60 },
-    { id:'due',        name:'Due (<30 days)',       color:'#D9772A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 0  && it._daysLeft < 30 },
-    { id:'overdue',    name:'Overdue',              color:'#B83A3A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft < 0 },
-    { id:'renewed',    name:'Renewed',              color:'#2F8F5C', match: it => it._status==='renewed' },
-    { id:'churned',    name:'Churned',              color:'#392396', match: it => it._status==='churned' },
+    { id:'in90',    name:'90 days',  color:'#2F8F5C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 61 },
+    { id:'in60',    name:'60 days',  color:'#2C5BA8', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 31 && it._daysLeft <= 60 },
+    { id:'in30',    name:'30 days',  color:'#B8761A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 0  && it._daysLeft <= 30 },
+    { id:'overdue', name:'Overdue',  color:'#B83A3A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft < 0 },
+    { id:'renewed', name:'Renewed',  color:'#2F8F5C', match: it => it._status==='renewed' },
+    { id:'churned', name:'Churned',  color:'#392396', match: it => it._status==='churned' },
   ];
 
   let _renewalItems = [];
@@ -20696,7 +20705,14 @@ window.addEventListener('auth-ready', () => {
         if(!ok){
           it.cycle.status = prev; it._status = prev; renderRenewalBoard();
           if(typeof toast==='function') toast('Update failed','error');
-        } else if(typeof toast==='function') toast('Marked '+newStatus, 'success');
+        } else {
+          if(typeof toast==='function') toast('Marked '+newStatus, 'success');
+          // When a contract is marked Renewed, immediately open the
+          // contract-cycle modal so the rep logs the NEW cycle (next term).
+          if(newStatus==='renewed' && it.lead && typeof openContractCycleModal==='function'){
+            setTimeout(() => openContractCycleModal(it.lead._id), 250);
+          }
+        }
       });
 
       const body = colEl.querySelector('.renewal-col-body');
@@ -20768,11 +20784,12 @@ window.addEventListener('auth-ready', () => {
       board.appendChild(colEl);
     });
 
-    // Sidebar badge = total paid customers, not just those that fit in a column.
-    // Otherwise kpis() reports 26 (all paid) but the kanban shows 17 (only those
-    // matching a column predicate), leaving 9 invisible to the user.
+    // Sidebar badge = number of cards actually shown on the board. The six
+    // columns are contract-driven (no "no-contract" column), so paid customers
+    // without a contract cycle don't render here — counting them would make the
+    // badge larger than the visible board.
     const c = document.getElementById('sb-renewal-count');
-    if(c) c.textContent = _renewalItems.length;
+    if(c) c.textContent = total;
   }
 
   // Make renderDisqBoard available to anywhere that needs to refresh the count
