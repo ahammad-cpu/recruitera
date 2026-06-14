@@ -19499,8 +19499,17 @@ async function submitAddLead() {
   btn.innerHTML = '<span class="spinner"></span> Creating…';
 
   try {
-    const sb = window._sbClient;
-    if (!sb) throw new Error('Database not connected');
+    // window._sbClient was never initialized in this codebase — the CRM uses
+    // raw REST against Supabase everywhere. Use the same pattern here so
+    // Add Lead actually works.
+    const token = await _getValidAccessToken();
+    if (!token) throw new Error('Session expired — sign in again');
+    const sbHeaders = {
+      apikey: SB_KEY,
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    };
 
     const stage    = document.getElementById('al-stage').value    || 'lead';
     const source   = document.getElementById('al-source').value   || null;
@@ -19530,39 +19539,37 @@ async function submitAddLead() {
       raw_data:  {},
     };
 
-    // Insert account
-    const { data: newAccount, error: accErr } = await sb.from('accounts').insert(row);
-    if (accErr) throw new Error(accErr.message);
+    // Insert account (return=representation gives us the row + new id)
+    const accRes = await fetch(`${SB_URL}/rest/v1/accounts`, {
+      method:'POST', headers: sbHeaders, body: JSON.stringify(row),
+    });
+    if (!accRes.ok) throw new Error(`Insert failed (${accRes.status}): ${(await accRes.text()).slice(0,250)}`);
+    const accRows = await accRes.json();
+    const accountId = accRows?.[0]?.id;
+    if (!accountId) throw new Error('No id returned from insert');
 
-    // Get the new account id
-    const { data: inserted, error: fetchErr } = await sb
-      .from('accounts')
-      .select('id')
-      .eq('bubble_id', tempExternalId)
-      .single();
-
-    if (fetchErr || !inserted) throw new Error('Could not retrieve new account');
-
-    const accountId = inserted.id;
-
-    // Insert contact if provided
+    // Insert contact if provided (best-effort — don't fail the whole lead on this)
     if (cName || cEmail) {
-      await sb.from('contacts').insert({
-        account_id: accountId,
-        full_name:  cName,
-        email:      cEmail,
-        is_primary: true,
-      });
+      try {
+        await fetch(`${SB_URL}/rest/v1/contacts`, {
+          method:'POST', headers: sbHeaders,
+          body: JSON.stringify({ account_id: accountId, full_name: cName, email: cEmail, is_primary: true }),
+        });
+      } catch(e) { console.warn('[addLead] contact insert failed', e); }
     }
 
-    // Log activity
-    const { data: { user } } = await sb.auth.getUser();
-    await sb.from('activities').insert({
-      account_id: accountId,
-      author_id:  user?.id || null,
-      type:       'note',
-      text:       `Lead created manually: ${name}`,
-    });
+    // Log activity (best-effort)
+    try {
+      await fetch(`${SB_URL}/rest/v1/activities`, {
+        method:'POST', headers: sbHeaders,
+        body: JSON.stringify({
+          account_id: accountId,
+          author_id:  window.AUTH_PROFILE?.id || null,
+          type:       'note',
+          text:       `Lead created manually: ${name}`,
+        }),
+      });
+    } catch(e) { console.warn('[addLead] activity log failed', e); }
 
     // Add to local leads array
     const newLead = {
