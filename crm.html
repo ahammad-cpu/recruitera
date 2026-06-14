@@ -20561,12 +20561,12 @@ window.addEventListener('auth-ready', () => {
   // the team can add one. Items are { lead, cycle?, _daysLeft, _status }.
   const RENEWAL_COLS = [
     { id:'no_contract',name:'Active (no contract)', color:'#9CA3AF', match: it => !it.cycle && it._status==='active' },
-    // Catches everything 60+ days out — including contracts further than 90
-    // days away. Previously these vanished because no column existed for them,
-    // so sidebar count > in-view total.
-    { id:'upcoming90', name:'Upcoming (60d+)',      color:'#969BA1', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 60 },
-    { id:'in60',       name:'60 days out',          color:'#6C737C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 30 && it._daysLeft < 60 },
-    { id:'in30',       name:'30 days out',          color:'#B8761A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 0  && it._daysLeft < 30 },
+    // Gap-free active buckets. "Upcoming (90d+)" is the far-out column;
+    // 60/30/Due cover the nearer windows so nothing falls through.
+    { id:'upcoming90', name:'Upcoming (90d+)',      color:'#969BA1', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 90 },
+    { id:'in60',       name:'60–90 days',           color:'#6C737C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 60 && it._daysLeft < 90 },
+    { id:'in30',       name:'30–60 days',           color:'#B8761A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 30 && it._daysLeft < 60 },
+    { id:'due',        name:'Due (<30 days)',       color:'#D9772A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 0  && it._daysLeft < 30 },
     { id:'overdue',    name:'Overdue',              color:'#B83A3A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft < 0 },
     { id:'renewed',    name:'Renewed',              color:'#2F8F5C', match: it => it._status==='renewed' },
     { id:'churned',    name:'Churned',              color:'#392396', match: it => it._status==='churned' },
