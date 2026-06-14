@@ -19760,9 +19760,16 @@ async function submitBulkUpload() {
   let success = 0, failed = 0;
 
   try {
-    const sb = window._sbClient;
-    if (!sb) throw new Error('Database not connected');
-    const { data: { user } } = await sb.auth.getUser();
+    // window._sbClient was never initialized — use raw REST like Add Lead.
+    const token = await _getValidAccessToken();
+    if (!token) throw new Error('Session expired — sign in again');
+    const sbHeaders = {
+      apikey: SB_KEY,
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    };
+    const authorId = window.AUTH_PROFILE?.id || null;
 
     for (let i = 0; i < bulkRows.length; i++) {
       const r = bulkRows[i];
@@ -19786,22 +19793,28 @@ async function submitBulkUpload() {
           raw_data:  {},
         };
 
-        const { error: accErr } = await sb.from('accounts').insert(row);
-        if (accErr) { failed++; continue; }
+        const accRes = await fetch(`${SB_URL}/rest/v1/accounts`, {
+          method:'POST', headers: sbHeaders, body: JSON.stringify(row),
+        });
+        if (!accRes.ok) { failed++; continue; }
+        const accRows = await accRes.json();
+        const accountId = accRows?.[0]?.id;
+        if (!accountId) { failed++; continue; }
 
-        // Get inserted ID
-        const { data: ins } = await sb.from('accounts').select('id').eq('bubble_id', tempId).single();
-        const accountId = ins?.id;
-
-        // Insert contact if provided
-        if (accountId && (r.contact_name || r.contact_email)) {
-          await sb.from('contacts').insert({
-            account_id: accountId,
-            full_name:  r.contact_name  || null,
-            email:      r.contact_email || null,
-            phone:      r.contact_phone || null,
-            is_primary: true,
-          });
+        // Insert contact if provided (best-effort)
+        if (r.contact_name || r.contact_email) {
+          try {
+            await fetch(`${SB_URL}/rest/v1/contacts`, {
+              method:'POST', headers: sbHeaders,
+              body: JSON.stringify({
+                account_id: accountId,
+                full_name:  r.contact_name  || null,
+                email:      r.contact_email || null,
+                phone:      r.contact_phone || null,
+                is_primary: true,
+              }),
+            });
+          } catch {}
         }
 
         // Add to local array
@@ -20284,8 +20297,27 @@ async function mergeSelected() {
   if (mergeChecked.size === 0) return;
   const btn = document.getElementById('merge-confirm-btn');
   btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Merging…';
-  const sb = window._sbClient;
+  // Use raw REST — _sbClient was never initialized in this codebase.
+  // Before this fix the if(sb) block silently no-op'd: localStorage logs
+  // merged but duplicate rows stayed in the DB.
+  const token = await _getValidAccessToken();
+  const sbHeaders = token ? {
+    apikey: SB_KEY,
+    Authorization: 'Bearer ' + token,
+    'Content-Type': 'application/json',
+    Prefer: 'return=representation',
+  } : null;
+  const sbMinHeaders = sbHeaders ? { ...sbHeaders, Prefer: 'return=minimal' } : null;
+  const authorId = window.AUTH_PROFILE?.id || null;
   let merged = 0, failed = 0;
+
+  // Tiny helper — single-row select by filter
+  async function _sbSelect(table, params){
+    const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, { headers: sbHeaders });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return rows?.[0] || null;
+  }
 
   for (const domain of mergeChecked) {
     const group = mergeGroups.find(g => g.domain === domain);
@@ -20297,51 +20329,54 @@ async function mergeSelected() {
 
     for (const dup of duplicates) {
       try {
-        if (sb) {
-          // Resolve Supabase UUIDs by bubble_id
+        if (sbHeaders) {
           let primarySbId = primaryLead._supabase_id;
           let dupSbId     = dup._supabase_id;
-
           if (!primarySbId) {
-            const { data: pa } = await sb.from('accounts').select('id').eq('bubble_id', primaryLead._id).single();
+            const pa = await _sbSelect('accounts', `bubble_id=eq.${encodeURIComponent(primaryLead._id)}&select=id`);
             primarySbId = pa?.id;
           }
           if (!dupSbId) {
-            const { data: da } = await sb.from('accounts').select('id').eq('bubble_id', dup._id).single();
+            const da = await _sbSelect('accounts', `bubble_id=eq.${encodeURIComponent(dup._id)}&select=id`);
             dupSbId = da?.id;
           }
 
           if (dupSbId && primarySbId) {
-            // Move activities, contacts, files, stage_history, tags
-            await sb.from('activities')    .update({ account_id: primarySbId }).eq('account_id', dupSbId);
-            await sb.from('contacts')      .update({ account_id: primarySbId, is_primary: false }).eq('account_id', dupSbId);
-            await sb.from('files')         .update({ account_id: primarySbId }).eq('account_id', dupSbId);
-            await sb.from('stage_history') .update({ account_id: primarySbId }).eq('account_id', dupSbId);
+            // Move children
+            await fetch(`${SB_URL}/rest/v1/activities?account_id=eq.${dupSbId}`,    { method:'PATCH', headers: sbMinHeaders, body: JSON.stringify({ account_id: primarySbId }) });
+            await fetch(`${SB_URL}/rest/v1/contacts?account_id=eq.${dupSbId}`,      { method:'PATCH', headers: sbMinHeaders, body: JSON.stringify({ account_id: primarySbId, is_primary: false }) });
+            await fetch(`${SB_URL}/rest/v1/files?account_id=eq.${dupSbId}`,         { method:'PATCH', headers: sbMinHeaders, body: JSON.stringify({ account_id: primarySbId }) }).catch(()=>{});
+            await fetch(`${SB_URL}/rest/v1/stage_history?account_id=eq.${dupSbId}`, { method:'PATCH', headers: sbMinHeaders, body: JSON.stringify({ account_id: primarySbId }) });
 
             // Log merge activity on primary
-            const { data: { user } } = await sb.auth.getUser();
-            await sb.from('activities').insert({
-              account_id: primarySbId,
-              author_id:  user?.id || null,
-              type:       'note',
-              text:       'Merged duplicate: ' + gName(dup) + ' (' + domain + ')',
+            await fetch(`${SB_URL}/rest/v1/activities`, {
+              method:'POST', headers: sbMinHeaders,
+              body: JSON.stringify({
+                account_id: primarySbId,
+                author_id:  authorId,
+                type:       'note',
+                text:       'Merged duplicate: ' + gName(dup) + ' (' + domain + ')',
+              }),
             });
 
             // Fill missing fields on primary from duplicate
+            const keeper = await _sbSelect('accounts', `id=eq.${primarySbId}&select=am_mail,source,campaign,medium,deal_value`);
+            const dupRow = await _sbSelect('accounts', `id=eq.${dupSbId}&select=am_mail,source,campaign,medium,deal_value`);
             const updates = {};
-            const { data: keeper } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', primarySbId).single();
-            const { data: dupRow  } = await sb.from('accounts').select('am_mail,source,campaign,medium,deal_value').eq('id', dupSbId).single();
             if (keeper && dupRow) {
-              if (!keeper.am_mail   && dupRow.am_mail)   updates.am_mail   = dupRow.am_mail;
-              if (!keeper.source    && dupRow.source)    updates.source    = dupRow.source;
-              if (!keeper.campaign  && dupRow.campaign)  updates.campaign  = dupRow.campaign;
-              if (!keeper.medium    && dupRow.medium)    updates.medium    = dupRow.medium;
+              if (!keeper.am_mail    && dupRow.am_mail)    updates.am_mail    = dupRow.am_mail;
+              if (!keeper.source     && dupRow.source)     updates.source     = dupRow.source;
+              if (!keeper.campaign   && dupRow.campaign)   updates.campaign   = dupRow.campaign;
+              if (!keeper.medium     && dupRow.medium)     updates.medium     = dupRow.medium;
               if (!keeper.deal_value && dupRow.deal_value) updates.deal_value = dupRow.deal_value;
             }
-            if (Object.keys(updates).length) await sb.from('accounts').update(updates).eq('id', primarySbId);
+            if (Object.keys(updates).length) {
+              await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${primarySbId}`, { method:'PATCH', headers: sbMinHeaders, body: JSON.stringify(updates) });
+            }
 
-            // Delete the duplicate permanently
-            await sb.from('accounts').delete().eq('id', dupSbId);
+            // Soft-delete via merged_into so we keep the row but hide it (sbFetch
+            // already filters merged_into=is.null).
+            await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${dupSbId}`, { method:'PATCH', headers: sbMinHeaders, body: JSON.stringify({ merged_into: primarySbId }) });
           }
         }
 
@@ -20388,15 +20423,20 @@ let PAID_DOMAINS = new Set();
 let PAID_EMAILS  = new Set();
 
 async function loadPaidCustomers() {
+  // Silently broken since _sbClient was ripped out — PAID_DOMAINS was always
+  // empty so the domain-fallback path in isLeadPaidCustomer never fired.
+  // Restore via raw REST.
   try {
-    const sb = window._sbClient;
-    if (!sb) return;
-    const { data } = await sb.from('paid_customers')
-      .select('domain, email')
-      .eq('is_active', true);
-    if (!data) return;
-    PAID_DOMAINS = new Set(data.map(r => r.domain).filter(Boolean).map(d => d.toLowerCase()));
-    PAID_EMAILS  = new Set(data.map(r => r.email).filter(Boolean).map(e => e.toLowerCase()));
+    const token = await _getValidAccessToken();
+    if (!token) return;
+    const r = await fetch(`${SB_URL}/rest/v1/paid_customers?select=domain,email&is_active=eq.true`, {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token },
+    });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!Array.isArray(data)) return;
+    PAID_DOMAINS = new Set(data.map(x => x.domain).filter(Boolean).map(d => d.toLowerCase()));
+    PAID_EMAILS  = new Set(data.map(x => x.email).filter(Boolean).map(e => e.toLowerCase()));
     console.log(`[CRM] Loaded ${PAID_DOMAINS.size} paid domains`);
   } catch(e) {
     console.warn('[CRM] Could not load paid customers:', e.message);
