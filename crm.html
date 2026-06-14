@@ -21983,8 +21983,11 @@ window.addEventListener('auth-ready', () => {
      Data lives in the staging Supabase project (oswuvlahxlktxjzqudxg). -->
 <script>
 (function(){
-  const CI_SB_URL = 'https://oswuvlahxlktxjzqudxg.supabase.co';
-  const CI_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zd3V2bGFoeGxrdHhqenF1ZHhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDY1NDgsImV4cCI6MjA5NjUyMjU0OH0.AYxOsZw9UxYURWo-TIxuFbGzHEs0Ci1eevQ6d6i5lFk';
+  // CI Hub data lives in the PROD Supabase project now — the original staging
+  // project (oswuvlahxlktxjzqudxg) was deleted, taking its data with it. The
+  // ci_* tables were recreated + re-seeded in prod with public anon SELECT.
+  const CI_SB_URL = SB_URL;
+  const CI_SB_KEY = SB_KEY;
   const CI_HDR = { apikey: CI_SB_KEY, Authorization: 'Bearer ' + CI_SB_KEY };
   async function ciGet(table, params){
     const r = await fetch(`${CI_SB_URL}/rest/v1/${table}?select=*${params||''}`, { headers: CI_HDR });
