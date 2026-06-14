@@ -13864,6 +13864,7 @@ window.ldNotesQuickSave = function(leadId){
   if (!text) { if (typeof toast==='function') toast('Empty note','error'); return; }
   const author = (window.AUTH_PROFILE?.email) || gOwner(leadId);
   pushLog(leadId, 'note', text, author, {});
+  ta.value = '';
   // Toast — include who got pinged when @-mentions are present
   let msg = 'Note saved';
   try {
