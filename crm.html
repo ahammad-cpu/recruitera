@@ -4945,6 +4945,11 @@ td, .metric-val, .ld-act-time {
   width: 100% !important;
 }
 .acc-search-input:hover { border-color: var(--border-2) !important; }
+/* When the Accounts search has any text, collapse the filter dropdowns/reset
+   button — the search itself is doing the filtering and the rest is noise. */
+.acc-filter-bar:has(.acc-search-input:not(:placeholder-shown)) > :not(.acc-search) {
+  display: none !important;
+}
 .acc-search-input:focus {
   background: var(--surface) !important;
   border-color: var(--lime-700) !important;
