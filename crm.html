@@ -16610,7 +16610,7 @@ function buildAccountRow(lead) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         </button>` : ''}
         ${actionHtml}
-        ${window.AUTH_PROFILE?.role === 'admin' ? `<button class="acc-delete-btn" data-lead-id="${id}" data-action="delete-account" title="Delete account (admin only)" style="background:transparent;border:1px solid var(--border);color:#B83A3A;padding:5px 7px;border-radius:6px;cursor:pointer;margin-left:6px;display:inline-flex;align-items:center;">
+        ${window.AUTH_PROFILE?.role === 'admin' ? `<button class="acc-delete-btn" data-lead-id="${id}" data-action="delete-account" title="Delete account (admin only)" onclick="event.stopPropagation();deleteAccountConfirm('${id}');return false;" style="background:transparent;border:1px solid var(--border);color:#B83A3A;padding:5px 7px;border-radius:6px;cursor:pointer;margin-left:6px;display:inline-flex;align-items:center;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>
         </button>` : ''}
       </div>
@@ -16619,29 +16619,54 @@ function buildAccountRow(lead) {
 }
 
 window.deleteAccountConfirm = async function(leadId){
-  if(window.AUTH_PROFILE?.role !== 'admin'){ alert('Admin only'); return; }
+  console.log('[delete] called', leadId, 'role=', window.AUTH_PROFILE?.role);
+  if(window.AUTH_PROFILE?.role !== 'admin'){ alert('Admin only — your role is "'+(window.AUTH_PROFILE?.role||'unknown')+'"'); return; }
   const lead = ((typeof leads!=='undefined'?leads:(window.leads||[]))).find(l => l._id === leadId);
-  if(!lead){ alert('Lead not found'); return; }
+  if(!lead){ alert('Lead not found in memory: '+leadId); return; }
   const name = (typeof gName==='function') ? gName(lead) : (lead.name || lead._id);
-  const sbId = lead._supabase_id;
-  if(!sbId){ alert('Unsynced lead — cannot delete from server.'); return; }
+  const sbId = lead._supabase_id || (typeof lead._id==='string' && /^[0-9a-f-]{36}$/i.test(lead._id) ? lead._id : null);
+  if(!sbId){ alert('Unsynced lead — no Supabase UUID, cannot delete from server.'); return; }
   const typed = prompt(`Delete "${name}"?\n\nThis permanently removes the account and all its activities, contacts, contracts, and documents.\n\nType DELETE to confirm:`);
   if(typed !== 'DELETE') return;
   const token = await _getValidAccessToken();
-  if(!token){ alert('Auth lost'); return; }
+  if(!token){ alert('Auth lost — sign in again'); return; }
+  // 1) Wipe dependents first that don't auto-cascade — safety net for any
+  //    rows whose FK was created without ON DELETE CASCADE (storage objects,
+  //    marketing_tracking with SET NULL, etc). Then delete the account row.
+  try {
+    // Strip storage objects (account-docs bucket)
+    const docs = await fetch(`${SB_URL}/rest/v1/account_documents?account_id=eq.${sbId}&select=storage_path`, { headers:{ apikey:SB_KEY, Authorization:'Bearer '+token }});
+    if(docs.ok){
+      const rows = await docs.json();
+      for(const d of rows){
+        await fetch(`${SB_URL}/storage/v1/object/account-docs/${encodeURI(d.storage_path)}`, { method:'DELETE', headers:{ apikey:SB_KEY, Authorization:'Bearer '+token }});
+      }
+    }
+  } catch(e){ console.warn('[delete] doc cleanup', e); }
   const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
     method:'DELETE',
     headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, Prefer:'return=representation' }
   });
-  if(!res.ok){ const t = await res.text().catch(()=>''); alert('Delete failed ('+res.status+'):\n'+t); return; }
-  const out = await res.json().catch(()=>[]);
-  if(!Array.isArray(out) || !out.length){ alert('Server returned 0 rows — likely RLS blocked the delete.'); return; }
-  // Remove from in-memory leads + re-render
+  console.log('[delete] status', res.status);
+  if(!res.ok){
+    const t = await res.text().catch(()=>'');
+    alert('Delete failed — HTTP '+res.status+'\n\nServer said:\n'+t);
+    return;
+  }
+  // PostgREST returns 204 (no body) on success without representation, or
+  // [] / [{...}] with representation. Treat 204 OR any 2xx as success.
+  let okRows = true;
+  try { const out = await res.json(); okRows = Array.isArray(out) && out.length > 0; } catch { okRows = (res.status === 204); }
+  if(!okRows && res.status !== 204){
+    alert('Delete reported success but no row matched id='+sbId+'.\n\nThis usually means RLS silently blocked it.');
+    return;
+  }
   if(Array.isArray(window.leads)) window.leads = window.leads.filter(l => l._id !== leadId);
   try { renderAccountsTable(); } catch{}
   try { renderBoard(); } catch{}
   try { kpis?.(); } catch{}
   if(typeof toast==='function') toast(`Deleted "${name}"`,'success');
+  console.log('[delete] removed', name);
 };
 
 function accRowClick(id, e) {
