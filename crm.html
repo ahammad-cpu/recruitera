@@ -11942,6 +11942,17 @@ function init(){
   renderBoard();kpis();updateDisqCount();
   // Auto-promote any cached leads where score≥50 but stage='lead' (deferred so render isn't blocked)
   try { setTimeout(()=>autoPromoteEligibleLeads().catch(()=>{}), 1200); } catch {}
+  // Deep-link: ?lead=<account uuid OR bubble_id> from notification emails / bell
+  try {
+    const _qs = new URLSearchParams(location.search);
+    const _wanted = _qs.get('lead');
+    if (_wanted) {
+      const _hit = (window.leads||[]).find(l => l._supabase_id === _wanted || l._id === _wanted);
+      if (_hit && typeof openDrawer === 'function') {
+        setTimeout(() => openDrawer(_hit._id, 'notification'), 300);
+      }
+    }
+  } catch {}
   const _trc=document.getElementById('tb-record-count');
   if(_trc)_trc.textContent=`${leads.length} ${leads.length===1?'lead':'leads'}`;
   // Update accounts count in sidebar
@@ -14076,6 +14087,17 @@ window.ldNotesQuickSave = function(leadId){
   const tabBody = document.getElementById('ld-tab-content');
   if (lead && tabBody) renderLdNotes(lead, tabBody);
   if (lead && typeof updateLdTabCounts === 'function') updateLdTabCounts(lead);
+  // After the server commits, re-hydrate activities so the canonical row
+  // (with proper id/ts) replaces the optimistic local entry.
+  if (lead?._supabase_id && typeof loadActivitiesForAccount === 'function') {
+    setTimeout(() => loadActivitiesForAccount(lead._supabase_id).then(() => {
+      if (typeof curId !== 'undefined' && curId === leadId) {
+        const tb = document.getElementById('ld-tab-content');
+        if (tb) renderLdNotes(lead, tb);
+        if (typeof updateLdTabCounts === 'function') updateLdTabCounts(lead);
+      }
+    }), 900);
+  }
 };
 
 
