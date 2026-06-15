@@ -11935,6 +11935,8 @@ function init(){
   }
 
   renderBoard();kpis();updateDisqCount();
+  // Auto-promote any cached leads where score≥50 but stage='lead' (deferred so render isn't blocked)
+  try { setTimeout(()=>autoPromoteEligibleLeads().catch(()=>{}), 1200); } catch {}
   const _trc=document.getElementById('tb-record-count');
   if(_trc)_trc.textContent=`${leads.length} ${leads.length===1?'lead':'leads'}`;
   // Update accounts count in sidebar
@@ -15125,8 +15127,42 @@ function saveIcpScores(){
   pushLog(curId,'note',`ICP scored: ${total}/100 (Grade ${grade})`,gOwner(curId));
   const lead=leads.find(l=>l._id===curId);
   if(lead){renderRightIcp(lead);renderLeftKeyInfo(lead);}
+  // Auto-promote to MQL when score crosses the gate (score >= 50)
+  if(lead && total>=50 && (lead._sb_stage||'lead')==='lead'){
+    autoPromoteToMql(lead, total).catch(e=>console.warn('[auto-mql]',e));
+  }
   renderBoard();
   toast(`ICP saved: ${total}/100 · Grade ${grade}`,'success');
+}
+
+async function autoPromoteToMql(lead, total){
+  const sbId = lead?._supabase_id; if(!sbId) return;
+  const token = await _getValidAccessToken(); if(!token) return;
+  const r = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+    method:'PATCH',
+    headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ stage:'mql' })
+  });
+  if(!r.ok) return;
+  lead._sb_stage = 'mql';
+  pushLog(lead._id,'stage',`Auto-promoted Lead → MQL (score ${total}/100 ≥ 50)`, AUTH_PROFILE?.email || gOwner(lead._id));
+  if(typeof toast==='function') toast('Auto-promoted to MQL','success');
+  renderBoard();
+}
+
+// One-off sweep: any cached lead with stage='lead' and score>=50 → promote.
+// Runs once on init after sbFetch hydration.
+async function autoPromoteEligibleLeads(){
+  if(!Array.isArray(window.leads)) return;
+  const candidates = window.leads.filter(l => (l._sb_stage||'lead')==='lead'
+    && !l._sb_is_disq
+    && l._supabase_id
+    && calcIcpScore(l._id) >= 50);
+  if(!candidates.length) return;
+  console.log('[auto-mql] promoting', candidates.length, 'leads');
+  for(const l of candidates){
+    try { await autoPromoteToMql(l, calcIcpScore(l._id)); } catch(e){ console.warn('[auto-mql]', l._id, e); }
+  }
 }
 
 // ─── CONTACT ──────────────────────────────────────────
