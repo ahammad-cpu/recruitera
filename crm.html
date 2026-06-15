@@ -19588,6 +19588,11 @@ async function _accCollisionRun(q){
   if (!banner) return;
   q = (q||'').trim();
   if (q.length < 2) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  // Admins (and roles with all_accounts) already see every row in their own
+  // table — the "outside your accounts" banner makes no sense for them.
+  const _isAdmin = window.AUTH_PROFILE?.role === 'admin';
+  const _seesAll = _isAdmin || !!(window.MODULE_ACCESS && window.MODULE_ACCESS.all_accounts);
+  if (_seesAll) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
   const token = await _getValidAccessToken();
   if (!token) return;
   try {
