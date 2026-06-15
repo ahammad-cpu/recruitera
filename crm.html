@@ -15695,12 +15695,14 @@ function accFilteredLeads() {
     if (accActiveTab === 'unreachable'    && !lead.is_unreachable) return false;
 
     if (q) {
-      const name    = gName(lead).toLowerCase();
-      const email   = gEmail(lead).toLowerCase();
-      const domain  = (domainFromBubble(lead)||'').toLowerCase();
       const contact = gContact(id);
-      const cname   = (contact.full_name||'').toLowerCase();
-      if (!name.includes(q) && !email.includes(q) && !domain.includes(q) && !cname.includes(q)) return false;
+      const hay = [
+        gName(lead), gEmail(lead), gPhone(lead), gContactName(lead), gJobTitle(lead),
+        domainFromBubble(lead), gSource(lead), gOwner(id), gIndustry?.(lead),
+        contact.full_name, contact.email, contact.phone, contact.job_title,
+        lead._supabase_id, lead._id, lead['Company Name'], lead.WP_Location, lead.WP_Industry
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     if (fSrc   && gSource(lead) !== fSrc)   return false;
     if (fStage && gStage(id)    !== fStage) return false;
