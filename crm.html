@@ -16626,8 +16626,7 @@ window.deleteAccountConfirm = async function(leadId){
   const name = (typeof gName==='function') ? gName(lead) : (lead.name || lead._id);
   const sbId = lead._supabase_id || (typeof lead._id==='string' && /^[0-9a-f-]{36}$/i.test(lead._id) ? lead._id : null);
   if(!sbId){ alert('Unsynced lead — no Supabase UUID, cannot delete from server.'); return; }
-  const typed = prompt(`Delete "${name}"?\n\nThis permanently removes the account and all its activities, contacts, contracts, and documents.\n\nType DELETE to confirm:`);
-  if(typed !== 'DELETE') return;
+  if(!confirm(`Delete "${name}"?\n\nThis permanently removes the account and all its activities, contacts, contracts, and documents.`)) return;
   const token = await _getValidAccessToken();
   if(!token){ alert('Auth lost — sign in again'); return; }
   // 1) Wipe dependents first that don't auto-cascade — safety net for any
@@ -16665,8 +16664,11 @@ window.deleteAccountConfirm = async function(leadId){
   try { renderAccountsTable(); } catch{}
   try { renderBoard(); } catch{}
   try { kpis?.(); } catch{}
-  if(typeof toast==='function') toast(`Deleted "${name}"`,'success');
+  if(typeof toast==='function') toast(`Deleted "${name}" — reloading…`,'success');
   console.log('[delete] removed', name);
+  // Hard reload so the table reflects the DB state of truth — guards against
+  // any cached row that didn't get spliced from in-memory state.
+  setTimeout(() => location.reload(), 600);
 };
 
 function accRowClick(id, e) {
