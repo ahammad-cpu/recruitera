@@ -20574,7 +20574,7 @@ window.addEventListener('auth-ready', () => {
   //   Overdue  = past due
   // Then by lifecycle status: Renewed / Churned.
   const RENEWAL_COLS = [
-    { id:'in90',    name:'90 days',  color:'#2F8F5C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 61 },
+    { id:'in90',    name:'90 days',  color:'#2F8F5C', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 61 && it._daysLeft <= 90 },
     { id:'in60',    name:'60 days',  color:'#2C5BA8', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 31 && it._daysLeft <= 60 },
     { id:'in30',    name:'30 days',  color:'#B8761A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft >= 0  && it._daysLeft <= 30 },
     { id:'overdue', name:'Overdue',  color:'#B83A3A', match: it => !!it.cycle && it._status==='active' && it._daysLeft != null && it._daysLeft < 0 },
