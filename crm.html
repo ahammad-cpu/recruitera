@@ -13429,6 +13429,14 @@ function openContractCycleModal(leadId, opts = {}){
   document.getElementById('contract-status').value     = existing?.status || 'active';
   document.getElementById('contract-auto-renew').checked = !!existing?.auto_renew;
   document.getElementById('contract-notes').value      = existing?.notes || '';
+  // Optional new fields
+  document.getElementById('contract-offer-sent-date').value   = existing?.offer_sent_date   || '';
+  document.getElementById('contract-renewal-due-date').value  = existing?.renewal_due_date  || '';
+  document.getElementById('contract-old-fees-amount').value   = existing?.old_fees_amount ?? '';
+  document.getElementById('contract-new-offer-amount').value  = existing?.new_offer_amount ?? '';
+  document.getElementById('contract-original-price').value    = existing?.original_price ?? '';
+  document.getElementById('contract-discount-given').value    = existing?.discount_given ?? '';
+  document.getElementById('contract-payment-type').value      = existing?.payment_type || '';
   document.getElementById('contract-modal-bg').dataset.leadId = leadId;
   document.getElementById('contract-modal-bg').dataset.sbId = sbId;
   document.getElementById('contract-modal-bg').classList.add('open');
@@ -13457,6 +13465,8 @@ async function saveContractCycle(){
   if(!started_at || !ends_at){ alert('Start and end dates are required.'); return; }
   if(ends_at < started_at){ alert('End date must be on or after start date.'); return; }
   const valueRaw = document.getElementById('contract-value').value.trim();
+  const numOrNull = id => { const v = document.getElementById(id)?.value.trim(); return v==='' ? null : Number(v); };
+  const dateOrNull = id => document.getElementById(id)?.value || null;
   const payload = {
     account_id: sbId,
     started_at, ends_at,
@@ -13466,6 +13476,13 @@ async function saveContractCycle(){
     status: document.getElementById('contract-status').value || 'active',
     auto_renew: document.getElementById('contract-auto-renew').checked,
     notes: document.getElementById('contract-notes').value.trim() || null,
+    offer_sent_date:  dateOrNull('contract-offer-sent-date'),
+    renewal_due_date: dateOrNull('contract-renewal-due-date'),
+    old_fees_amount:  numOrNull('contract-old-fees-amount'),
+    new_offer_amount: numOrNull('contract-new-offer-amount'),
+    original_price:   numOrNull('contract-original-price'),
+    discount_given:   numOrNull('contract-discount-given'),
+    payment_type:     document.getElementById('contract-payment-type')?.value || null,
     created_by: window.AUTH_PROFILE?.id || null,
   };
   // For new cycles, compute cycle_number = existing count + 1
@@ -19032,6 +19049,40 @@ function renderActivityFeed(el) {
             <option value="renewed">Renewed</option>
             <option value="churned">Churned</option>
             <option value="expired">Expired</option>
+          </select>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Offer sent date <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <input type="date" id="contract-offer-sent-date" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Renewal due date <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <input type="date" id="contract-renewal-due-date" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Old fees amount <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <input type="number" id="contract-old-fees-amount" min="0" step="0.01" placeholder="0" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">New offer amount <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <input type="number" id="contract-new-offer-amount" min="0" step="0.01" placeholder="0" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Original price <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <input type="number" id="contract-original-price" min="0" step="0.01" placeholder="0" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Discount given <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <input type="number" id="contract-discount-given" min="0" step="0.01" placeholder="0" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Payment type <span style="font-weight:400;text-transform:none;color:var(--text-4);">(optional)</span>
+          <select id="contract-payment-type" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
+            <option value="">— Select —</option>
+            <option value="Cash">Cash</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Credit Card">Credit Card</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Installments">Installments</option>
           </select>
         </label>
       </div>
