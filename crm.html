@@ -8623,6 +8623,7 @@ function paintHomeView(){
   // ─── New accounts assigned to me (last 14 days) ───
   const cutoff = Date.now() - 14*86400000;
   const newOnes = myAccounts.filter(l => {
+    if (typeof hasRealData === 'function' && !hasRealData(l)) return false;
     const created = new Date(gCreated(l) || 0).getTime();
     return created >= cutoff;
   }).sort((a,b) => new Date(gCreated(b)||0).getTime() - new Date(gCreated(a)||0).getTime()).slice(0,8);
