@@ -12993,8 +12993,9 @@ async function ldDocsDelete(docId, path, sbId){
   await ldDocsRefresh(sbId);
 }
 
-function renderLdContacts(lead,el){
+async function renderLdContacts(lead,el){
   const id=lead._id;
+  const sbId=lead._supabase_id;
   const primary=gContact(id);
   const pName=primary.full_name||gContactName(lead)||'';
   const pTitle=primary.job_title||gJobTitle(lead)||'';
@@ -13002,18 +13003,52 @@ function renderLdContacts(lead,el){
   const pPhone=primary.phone||gPhone(lead)||'';
   const rows=[];
   if(pName||pEmail){
-    rows.push({name:pName||'(no name)',title:pTitle,email:pEmail,phone:pPhone,isPrimary:true,lastTs:Date.now(),from:''});
+    rows.push({name:pName||'(no name)',title:pTitle,email:pEmail,phone:pPhone,isPrimary:true,lastTs:Date.now(),from:'',_extraId:null});
   }
+  // Extra manually-added contacts from the `contacts` table
+  let extras=[];
+  if(sbId){
+    try {
+      const token=await _getValidAccessToken();
+      if(token){
+        const r=await fetch(`${SB_URL}/rest/v1/contacts?account_id=eq.${sbId}&order=created_at.desc&select=*`,
+          { headers:{ apikey:SB_KEY, Authorization:'Bearer '+token }});
+        if(r.ok) extras=await r.json();
+      }
+    } catch(e){ console.warn('[contacts] load',e); }
+  }
+  extras.forEach(c=>rows.push({
+    name:c.full_name||'(no name)', title:c.job_title||'', email:c.email||'', phone:c.phone||'',
+    isPrimary:false, lastTs:new Date(c.created_at).getTime()||0, from:'', _extraId:c.id
+  }));
   gMergedContacts(id).forEach(c=>rows.push({
     name:c.name,title:c.title||'',email:c.email||'',phone:c.phone||'',
-    isPrimary:false,lastTs:new Date(c.merged_at).getTime()||0,from:c.from_lead||''
+    isPrimary:false,lastTs:new Date(c.merged_at).getTime()||0,from:c.from_lead||'',_extraId:null
   }));
+  const composer=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-weight:600;font-size:13.5px;">Contacts</div>
+      <button onclick="ldContactsOpenForm('${sbId||''}','${esc(lead._id)}')" class="ld-save-btn" style="padding:7px 14px;font-size:12.5px;">+ Add contact</button>
+    </div>
+    <div id="ld-contact-form" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input id="ldc-name"  placeholder="Full name *" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+        <input id="ldc-title" placeholder="Job title" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+        <input id="ldc-email" type="email" placeholder="Email" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+        <input id="ldc-phone" placeholder="Phone" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+        <button onclick="document.getElementById('ld-contact-form').style.display='none';" style="padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:12.5px;">Cancel</button>
+        <button onclick="ldContactsSave('${sbId||''}','${esc(lead._id)}')" class="ld-save-btn" style="padding:7px 14px;font-size:12.5px;">✓ Save contact</button>
+      </div>
+    </div>
+  </div>`;
   if(!rows.length){
-    el.innerHTML=`<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">👥</div><div>No contacts yet</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">Contacts you add here or pull in from merged duplicates will appear here</div></div>`;
+    el.innerHTML=composer+`<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">👥</div><div>No contacts yet</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">Use <b>+ Add contact</b> above or pull in from merged duplicates</div></div>`;
     return;
   }
   const initOf=n=>(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'?';
-  el.innerHTML=`<div class="ld-panel-card" style="padding:0;overflow:hidden;">
+  el.innerHTML=composer+`<div class="ld-panel-card" style="padding:0;overflow:hidden;">
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr>
@@ -13041,6 +13076,33 @@ function renderLdContacts(lead,el){
     </table>
   </div>`;
 }
+
+window.ldContactsOpenForm = function(sbId, localId){
+  const f = document.getElementById('ld-contact-form'); if(!f) return;
+  f.style.display = f.style.display==='none' ? 'block' : 'none';
+  if(f.style.display==='block') setTimeout(()=>document.getElementById('ldc-name')?.focus(), 30);
+};
+
+window.ldContactsSave = async function(sbId, localId){
+  if(!sbId){ alert('Unsynced lead — cannot save contact.'); return; }
+  const name  = document.getElementById('ldc-name')?.value.trim();
+  const title = document.getElementById('ldc-title')?.value.trim();
+  const email = document.getElementById('ldc-email')?.value.trim();
+  const phone = document.getElementById('ldc-phone')?.value.trim();
+  if(!name){ alert('Name is required'); return; }
+  const token = await _getValidAccessToken(); if(!token){ alert('Auth lost'); return; }
+  const res = await fetch(`${SB_URL}/rest/v1/contacts`, {
+    method:'POST',
+    headers:{ apikey:SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json', Prefer:'return=representation' },
+    body: JSON.stringify({ account_id: sbId, full_name: name, job_title: title||null, email: email||null, phone: phone||null, is_primary: false })
+  });
+  if(!res.ok){ const t = await res.text().catch(()=>''); alert('Save failed ('+res.status+')\n'+t); return; }
+  if(typeof toast==='function') toast('Contact added','success');
+  const lead = (window.leads||[]).find(l => l._id === localId);
+  const tab = document.getElementById('ld-tab-content');
+  if(lead && tab) renderLdContacts(lead, tab);
+  if(lead && typeof updateLdTabCounts==='function') updateLdTabCounts(lead);
+};
 
 
 // ─── @MENTIONS SYSTEM ────────────────────────────
