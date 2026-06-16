@@ -12610,6 +12610,14 @@ function openDrawer(id, from){
   drawerOpenedFrom = from || currentMainView || 'pipeline';
   const lead=leads.find(l=>l._id===id);
   if(!lead)return;
+  // Sync URL so back button closes the drawer instead of leaving the app
+  try {
+    if (!window._navFromHistory) {
+      const sbid = lead._supabase_id || id;
+      const url = `${location.pathname}?lead=${encodeURIComponent(sbid)}`;
+      if (location.pathname + location.search !== url) history.pushState({ lead: id, from: drawerOpenedFrom }, '', url);
+    }
+  } catch {}
   // Fire-and-forget: pull latest activities from Supabase for this account so
   // tasks assigned by teammates show up on the lead detail.
   if(lead._supabase_id){
@@ -14545,6 +14553,32 @@ function closeDrawer(){
     document.getElementById('board-view').style.display='';
   }
 }
+
+// ── Browser-back / history handling ────────────────────────────
+// When the user presses the browser Back button we restore the previous
+// view/drawer state instead of letting the browser navigate away from /crm
+// (which would land on the marketing site or hit the login redirect).
+window.addEventListener('popstate', (ev) => {
+  window._navFromHistory = true;
+  try {
+    const st = ev.state || {};
+    const qs = new URLSearchParams(location.search);
+    const wantLead = qs.get('lead');
+    const wantView = qs.get('view') || st.view;
+    if (wantLead) {
+      const lead = (window.leads||[]).find(l => l._supabase_id === wantLead || l._id === wantLead);
+      if (lead && typeof openDrawer === 'function') openDrawer(lead._id, st.from || currentMainView);
+      return;
+    }
+    // No lead in URL → make sure the drawer is closed
+    const lp = document.getElementById('lead-page');
+    if (lp && lp.classList.contains('open')) lp.classList.remove('open');
+    if (wantView && typeof switchMainView === 'function') switchMainView(wantView);
+    else if (typeof switchMainView === 'function') switchMainView('pipeline');
+  } finally {
+    setTimeout(() => { window._navFromHistory = false; }, 0);
+  }
+});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){closeDrawer();cancelLost();cancelDisq();}
   if(!curId)return;
@@ -15341,6 +15375,14 @@ let accSortDir = 'desc'; // 'asc' | 'desc'
 
 function switchMainView(view) {
   currentMainView = view;
+  // Sync URL so the browser back button works (and doesn't bounce us to /login)
+  try {
+    if (!window._navFromHistory) {
+      const url = view === 'pipeline' ? location.pathname : `${location.pathname}?view=${encodeURIComponent(view)}`;
+      const cur = location.pathname + location.search;
+      if (cur !== url) history.pushState({ view }, '', url);
+    }
+  } catch {}
   const boardView    = document.getElementById('board-view');
   const accountsView = document.getElementById('accounts-view');
   const dashboardView= document.getElementById('dashboard-view');
