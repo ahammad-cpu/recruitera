@@ -12873,31 +12873,12 @@ function renderLdHero(lead){
           </div>
         </div>
       </div>
-      <!-- 7-stat strip: Credits / Plan / Deal value / Close date / Stage / ICP score / Renews -->
-      ${(()=>{
-        const usedCredits = lead.credits_used ?? lead.raw_data?.credits_used ?? null;
-        const totalCredits = lead.credits_total ?? lead.raw_data?.credits_total ?? null;
-        const creditsPct = (usedCredits!=null && totalCredits) ? Math.round((usedCredits/totalCredits)*100) : null;
-        const creditsVal = creditsPct!=null ? creditsPct+'%' : '—';
-        const creditsSub = (usedCredits!=null && totalCredits!=null) ? `${usedCredits} / ${totalCredits} used` : 'not tracked';
-        const planName = activeCycle?.plan_tier || (realPaidStatus ? esc(realPaidStatus) : '—');
-        const planSub  = realPaidStatus || (hasTrial ? 'Trial' : 'No plan');
-        const icpScore = (typeof calcIcpScore==='function') ? calcIcpScore(id) : 0;
-        const hasIcp   = (typeof gIcp==='function') ? Object.keys(gIcp(id)).length>0 : false;
-        const renewDate = activeCycle?.ends_at ? new Date(activeCycle.ends_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
-        const renewYear = activeCycle?.ends_at ? new Date(activeCycle.ends_at).getFullYear() : '';
-        const renewSub  = activeCycle ? (activeCycle.status==='active'?'Active':activeCycle.status==='renewed'?'Renewed':activeCycle.status==='churned'?'Churned':'Expired') : 'no contract';
-        return `
+      <!-- 7-stat strip -->
       <div class="ld-stat-strip" style="display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);">
         <div class="ld-stat-cell" style="padding:16px 14px;overflow:hidden;">
-          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Credits</div>
-          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.15;">${creditsVal}</div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${creditsSub}</div>
-        </div>
-        <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;">
-          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Plan</div>
-          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${esc(planName)}</div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${esc(planSub)}</div>
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Stage</div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);line-height:1.15;">${stageObj.name}</div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">step ${Math.max(1,stageIdx+1)} of ${STAGES.length}</div>
         </div>
         <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;cursor:pointer;" onclick="editStatVal()">
           <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Deal value</div>
@@ -12907,24 +12888,32 @@ function renderLdHero(lead){
         <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;cursor:pointer;" onclick="editStatClose()">
           <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Close date</div>
           <div id="ld-stat-close" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);line-height:1.15;">${closeDisp}</div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${closeDate ? new Date(closeDate).getFullYear() : 'expected'}</div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">expected</div>
+        </div>
+        <div class="ld-stat-cell ld-owner-cell" data-lead-id="${id}" data-action="open-owner-picker" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;cursor:pointer;user-select:none;" title="Reassign owner (admin only)">
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Owner <span class="ld-owner-change-hint" style="font-size:9px;color:var(--lime-700);font-weight:600;display:none;">· change</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:7px;">
+            <span style="width:20px;height:20px;border-radius:50%;background:${owner.color||'var(--lime-700)'};color:var(--cg-900);font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${owner.avatar_url?`<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`:owner.id}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(owner.name)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">account manager</div>
         </div>
         <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;">
-          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Stage</div>
-          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);line-height:1.15;">${stageObj.name}</div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">step ${Math.max(1,stageIdx+1)} of ${STAGES.length}</div>
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Trial</div>
+          <div style="margin-top:7px;">${trialHtml}</div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">free trial</div>
+        </div>
+        <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;cursor:pointer;" onclick="editStatIndustry()">
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Industry</div>
+          <div id="ld-stat-industry" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${eIndustry?esc(eIndustry):'—'}</div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${eLocation?esc(eLocation):'—'}</div>
         </div>
         <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;">
-          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">ICP score</div>
-          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.15;">${hasIcp?icpScore:'—'}</div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${hasIcp?'of 100':'not scored'}</div>
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Source</div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.15;">${sourceStr?esc(sourceStr):'—'}</div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${campaignStr?esc(campaignStr):mediumStr?esc(mediumStr):'attribution'}</div>
         </div>
-        <div class="ld-stat-cell" style="padding:16px 14px;border-left:1px solid var(--border);overflow:hidden;">
-          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Renews</div>
-          <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);line-height:1.15;">${renewDate}${renewYear?`<span style="font-size:11px;color:var(--text-3);font-weight:500;margin-left:4px;">${renewYear}</span>`:''}</div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">${renewSub}</div>
-        </div>
-      </div>`;})()}
+      </div>
     </div>`;
   // Reveal "· change" hint on the Owner cell if current user is admin
   try {
