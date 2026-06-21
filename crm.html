@@ -11527,7 +11527,7 @@ function toggleTaskDone(accId, itemId){
   // Recurring trigger fires server-side; refetch on next render to pick up the new instance
   if(newDone && recurRule && recurRule !== 'none' && sbId){
     setTimeout(() => loadActivitiesForAccount(sbId).then(() => {
-      if(curId === accId){ const el = document.querySelector('#ld-tab-body'); if(el) renderLdActivity((window.leads||[]).find(l=>l._id===accId), el); }
+      if(curId === accId){ const el = document.getElementById('ld-tab-content'); const _lead = (window.leads||[]).find(l=>l._id===accId); if(el && _lead && typeof renderLdTabContent==='function') renderLdTabContent(ldCurTab || 'activity', _lead); }
     }), 1200);
   }
 }
@@ -12622,11 +12622,10 @@ function openDrawer(id, from){
   // tasks assigned by teammates show up on the lead detail.
   if(lead._supabase_id){
     loadActivitiesForAccount(lead._supabase_id).then(() => {
-      if(curId === id && ldCurTab === 'activity'){
-        const el = document.querySelector('#ld-tab-body');
-        if(el) renderLdActivity(lead, el);
-        updateLdTabCounts(lead);
-      }
+      if(curId !== id) return;
+      const el = document.getElementById('ld-tab-content');
+      if(el && typeof renderLdTabContent === 'function') renderLdTabContent(ldCurTab || 'activity', lead);
+      if(typeof updateLdTabCounts === 'function') updateLdTabCounts(lead);
     }).catch(()=>{});
   }
   // Topbar
@@ -14519,7 +14518,7 @@ window.ldTasksQuickSave = function(leadId){
   pushLog(leadId, 'task', '', author, extras);
   if (typeof toast==='function') toast('Task added','success');
   const lead = (window.leads||[]).find(l => l._id === leadId);
-  const tabBody = document.querySelector('#ld-tab-body');
+  const tabBody = document.getElementById('ld-tab-content');
   if (lead && tabBody) renderLdTasks(lead, tabBody);
   if (lead && typeof updateLdTabCounts === 'function') updateLdTabCounts(lead);
 };
