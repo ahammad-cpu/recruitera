@@ -12917,23 +12917,22 @@ async function renderLdDocs(lead, el){
   const sbId = lead?._supabase_id;
   if(!sbId){ el.innerHTML = '<div class="ld-act-empty">Unsynced lead — documents unavailable.</div>'; return; }
   el.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div>
-          <div style="font-weight:600;font-size:14px;">Documents</div>
-          <div style="font-size:11.5px;color:var(--text-3);">Contracts, tax cards, deposits and load charts</div>
-        </div>
-        <label style="padding:7px 14px;border-radius:8px;background:var(--cg-900);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">
-          ↑ Upload
-          <input type="file" id="ld-doc-file" style="display:none;" onchange="ldDocsUpload('${sbId}', this.files)"/>
-        </label>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-1);">Documents</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">Contracts, tax cards, deposits, load charts</div>
       </div>
-      <div id="ld-docs-dropzone" style="border:1.5px dashed var(--border);border-radius:8px;padding:22px;text-align:center;color:var(--text-3);font-size:12.5px;cursor:pointer;">
-        <div style="font-size:20px;margin-bottom:4px;">⤴</div>
-        Drop a file here or click <b>Upload</b> · PDF, DOCX, XLSX, PNG, JPG · up to 25 MB
-      </div>
-      <div id="ld-docs-list" style="margin-top:14px;font-size:12.5px;color:var(--text-3);">Loading…</div>
-    </div>`;
+      <label style="padding:7px 14px;border-radius:7px;background:var(--cg-900);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        ↑ Upload
+        <input type="file" id="ld-doc-file" style="display:none;" onchange="ldDocsUpload('${sbId}', this.files)"/>
+      </label>
+    </div>
+    <div id="ld-docs-dropzone" style="border:1.5px dashed var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--text-3);font-size:12.5px;cursor:pointer;background:var(--surface);margin-bottom:14px;transition:background 120ms;">
+      <div style="font-size:22px;margin-bottom:6px;line-height:1;">⤴</div>
+      <div style="font-size:13px;color:var(--text-2);font-weight:500;">Drop a file here or click <b>Upload</b></div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px;">PDF, DOCX, XLSX, PNG, JPG · up to 25 MB</div>
+    </div>
+    <div id="ld-docs-list" style="font-size:12.5px;color:var(--text-3);">Loading…</div>`;
   const dz = document.getElementById('ld-docs-dropzone');
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.background='var(--bg-2)'; });
   dz.addEventListener('dragleave', () => { dz.style.background=''; });
@@ -12950,20 +12949,29 @@ async function ldDocsRefresh(sbId){
   });
   if(!r.ok){ list.innerHTML='<div style="color:#B83A3A;">Failed to load documents</div>'; return; }
   const rows = await r.json();
-  if(!rows.length){ list.innerHTML='<div style="color:var(--text-3);">No documents yet.</div>'; return; }
+  if(!rows.length){ list.innerHTML='<div class="ld-act-empty" style="padding:24px 12px;text-align:center;color:var(--text-3);"><div style="font-size:13px;font-weight:600;color:var(--text-2);">No documents yet</div><div style="font-size:12px;margin-top:4px;">Upload your first file above.</div></div>'; return; }
   const profById = {}; (window.PROFILES_DIR||[]).forEach(p => p.id && (profById[p.id]=p));
+  const tileFor = (name, mime) => {
+    const ext = (name||'').split('.').pop().toLowerCase();
+    if (/pdf/.test(ext) || /pdf/.test(mime||'')) return { bg:'#FCEBEB', fg:'#791F1F', ic:'📄' };
+    if (/xlsx?|csv/.test(ext) || /spreadsheet|excel/.test(mime||'')) return { bg:'#EAF3DE', fg:'#27500A', ic:'📊' };
+    if (/docx?/.test(ext) || /word/.test(mime||'')) return { bg:'#E6F1FB', fg:'#0C447C', ic:'📝' };
+    if (/png|jpe?g|gif|webp|svg/.test(ext) || /image/.test(mime||'')) return { bg:'#FAEEDA', fg:'#854F0B', ic:'🖼' };
+    return { bg:'var(--bg-2)', fg:'var(--text-2)', ic:'📁' };
+  };
   list.innerHTML = rows.map(d => {
     const who = profById[d.uploader_id]?.full_name || profById[d.uploader_id]?.email || 'unknown';
-    const when = new Date(d.created_at).toLocaleDateString();
-    const sizeKb = d.size_bytes ? `· ${(d.size_bytes/1024).toFixed(0)} KB` : '';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-2);">
-      <div style="width:36px;height:36px;border-radius:6px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;">📄</div>
+    const when = new Date(d.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const sizeKb = d.size_bytes ? `${(d.size_bytes/1024).toFixed(0)} KB` : '';
+    const t = tileFor(d.file_name, d.mime_type);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--surface);">
+      <div style="width:34px;height:34px;border-radius:8px;background:${t.bg};color:${t.fg};display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">${t.ic}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;color:var(--text-1);">${esc(d.label || d.file_name)}</div>
-        <div style="font-size:11px;color:var(--text-3);">Uploaded by ${esc(who)} · ${when} ${sizeKb}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d.label || d.file_name)}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:1px;">Uploaded by ${esc(who)} · ${when}${sizeKb?` · ${sizeKb}`:''}</div>
       </div>
-      <button onclick="ldDocsDownload('${d.id}','${esc(d.storage_path)}','${esc(d.file_name)}')" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-1);cursor:pointer;font-size:12px;">Download</button>
-      <button onclick="ldDocsDelete('${d.id}','${esc(d.storage_path)}','${esc(d.account_id)}')" title="Delete" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:#B83A3A;cursor:pointer;font-size:13px;">🗑</button>
+      <button onclick="ldDocsDownload('${d.id}','${esc(d.storage_path)}','${esc(d.file_name)}')" title="Download" style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-1);cursor:pointer;font-size:12px;font-family:inherit;">↓</button>
+      <button onclick="ldDocsDelete('${d.id}','${esc(d.storage_path)}','${esc(d.account_id)}')" title="Delete" style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:#B83A3A;cursor:pointer;font-size:12px;font-family:inherit;">🗑</button>
     </div>`;
   }).join('');
 }
@@ -13051,55 +13059,59 @@ async function renderLdContacts(lead,el){
     name:c.name,title:c.title||'',email:c.email||'',phone:c.phone||'',
     isPrimary:false,lastTs:new Date(c.merged_at).getTime()||0,from:c.from_lead||'',_extraId:null
   }));
-  const composer=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-weight:600;font-size:13.5px;">Contacts</div>
-      <button onclick="ldContactsOpenForm('${sbId||''}','${esc(lead._id)}')" class="ld-save-btn" style="padding:7px 14px;font-size:12.5px;">+ Add contact</button>
+  const composer=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:baseline;gap:8px;">
+      <div style="font-weight:600;font-size:14px;color:var(--text-1);">Contacts</div>
+      <span style="font-size:11.5px;color:var(--text-3);">· ${rows.length}</span>
     </div>
-    <div id="ld-contact-form" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <input id="ldc-name"  placeholder="Full name *" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
-        <input id="ldc-title" placeholder="Job title" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
-        <input id="ldc-email" type="email" placeholder="Email" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
-        <input id="ldc-phone" placeholder="Phone" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
-        <button onclick="document.getElementById('ld-contact-form').style.display='none';" style="padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:12.5px;">Cancel</button>
-        <button onclick="ldContactsSave('${sbId||''}','${esc(lead._id)}')" class="ld-save-btn" style="padding:7px 14px;font-size:12.5px;">✓ Save contact</button>
-      </div>
+    <button onclick="ldContactsOpenForm('${sbId||''}','${esc(lead._id)}')" style="padding:7px 14px;font-size:12.5px;background:var(--cg-900);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;">+ Add contact</button>
+  </div>
+  <div id="ld-contact-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <input id="ldc-name"  placeholder="Full name *" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+      <input id="ldc-title" placeholder="Job title" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+      <input id="ldc-email" type="email" placeholder="Email" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+      <input id="ldc-phone" placeholder="Phone" style="padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font:inherit;font-size:13px;color:var(--text-1);"/>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+      <button onclick="document.getElementById('ld-contact-form').style.display='none';" style="padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:12.5px;font-family:inherit;">Cancel</button>
+      <button onclick="ldContactsSave('${sbId||''}','${esc(lead._id)}')" style="padding:7px 14px;font-size:12.5px;background:var(--cg-900);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;font-family:inherit;">Save contact</button>
     </div>
   </div>`;
   if(!rows.length){
-    el.innerHTML=composer+`<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">👥</div><div>No contacts yet</div><div style="font-size:12px;margin-top:4px;color:var(--text-4);">Use <b>+ Add contact</b> above or pull in from merged duplicates</div></div>`;
+    el.innerHTML=composer+`<div class="ld-act-empty" style="padding:30px 12px;text-align:center;color:var(--text-3);"><div style="font-size:13px;font-weight:600;color:var(--text-2);">No contacts yet</div><div style="font-size:12px;margin-top:4px;">Use <b>+ Add contact</b> above or pull in from merged duplicates.</div></div>`;
     return;
   }
-  const initOf=n=>(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'?';
-  el.innerHTML=composer+`<div class="ld-panel-card" style="padding:0;overflow:hidden;">
-    <table style="width:100%;border-collapse:collapse;">
-      <thead>
-        <tr>
-          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Name</th>
-          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Phone</th>
-          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Email</th>
-          <th style="text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:14px 18px;border-bottom:1px solid var(--border);">Last touched</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(r=>`<tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:14px 18px;font-size:13px;font-weight:500;vertical-align:middle;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <div style="width:30px;height:30px;border-radius:50%;background:${r.isPrimary?'var(--cg-900)':'var(--surface-2)'};color:${r.isPrimary?'var(--lime-700)':'var(--text-2)'};display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initOf(r.name)}</div>
-              <span style="color:var(--text);">${esc(r.name)}</span>
-              ${r.isPrimary?`<span style="font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--lime-200);color:#4F5E1B;font-weight:700;letter-spacing:0.04em;">Champion</span>`:''}
-              ${r.from?`<span style="font-size:10px;color:var(--text-4);font-style:italic;">via ${esc(r.from)}</span>`:''}
+  const initOf=n=>(n||'?').split(/[\s.@_-]/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'?';
+  const avatarColor = (isPrimary, idx) => {
+    if(isPrimary) return { bg:'var(--lime-200)', fg:'#4F5E1B' };
+    const palette=[{bg:'var(--bg-2)',fg:'var(--text-2)'},{bg:'#FAEEDA',fg:'#854F0B'},{bg:'#FCEBEB',fg:'#791F1F'},{bg:'#E6F1FB',fg:'#0C447C'}];
+    return palette[idx % palette.length];
+  };
+  el.innerHTML=composer+`<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <div style="display:grid;grid-template-columns:1.6fr 1.4fr 1fr 0.9fr 30px;gap:12px;padding:10px 16px;background:var(--bg-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">
+      <div>Name</div><div>Email</div><div>Phone</div><div>Last touched</div><div></div>
+    </div>
+    ${rows.map((r,i)=>{
+      const av=avatarColor(r.isPrimary,i);
+      return `<div style="display:grid;grid-template-columns:1.6fr 1.4fr 1fr 0.9fr 30px;gap:12px;padding:13px 16px;align-items:center;${i<rows.length-1?'border-bottom:1px solid var(--border);':''}">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <div style="width:30px;height:30px;border-radius:50%;background:${av.bg};color:${av.fg};display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initOf(r.name)}</div>
+          <div style="min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-size:13px;font-weight:600;color:var(--text-1);">${esc(r.name)}</span>
+              ${r.isPrimary?`<span style="font-size:9.5px;padding:2px 8px;border-radius:999px;background:#EAF3DE;color:#27500A;font-weight:700;letter-spacing:0.04em;">Champion</span>`:''}
+              ${r.from?`<span style="font-size:9.5px;padding:2px 8px;border-radius:999px;background:var(--bg-2);color:var(--text-3);">via ${esc(r.from)}</span>`:''}
             </div>
-          </td>
-          <td style="padding:14px 18px;font-size:13px;vertical-align:middle;">${r.phone?`<a href="tel:${esc(r.phone)}" style="color:var(--info);text-decoration:none;">${esc(r.phone)}</a>`:'<span style="color:var(--text-4);">—</span>'}</td>
-          <td style="padding:14px 18px;font-size:13px;vertical-align:middle;">${r.email?`<a href="mailto:${esc(r.email)}" style="color:var(--info);text-decoration:none;">${esc(r.email)}</a>`:'<span style="color:var(--text-4);">—</span>'}</td>
-          <td style="padding:14px 18px;font-size:13px;color:var(--text-3);vertical-align:middle;">${r.lastTs?fmtT(r.lastTs):'—'}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
+            ${r.title?`<div style="font-size:11px;color:var(--text-3);margin-top:1px;">${esc(r.title)}</div>`:''}
+          </div>
+        </div>
+        <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.email?`<a href="mailto:${esc(r.email)}" style="color:var(--info);text-decoration:none;">${esc(r.email)}</a>`:'<span style="color:var(--text-4);">—</span>'}</div>
+        <div style="font-size:12.5px;">${r.phone?`<a href="tel:${esc(r.phone)}" style="color:var(--info);text-decoration:none;">${esc(r.phone)}</a>`:'<span style="color:var(--text-4);">—</span>'}</div>
+        <div style="font-size:11.5px;color:var(--text-3);">${r.lastTs?fmtT(r.lastTs):'—'}</div>
+        <div></div>
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
@@ -13380,46 +13392,66 @@ async function renderLdContracts(lead, el){
         return `Next renewal in ${d} day${d===1?'':'s'}`;
       })()
     : `${rows.length} cycle${rows.length===1?'':'s'}`;
-  el.innerHTML = `
-    <div class="ld-panel-card" style="padding:14px 16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);">Contract cycles</div>
-          <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${esc(headerSub)}</div>
+  const fmtMoney = (v,cur) => v == null ? '—' : `${esc(cur||'EGP')} ${Number(v).toLocaleString()}`;
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const cycleCard = (c, isLatest) => {
+    const col = _contractStatusColor(c.status);
+    const d = _daysUntil(c.ends_at);
+    const dLabel = d === null ? '' :
+      c.status === 'active'
+        ? (d < 0 ? `Expired ${Math.abs(d)} day${Math.abs(d)===1?'':'s'} ago` : d === 0 ? 'Ends today' : `${d} day${d===1?'':'s'} left`)
+        : '';
+    const dColor = d != null && d < 0 ? '#B83A3A' : d != null && d < 60 ? '#854F0B' : 'var(--text-3)';
+    const val = fmtMoney(c.value, c.currency);
+    const planLabel = c.plan_tier || `Cycle #${c.cycle_number||1}`;
+    const hasExtras = c.offer_sent_date || c.renewal_due_date || c.old_fees_amount != null || c.new_offer_amount != null || c.original_price != null || c.discount_given != null || c.payment_type;
+    const extrasRow = (label, val) => `<div><div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.04em;">${label}</div><div style="font-size:12.5px;color:var(--text-1);margin-top:1px;">${val}</div></div>`;
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;${!isLatest?'opacity:0.85;':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;">
+          <span style="font-size:14px;font-weight:600;color:var(--text-1);">${esc(planLabel)}${c.cycle_number?` · cycle ${c.cycle_number}`:''}</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;background:${col.bg};color:${col.fg};font-size:10.5px;font-weight:700;text-transform:capitalize;letter-spacing:0.02em;">
+            <span style="width:6px;height:6px;border-radius:50%;background:${col.dot};"></span>${esc(c.status)}
+          </span>
         </div>
-        <button onclick="openContractCycleModal('${esc(lead._id)}')" style="padding:7px 13px;background:var(--lime);border:none;border-radius:7px;font-size:12px;color:var(--navy);cursor:pointer;font-family:inherit;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
-          New cycle
-        </button>
+        <div style="text-align:right;">
+          <div style="font-size:15px;font-weight:600;color:var(--text-1);">${val}</div>
+          <div style="font-size:10.5px;color:var(--text-3);">contract value</div>
+        </div>
       </div>
-      ${rows.length === 0
-        ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12.5px;">No cycles yet — click <strong>New cycle</strong> to record the first contract.</div>`
-        : `<div style="display:flex;flex-direction:column;gap:8px;">${rows.map(c => {
-            const col = _contractStatusColor(c.status);
-            const d = _daysUntil(c.ends_at);
-            const dLabel = d === null ? '' :
-              c.status === 'active'
-                ? (d < 0 ? `Expired ${Math.abs(d)}d ago` : d === 0 ? 'Ends today' : `${d}d remaining`)
-                : '';
-            const val = c.value != null ? `${esc(c.currency||'EGP')} ${Number(c.value).toLocaleString()}` : '—';
-            return `<div style="border:1px solid var(--border);border-radius:9px;padding:11px 13px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-              <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:${col.bg};color:${col.fg};font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
-                <span style="width:6px;height:6px;border-radius:50%;background:${col.dot};"></span>${esc(c.status)}
-              </span>
-              <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:160px;">
-                <div style="font-size:13px;font-weight:600;color:var(--text);">${esc(c.plan_tier || 'Cycle #' + (c.cycle_number||1))}</div>
-                <div style="font-size:11px;color:var(--text-3);">${esc(c.started_at)} → ${esc(c.ends_at)}${dLabel?` · <span style="color:${d<0?'#C03A3A':'#D97706'};font-weight:600;">${esc(dLabel)}</span>`:''}</div>
-              </div>
-              <div style="font-size:13px;font-weight:600;color:var(--text);">${val}</div>
-              <button onclick="editContractCycle('${esc(c.id)}')" title="Edit" style="background:transparent;border:none;cursor:pointer;color:var(--text-3);padding:4px;font-family:inherit;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button onclick="deleteContractCycle('${esc(c.id)}')" title="Delete" style="background:transparent;border:none;cursor:pointer;color:#C03A3A;padding:4px;font-family:inherit;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-              </button>
-            </div>`;
-          }).join('')}</div>`}
+      <div style="font-size:11.5px;color:var(--text-3);margin-bottom:${hasExtras?'12px':'10px'};">
+        Started ${fmtDate(c.started_at)} · ends ${fmtDate(c.ends_at)}${dLabel?` · <span style="color:${dColor};font-weight:600;">${esc(dLabel)}</span>`:''}${c.auto_renew?' · auto-renew on':''}
+      </div>
+      ${hasExtras ? `<div style="border-top:1px solid var(--border);padding-top:10px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;">
+        ${c.offer_sent_date    ? extrasRow('Offer sent',    fmtDate(c.offer_sent_date))  : ''}
+        ${c.renewal_due_date   ? extrasRow('Renewal due',   fmtDate(c.renewal_due_date)) : ''}
+        ${c.old_fees_amount  != null ? extrasRow('Old fees',  fmtMoney(c.old_fees_amount,  c.currency)) : ''}
+        ${c.new_offer_amount != null ? extrasRow('New offer', fmtMoney(c.new_offer_amount, c.currency)) : ''}
+        ${c.original_price   != null ? extrasRow('Original price', fmtMoney(c.original_price, c.currency)) : ''}
+        ${c.discount_given   != null ? extrasRow('Discount given', fmtMoney(c.discount_given, c.currency)) : ''}
+        ${c.payment_type ? extrasRow('Payment type', esc(c.payment_type)) : ''}
+      </div>` : ''}
+      ${c.notes ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;">${esc(c.notes)}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:12px;">
+        <button onclick="editContractCycle('${esc(c.id)}')" title="Edit" style="padding:5px 11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-1);cursor:pointer;font-family:inherit;">✎ Edit</button>
+        <button onclick="deleteContractCycle('${esc(c.id)}')" title="Delete" style="padding:5px 11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;color:#B83A3A;cursor:pointer;font-family:inherit;">🗑 Delete</button>
+      </div>
     </div>`;
+  };
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-1);">Contract cycles</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${esc(headerSub)}</div>
+      </div>
+      <button onclick="openContractCycleModal('${esc(lead._id)}')" style="padding:7px 14px;font-size:12.5px;background:var(--cg-900);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;font-family:inherit;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+        New cycle
+      </button>
+    </div>
+    ${rows.length === 0
+      ? `<div class="ld-act-empty" style="padding:30px 12px;text-align:center;color:var(--text-3);"><div style="font-size:13px;font-weight:600;color:var(--text-2);">No cycles yet</div><div style="font-size:12px;margin-top:4px;">Click <b>New cycle</b> to record the first contract.</div></div>`
+      : rows.map((c,i) => cycleCard(c, i===0)).join('')}`;
 }
 
 let _editingContractId = null;
@@ -14050,17 +14082,40 @@ function renderActItem(item, childrenOf){
 function renderLdNotes(lead,el){
   const logs=gLog(lead._id).filter(l=>l.type==='note' && !l.is_archived);
   const composer = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
-      <textarea id="ld-notes-quick-ta" placeholder="Write a quick note for the team…" rows="3" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;color:var(--text-1);resize:vertical;box-sizing:border-box;"></textarea>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;">
-        <span style="font-size:11px;color:var(--text-3);">💡 Type <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">@</code> to mention a teammate · <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">Ctrl+Enter</code> to save</span>
-        <button onclick="ldNotesQuickSave('${lead._id}')" class="ld-save-btn" style="padding:7px 16px;font-size:12.5px;">✓ Save note</button>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+      <textarea id="ld-notes-quick-ta" placeholder="Write a note for the team… type @ to mention" rows="3" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;color:var(--text-1);resize:vertical;box-sizing:border-box;"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;">
+        <span style="font-size:11px;color:var(--text-3);">Ctrl + Enter to save</span>
+        <button onclick="ldNotesQuickSave('${lead._id}')" class="ld-save-btn" style="padding:7px 14px;font-size:12.5px;background:var(--cg-900);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;">Save note</button>
       </div>
     </div>`;
   if(!logs.length){
-    el.innerHTML = composer + `<div class="ld-act-empty"><div style="font-size:28px;margin-bottom:8px;">📝</div><div>No notes yet — write the first one above.</div></div>`;
+    el.innerHTML = composer + `<div class="ld-act-empty" style="padding:30px 12px;text-align:center;color:var(--text-3);"><div style="font-size:13px;font-weight:600;color:var(--text-2);">No notes yet</div><div style="font-size:12px;margin-top:4px;">Write the first one above.</div></div>`;
   } else {
-    el.innerHTML = composer + logs.map(n=>`<div class="ld-note-card"><div class="ld-note-head"><div style="width:26px;height:26px;border-radius:50%;background:var(--lime-700);color:#1A2230;font-size:10px;font-weight:500;display:flex;align-items:center;justify-content:center;">${(n.author||'?')[0]}</div><span class="ld-note-author">${esc(n.author||'System')}</span><span class="ld-note-time">${fmtT(n.ts)}</span></div><div class="ld-note-body">${(typeof renderTextWithMentions==='function')?renderTextWithMentions(n.text):esc(n.text)}</div></div>`).join('');
+    const initOf = n => (n||'?').split(/[\s.@_-]/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase() || '?';
+    el.innerHTML = composer + logs.map(n => {
+      const author = n.author || 'System';
+      const initials = initOf(author);
+      const body = (typeof renderTextWithMentions==='function') ? renderTextWithMentions(n.text) : esc(n.text);
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="width:30px;height:30px;border-radius:50%;background:var(--lime-200);color:#4F5E1B;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0;">${initials}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;">
+              <div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:600;color:var(--text-1);">${esc(author)}</span>
+                <span style="font-size:11px;color:var(--text-3);">· ${fmtT(n.ts)}</span>
+              </div>
+              <div style="display:flex;gap:4px;color:var(--text-3);flex-shrink:0;">
+                <button onclick="ldEditItem('${n.id}')" title="Edit" style="background:transparent;border:none;cursor:pointer;color:var(--text-3);padding:2px 4px;font-size:13px;font-family:inherit;">✎</button>
+                <button onclick="ldDeleteItem('${n.id}')" title="Delete" style="background:transparent;border:none;cursor:pointer;color:var(--text-3);padding:2px 4px;font-size:13px;font-family:inherit;">🗑</button>
+              </div>
+            </div>
+            <div style="font-size:13px;line-height:1.55;color:var(--text-1);white-space:pre-wrap;word-wrap:break-word;">${body}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   }
   // Wire @-mentions + Ctrl+Enter on the quick composer
   const ta = document.getElementById('ld-notes-quick-ta');
@@ -14451,48 +14506,51 @@ function renderLdTasks(lead,el){
   const assignees = (window.PROFILES_DIR||[]).filter(p => p.active !== false).map(p => ({ id: p.id, name: p.full_name || p.email }));
   const assignOpts = assignees.map(a => `<option value="${a.id}"${a.id===me.id?' selected':''}>${esc(a.name)}</option>`).join('');
   const composer = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
       <input id="ld-tasks-quick-title" type="text" placeholder="What needs to happen?" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font:inherit;font-size:13.5px;color:var(--text-1);box-sizing:border-box;font-weight:600;"/>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
         <input id="ld-tasks-quick-due" type="date" style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--text-1);box-sizing:border-box;"/>
         <select id="ld-tasks-quick-pri" style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--text-1);box-sizing:border-box;">
-          <option value="low">🟢 Low</option>
-          <option value="medium" selected>🟡 Medium</option>
-          <option value="high">🔴 High</option>
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
         </select>
         <select id="ld-tasks-quick-ass" style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--text-1);box-sizing:border-box;">
           ${assignOpts}
         </select>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;">
-        <span style="font-size:11px;color:var(--text-3);">💡 Press <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">Enter</code> in the title to save</span>
-        <button onclick="ldTasksQuickSave('${lead._id}')" class="ld-save-btn" style="padding:7px 16px;font-size:12.5px;">✓ Add task</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;">
+        <span style="font-size:11px;color:var(--text-3);">Press Enter in title to save</span>
+        <button onclick="ldTasksQuickSave('${lead._id}')" class="ld-save-btn" style="padding:7px 14px;font-size:12.5px;background:var(--cg-900);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600;">Add task</button>
       </div>
     </div>`;
+  const priColors = { low:{bg:'#EAF3DE',fg:'#27500A'}, medium:{bg:'#FAEEDA',fg:'#854F0B'}, high:{bg:'#FCEBEB',fg:'#791F1F'} };
   const taskRow = (t, isDone) => {
     const ass = assignees.find(a => a.id === t.assigned_to);
     const dueTxt = t.task_due ? new Date(t.task_due).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
     const overdue = !isDone && t.task_due && t.task_due < Date.now();
-    const priDot = ({low:'🟢',medium:'🟡',high:'🔴'})[t.priority||'medium'] || '🟡';
+    const dueColor = isDone ? 'var(--text-3)' : overdue ? '#B83A3A' : (t.task_due && t.task_due - Date.now() < 3*86400000) ? '#854F0B' : 'var(--text-3)';
+    const pri = t.priority || 'medium';
+    const pc = priColors[pri] || priColors.medium;
     return `
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-bottom:6px;${isDone?'opacity:0.55;':''}">
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px;${isDone?'opacity:0.6;':''}">
         <input type="checkbox" ${isDone?'checked':''} onchange="ldToggleTask('${t.id}')" style="width:17px;height:17px;margin-top:1px;cursor:pointer;accent-color:var(--lime-700);flex-shrink:0;"/>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13.5px;font-weight:600;color:var(--text-1);${isDone?'text-decoration:line-through;':''}line-height:1.35;">${esc(t.title || t.text || '(untitled)')}</div>
-          <div style="font-size:11.5px;color:var(--text-3);margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            ${dueTxt ? `<span style="${overdue?'color:#B83A3A;font-weight:600;':''}">📅 ${dueTxt}${overdue?' · overdue':''}</span>` : ''}
-            <span>${priDot}</span>
-            ${ass ? `<span>👤 ${esc(ass.name)}</span>` : ''}
+          <div style="font-size:13.5px;font-weight:600;color:var(--text-1);${isDone?'text-decoration:line-through;':''}line-height:1.35;margin-bottom:5px;">${esc(t.title || t.text || '(untitled)')}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${dueTxt ? `<span style="font-size:11px;color:${dueColor};font-weight:600;">${overdue?'Overdue · ':''}${dueTxt}</span>` : ''}
+            <span style="font-size:10.5px;padding:1px 8px;border-radius:999px;background:${pc.bg};color:${pc.fg};font-weight:700;text-transform:capitalize;">${pri}</span>
+            ${ass ? `<span style="font-size:10.5px;padding:1px 8px;border-radius:999px;background:var(--bg-2);color:var(--text-2);">${esc(ass.name)}</span>` : ''}
           </div>
         </div>
-        <button onclick="ldDeleteItem('${t.id}')" title="Delete" style="background:none;border:none;color:var(--text-4);font-size:14px;cursor:pointer;padding:0 4px;">🗑</button>
+        <button onclick="ldDeleteItem('${t.id}')" title="Delete" style="background:none;border:none;color:var(--text-3);font-size:13px;cursor:pointer;padding:2px 4px;font-family:inherit;">🗑</button>
       </div>`;
   };
   const openHtml = open.length
-    ? `<div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin:14px 0 8px;">Open · ${open.length}</div>${open.map(t=>taskRow(t,false)).join('')}`
-    : `<div class="ld-act-empty" style="padding:20px;"><div style="font-size:28px;margin-bottom:6px;">✅</div><div>No open tasks</div></div>`;
+    ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin:14px 0 8px;">Open · ${open.length}</div>${open.map(t=>taskRow(t,false)).join('')}`
+    : `<div class="ld-act-empty" style="padding:24px 12px;text-align:center;color:var(--text-3);"><div style="font-size:13px;font-weight:600;color:var(--text-2);">No open tasks</div><div style="font-size:12px;margin-top:4px;">Add one above.</div></div>`;
   const doneHtml = done.length
-    ? `<div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin:18px 0 8px;">Completed · ${done.length}</div>${done.map(t=>taskRow(t,true)).join('')}`
+    ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin:18px 0 8px;">Completed · ${done.length}</div>${done.map(t=>taskRow(t,true)).join('')}`
     : '';
   el.innerHTML = composer + openHtml + doneHtml;
   const titleEl = document.getElementById('ld-tasks-quick-title');
