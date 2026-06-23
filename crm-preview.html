@@ -38,6 +38,14 @@
 
   <!-- TOP NAV REMOVED — real CRM has its own sidebar + topbar -->
 
+  <!-- LOAD STATUS BANNER (sandbox preview only) -->
+  <sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}">
+  <div style="background:#FBF1DE;color:#7a4a0d;border-bottom:1px solid #efd699;padding:10px 20px;font-size:12.5px;font-weight:600;">⚠ {{ loadError }}</div>
+  </sc-if>
+  <sc-if value="{{ showLoadingBar }}" hint-placeholder-val="{{ false }}">
+  <div style="background:#E3ECF7;color:#1a3d6b;border-bottom:1px solid #b8cfee;padding:10px 20px;font-size:12.5px;font-weight:600;">Loading account from Supabase…</div>
+  </sc-if>
+
   <!-- PAGE BODY -->
   <div style="max-width:1380px;margin:0 auto;padding:22px 24px 80px;">
 
@@ -632,12 +640,85 @@
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 
+const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
+const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
+
+function readSbToken(){
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY); if(!raw) return null;
+    const j = JSON.parse(raw);
+    return j?.currentSession?.access_token || j?.access_token || null;
+  } catch { return null; }
+}
+
 class Component extends DCLogic {
-  state = { tab: 'overview', tasks: null, toastMsg: '', toastVisible: false, showCycleModal: false, tags: ['Key account', 'Food tech', 'Cairo'], showMeetingModal: false, meetings: [
-    { id: 1, title: 'Q3 Renewal Discussion', date: 'Jun 24, 2026', time: '10:00 AM', type: 'Call', with: 'Mohamed', status: 'upcoming' },
-    { id: 2, title: 'Platform Demo — Alexandria branch', date: 'Jun 28, 2026', time: '2:00 PM', type: 'Video', with: 'Sara Khalil', status: 'upcoming' },
-    { id: 3, title: 'Onboarding check-in', date: 'Jun 10, 2026', time: '11:00 AM', type: 'Call', with: 'Mohamed', status: 'done' },
-  ] };
+  state = {
+    tab: 'overview',
+    loaded: false,
+    loadError: null,
+    account: null,
+    contacts: [],
+    cycles: [],
+    activities: [],
+    documents: [],
+    profilesById: {},
+    tasks: null,
+    tags: [],
+    toastMsg: '', toastVisible: false,
+    showCycleModal: false, showMeetingModal: false,
+  };
+
+  componentDidMount() {
+    this.loadFromSupabase();
+  }
+
+  async loadFromSupabase() {
+    const leadId = new URLSearchParams(location.search).get('lead');
+    if (!leadId) { this.setState({ loadError: 'No ?lead=<uuid> in URL — append ?lead=<account-uuid> and reload.' }); return; }
+    const token = readSbToken();
+    if (!token) { this.setState({ loadError: 'Not signed in. Open /crm in another tab, sign in, then refresh this page.' }); return; }
+    const h = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+    try {
+      const [accR, ctR, cyR, acR, docR, pfR] = await Promise.all([
+        fetch(`${SB_URL}/rest/v1/accounts?id=eq.${leadId}&select=*`,                                { headers: h }),
+        fetch(`${SB_URL}/rest/v1/contacts?account_id=eq.${leadId}&order=is_primary.desc,created_at.desc`, { headers: h }),
+        fetch(`${SB_URL}/rest/v1/contract_cycles?account_id=eq.${leadId}&order=started_at.desc`,   { headers: h }),
+        fetch(`${SB_URL}/rest/v1/activities?account_id=eq.${leadId}&order=created_at.desc&limit=80`, { headers: h }),
+        fetch(`${SB_URL}/rest/v1/account_documents?account_id=eq.${leadId}&is_archived=eq.false&order=created_at.desc`, { headers: h }),
+        fetch(`${SB_URL}/rest/v1/profiles?select=id,email,full_name`,                              { headers: h }),
+      ]);
+      const account    = (await accR.json())[0];
+      const contacts   = await ctR.json();
+      const cycles     = await cyR.json();
+      const activities = await acR.json();
+      const documents  = await docR.json();
+      const profiles   = await pfR.json();
+      const profilesById = {};
+      profiles.forEach(p => { profilesById[p.id] = p; });
+      if (!account) { this.setState({ loadError: 'Account not found or you do not have access (RLS).' }); return; }
+      const tags = Array.isArray(account.raw_data?.tags) ? account.raw_data.tags : [];
+      this.setState({ loaded: true, account, contacts, cycles, activities, documents, profilesById, tags });
+    } catch (e) {
+      this.setState({ loadError: 'Load failed: ' + (e?.message || e) });
+    }
+  }
+
+  fmtDate(d, opts) { try { return new Date(d).toLocaleDateString('en-US', opts || { month:'short', day:'numeric', year:'numeric' }); } catch { return ''; } }
+  fmtAgo(d) {
+    if (!d) return '';
+    const diff = (Date.now() - new Date(d).getTime()) / 1000;
+    if (diff < 60)     return Math.max(1, Math.round(diff)) + 's ago';
+    if (diff < 3600)   return Math.round(diff/60) + 'm ago';
+    if (diff < 86400)  return Math.round(diff/3600) + 'h ago';
+    if (diff < 604800) return Math.round(diff/86400) + 'd ago';
+    return this.fmtDate(d);
+  }
+  fmtMoney(v, ccy) { if (v == null) return '—'; return (ccy || 'EGP') + ' ' + Number(v).toLocaleString(); }
+  authorOf(act) {
+    const p = this.state.profilesById[act.author_id];
+    return p?.full_name || p?.email || 'Unknown';
+  }
 
   chip(v) {
     const CHIP = {
@@ -666,24 +747,46 @@ class Component extends DCLogic {
   }
 
   company() {
+    const a = this.state.account;
+    if (!a) {
+      return { name: 'Loading…', domain: '', uid: '', plan: '—', paid: '', stage: 'lead', region: '', industry: '',
+               source: '', since: '', end: '', score: 0, used: 0, total: 0, jobs: 0, views: 0, applies: 0 };
+    }
+    const activeCycle = this.state.cycles.find(c => c.status === 'active') || this.state.cycles[0];
     return {
-      name: 'Talabat Egypt', domain: 'talabat.com', uid: 'c6c0bffd-9373-11ea-add1-062a4819e77',
-      plan: 'Enterprise', paid: 'Paid', stage: 'won', region: 'Cairo', industry: 'Food & Delivery',
-      source: 'Referral', since: 'Mar 2023', end: 'Nov 20, 2026',
-      score: 92, used: 320, total: 500, jobs: 28, views: 14200, applies: 1900,
+      name: a.name || '(unnamed)',
+      domain: a.domain || '',
+      uid: a.id,
+      plan: activeCycle?.plan_tier || a.paid_status || '—',
+      paid: a.paid_status || (a.has_trial ? 'Trial' : 'Prospect'),
+      stage: (a.stage || 'lead').toLowerCase(),
+      region: a.region || a.location || '',
+      industry: a.industry || '',
+      source: a.source || '',
+      since: a.bubble_created_at ? this.fmtDate(a.bubble_created_at, { month:'short', year:'numeric' }) : '',
+      end: activeCycle?.ends_at ? this.fmtDate(activeCycle.ends_at) : '',
+      score: 0,   // ICP score is computed client-side from localStorage in /crm — not in DB yet
+      used: 0,    // Credits not tracked
+      total: 0,
+      jobs: 0, views: 0, applies: 0,
+      _activeCycle: activeCycle,
+      _amMail: a.am_mail,
     };
   }
 
-  seedTasks() {
-    return [
-      { id: 1, text: 'Confirm renewal terms for Nov 2026 — 12% growth deal', due: 'Today', amName: 'Nour Adel', done: false },
-      { id: 2, text: 'Send Q3 engagement report to HR team', due: 'Tomorrow', amName: 'Nour Adel', done: false },
-      { id: 3, text: 'Follow up on sub-user seat expansion request', due: 'Jun 24', amName: 'Nour Adel', done: true },
-      { id: 4, text: 'Review invoice INV-118242 with finance', due: 'Jun 22', amName: 'Nour Adel', done: false },
-    ];
+  getTasks() {
+    if (this.state.tasks) return this.state.tasks;
+    const fromDb = this.state.activities
+      .filter(x => x.type === 'task' && !x.is_archived)
+      .map(x => ({
+        id:     x.id,
+        text:   x.title || x.text || '(untitled task)',
+        due:    x.task_due_date ? this.fmtDate(x.task_due_date, { month:'short', day:'numeric' }) : '',
+        amName: this.authorOf(x),
+        done:   !!x.task_done,
+      }));
+    return fromDb;
   }
-
-  getTasks() { return this.state.tasks || (this.state.tasks = this.seedTasks()); }
 
   renderVals() {
     const st = this.state;
@@ -746,16 +849,33 @@ class Component extends DCLogic {
     const chartGross = 'M' + pts.map((v, i) => `${Math.round(i * w / (pts.length - 1))},${h - Math.round(v * h / 110)}`).join(' L');
     const chartNet = 'M' + netPts.map((v, i) => `${Math.round(i * w / (netPts.length - 1))},${h - Math.round(v * h / 110)}`).join(' L');
 
-    const owners = [
-      { role: 'AM', tag: 'NA', name: 'Nour Adel', email: 'na@recruitera.ai', av: this.avatar('NA', 40), ring: 'var(--accent-ink)', showReassign: true },
-      { role: 'CS', tag: 'NI', name: 'Nirvana Akram', email: 'nirvana@recruitera.ai', av: this.avatar('NI', 40), ring: 'var(--cg-900)', showReassign: false },
-    ];
-
-    const notes = [
-      { actor: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 32), type: 'Call', ago: '22 min ago', text: 'Spoke with HR Manager Ahmed about Q3 expansion. They want to add 3 new sub-users for the new Alexandria branch. Renewal confirmed for Nov 2026 — asked for 12% growth pricing.' },
-      { actor: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 32), type: 'Email', ago: '48 min ago', text: 'Sent renewal proposal with Q4 package options. Waiting on procurement approval.' },
-      { actor: 'Nirvana Akram', initials: 'NI', av: this.avatar('NI', 32), type: 'WhatsApp', ago: '1h 12m ago', text: 'Replied on WP: "Will forward to CEO for sign-off. Expect confirmation Sunday."' },
-    ];
+    // Account team: AM from accounts.am_mail (resolved to profile if possible), CS row blank
+    // (we don't store a CS user per account today — surfaced as placeholder).
+    const amProfile = c._amMail
+      ? Object.values(st.profilesById).find(p => (p.email||'').toLowerCase() === c._amMail.toLowerCase())
+      : null;
+    const owners = [];
+    if (amProfile || c._amMail) {
+      const name = amProfile?.full_name || c._amMail || '—';
+      const initials = this.initials(amProfile?.full_name || c._amMail || '?');
+      owners.push({ role: 'AM', tag: initials, name, email: c._amMail || '', av: this.avatar(initials, 40), ring: 'var(--accent-ink)', showReassign: true });
+    }
+    // Notes: activities where type='note'
+    const notes = st.activities
+      .filter(x => x.type === 'note' && !x.is_archived)
+      .slice(0, 10)
+      .map(x => {
+        const author = this.authorOf(x);
+        const initials = this.initials(author);
+        return {
+          actor: author,
+          initials,
+          av: this.avatar(initials, 32),
+          type: 'Note',
+          ago: this.fmtAgo(x.created_at),
+          text: x.text || x.title || '',
+        };
+      });
 
     const rawTasks = this.getTasks();
     const tasks = rawTasks.map(t => ({
@@ -771,50 +891,71 @@ class Component extends DCLogic {
       },
     }));
 
-    const activityLog = [
-      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Stage moved Won', chip: this.chip('ok'), date: 'Jun 14, 2026 · 10:22 AM' },
-      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Proposal sent', chip: this.chip('info'), date: 'Jun 13, 2026 · 3:48 PM' },
-      { admin: 'Nirvana Akram', initials: 'NI', av: this.avatar('NI', 30), activity: 'Jobs reviewed', chip: this.chip('neutral'), date: 'Jun 12, 2026 · 11:05 AM' },
-      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Impersonated', chip: this.chip('warn'), date: 'Jun 10, 2026 · 2:30 PM' },
-      { admin: 'Ahmed Hassan', initials: 'AH', av: this.avatar('AH', 30), activity: 'Invoice created', chip: this.chip('brand'), date: 'Jun 09, 2026 · 9:14 AM' },
-      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Note added', chip: this.chip('neutral'), date: 'Jun 08, 2026 · 4:55 PM' },
-      { admin: 'Nirvana Akram', initials: 'NI', av: this.avatar('NI', 30), activity: 'Credit top-up', chip: this.chip('ok'), date: 'Jun 07, 2026 · 10:02 AM' },
-    ];
+    // Activity log: every activity row formatted for the table.
+    const TYPE_CHIP = { note:'neutral', task:'brand', stage:'ok', call:'info', email:'info', meeting:'warn' };
+    const activityLog = st.activities.map(x => {
+      const author = this.authorOf(x);
+      const initials = this.initials(author);
+      const t = x.type || 'note';
+      const label = t === 'stage' ? (x.text || 'Stage change')
+                   : t === 'task' ? ('Task: ' + (x.title || x.text || ''))
+                   : t === 'note' ? 'Note added'
+                   : (t.charAt(0).toUpperCase() + t.slice(1));
+      return {
+        admin: author,
+        initials,
+        av: this.avatar(initials, 30),
+        activity: label,
+        chip: this.chip(TYPE_CHIP[t] || 'neutral'),
+        date: this.fmtDate(x.created_at, { month:'short', day:'numeric', year:'numeric' }) + ' · ' +
+              new Date(x.created_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }),
+      };
+    });
 
-    const jobTitles = ['Senior Software Engineer', 'Product Manager', 'UX Designer', 'Data Analyst', 'Marketing Manager', 'Operations Lead'];
-    const jobs = jobTitles.map((title, i) => ({
-      title, salary: (12 + i * 3) + '–' + (20 + i * 4) + 'k EGP',
-      created: (i * 4 + 3) + 'd ago', status: i < 5 ? 'Live' : 'Paused',
-      statusChip: this.chip(i < 5 ? 'ok' : 'neutral'),
-      expires: 'Aug ' + (10 + i) + ', 2026',
-      applies: 180 + i * 42, clicked: 80 + i * 20, views: 1200 + i * 350,
+    const jobs = []; // Jobs data is not in our Supabase yet — leave empty for now.
+
+    const cycles = st.cycles.map(c => ({
+      status: c.status === 'active' ? 'Active' : c.status === 'renewed' ? 'Renewed' : c.status === 'churned' ? 'Churned' : 'Expired',
+      chip:  this.chip(c.status === 'active' ? 'ok' : c.status === 'churned' ? 'bad' : 'neutral'),
+      term:  c.plan_tier || '—',
+      start: c.started_at ? this.fmtDate(c.started_at) : '—',
+      end:   c.ends_at ? this.fmtDate(c.ends_at) : '—',
+      len:   (c.started_at && c.ends_at) ? Math.round((new Date(c.ends_at) - new Date(c.started_at)) / 2629800000) + ' months' : '—',
+      amount: this.fmtMoney(c.value, c.currency),
     }));
 
-    const cycles = [
-      { status: 'Active', chip: this.chip('ok'), term: '1 Year', start: 'Nov 20, 2025', end: 'Nov 20, 2026', len: '12 months', amount: 'EGP 240,000' },
-      { status: 'Expired', chip: this.chip('neutral'), term: '1 Year', start: 'Nov 20, 2024', end: 'Nov 20, 2025', len: '12 months', amount: 'EGP 200,000' },
-    ];
+    const invoices = []; // No invoices table yet.
 
-    const invoices = [
-      { inv: 'INV-118242', date: 'Jun 14, 2026', name: 'Enterprise Annual 2026', price: 'EGP 240,000', paid: 'EGP 240,000', soldBy: 'Nour Adel', rc: 'Nirvana', paidDate: 'Jun 14, 2026', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Bank transfer', notes: 'Q3 renewal — approved by CEO' },
-      { inv: 'INV-201187', date: 'Nov 22, 2025', name: 'Enterprise Annual 2025', price: 'EGP 200,000', paid: 'EGP 200,000', soldBy: 'Nour Adel', rc: 'Nirvana', paidDate: 'Dec 02, 2025', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Bank transfer', notes: '' },
-      { inv: 'INV-188411', date: 'Jun 10, 2025', name: 'CV Unlock top-up ×100', price: 'EGP 18,000', paid: 'EGP 18,000', soldBy: 'Karim Fawzy', rc: 'Nirvana', paidDate: 'Jun 12, 2025', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Fawry', notes: 'Urgent top-up for hiring surge' },
-      { inv: 'INV-174009', date: 'Mar 14, 2025', name: 'Boost pack ×5 jobs', price: 'EGP 8,500', paid: 'EGP 8,500', soldBy: 'Nour Adel', rc: 'Nirvana', paidDate: 'Mar 16, 2025', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Bank transfer', notes: '' },
-    ];
+    const contacts = st.contacts.map(c => ({
+      name:     c.full_name || '(no name)',
+      initials: this.initials(c.full_name || '?'),
+      av:       this.avatar(this.initials(c.full_name || '?'), 40),
+      role:     c.job_title || '—',
+      email:    c.email || '',
+      phone:    c.phone || '',
+    }));
+    const users = []; // Per-user usage data isn't in our system yet.
+    const docs = st.documents.map(d => ({
+      name: d.file_name || '(unnamed)',
+      user: this.state.profilesById[d.uploader_id]?.full_name || this.state.profilesById[d.uploader_id]?.email || 'Unknown',
+      date: this.fmtDate(d.created_at),
+    }));
 
-    const contacts = [
-      { name: 'Ahmed Ramzy', initials: 'AR', av: this.avatar('AR', 40), role: 'HR Director', email: 'a.ramzy@talabat.com', phone: '+20 10 0112 3456' },
-      { name: 'Sara Khalil', initials: 'SK', av: this.avatar('SK', 40), role: 'Talent Acquisition Lead', email: 's.khalil@talabat.com', phone: '+20 10 0223 4567' },
-    ];
-    const users = [
-      { name: 'Ahmed Ramzy', lastLogin: 'Jun 14, 2026 · 09:44', activeDays: 42, unlocks: 180, searches: 312 },
-      { name: 'Sara Khalil', lastLogin: 'Jun 13, 2026 · 14:22', activeDays: 38, unlocks: 140, searches: 228 },
-    ];
-    const docs = [
-      { name: 'Enterprise_Contract_2026.pdf', user: 'Nour Adel', date: 'Jun 14, 2026' },
-      { name: 'Tax_Card_Talabat.pdf', user: 'Ahmed Hassan', date: 'Nov 20, 2025' },
-      { name: 'NDA_Signed_2023.pdf', user: 'Karim Fawzy', date: 'Mar 2023' },
-    ];
+    const meetingsList = st.activities
+      .filter(x => x.type === 'meeting' && !x.is_archived)
+      .slice(0, 5)
+      .map(x => {
+        const dt = x.task_due_date || x.created_at;
+        return {
+          id: x.id,
+          title: x.title || x.text || 'Meeting',
+          date:  this.fmtDate(dt, { month:'short', day:'numeric' }),
+          time:  new Date(dt).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }),
+          type:  'Call',
+          with:  this.authorOf(x),
+          status: new Date(dt).getTime() < Date.now() ? 'done' : 'upcoming',
+        };
+      });
 
     const th = 'text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap;';
     const thR = th + 'text-align:right;';
@@ -843,12 +984,15 @@ class Component extends DCLogic {
       reassign: () => this.toast('Opening reassign modal'),
       addNote: () => this.toast('Note added'),
       addDoc: () => this.toast('Upload dialog opening'),
-      meetings: st.meetings.map(m => ({
+      meetings: meetingsList.map(m => ({
         ...m,
         typeIcon: m.type === 'Call' ? '📞' : m.type === 'Video' ? '🎥' : '📅',
         statusStyle: m.status === 'done' ? 'color:var(--text-3);text-decoration:line-through;' : 'color:var(--text);',
         dateBg: m.status === 'done' ? 'background:var(--surface-2);' : 'background:var(--accent-soft);border:1px solid var(--accent);',
       })),
+      loadError: st.loadError,
+      loaded: st.loaded,
+      showLoadingBar: !st.loaded && !st.loadError,
       showMeetingModal: st.showMeetingModal,
       openMeetingModal: () => this.setState({ showMeetingModal: true }),
       closeMeetingModal: () => this.setState({ showMeetingModal: false }),
