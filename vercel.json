@@ -3,6 +3,7 @@
     { "source": "/", "destination": "/login.html" },
     { "source": "/login", "destination": "/login.html" },
     { "source": "/crm", "destination": "/crm.html" },
+    { "source": "/crm-preview", "destination": "/crm-preview.html" },
     { "source": "/migrate", "destination": "/migrate.html" },
     { "source": "/sync-admin", "destination": "/sync-admin.html" }
   ],
