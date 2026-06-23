@@ -378,6 +378,26 @@ input,select,textarea{
 /* CONTENT */
 .content{flex:1;overflow:hidden;padding:0;background:var(--bg);position:relative;display:flex;flex-direction:column;min-height:0;}
 
+/* ── Stable view-layout system ──
+   No JS should set .style.cssText on any of these views. Use the .is-active
+   class on the matching .crm-view element. setActiveView(id) flips it.
+   - Board is the only view that uses flex:1 (it lives in .content's flex column).
+   - All other views are position:absolute; inset:0 and scroll themselves.
+   - Lead detail (.lead-page) overlays everything via its own z-index. */
+.crm-view{display:none;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;flex-direction:column;}
+.crm-view.is-active{display:flex;}
+.crm-view--board{position:static;flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;display:none;}
+.crm-view--board.is-active{display:block;}
+.crm-view--accounts{padding:0;}
+.crm-view--dashboard{padding:28px 32px 40px;}
+.crm-view--home{padding:24px 28px 40px;}
+.crm-view--forecast{padding:24px 28px 40px;}
+.crm-view--utm{padding:28px 32px 40px;}
+.crm-view--renewal{padding:20px 24px 32px;}
+.crm-view--settings{padding:20px 24px 32px;}
+.crm-view--logs{padding:20px 24px 32px;}
+.crm-view--competitive{overflow:auto;padding:0;}
+
 /* PAGE HEADER */
 .page-hdr{margin-bottom:22px;}
 .page-title{
@@ -7682,7 +7702,7 @@ body .ld-tab-content {
       
 
 <!-- Board view (hidden when lead detail is open) -->
-      <div id="board-view" style="flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;">
+      <div id="board-view" class="crm-view crm-view--board is-active">
       <!-- Pipeline tabs: Qualified (active funnel) / Disqualified (dropped leads) -->
       <div class="pipeline-tabs" style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:0;">
         <div class="pipeline-tab active" id="tab-qualified" onclick="switchPipelineTab('qualified')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);display:flex;align-items:center;gap:6px;">
@@ -7764,7 +7784,7 @@ body .ld-tab-content {
 
 
   <!-- ─── ACCOUNTS VIEW ─── -->
-  <div id="accounts-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;overflow-x:hidden;">
+  <div id="accounts-view" class="crm-view crm-view--accounts">
 
     <!-- Page header: title + subtitle + actions -->
     <div class="acc-page-header">
@@ -7899,13 +7919,13 @@ body .ld-tab-content {
 
 
   <!-- ─── DASHBOARD VIEW ─── -->
-  <div id="dashboard-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
+  <div id="dashboard-view" class="crm-view crm-view--dashboard"></div>
 
   <!-- ─── UTM GENERATOR VIEW ─── -->
-  <div id="utm-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;"></div>
+  <div id="utm-view" class="crm-view crm-view--utm"></div>
 
   <!-- ─── RENEWAL VIEW (kanban grouped by days-to-end + contract_cycle.status) ─── -->
-  <div id="renewal-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
+  <div id="renewal-view" class="crm-view crm-view--renewal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <div>
         <div style="font-size:13px;color:var(--text-3);margin-bottom:3px;">Active contracts, bucketed by days remaining until renewal.</div>
@@ -7917,7 +7937,7 @@ body .ld-tab-content {
     <div id="renewal-board" style="display:flex;gap:16px;align-items:flex-start;overflow-x:auto;padding-bottom:8px;min-height:0;flex:1;"></div>
   </div>
 
-<div id="settings-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
+<div id="settings-view" class="crm-view crm-view--settings">
   <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);">
     <div class="settings-tab active" data-tab="roles"     onclick="settingsSwitchTab('roles')"     style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);">Roles &amp; Permissions <span class="settings-tab-cnt" id="settings-cnt-roles" style="font-size:11px;background:var(--bg-2);color:var(--text-2);padding:1px 7px;border-radius:999px;margin-left:4px;">0</span></div>
     <div class="settings-tab"        data-tab="simulator" onclick="settingsSwitchTab('simulator')" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-2);" title="Check what a given user can do to a given account">Test access</div>
@@ -7934,9 +7954,9 @@ body .ld-tab-content {
   <div id="settings-pane-teams"     style="display:none;"></div>
 </div>
 
-<div id="home-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
+<div id="home-view" class="crm-view crm-view--home"></div>
 
-<div id="forecast-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;"></div>
+<div id="forecast-view" class="crm-view crm-view--forecast"></div>
 
 <!-- build: 1781442932 ═══════════ COMPETITIVE HUB (native, inlined) ═══════════
      8-tab competitive intelligence dashboard. Data lives in the
@@ -7944,7 +7964,7 @@ body .ld-tab-content {
      are scoped to .ci-scope so .card / .panel / .input / .tab don't
      collide with the CRM's own styles. Chart.js is lazy-loaded the
      first time the user opens this view. -->
-<div id="competitive-view" class="ci-scope" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow:auto;">
+<div id="competitive-view" class="crm-view crm-view--competitive ci-scope">
   <div class="ci-nav" id="ci-tabs">
     <div class="ci-tab active" data-tab="ci-dashboard">Dashboard</div>
     <div class="ci-tab" data-tab="ci-intel">Intel Center</div>
@@ -8036,7 +8056,7 @@ body .ld-tab-content {
   <div id="ci-loading" style="position:absolute;inset:0;background:var(--bg);z-index:2;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;"><div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--lime-500,#BAE85B);border-radius:50%;animation:ci-spin .8s linear infinite"></div><div style="font-size:13px;color:var(--text-3);">Loading competitive intelligence…</div></div>
 </div>
 
-<div id="logs-view" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;">
+<div id="logs-view" class="crm-view crm-view--logs">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
     <div>
       <div style="font-size:18px;font-weight:600;color:var(--text-1);">System logs</div>
@@ -12651,11 +12671,9 @@ function openDrawer(id, from){
   renderLdRight(lead);
   updateLdTabCounts(lead);
   updateNavArrows();
-  // Show lead page, hide other views
+  // Show lead page — it overlays all .crm-view elements via .lead-page.open
+  // z-index, so we DON'T need to hide individual views here. The CSS handles it.
   document.getElementById('lead-page').classList.add('open');
-  document.getElementById('board-view').style.display='none';
-  const accView=document.getElementById('accounts-view');
-  if(accView)accView.style.display='none';
   // Scroll to top
   const ldBodyEl=document.getElementById('ld-body');
   if(ldBodyEl)ldBodyEl.scrollTop=0;
@@ -14550,12 +14568,10 @@ function renderSection(key){
 function closeDrawer(){
   document.getElementById('lead-page').classList.remove('open');
   curId=null;
-  if(drawerOpenedFrom==='accounts'){
-    // Go back to accounts table
-    switchMainView('accounts');
-  } else {
-    document.getElementById('board-view').style.display='';
-  }
+  // Route back through switchMainView so the class-based view system
+  // re-applies .is-active correctly. Falls back to pipeline if we don't
+  // know where the drawer was opened from.
+  switchMainView(drawerOpenedFrom || currentMainView || 'pipeline');
 }
 
 // ── Browser-back / history handling ────────────────────────────
@@ -15433,56 +15449,33 @@ function switchMainView(view) {
       if (cur !== url) history.pushState({ view }, '', url);
     }
   } catch {}
-  const boardView    = document.getElementById('board-view');
-  const accountsView = document.getElementById('accounts-view');
-  const dashboardView= document.getElementById('dashboard-view');
-  const utmView      = document.getElementById('utm-view');
-  const leadPage     = document.getElementById('lead-page');
-  const pipelineItem = document.getElementById('sb-pipeline-item');
-  const accountsItem = document.getElementById('sb-accounts-item');
-  const dashboardItem= document.getElementById('sb-dashboard-item');
-  const utmItem      = document.getElementById('sb-utm-item');
-  const topbarTitle  = document.querySelector('.tb-title');
-
+  const leadPage    = document.getElementById('lead-page');
+  const topbarTitle = document.querySelector('.tb-title');
   // Close lead detail if open
   if (leadPage) leadPage.classList.remove('open');
-
-  const setActive = (item, on) => { if(item) item.classList.toggle('active', on); };
-  const hideUtm = () => { if (utmView) utmView.style.cssText = 'display:none;'; };
-  // Always hide the renewal view unless we're entering it.
-  const renewalViewEl = document.getElementById('renewal-view');
-  if (view !== 'renewal' && renewalViewEl) renewalViewEl.style.cssText = 'display:none;';
-  const settingsViewEl = document.getElementById('settings-view');
-  if (view !== 'settings' && settingsViewEl) settingsViewEl.style.cssText = 'display:none;';
-  const logsViewEl = document.getElementById('logs-view');
-  if (view !== 'logs' && logsViewEl) logsViewEl.style.cssText = 'display:none;';
-  const homeViewEl = document.getElementById('home-view');
-  if (view !== 'home' && homeViewEl) homeViewEl.style.cssText = 'display:none;';
-  const forecastViewEl = document.getElementById('forecast-view');
-  if (view !== 'forecast' && forecastViewEl) forecastViewEl.style.cssText = 'display:none;';
-  const competitiveViewEl = document.getElementById('competitive-view');
-  if (view !== 'competitive' && competitiveViewEl) competitiveViewEl.style.cssText = 'display:none;';
-  // Clear the active highlight off EVERY sidebar item first; each branch then
-  // re-activates only its own. Prevents stale highlights when navigating
-  // between views (e.g. Renewal staying lit after clicking Accounts).
+  // Clear sidebar highlights — each branch re-activates its own
   document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
+  // Single source of truth: flip .is-active on the matching .crm-view element.
+  setActiveView({
+    pipeline:    'board-view',
+    accounts:    'accounts-view',
+    home:        'home-view',
+    forecast:    'forecast-view',
+    dashboard:   'dashboard-view',
+    utm:         'utm-view',
+    renewal:     'renewal-view',
+    settings:    'settings-view',
+    competitive: 'competitive-view',
+    logs:        'logs-view',
+  }[view] || null);
+  const setActive = (item, on) => { if(item) item.classList.toggle('active', on); };
 
   if (view === 'pipeline') {
-    if (boardView)     { boardView.style.cssText = 'flex:1;min-height:0;overflow:auto;padding:20px 24px 32px;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    hideUtm();
-    setActive(pipelineItem,true); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = `Sales Pipeline <span class="tb-badge" id="tb-record-count">${leads.length} leads</span>`;
+    setActive(document.getElementById('sb-pipeline-item'), true);
+    if (topbarTitle) topbarTitle.innerHTML = `Sales Pipeline <span class="tb-badge" id="tb-record-count">${leads.length} leads</span>`;
     renderBoard(); kpis();
   } else if (view === 'accounts') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    hideUtm();
-    if (accountsView)  {
-      accountsView.style.cssText = 'display:block;position:absolute;inset:0;background:var(--bg);overflow-y:auto;overflow-x:hidden;';
-    }
-    setActive(pipelineItem,false); setActive(accountsItem,true); setActive(dashboardItem,false); setActive(utmItem,false);
+    setActive(document.getElementById('sb-accounts-item'), true);
     if (topbarTitle) {
       const accTotal = leads.filter(l => hasRealData(l) && !gDisq(l._id)).length;
       topbarTitle.innerHTML = `Accounts <span class="tb-badge">${accTotal} total</span>`;
@@ -15490,99 +15483,58 @@ function switchMainView(view) {
     initAccountsFilters();
     requestAnimationFrame(() => renderAccountsTable());
   } else if (view === 'home') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    hideUtm();
-    if (homeViewEl) homeViewEl.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;';
     setActive(document.getElementById('sb-home-item'), true);
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = `Dashboard`;
+    if (topbarTitle) topbarTitle.innerHTML = `Dashboard`;
     requestAnimationFrame(() => { if (typeof renderHomeView === 'function') renderHomeView(); });
   } else if (view === 'forecast') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    hideUtm();
-    if (forecastViewEl) forecastViewEl.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:24px 28px 40px;';
     setActive(document.getElementById('sb-forecast-item'), true);
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = '';
+    if (topbarTitle) topbarTitle.innerHTML = '';
     requestAnimationFrame(() => { if (typeof renderForecastView === 'function') renderForecastView(); });
   } else if (view === 'dashboard') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    hideUtm();
-    if (dashboardView) {
-      dashboardView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;';
-    }
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,true); setActive(utmItem,false);
-    if (topbarTitle)  topbarTitle.innerHTML = `Reports`;
+    setActive(document.getElementById('sb-dashboard-item'), true);
+    if (topbarTitle) topbarTitle.innerHTML = `Reports`;
     requestAnimationFrame(() => { renderDashboard(); });
   } else if (view === 'utm') {
-    // Admin-only gate (defense in depth — sidebar item is already hidden for non-admins)
     if (window.AUTH_PROFILE && window.AUTH_PROFILE.role !== 'admin') {
       console.warn('[UTM] non-admin tried to open UTM view — blocked');
       return;
     }
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    if (utmView) {
-      utmView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:28px 32px 40px;';
-    }
-    setActive(pipelineItem,false); setActive(accountsItem,false); setActive(dashboardItem,false); setActive(utmItem,true);
-    if (topbarTitle)  topbarTitle.innerHTML = `UTM Generator`;
+    setActive(document.getElementById('sb-utm-item'), true);
+    if (topbarTitle) topbarTitle.innerHTML = `UTM Generator`;
     requestAnimationFrame(() => { try { renderUTM(); } catch(e){ console.error('renderUTM failed', e); } });
   } else if (view === 'renewal') {
-    if (boardView)     { boardView.style.cssText = 'display:none;'; }
-    if (accountsView)  { accountsView.style.cssText = 'display:none;'; }
-    if (dashboardView) { dashboardView.style.cssText = 'display:none;'; }
-    hideUtm();
-    const renewalView = document.getElementById('renewal-view');
-    if (renewalView)  renewalView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;';
-    [pipelineItem,accountsItem,dashboardItem,utmItem].forEach(it=>setActive(it,false));
-    setActive(document.getElementById('sb-renewal-item'),true);
+    setActive(document.getElementById('sb-renewal-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = `Renewal Pipeline`;
     requestAnimationFrame(() => loadRenewalBoard());
   } else if (view === 'settings') {
     if (window.AUTH_PROFILE?.role !== 'admin') {
       console.warn('[Settings] non-admin blocked'); return;
     }
-    if (boardView)     boardView.style.cssText = 'display:none;';
-    if (accountsView)  accountsView.style.cssText = 'display:none;';
-    if (dashboardView) dashboardView.style.cssText = 'display:none;';
-    hideUtm();
-    const settingsView = document.getElementById('settings-view');
-    if (settingsView) settingsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;';
     setActive(document.getElementById('sb-settings-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = 'Settings';
     requestAnimationFrame(() => renderSettingsRoles());
   } else if (view === 'competitive') {
-    if (boardView)     boardView.style.cssText = 'display:none;';
-    if (accountsView)  accountsView.style.cssText = 'display:none;';
-    if (dashboardView) dashboardView.style.cssText = 'display:none;';
-    hideUtm();
-    const ciView = document.getElementById('competitive-view');
-    if (ciView) ciView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow:auto;';
     setActive(document.getElementById('sb-competitive-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = 'Competitive Hub';
-    // Lazy-init: load Chart.js + fetch data only the first time the user opens this view.
     if (typeof initCompetitiveHub === 'function') initCompetitiveHub();
   } else if (view === 'logs') {
     if (window.AUTH_PROFILE?.role !== 'admin') {
       console.warn('[Logs] non-admin blocked'); return;
     }
-    if (boardView)     boardView.style.cssText = 'display:none;';
-    if (accountsView)  accountsView.style.cssText = 'display:none;';
-    if (dashboardView) dashboardView.style.cssText = 'display:none;';
-    hideUtm();
-    const logsView = document.getElementById('logs-view');
-    if (logsView) logsView.style.cssText = 'display:flex;position:absolute;inset:0;flex-direction:column;background:var(--bg);overflow-y:auto;padding:20px 24px 32px;';
     setActive(document.getElementById('sb-logs-item'), true);
     if (topbarTitle) topbarTitle.innerHTML = 'System logs';
     requestAnimationFrame(() => renderLogsView());
   }
+}
+
+// Single source of truth for showing/hiding .crm-view elements. Removes
+// .is-active from every view, then adds it to the target. Never touches
+// .style.cssText. Lead detail (.lead-page) is handled separately above
+// because it overlays all views via its own z-index.
+function setActiveView(viewElementId){
+  document.querySelectorAll('.crm-view').forEach(el => {
+    el.classList.toggle('is-active', el.id === viewElementId);
+  });
 }
 
 function initAccountsFilters() {
