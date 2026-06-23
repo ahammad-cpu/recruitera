@@ -86,8 +86,8 @@
               <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>{{ a.domain }}</span>
               <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>Customer since {{ a.since }}</span>
               <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10z"></path><circle cx="7" cy="7" r="1"></circle></svg>{{ a.source }} · {{ a.amName }}</span>
-              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 11.2 19a19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.1 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6A2 2 0 0 1 22 16.9z"></path></svg>+20 2 250 35101</span>
-              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 5L2 7"></path></svg>hr@{{ a.domain }}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 11.2 19a19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.1 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6A2 2 0 0 1 22 16.9z"></path></svg>{{ champion.phone }}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 5L2 7"></path></svg>{{ champion.email }}</span>
             </div>
             <!-- plan -->
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -129,19 +129,19 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
             <div style="padding:7px 12px 7px 0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);">
               <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Name</div>
-              <div style="font-size:13px;font-weight:700;color:var(--text);">Mohamed</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);">{{ champion.name }}</div>
             </div>
             <div style="padding:7px 0 7px 12px;border-bottom:1px solid var(--border);">
               <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Title</div>
-              <div style="font-size:12px;color:var(--text-3);font-style:italic;">HR Director, TA Manager…</div>
+              <div style="font-size:12px;color:var(--text-3);font-style:italic;">{{ champion.title }}</div>
             </div>
             <div style="padding:7px 12px 7px 0;border-right:1px solid var(--border);">
               <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Email</div>
-              <a href="mailto:soyime2752@ocuser.com" style="font-size:12px;font-weight:600;color:var(--accent-ink);text-decoration:underline;word-break:break-all;">soyime2752@ocuser.com</a>
+              <a href="{{ champion.mailto }}" style="font-size:12px;font-weight:600;color:var(--accent-ink);text-decoration:underline;word-break:break-all;">{{ champion.email }}</a>
             </div>
             <div style="padding:7px 0 7px 12px;">
               <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Phone</div>
-              <div style="font-size:12px;font-weight:600;color:var(--text);">+201017553507</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">{{ champion.phone }}</div>
             </div>
           </div>
         </div>
@@ -222,32 +222,32 @@
             <div style="padding:9px 0;border-bottom:1px solid var(--border);">
               <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:5px;">First touch</div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span style="font-size:12px;font-weight:700;color:var(--text);">linkedin</span>
+                <span style="font-size:12px;font-weight:700;color:var(--text);">{{ attrib.firstSource }}</span>
                 <span style="font-size:11px;color:var(--text-3);">·</span>
-                <span style="font-size:12px;color:var(--text-2);font-weight:500;">organic-social</span>
+                <span style="font-size:12px;color:var(--text-2);font-weight:500;">{{ attrib.firstMedium }}</span>
                 <span style="font-size:11px;color:var(--text-3);">·</span>
-                <span style="font-size:11.5px;color:var(--text-3);font-family:monospace;">May 21, 2026</span>
+                <span style="font-size:11.5px;color:var(--text-3);font-family:monospace;">{{ attrib.firstDate }}</span>
               </div>
             </div>
             <!-- last touch -->
             <div style="padding:9px 0;border-bottom:1px solid var(--border);">
               <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:5px;">Last touch</div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                <span style="font-size:12px;font-weight:700;color:var(--text);">linkedin</span>
+                <span style="font-size:12px;font-weight:700;color:var(--text);">{{ attrib.lastSource }}</span>
                 <span style="font-size:11px;color:var(--text-3);">·</span>
-                <span style="font-size:12px;color:var(--text-2);font-weight:500;">organic · WhatsApp</span>
+                <span style="font-size:12px;color:var(--text-2);font-weight:500;">{{ attrib.lastMedium }}</span>
                 <span style="font-size:11px;color:var(--text-3);">·</span>
-                <span style="font-size:11.5px;color:var(--text-3);font-family:monospace;">Jun 2, 2026</span>
+                <span style="font-size:11.5px;color:var(--text-3);font-family:monospace;">{{ attrib.lastDate }}</span>
               </div>
             </div>
             <!-- metrics -->
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Days to convert</span><span style="font-size:13px;font-weight:700;color:var(--text);">11</span></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Device</span><span style="font-size:13px;font-weight:700;color:var(--text);">desktop</span></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Lang</span><span style="font-size:13px;font-weight:700;color:var(--text);">en-US</span></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">CTA</span><span style="font-size:13px;font-weight:700;color:var(--text);">cta</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Days to convert</span><span style="font-size:13px;font-weight:700;color:var(--text);">{{ attrib.daysToConvert }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Device</span><span style="font-size:13px;font-weight:700;color:var(--text);">{{ attrib.device }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Lang</span><span style="font-size:13px;font-weight:700;color:var(--text);">{{ attrib.lang }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">CTA</span><span style="font-size:13px;font-weight:700;color:var(--text);">{{ attrib.cta }}</span></div>
             <div style="padding:8px 0;">
               <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:4px;">First landing page</div>
-              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;word-break:break-all;">/job/recruitment-consultant-basharsoft-cairo-egypt-4450</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;word-break:break-all;">{{ attrib.firstLanding }}</div>
             </div>
           </div>
         </div>
@@ -680,13 +680,14 @@ class Component extends DCLogic {
     if (!token) { this.setState({ loadError: 'Not signed in. Open /crm in another tab, sign in, then refresh this page.' }); return; }
     const h = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
     try {
-      const [accR, ctR, cyR, acR, docR, pfR] = await Promise.all([
+      const [accR, ctR, cyR, acR, docR, pfR, mtR] = await Promise.all([
         fetch(`${SB_URL}/rest/v1/accounts?id=eq.${leadId}&select=*`,                                { headers: h }),
         fetch(`${SB_URL}/rest/v1/contacts?account_id=eq.${leadId}&order=is_primary.desc,created_at.desc`, { headers: h }),
         fetch(`${SB_URL}/rest/v1/contract_cycles?account_id=eq.${leadId}&order=started_at.desc`,   { headers: h }),
         fetch(`${SB_URL}/rest/v1/activities?account_id=eq.${leadId}&order=created_at.desc&limit=80`, { headers: h }),
         fetch(`${SB_URL}/rest/v1/account_documents?account_id=eq.${leadId}&is_archived=eq.false&order=created_at.desc`, { headers: h }),
         fetch(`${SB_URL}/rest/v1/profiles?select=id,email,full_name`,                              { headers: h }),
+        fetch(`${SB_URL}/rest/v1/marketing_tracking?account_id=eq.${leadId}&select=*&limit=1`,      { headers: h }),
       ]);
       const account    = (await accR.json())[0];
       const contacts   = await ctR.json();
@@ -694,11 +695,12 @@ class Component extends DCLogic {
       const activities = await acR.json();
       const documents  = await docR.json();
       const profiles   = await pfR.json();
+      const mt         = (await mtR.json())[0] || null;
       const profilesById = {};
       profiles.forEach(p => { profilesById[p.id] = p; });
       if (!account) { this.setState({ loadError: 'Account not found or you do not have access (RLS).' }); return; }
       const tags = Array.isArray(account.raw_data?.tags) ? account.raw_data.tags : [];
-      this.setState({ loaded: true, account, contacts, cycles, activities, documents, profilesById, tags });
+      this.setState({ loaded: true, account, contacts, cycles, activities, documents, profilesById, tags, mt });
     } catch (e) {
       this.setState({ loadError: 'Load failed: ' + (e?.message || e) });
     }
@@ -833,14 +835,25 @@ class Component extends DCLogic {
       uid: c.uid,
     };
 
+    // Real stat values from accounts row + active contract cycle.
+    const ac      = st.account || {};
+    const cycle   = c._activeCycle;
+    const dealVal = ac.deal_value != null ? this.fmtMoney(ac.deal_value, 'EGP') : '—';
+    const closeDt = ac.close_date ? this.fmtDate(ac.close_date, { month:'short', day:'numeric' }) : '—';
+    const closeYr = ac.close_date ? new Date(ac.close_date).getFullYear() : '';
+    const renewDt = cycle?.ends_at ? this.fmtDate(cycle.ends_at, { month:'short', day:'numeric' }) : '—';
+    const renewYr = cycle?.ends_at ? new Date(cycle.ends_at).getFullYear() : '';
+    const renewSub = cycle ? (cycle.status === 'active' ? 'Active' : cycle.status === 'renewed' ? 'Renewed' : cycle.status === 'churned' ? 'Churned' : 'Expired') : 'no contract';
+    const stageLabel = c.stage ? c.stage.toUpperCase() : '—';
+    const stageSub = c.stage === 'won' ? 'Closed' : c.stage === 'lost' ? 'Closed' : c.stage ? 'In pipeline' : '—';
     const statRow = [
-      { label: 'Credits', value: pct + '%', sub: c.used + ' / ' + c.total + ' used' },
-      { label: 'Plan', value: c.plan, sub: c.paid },
-      { label: 'Deal value', value: 'EGP 240k', sub: 'Enterprise' },
-      { label: 'Close date', value: 'Nov 20', sub: '2026' },
-      { label: 'Stage', value: 'Won', sub: 'Closed' },
-      { label: 'ICP score', value: c.score, sub: 'of 100' },
-      { label: 'Renews', value: 'Nov 20,\n2026', sub: 'Active' },
+      { label: 'Credits',    value: c.total ? pct + '%' : '—', sub: c.total ? (c.used + ' / ' + c.total + ' used') : 'not tracked' },
+      { label: 'Plan',       value: c.plan,    sub: c.paid || '—' },
+      { label: 'Deal value', value: dealVal,   sub: 'ACV potential' },
+      { label: 'Close date', value: closeDt,   sub: closeYr ? String(closeYr) : 'expected' },
+      { label: 'Stage',      value: stageLabel,sub: stageSub },
+      { label: 'ICP score',  value: c.score || '—', sub: c.score ? 'of 100' : 'not scored' },
+      { label: 'Renews',     value: renewDt + (renewYr ? ', ' + renewYr : ''), sub: renewSub },
     ].map((s, i) => ({ ...s, wrap: `padding:16px ${i === 6 ? 16 : 14}px 16px ${i === 0 ? 20 : 14}px;${i ? 'border-left:1px solid var(--border);' : ''}overflow:hidden;` }));
 
     const pts = [10, 28, 18, 50, 38, 72, 55, 88, 62, 95, 75, 100];
@@ -993,6 +1006,35 @@ class Component extends DCLogic {
       loadError: st.loadError,
       loaded: st.loaded,
       showLoadingBar: !st.loaded && !st.loadError,
+      champion: (()=>{
+        const p = st.contacts[0] || {};
+        const email = p.email || '';
+        return {
+          name:  p.full_name || '—',
+          title: p.job_title || '—',
+          email: email || '—',
+          phone: p.phone || '—',
+          mailto: email ? ('mailto:' + email) : '#',
+        };
+      })(),
+      attrib: (()=>{
+        const m = st.mt || {};
+        const ac = st.account || {};
+        const fmtD = d => { if(!d) return '—'; try { return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return '—'; } };
+        return {
+          firstSource:  m.first_source  || ac.utm_source || ac.source || '—',
+          firstMedium:  m.first_medium  || ac.utm_medium || '—',
+          firstDate:    fmtD(m.first_touched_at || ac.bubble_created_at),
+          lastSource:   m.last_source   || ac.utm_source || ac.source || '—',
+          lastMedium:   m.last_medium   || ac.utm_medium || '—',
+          lastDate:     fmtD(m.last_touched_at || ac.bubble_created_at),
+          daysToConvert: m.days_to_convert != null ? m.days_to_convert : '—',
+          device:       m.device || '—',
+          lang:         m.lang   || m.signup_language || '—',
+          cta:          m.cta_clicked || '—',
+          firstLanding: m.first_landing_page || ac.landing_page || '—',
+        };
+      })(),
       showMeetingModal: st.showMeetingModal,
       openMeetingModal: () => this.setState({ showMeetingModal: true }),
       closeMeetingModal: () => this.setState({ showMeetingModal: false }),
