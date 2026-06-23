@@ -11873,6 +11873,8 @@ async function sbFetch() {
     wp_marketing_channel: acc.wp_marketing_channel || acc.raw_data?.WP_Marketing_Channel || null,
     domain:           acc.domain || '',
     deal_value:       acc.deal_value,
+    close_date:       acc.close_date,
+    industry:         acc.industry,
     deal_probability: acc.deal_probability,
     // Keep full raw_data for any field lookups
     raw_data:         acc.raw_data || {},
@@ -11922,7 +11924,10 @@ function init(){
     const id=l._id;
     if(l._sb_stage && !ls.g('st_'+id)) ls.s('st_'+id, l._sb_stage);
     if(l.deal_value && !ls.g('acv_'+id)) ls.s('acv_'+id, String(l.deal_value));
-    if(l.deal_close_date && !ls.g('close_'+id)) ls.s('close_'+id, l.deal_close_date);
+    // Close date: prefer the new accounts.close_date column; fall back to the
+    // legacy deal_close_date attr if any older row still has it.
+    const closeSrv = l.close_date || l.deal_close_date;
+    if(closeSrv && !ls.g('close_'+id)) ls.s('close_'+id, closeSrv);
     if(l._sb_is_disq && !ls.g('disq_'+id)) ls.s('disq_'+id, '1');
   });
   popFilters();
@@ -14725,6 +14730,7 @@ function editStatVal(){
 function saveStatVal(v){
   if(!curId)return;sAcv(curId,v);
   const lead=leads.find(l=>l._id===curId);if(lead)renderLdHero(lead);renderBoard();
+  if(lead) _persistLeadField(lead,'deal_value',v);
 }
 function editStatClose(){
   if(!curId)return;
@@ -14736,6 +14742,7 @@ function editStatClose(){
 function saveStatClose(v){
   if(!curId)return;sClose(curId,v);
   const lead=leads.find(l=>l._id===curId);if(lead)renderLdHero(lead);
+  if(lead) _persistLeadField(lead,'close_date',v);
 }
 function editStatIndustry(){
   if(!curId)return;
@@ -14749,6 +14756,50 @@ function saveStatIndustry(v){
   if(!curId)return;
   const contact=gContact(curId);contact.industry_manual=v;sContact(curId,contact);
   const lead=leads.find(l=>l._id===curId);if(lead)renderLdHero(lead);
+  if(lead) _persistLeadField(lead,'industry',v);
+}
+
+// Persist a single field on accounts via PostgREST PATCH. Optimistic UI has
+// already rendered; on failure we toast but keep the local cache so the user
+// doesn't lose their typing — the next successful edit (or a refresh that
+// pulls server state) reconciles. Numeric fields are coerced; empty strings
+// become null so columns stay clean.
+async function _persistLeadField(lead, field, rawValue){
+  try {
+    const sbId = lead._supabase_id || (typeof lead._id==='string' && /^[0-9a-f-]{36}$/i.test(lead._id) ? lead._id : null);
+    if(!sbId){ console.warn('[persist] no Supabase id for', lead._id); return; }
+    const token = await _getValidAccessToken(); if(!token) return;
+    let v = rawValue;
+    if(typeof v === 'string') v = v.trim();
+    if(v === '' || v == null) v = null;
+    if(field === 'deal_value' && v != null){
+      const n = Number(String(v).replace(/[^0-9.\-]/g,''));
+      v = Number.isFinite(n) ? n : null;
+    }
+    if(field === 'close_date' && v != null){
+      // Accept yyyy-mm-dd; pass through. Anything unparseable becomes null.
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(String(v))){
+        const d = new Date(v);
+        v = isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+      }
+    }
+    const body = {}; body[field] = v;
+    const res = await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${sbId}`, {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer '+token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if(!res.ok){
+      const t = await res.text().catch(()=>'');
+      console.warn('[persist] PATCH failed', field, res.status, t);
+      if(typeof toast === 'function') toast('Saved locally — server rejected ('+res.status+')','error');
+      return;
+    }
+    // Mirror into in-memory lead so subsequent renders/computations see truth.
+    lead[field] = v;
+    if(field === 'industry' && lead.raw_data) lead.raw_data.WP_Industry = v;
+    if(typeof toast === 'function') toast('Saved','success');
+  } catch(e){ console.warn('[persist]', field, e); }
 }
 
 // Snapshot inline edit
