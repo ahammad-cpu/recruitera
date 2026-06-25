@@ -19546,16 +19546,20 @@ function renderActivityFeed(el) {
           </select>
         </div>
       </div>
-      <!-- Contact name + email -->
+      <!-- Contact name + phone + email -->
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:2px;">
-        <div style="font-size:10.5px;font-weight:500;letter-spacing:0.07em;color:var(--text-4);margin-bottom:10px;">Contact Person (optional)</div>
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:0.07em;color:var(--text-4);margin-bottom:10px;">Contact Person</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div>
-            <label style="display:block;font-size:10.5px;font-weight:500;color:var(--text-4);margin-bottom:5px;">Name</label>
-            <input id="al-contact-name" class="ui-input" placeholder="HR Director name"/>
+            <label style="display:block;font-size:10.5px;font-weight:500;color:var(--text-4);margin-bottom:5px;">Name <span style="color:#DC2626;">*</span></label>
+            <input id="al-contact-name" class="ui-input" placeholder="HR Director name" required/>
           </div>
           <div>
-            <label style="display:block;font-size:10.5px;font-weight:500;color:var(--text-4);margin-bottom:5px;">Email</label>
+            <label style="display:block;font-size:10.5px;font-weight:500;color:var(--text-4);margin-bottom:5px;">Phone <span style="color:#DC2626;">*</span></label>
+            <input id="al-contact-phone" class="ui-input" type="tel" placeholder="+20 10 XXXX XXXX" required/>
+          </div>
+          <div style="grid-column:1 / -1;">
+            <label style="display:block;font-size:10.5px;font-weight:500;color:var(--text-4);margin-bottom:5px;">Email <span style="color:var(--text-4);font-weight:400;">(optional)</span></label>
             <input id="al-contact-email" class="ui-input" type="email" placeholder="contact@company.com"/>
           </div>
         </div>
@@ -19885,7 +19889,7 @@ function openAddLeadModal() {
     amMailInput.value = window.AUTH_PROFILE.email;
   }
   // Reset fields
-  ['al-name','al-campaign','al-industry','al-contact-name','al-contact-email','al-rc-mail'].forEach(id => {
+  ['al-name','al-campaign','al-industry','al-contact-name','al-contact-phone','al-contact-email','al-rc-mail'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   ['al-source','al-stage','al-medium','al-size'].forEach(id => {
@@ -19908,6 +19912,8 @@ function closeAddLeadModal() {
 
 async function submitAddLead() {
   const name = document.getElementById('al-name').value.trim();
+  const cNameEarly  = document.getElementById('al-contact-name').value.trim();
+  const cPhoneEarly = document.getElementById('al-contact-phone').value.trim();
   const errEl = document.getElementById('al-error');
   errEl.style.display = 'none';
 
@@ -19915,6 +19921,18 @@ async function submitAddLead() {
     errEl.textContent = 'Company Name is required.';
     errEl.style.display = 'block';
     document.getElementById('al-name').focus();
+    return;
+  }
+  if (!cNameEarly) {
+    errEl.textContent = 'Contact Name is required.';
+    errEl.style.display = 'block';
+    document.getElementById('al-contact-name').focus();
+    return;
+  }
+  if (!cPhoneEarly) {
+    errEl.textContent = 'Contact Phone is required.';
+    errEl.style.display = 'block';
+    document.getElementById('al-contact-phone').focus();
     return;
   }
 
@@ -19972,6 +19990,7 @@ async function submitAddLead() {
     const size     = document.getElementById('al-size').value     || null;
     const cName    = document.getElementById('al-contact-name').value.trim() || null;
     const cEmail   = document.getElementById('al-contact-email').value.trim() || null;
+    const cPhone   = document.getElementById('al-contact-phone').value.trim() || null;
 
     const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/create_lead`, {
       method:'POST',
@@ -19980,7 +19999,7 @@ async function submitAddLead() {
         p_name: name, p_stage: stage, p_source: source, p_campaign: campaign,
         p_medium: medium, p_am_mail: amMail, p_rc_mail: rcMail,
         p_industry: industry, p_size: size,
-        p_contact_name: cName, p_contact_email: cEmail,
+        p_contact_name: cName, p_contact_email: cEmail, p_contact_phone: cPhone,
       }),
     });
     if (!rpcRes.ok) throw new Error(`Insert failed (${rpcRes.status}): ${(await rpcRes.text()).slice(0,250)}`);
