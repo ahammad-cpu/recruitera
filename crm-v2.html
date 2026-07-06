@@ -381,6 +381,13 @@ function renderTopbar(){
       + '<span style="color:var(--text-4);">/</span>'
       + '<span style="color:var(--text);font-weight:600;">'+esc(title)+'</span>'
     + '</div>'
+    + (state.dataSource === 'live'
+        ? '<span title="Reading real accounts from Supabase" style="margin-left:12px;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:999px;background:var(--ok-bg);color:var(--ok);font-size:11px;font-weight:700;"><span style="width:6px;height:6px;border-radius:999px;background:var(--ok);"></span>LIVE · '+(state.accounts?state.accounts.length:0)+'</span>'
+        : state.dataStatus === 'loading'
+        ? '<span style="margin-left:12px;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:999px;background:var(--info-bg);color:var(--info);font-size:11px;font-weight:700;">Loading…</span>'
+        : state.dataStatus === 'error'
+        ? '<span title="'+esc(state.dataError||'')+'" style="margin-left:12px;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:999px;background:var(--bad-bg);color:var(--bad);font-size:11px;font-weight:700;">⚠ '+esc(state.dataError||'Fetch failed')+'</span>'
+        : '<span title="Not logged in or no auth token — showing mock preview data" style="margin-left:12px;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn);font-size:11px;font-weight:700;">PREVIEW · mock data</span>')
     + '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;width:300px;">'
       + '<span style="color:var(--text-3);display:flex;">'+svg('search',14,2)+'</span>'
       + '<input placeholder="Search companies, contacts, tasks…" style="background:transparent;border:0;outline:0;font-family:inherit;font-size:13px;color:var(--text);width:100%;">'
@@ -1746,11 +1753,26 @@ function renderDetail(){
     meetings = [];
     richNotes = [];
   }
-  const owners = [
-    { name: am.name,      role:'Owner',     ring:'var(--accent-strong)', email: (am.initials.toLowerCase())+'@recruitera.ai', initials: am.initials },
-    { name:'Yara Mostafa',role:'RC',        ring:'var(--info)',          email:'yara@recruitera.ai',       initials:'YM' },
-    { name:'Amr Hammad',  role:'Admin',     ring:'var(--warn)',          email:'a.hammad@icareer.ai',      initials:'AH' },
-  ];
+  // Account team = the account's actual Owner (am_mail) and RC (rc_mail).
+  // No Admin row — that's global, not account-scoped.
+  const owners = [{
+    name: am.name,
+    role: 'Owner',
+    ring: 'var(--accent-strong)',
+    email: am.email || ((am.initials||'??').toLowerCase() + '@recruitera.ai'),
+    initials: am.initials || '??',
+  }];
+  // Look up the RC from account's rc_mail if we have live profiles
+  const rcMail = (a._rcMail || '').toLowerCase().trim();
+  if (rcMail && LIVE_AMS) {
+    const rc = LIVE_AMS.find(p => (p.email||'').toLowerCase() === rcMail);
+    if (rc && rc.id !== am.id) {
+      owners.push({ name: rc.name, role: 'RC', ring: 'var(--info)', email: rc.email, initials: rc.initials });
+    }
+  } else if (!LIVE_AMS) {
+    // Mock fallback — the seed data doesn't carry rc_mail, so show Yara
+    owners.push({ name:'Yara Mostafa', role:'RC', ring:'var(--info)', email:'yara@recruitera.ai', initials:'YM' });
+  }
   const acctTasks = [
     { text:'Send renewal proposal draft to '+c.name,         dateLabel:'Due today',    by:'· by KF' },
     { text:'Prepare last-quarter usage report for QBR',       dateLabel:'Jul 02',       by:'· by NA' },
@@ -2087,6 +2109,8 @@ function mapAcctFromSupabase(a, idx){
     _disqReason: a.disq_reason,
     _lostReason: a.lost_reason,
     _lostDetail: a.lost_detail,
+    _rcMail: a.rc_mail,
+    _amMail: a.am_mail,
     _cycleValue: cycle?.value,
     _cycleCurrency: cycle?.currency,
     _tracking: LIVE_TRACKING_BY_ACCT?.get(a.id),
