@@ -2395,9 +2395,13 @@ function mapAcctFromSupabase(a, idx){
   const value = Number(a.deal_value || a.proposal_amount || 0) || 0;
   const score = Number(a.recruitera_score || 0);
   const tier  = (a.recruitera_tier || '').toLowerCase() || (score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool');
-  // Contract cycle (if any) supersedes plan info
+  // Contract cycle (if any) — but a plan only makes sense on a Won account.
+  // Lead/MQL/SQL/Demo/Proposal shouldn't display "Enterprise plan" just because
+  // a stale contract_cycle row exists in the DB from a prior sync.
   const cycle = LIVE_CYCLES_BY_ACCT?.get(a.id);
-  const plan  = cycle?.plan || rd.plan || rd.Plan || '—';
+  const isWonOrPaid = stage === 'won' || paid === 'Paid' || paid === 'Without Charge' || a.is_paid_customer;
+  const plan  = isWonOrPaid ? (cycle?.plan || rd.plan || rd.Plan || '—') : '—';
+  // Renewal end date still uses the cycle end for the bucket calc regardless
   const cycleEnds = cycle?.ends_at || null;
   // Close/end date — for renewal bucketing prefer contract end; else deal_close_date; else close_date
   const rawEnd = cycleEnds || a.deal_close_date || a.close_date || null;
@@ -2466,12 +2470,15 @@ function mapAcctFromSupabase(a, idx){
   };
 }
 
-async function fetchAllPages(token, path){
+async function fetchAllPages(token, path, opts){
   const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   const rows = [];
   let offset = 0;
   const pageSize = 1000;
-  for (let page = 0; page < 3; page++) {
+  // Default cap 10 pages (10k rows) — enough for the whole book on any table.
+  // Was 3 before, which silently dropped later contacts/cycles/tracking rows.
+  const maxPages = (opts && opts.maxPages) || 10;
+  for (let page = 0; page < maxPages; page++) {
     const glue = path.includes('?') ? '&' : '?';
     const url = SB_URL + path + glue + 'limit=' + pageSize + '&offset=' + offset;
     const res = await fetch(url, { headers });
