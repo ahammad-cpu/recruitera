@@ -684,9 +684,10 @@ function renderCompanies(){
 
   const filterBar =
     '<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap;">'
-      + '<div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;flex:1;max-width:300px;">'
-        + '<span style="color:var(--text-3);display:flex;">'+svg('search',14,2)+'</span>'
-        + '<input value="'+esc(s.acctSearch)+'" oninput="setAcctSearch(this.value)" placeholder="Search company or domain…" style="border:0;outline:0;font-family:inherit;font-size:13px;flex:1;background:transparent;color:var(--text);">'
+      + '<div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;flex:1;min-width:280px;max-width:520px;">'
+        + '<span style="color:var(--text-3);display:flex;">'+svg('search',15,2)+'</span>'
+        + '<input id="acct-search" autocomplete="off" spellcheck="false" value="'+esc(s.acctSearch)+'" oninput="setAcctSearch(this.value)" placeholder="Search company or domain…" style="border:0;outline:0;font-family:inherit;font-size:13.5px;flex:1;background:transparent;color:var(--text);min-width:0;">'
+        + (s.acctSearch ? '<button title="Clear" onclick="setAcctSearch(\'\')" style="border:0;background:transparent;color:var(--text-3);cursor:pointer;padding:0;font-size:16px;line-height:1;">×</button>' : '')
       + '</div>'
       + sel('acctStatus', [{v:'all',l:'Status: All'},{v:'Paid',l:'Paid'},{v:'Free Trial',l:'Free Trial'},{v:'Expired',l:'Expired'}])
       + sel('acctStage',  [{v:'all',l:'All stages'},{v:'lead',l:'Lead'},{v:'mql',l:'MQL'},{v:'demo',l:'Demo'},{v:'proposal',l:'Proposal'},{v:'won',l:'Won'},{v:'lost',l:'Lost'}])
@@ -1978,6 +1979,14 @@ function renderToast(){
 //   RENDER: ROOT
 // =========================================================================
 function render(){
+  // Preserve focused input's id + selection so typing in filter fields doesn't
+  // lose focus after each keystroke (render() replaces innerHTML wholesale).
+  const active = document.activeElement;
+  let focusId = null, selStart = null, selEnd = null;
+  if (active && active.id && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+    focusId = active.id;
+    try { selStart = active.selectionStart; selEnd = active.selectionEnd; } catch {}
+  }
   const col = state.sidebarCollapsed;
   let mainContent;
   if (state.detailId) {
@@ -2018,6 +2027,14 @@ function render(){
       + '</div>'
     + '</div>'
     + renderToast();
+  // Restore focus + cursor to the same input the user was typing in.
+  if (focusId) {
+    const el = document.getElementById(focusId);
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+      el.focus();
+      try { if (selStart != null) el.setSelectionRange(selStart, selEnd ?? selStart); } catch {}
+    }
+  }
 }
 
 // =========================================================================
