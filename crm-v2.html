@@ -2165,21 +2165,74 @@ function renderDetail(){
         + '</div>'
       : '');
 
+  // Attribution card — populated from accounts columns + marketing_tracking JOIN.
+  // Only shows sections that have at least one non-empty value so the card
+  // stays compact for accounts with sparse attribution data.
+  const tracking = a._tracking || {};
+  const utm = a._utm || {};
+  const truncUrl = (u) => { if (!u) return '—'; u = String(u); return u.length > 42 ? u.slice(0,39) + '…' : u; };
+  const attrRow = (label, value, opts) => {
+    const raw = value == null || value === '' ? '—' : String(value);
+    const isLink = opts && opts.link && raw !== '—';
+    const display = isLink ? '<a href="'+esc(raw)+'" target="_blank" style="color:var(--accent-ink);text-decoration:none;font-weight:700;">'+esc(truncUrl(raw))+'</a>' : '<span style="font-weight:700;color:'+(raw==='—'?'var(--text-4)':'var(--text)')+';">'+esc(raw)+'</span>';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);min-width:0;">'
+      + '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;flex-shrink:0;">'+label+'</div>'
+      + '<div style="font-size:12.5px;min-width:0;text-align:right;overflow:hidden;text-overflow:ellipsis;">'+display+'</div>'
+    + '</div>';
+  };
+  const attrSection = (title, rows) => {
+    const anyValue = rows.some(r => r[1] != null && r[1] !== '');
+    if (!anyValue) return '';
+    return '<div style="margin-top:14px;">'
+      + '<div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;padding:4px 0;border-bottom:2px solid var(--accent);margin-bottom:4px;">'+title+'</div>'
+      + rows.map(r => attrRow(r[0], r[1], r[2])).join('')
+    + '</div>';
+  };
+
   const attributionCard =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
       + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
         + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="1.9"><path d="M5 12a7 7 0 0 1 7-7"/><circle cx="12" cy="12" r="2"/><path d="M14 14l4 6M10 14l-4 6"/></svg>'
         + '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Attribution</div>'
       + '</div>'
-      + [
-          ['Source', a.source],
-          ['Referral', a.source === 'Referral' ? 'partner network' : '—'],
-          ['Joined at', a.since],
-          ['First touch', a.source === 'Outbound' ? 'Cold email · Q1 campaign' : a.source === 'Webflow' ? 'Website demo form' : a.source],
-        ].map((r,i,arr) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;'+(i<arr.length-1?'border-bottom:1px solid var(--border);':'')+'">'
-          + '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">'+r[0]+'</div>'
-          + '<div style="font-size:13px;font-weight:700;">'+esc(r[1])+'</div>'
-        + '</div>').join('')
+      // Core identity — always shown
+      + attrRow('Source',    a.source)
+      + attrRow('Medium',    a._medium)
+      + attrRow('Campaign',  a._campaign)
+      + attrRow('Joined at', a.since)
+      + attrRow('First touch', a._firstTouch ? formatShortDate(a._firstTouch) : null)
+      // UTM section — collapses if all 4 fields empty
+      + attrSection('UTM Parameters', [
+          ['utm_source',   utm.source],
+          ['utm_medium',   utm.medium],
+          ['utm_campaign', utm.campaign],
+          ['utm_content',  utm.content],
+        ])
+      // Landing / referrer / CTA section
+      + attrSection('Landing', [
+          ['Referrer',      a._referrerUrl,  { link: true }],
+          ['Landing page',  a._landingPage,  { link: true }],
+          ['CTA clicked',   a._ctaClicked],
+        ])
+      // Recruitera-specific marketing signals
+      + attrSection('Recruitera Channels', [
+          ['Marketing channel', a._wpMarketingChan],
+          ['Rec challenge',     a._wpRecChallenge],
+        ])
+      // Marketing tracking multi-touch (from marketing_tracking table)
+      + attrSection('First / Last Touch (Marketing Tracking)', [
+          ['First source',    tracking.first_source],
+          ['First medium',    tracking.first_medium],
+          ['First campaign',  tracking.first_campaign],
+          ['First landing',   tracking.first_landing_page, { link: true }],
+          ['First seen',      tracking.first_date ? formatShortDate(tracking.first_date) : null],
+          ['Last source',     tracking.last_source],
+          ['Last medium',     tracking.last_medium],
+          ['Last campaign',   tracking.last_campaign],
+          ['Last seen',       tracking.last_date ? formatShortDate(tracking.last_date) : null],
+          ['Touches',         tracking.touch_count],
+          ['Device',          tracking.device_type],
+        ])
     + '</div>';
 
   const tasksCard =
@@ -2486,6 +2539,21 @@ function mapAcctFromSupabase(a, idx){
     _cycleValue: cycle?.value,
     _cycleCurrency: cycle?.currency,
     _tracking: LIVE_TRACKING_BY_ACCT?.get(a.id),
+    // Attribution fields from accounts row (populated on the trial signup form)
+    _utm: {
+      source:      a.utm_source,
+      medium:      a.utm_medium,
+      campaign:    a.utm_campaign,
+      content:     a.utm_content,
+    },
+    _referrerUrl:      a.referrer_url,
+    _landingPage:      a.landing_page,
+    _ctaClicked:       a.cta_clicked,
+    _wpMarketingChan:  a.wp_marketing_channel,
+    _wpRecChallenge:   a.wp_rec_challenge,
+    _firstTouch:       a.first_touch,
+    _campaign:         a.campaign,
+    _medium:           a.medium,
   };
 }
 
