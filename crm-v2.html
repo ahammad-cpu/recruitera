@@ -2503,27 +2503,45 @@ async function fetchProfilesLive(token){
   }));
 }
 
-async function fetchContactsLive(token){
-  // Pull ALL contacts, then MERGE per account. The primary might not carry
-  // email/phone (some accounts have separate rows for who-does-what) — fill
-  // any missing field from a later contact so the table shows whatever the
-  // account actually has on file, not just the primary's blanks.
-  const rows = await fetchAllPages(token, '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary&order=is_primary.desc.nullslast,created_at.asc');
+async function fetchContactsLive(token, accountIds){
+  // Bulk SELECT * FROM contacts silently returns almost nothing under the
+  // current RLS shape (91 rows for 614 accounts observed in prod). Mirror
+  // what crm.html does: filter by account_id and only fetch what we already
+  // have visibility to. Chunk the IN list so the URL stays under ~4KB.
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   const map = new Map();
-  for (const c of rows) {
-    if (!c.account_id) continue;
-    let entry = map.get(c.account_id);
-    if (!entry) {
-      entry = { name:'', title:'', email:'', phone:'' };
-      map.set(c.account_id, entry);
+  if (!accountIds || accountIds.length === 0) { LIVE_CONTACTS_BY_ACCT = map; return; }
+  const CHUNK = 80; // 80 uuids × ~37 chars + boilerplate ≈ 3.2KB per URL
+  const chunks = [];
+  for (let i = 0; i < accountIds.length; i += CHUNK) chunks.push(accountIds.slice(i, i + CHUNK));
+
+  const batches = await Promise.all(chunks.map(async (ids) => {
+    const inList = ids.join(',');
+    const url = SB_URL + '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary'
+              + '&account_id=in.(' + inList + ')'
+              + '&order=is_primary.desc.nullslast,created_at.asc'
+              + '&limit=5000';
+    const res = await fetch(url, { headers });
+    if (!res.ok) { console.warn('[CRM v2] contacts chunk failed:', res.status); return []; }
+    return res.json();
+  }));
+
+  let totalRows = 0;
+  for (const rows of batches) {
+    totalRows += rows.length;
+    for (const c of rows) {
+      if (!c.account_id) continue;
+      let entry = map.get(c.account_id);
+      if (!entry) { entry = { name:'', title:'', email:'', phone:'' }; map.set(c.account_id, entry); }
+      if (!entry.name  && c.full_name) entry.name  = c.full_name;
+      if (!entry.title && c.job_title) entry.title = c.job_title;
+      if (!entry.email && c.email)     entry.email = c.email;
+      if (!entry.phone && c.phone)     entry.phone = c.phone;
     }
-    if (!entry.name  && c.full_name) entry.name  = c.full_name;
-    if (!entry.title && c.job_title) entry.title = c.job_title;
-    if (!entry.email && c.email)     entry.email = c.email;
-    if (!entry.phone && c.phone)     entry.phone = c.phone;
   }
   LIVE_CONTACTS_BY_ACCT = map;
-  console.log('[CRM v2] contacts fetched: ' + rows.length + ' rows → ' + map.size + ' accounts. Alumil sample:',
+  console.log('[CRM v2] contacts fetched: ' + totalRows + ' rows → ' + map.size + ' accounts across '
+    + chunks.length + ' chunks. Alumil sample:',
     map.get('08ad87b0-a900-4c0c-baa0-5e8a9eb537b2') || 'MISSING');
 }
 
@@ -2547,12 +2565,13 @@ async function fetchTrackingLive(token){
   LIVE_TRACKING_BY_ACCT = map;
 }
 
-async function fetchAccountsLive(token){
+async function fetchAccountsRawLive(token){
+  // Raw rows only — the caller maps them after joins (contacts / cycles /
+  // tracking) are populated so mapAcctFromSupabase has real data to attach.
   const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   const rows = [];
   let offset = 0;
   const pageSize = 1000;
-  // 3-page cap on preview to keep it snappy (up to 3000 accounts)
   for (let page = 0; page < 3; page++) {
     const url = SB_URL + '/rest/v1/accounts?select=*&order=created_at.asc&limit=' + pageSize + '&offset=' + offset + '&merged_into=is.null';
     const res = await fetch(url, { headers });
@@ -2563,7 +2582,13 @@ async function fetchAccountsLive(token){
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
-  return rows.map(mapAcctFromSupabase);
+  return rows;
+}
+
+// Back-compat wrapper — merge modal calls fetchAccountsLive to refresh the list.
+async function fetchAccountsLive(token){
+  const raw = await fetchAccountsRawLive(token);
+  return raw.map(mapAcctFromSupabase);
 }
 
 async function loadActivitiesForAccount(accountId){
@@ -2636,15 +2661,22 @@ async function bootLiveData(){
   state.dataStatus = 'loading';
   render();
   try {
-    // Fetch joins in parallel so the account mapper has real relations to attach.
-    // Each swallow-errors so a missing table doesn't nuke the whole preview.
-    await Promise.all([
+    // Fetch accounts + profiles first — profiles is independent, accounts
+    // gives us the ID list needed to fetch contacts/cycles/tracking via
+    // filtered IN queries (RLS shape only returns rows for filtered reads).
+    const [accountRawRows] = await Promise.all([
+      fetchAccountsRawLive(token),
       fetchProfilesLive(token).catch(e => console.warn('[CRM v2] profiles:', e.message)),
-      fetchContactsLive(token).catch(e => console.warn('[CRM v2] contacts:', e.message)),
+    ]);
+    const accountIds = accountRawRows.map(r => r.id);
+    // Now the ID-scoped fetches, in parallel. Each swallows errors independently.
+    await Promise.all([
+      fetchContactsLive(token, accountIds).catch(e => console.warn('[CRM v2] contacts:', e.message)),
       fetchCyclesLive(token).catch(e => console.warn('[CRM v2] cycles:', e.message)),
       fetchTrackingLive(token).catch(e => console.warn('[CRM v2] tracking:', e.message)),
     ]);
-    const accounts = await fetchAccountsLive(token);
+    // Map the raw account rows now that the joins are populated
+    const accounts = accountRawRows.map(mapAcctFromSupabase);
     if (accounts.length === 0) {
       state.dataStatus = 'ready';
       console.log('[CRM v2] Supabase returned 0 accounts — keeping mock preview data');
