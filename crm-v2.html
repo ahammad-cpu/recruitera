@@ -1900,8 +1900,6 @@ function renderDetail(){
                 + '<div style="font-size:12px;color:var(--text-3);font-weight:500;margin-top:4px;">'+esc(a.domain)+' · Customer since '+esc(a.since)+'</div>'
               + '</div>'
               + '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">'
-                + actionBtn('var(--accent)','var(--on-accent)','var(--accent-strong)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>','Impersonate',"toast('Impersonation session started — this is a preview')")
-                + actionBtn('var(--surface)','var(--text-2)','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>','JS view',"toast('Opened as Job Seeker view')")
                 + actionBtn('var(--surface)','#25D366','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.4A10 10 0 1 0 12 2z"/></svg>','WhatsApp',"toast('Opening WhatsApp Web')")
                 + actionBtn('var(--surface)','var(--text-2)','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>','Email',"toast('Compose email — coming Phase 2')")
                 + actionBtn('var(--cg-900)','#fff','var(--cg-900)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>','Proposal',"toast('Proposal builder — coming Phase 2')")
@@ -1935,13 +1933,14 @@ function renderDetail(){
       // stats band
       + '<div style="display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);">'
         + [
-            { l:'Deal value',    v: egp(a.value),                   sub:'annual contract' },
-            { l:'ICP score',     v: a.score + '',                    sub:'/ 100' },
-            { l:'Active jobs',   v: '' + a.jobs,                     sub:'live postings' },
+            { l:'Deal value',    v: a.value ? egp(a.value) : '—',    sub: a.value ? 'annual contract' : 'not set' },
+            { l:'ICP score',     v: a.score ? (a.score + '') : '—',   sub: a.score ? '/ 100' : 'not scored' },
+            // Following four cells have no source column in Supabase yet — surface honestly
+            { l:'Active jobs',   v: a.jobs ? ('' + a.jobs) : '—',     sub: a.jobs ? 'live postings' : 'no data' },
             { l:'Credits used',  v: a.total ? Math.round(a.used/a.total*100)+'%' : '—', sub: a.total ? a.used+' / '+a.total : 'no plan' },
-            { l:'Job views',    v: short(a.views),                  sub:'last 30 days' },
-            { l:'Applications', v: short(a.applies),                sub:'last 30 days' },
-            { l:'Owner',        v: am.initials,                     sub: esc(am.name) },
+            { l:'Job views',     v: a.views ? short(a.views) : '—',   sub: a.views ? 'last 30 days' : 'no data' },
+            { l:'Applications',  v: a.applies ? short(a.applies) : '—', sub: a.applies ? 'last 30 days' : 'no data' },
+            { l:'Owner',         v: am.initials || '—',              sub: esc(am.name) },
           ].map((s,i,arr) => '<div style="padding:16px 18px;'+(i<arr.length-1?'border-right:1px solid var(--border);':'')+'">'
             + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+s.l+'</div>'
             + '<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(s.v)+'</div>'
