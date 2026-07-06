@@ -220,6 +220,10 @@ function initialsOf(n){ return n.split(' ').filter(Boolean).slice(0,2).map(w => 
 function egp(n){ if (!n) return 'EGP 0'; if (n >= 1000) return 'EGP ' + (n/1000).toFixed(n >= 100000 ? 0 : 1).replace('.0','') + 'k'; return 'EGP ' + n; }
 function short(n){ if (!n) return '0'; if (n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'k'; return '' + n; }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+// HTML-safe wrapper for inline handler arguments. JSON.stringify handles the
+// numeric-vs-string distinction (numbers stay bare, strings get quotes), and
+// we HTML-escape the resulting quotes so they don't blow up the attribute.
+function jsArg(v){ return JSON.stringify(v).replace(/"/g, '&quot;'); }
 
 // ---------- ACTIONS ----------
 function setState(patch){ Object.assign(state, patch); render(); }
@@ -544,7 +548,7 @@ function renderDashboard(){
     + '</div>'
     + myCos.map(co => {
         const st = STAGE[co.stage] || STAGE.lead;
-        return '<div class="row-h" onclick="openDetail('+JSON.stringify(co.id)+')" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--border);cursor:pointer;">'
+        return '<div class="row-h" onclick="openDetail('+jsArg(co.id)+')" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--border);cursor:pointer;">'
           + '<div style="'+logoStyle(34)+'">'+initialsOf(co.name)+'</div>'
           + '<div style="min-width:0;flex:1;">'
             + '<div style="font-size:14px;font-weight:700;color:var(--text);">'+esc(co.name)+'</div>'
@@ -925,7 +929,7 @@ function renderCompanies(){
     const st = STAGE[a.stage] || STAGE.lead;
     const c  = synthContact(a);
     const scoreColor = a.score >= 80 ? 'var(--ok)' : a.score >= 60 ? 'var(--warn)' : 'var(--text-3)';
-    return '<tr class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="cursor:pointer;">'
+    return '<tr class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="cursor:pointer;">'
       + '<td style="'+td+'padding-left:16px;">'
         + '<div style="display:flex;align-items:center;gap:10px;">'
           + '<div style="'+logoStyle(34)+'">'+initialsOf(a.name)+'</div>'
@@ -936,7 +940,7 @@ function renderCompanies(){
                   if (!entry) return '';
                   const total = entry.partners.size + 1;
                   const reasons = Array.from(entry.reasons).join(', ');
-                  return '<span onclick="event.stopPropagation();openMergeModal('+JSON.stringify(a.id)+')" title="Matches '+total+' rows via '+reasons+' — click to review &amp; merge" style="'+chip('bad')+';cursor:pointer;">⚠ dupe ×'+total+' →</span>';
+                  return '<span onclick="event.stopPropagation();openMergeModal('+jsArg(a.id)+')" title="Matches '+total+' rows via '+reasons+' — click to review &amp; merge" style="'+chip('bad')+';cursor:pointer;">⚠ dupe ×'+total+' →</span>';
                 })())
             + '</div>'
             + '<div style="font-size:11px;color:var(--text-3);margin-top:1px;">'+esc(a.domain || '—')+'</div>'
@@ -1026,7 +1030,7 @@ function renderPipeline(){
     const cardHtml = cards.map(a => {
       const am = amById(a.am);
       const tier = TIER[a.tier] || TIER.warm;
-      return '<div class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
+      return '<div class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
         + '<div style="display:flex;align-items:center;gap:9px;">'
           + '<div style="'+logoStyle(32)+'">'+initialsOf(a.name)+'</div>'
           + '<div style="min-width:0;flex:1;">'
@@ -1108,7 +1112,7 @@ function renderRenewal(){
     const cards = withRen.filter(a => a.ren === col.key);
     const cardHtml = cards.map(a => {
       const label = REN[a.ren] ? REN[a.ren].label : a.ren;
-      return '<div class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:8px;">'
+      return '<div class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:8px;">'
         + '<div style="font-size:14.5px;font-weight:800;letter-spacing:-.01em;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.name)+'</div>'
         + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
           + '<span style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(a.plan)+'</span>'
@@ -1208,7 +1212,7 @@ function renderTasks(){
     const am = amById(t.am);
     return '<tr class="row-h">'
       + '<td style="'+td+'"><span style="font-size:12px;color:var(--text-3);" class="tnum">'+esc(t.due)+'</span></td>'
-      + '<td style="'+td+'"><span style="font-size:13px;font-weight:700;color:var(--accent-ink);cursor:pointer;" onclick="openDetail('+JSON.stringify(t.acctId)+')">'+esc(t.account)+'</span></td>'
+      + '<td style="'+td+'"><span style="font-size:13px;font-weight:700;color:var(--accent-ink);cursor:pointer;" onclick="openDetail('+jsArg(t.acctId)+')">'+esc(t.account)+'</span></td>'
       + '<td style="'+td+'"><span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);">'+esc(t.type)+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:13px;color:var(--text);">'+esc(t.title)+'</span></td>'
       + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:7px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12.5px;font-weight:600;">'+esc(am.name)+'</span></div></td>'
@@ -1269,7 +1273,7 @@ function renderNotifications(){
   const unreadCount = items.filter(n => n.unread).length;
   const iconWrap = (v) => 'width:36px;height:36px;border-radius:10px;background:'+({bad:'var(--bad-bg)',warn:'var(--warn-bg)',ok:'var(--ok-bg)',info:'var(--info-bg)',lime:'var(--accent-soft)'}[v]||'var(--surface-2)')+';display:grid;place-items:center;font-size:16px;flex-shrink:0;';
   const list = items.map(n =>
-    '<div class="row-h" onclick="'+(n.acctId?('openDetail('+JSON.stringify(n.acctId)+')'):'toast(\'Nothing to open on this notification\')')+'" style="display:flex;align-items:flex-start;gap:14px;padding:16px 18px;background:var(--surface);border-radius:12px;cursor:pointer;margin-bottom:4px;border:1px solid var(--border);">'
+    '<div class="row-h" onclick="'+(n.acctId?('openDetail('+jsArg(n.acctId)+')'):'toast(\'Nothing to open on this notification\')')+'" style="display:flex;align-items:flex-start;gap:14px;padding:16px 18px;background:var(--surface);border-radius:12px;cursor:pointer;margin-bottom:4px;border:1px solid var(--border);">'
       + '<div style="'+iconWrap(n.v)+'">'+n.icon+'</div>'
       + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">'+esc(n.title)+'</div>'
@@ -1430,7 +1434,7 @@ function renderLogs(){
   const rows = logs.map(l => {
     const k = kindMap[l.kind] || kindMap.note;
     const targetId = l.acctId || (accts().find(a => a.name === l.acct)?.id);
-    const click = targetId != null ? 'openDetail('+JSON.stringify(targetId)+')' : 'toast(\'Account not in seed data\')';
+    const click = targetId != null ? 'openDetail('+jsArg(targetId)+')' : 'toast(\'Account not in seed data\')';
     return '<div class="row-h" onclick="'+click+'" style="display:grid;grid-template-columns:104px 1fr auto;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border);cursor:pointer;">'
       + '<span style="'+chip(k.v)+'">'+k.l+'</span>'
       + '<div style="min-width:0;">'
@@ -2206,7 +2210,7 @@ function renderMergeModal(){
     const c = synthContact(a);
     const isKeeper = a.id === keeper;
     return '<label style="display:grid;grid-template-columns:24px 1.6fr 1.4fr 100px 90px 90px 100px;gap:12px;align-items:center;padding:14px 16px;border:2px solid '+(isKeeper?'var(--accent)':'var(--border)')+';border-radius:12px;background:'+(isKeeper?'var(--accent-soft)':'var(--surface)')+';cursor:pointer;">'
-      + '<input type="radio" name="merge-keeper" value="'+esc(a.id)+'"'+(isKeeper?' checked':'')+' onchange="setMergeKeeper('+JSON.stringify(a.id)+')" style="width:16px;height:16px;accent-color:var(--accent);">'
+      + '<input type="radio" name="merge-keeper" value="'+esc(a.id)+'"'+(isKeeper?' checked':'')+' onchange="setMergeKeeper('+jsArg(a.id)+')" style="width:16px;height:16px;accent-color:var(--accent);">'
       + '<div style="min-width:0;">'
         + '<div style="font-size:13.5px;font-weight:700;color:var(--text);">'+esc(a.name)+(isKeeper?' <span style="font-size:10px;font-weight:800;color:var(--accent-ink);background:var(--accent);padding:1px 6px;border-radius:4px;margin-left:6px;">KEEP</span>':'')+'</div>'
         + '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">'+esc(a.domain || '—')+'</div>'
