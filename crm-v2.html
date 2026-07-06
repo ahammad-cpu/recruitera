@@ -1,0 +1,2057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recruitera CRM v2 · Preview</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cg-50:#EAEBEC;--cg-100:#D5D7D9;--cg-200:#C0C3C6;--cg-300:#ABAFB4;--cg-400:#969BA1;--cg-500:#81878E;--cg-600:#6C737C;--cg-700:#575F69;--cg-800:#424B56;--cg-900:#2D3844;
+    --purple-700:#392396;--purple-100:#E8E4F8;
+    --ok:#2F8F5C;--ok-bg:#E5F4EC;--warn:#B8761A;--warn-bg:#FBF1DE;--bad:#B83A3A;--bad-bg:#F7E3E3;--info:#2C5BA8;--info-bg:#E3ECF7;
+    --bg:#F7F8FA;--surface:#FFFFFF;--surface-2:#F2F4F7;--border:#E2E5EA;--border-2:#CDD2DA;
+    --text:#2D3844;--text-2:#575F69;--text-3:#81878E;--text-4:#ABAFB4;
+    /* Recruitera Lime accent (from design THEMES) */
+    --accent:#C0E930;--accent-strong:#A8D11A;--accent-soft:#F0FAD0;--accent-ink:#4F5E1B;--on-accent:#2D3844;--accent-ring:rgba(192,233,48,.32);
+    --sh1:0 1px 0 rgba(45,56,68,.04);
+    --sh2:0 1px 2px rgba(45,56,68,.06),0 4px 12px rgba(45,56,68,.04);
+    --sh3:0 8px 24px rgba(45,56,68,.10),0 2px 6px rgba(45,56,68,.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:"Montserrat",system-ui,-apple-system,sans-serif;font-feature-settings:"ss01","cv11";background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.45;letter-spacing:-.005em;}
+  button,input{font-family:inherit;}
+  button{cursor:pointer;border:0;background:transparent;color:inherit;}
+  .tnum{font-variant-numeric:tabular-nums;}
+  .sc::-webkit-scrollbar{width:10px;height:10px;}
+  .sc::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:999px;border:2px solid var(--bg);background-clip:content-box;}
+  .sc::-webkit-scrollbar-track{background:transparent;}
+  @keyframes fade{from{opacity:0;}}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98);}}
+  @keyframes slideIn{from{opacity:0;transform:translateX(24px);}}
+  @keyframes toastIn{from{opacity:0;transform:translateY(16px);}}
+  /* clickable rows */
+  .row-h:hover{background:var(--surface-2);}
+  .nav-h:hover{background:var(--surface-2);}
+  .nav-active:hover{background:var(--cg-900) !important;}
+  /* focus */
+  input:focus{outline:none;}
+  input:focus-visible{outline:2px solid var(--accent-ring);outline-offset:2px;}
+  /* logo tile */
+  .logo-tile{background:var(--cg-900);color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =========================================================================
+   Recruitera CRM v2 — Preview
+   Vanilla JS. State object → single render(). Mock data seeds inline.
+   Design source: reading-ability-check/project/Wuzzuf CRM.dc.html
+   ========================================================================= */
+
+// ---------- SUPABASE CONFIG (same as crm.html) ----------
+const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
+const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
+
+function getAccessToken(){
+  try{
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    const session = parsed?.currentSession || parsed;
+    const token = session?.access_token;
+    if(!token) return null;
+    let exp = session?.expires_at;
+    if(!exp){ try{ exp = JSON.parse(atob(token.split('.')[1]))?.exp; }catch{} }
+    if(!exp) return null;
+    if(Date.now()/1000 >= exp - 60){ localStorage.removeItem(SB_AUTH_KEY); return null; }
+    return token;
+  }catch{ return null; }
+}
+
+// ---------- STATE ----------
+const state = {
+  role: 'am',
+  page: 'home',
+  detailId: null,
+  detailTab: 'overview',
+  sidebarCollapsed: false,
+  range: '14d',
+  callsTab: 'all',
+  toast: null,
+  dataSource: 'mock',      // 'mock' | 'live' — flips to 'live' when Supabase fetch succeeds
+  dataStatus: 'idle',      // 'idle' | 'loading' | 'ready' | 'error'
+  dataError: null,
+  // per-view state slots (filled in in Phase 1b/1c)
+  acctTab: 'all', acctSearch: '', acctStage: 'all', acctSource: 'all',
+  acctStatus: 'all', acctIcp: 'all', acctOwner: 'all', acctTrial: 'all', acctPlan: 'all',
+  // data caches (lazily seeded)
+  accounts: null,
+  tasks: null,
+  approvals: null,
+};
+
+// ---------- SEED DATA (from design script, lines 3481-3541) ----------
+const AMS = [
+  { id:'na', name:'Nour Adel',    initials:'NA', role:'Senior AM', weight:30, cap:0.84 },
+  { id:'kf', name:'Karim Fawzy',  initials:'KF', role:'AM',        weight:25, cap:0.62 },
+  { id:'sh', name:'Salma Hassan', initials:'SH', role:'AM',        weight:25, cap:0.71 },
+  { id:'os', name:'Omar Sherif',  initials:'OS', role:'AM',        weight:20, cap:0.48 },
+  { id:'sy', name:'Sayed Youssif',initials:'SY', role:'AM',        weight:18, cap:0.55 },
+  { id:'ya', name:'Yasmin Adel',  initials:'YA', role:'Junior AM', weight:15, cap:0.32 },
+  { id:'mt', name:'Mai Tarek',    initials:'MT', role:'Junior AM', weight:12, cap:0.41 },
+  { id:'hr', name:'Heba Refaat',  initials:'HR', role:'AM',        weight:14, cap:0.28 },
+  { id:'ne', name:'Nada El-Sayed',initials:'NE', role:'Junior AM', weight:10, cap:0.14 },
+  { id:'ah', name:'Ahmed Hassan', initials:'AH', role:'AM',        weight:10, cap:0.08 },
+  { id:'ym', name:'Yara Mostafa', initials:'YM', role:'RC',        weight:0,  cap:0.66 },
+];
+
+const PHOTOS = { NA:44,KF:12,SH:9,OS:33,SY:68,YA:49,MT:10,HR:5,NE:23,AH:15,YM:47 };
+
+function seedAccounts(){ return [
+  { id:1,  name:'Talabat Egypt',   domain:'talabat.com',       am:'na', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:320, total:500, jobs:28, views:14200, applies:1850, last:'2h ago',  source:'Referral',  region:'Cairo',industry:'Food & Delivery',value:480000,score:92,tier:'hot',  ren:'active',   end:'Nov 20, 2026', since:'Mar 2023' },
+  { id:2,  name:'Vodafone Egypt',  domain:'vodafone.com.eg',   am:'kf', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Enterprise', used:0,   total:600, jobs:0,  views:18900, applies:2400, last:'2h ago',  source:'Outbound',  region:'Cairo',industry:'Telecom',        value:520000,score:92,tier:'hot',  ren:'upcoming', end:'Jul 20, 2026', since:'Mar 2024' },
+  { id:3,  name:'Fawry',           domain:'fawry.com',         am:'sh', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Pro',        used:60,  total:120, jobs:9,  views:5400,  applies:610,  last:'1d ago',  source:'Inbound',   region:'Giza', industry:'Fintech',        value:180000,score:78,tier:'warm', ren:null,       end:null,            since:'Apr 2026' },
+  { id:4,  name:'Instabug',        domain:'instabug.com',      am:'na', stage:'demo',     paid:'Free Trial',     act:'Active',  plan:'Growth',     used:22,  total:60,  jobs:5,  views:2100,  applies:240,  last:'3h ago',  source:'Webflow',   region:'Cairo',industry:'Software',       value:95000, score:71,tier:'warm', ren:null,       end:null,            since:'May 2026' },
+  { id:5,  name:'Swvl',            domain:'swvl.com',          am:'os', stage:'mql',      paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'2d ago',  source:'LinkedIn',  region:'Cairo',industry:'Mobility',       value:60000, score:58,tier:'warm', ren:null,       end:null,            since:'Jun 2026' },
+  { id:6,  name:'Breadfast',       domain:'breadfast.com',     am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Pro',        used:150, total:200, jobs:14, views:8600,  applies:1100, last:'6h ago',  source:'Referral',  region:'Cairo',industry:'Q-commerce',     value:240000,score:84,tier:'hot',  ren:'active',   end:'Aug 1, 2026',  since:'Feb 2024' },
+  { id:7,  name:'MaxAB',           domain:'maxab.io',          am:'kf', stage:'won',      paid:'Paid',           act:'Expired', plan:'Growth',     used:190, total:200, jobs:11, views:4300,  applies:520,  last:'4d ago',  source:'Outbound',  region:'Giza', industry:'B2B commerce',   value:130000,score:80,tier:'hot',  ren:'overdue',  end:'May 30, 2026', since:'Jun 2024' },
+  { id:8,  name:'Halan',           domain:'halan.com',         am:'sh', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Pro',        used:88,  total:120, jobs:8,  views:3900,  applies:470,  last:'1d ago',  source:'Inbound',   region:'Cairo',industry:'Fintech',        value:175000,score:76,tier:'warm', ren:null,       end:null,            since:'May 2026' },
+  { id:9,  name:'Paymob',          domain:'paymob.com',        am:'na', stage:'lost',     paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'9d ago',  source:'LinkedIn',  region:'Cairo',industry:'Fintech',        value:0,     score:41,tier:'cool', ren:null,       end:null,            since:'Mar 2026' },
+  { id:10, name:'Valeo Egypt',     domain:'valeo.com',         am:'os', stage:'lead',     paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'12d ago', source:'Partner',   region:'Cairo',industry:'Automotive',     value:0,     score:47,tier:'cool', ren:null,       end:null,            since:'Jun 2026' },
+  { id:11, name:'Juhayna',         domain:'juhayna.com',       am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:280, total:500, jobs:22, views:9900,  applies:1300, last:'7h ago',  source:'Referral',  region:'Giza', industry:'FMCG',           value:390000,score:88,tier:'hot',  ren:'upcoming', end:'Aug 10, 2026', since:'Sep 2023' },
+  { id:12, name:'Edita',           domain:'edita.com.eg',      am:'kf', stage:'won',      paid:'Paid',           act:'Active',  plan:'Growth',     used:175, total:200, jobs:9,  views:3600,  applies:410,  last:'1d ago',  source:'Outbound',  region:'Giza', industry:'FMCG',           value:120000,score:79,tier:'warm', ren:'out30',    end:'Jul 8, 2026',  since:'Jul 2024' },
+  { id:13, name:'B.TECH',          domain:'btech.com',         am:'sh', stage:'demo',     paid:'Free Trial',     act:'Active',  plan:'Growth',     used:30,  total:60,  jobs:6,  views:2600,  applies:300,  last:'2d ago',  source:'Inbound',   region:'Cairo',industry:'Retail',         value:88000, score:68,tier:'warm', ren:null,       end:null,            since:'May 2026' },
+  { id:14, name:'Raya Holding',    domain:'rayacorp.com',      am:'na', stage:'won',      paid:'Without Charge', act:'Active',  plan:'Pro',        used:95,  total:150, jobs:7,  views:3100,  applies:360,  last:'3d ago', source:'Partner',   region:'Cairo',industry:'Conglomerate',   value:0,     score:72,tier:'warm', ren:'active',   end:'Dec 1, 2026',  since:'Oct 2023' },
+  { id:15, name:'Tradeline',       domain:'tradeline-eg.com',  am:'os', stage:'mql',      paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'5h ago',  source:'LinkedIn',  region:'Cairo',industry:'Electronics',    value:55000, score:56,tier:'warm', ren:null,       end:null,            since:'Jun 2026' },
+  { id:16, name:'Nestlé Egypt',    domain:'nestle.com.eg',     am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:360, total:600, jobs:30, views:15400, applies:2000, last:'8h ago',  source:'Outbound',  region:'Cairo',industry:'FMCG',           value:540000,score:93,tier:'hot',  ren:'upcoming', end:'Jan 15, 2027', since:'Jan 2022' },
+  { id:17, name:'Sarwa Capital',   domain:'sarwa.capital',     am:'kf', stage:'lost',     paid:'Not Paid',       act:'Expired', plan:'Growth',     used:200, total:200, jobs:0,  views:1200,  applies:90,   last:'21d ago', source:'Outbound',  region:'Cairo',industry:'Finance',        value:0,     score:52,tier:'cool', ren:'churned',  end:'Apr 2, 2026',  since:'Apr 2025' },
+]; }
+
+function seedTasks(){ return [
+  { id:'t1', title:'Send renewal proposal — MaxAB',        account:'MaxAB',         acctId:7,  due:'Today',    prio:'high', type:'proposal', done:false, am:'kf' },
+  { id:'t2', title:'Call back Fawry procurement',          account:'Fawry',         acctId:3,  due:'Today',    prio:'high', type:'call',     done:false, am:'sh' },
+  { id:'t3', title:'WhatsApp Edita re: plan expiry',       account:'Edita',         acctId:12, due:'Today',    prio:'high', type:'whatsapp', done:false, am:'na' },
+  { id:'t4', title:'Follow up demo — Instabug',            account:'Instabug',      acctId:4,  due:'Tomorrow', prio:'med',  type:'demo',     done:false, am:'na' },
+  { id:'t5', title:'Prepare BANT — Swvl',                  account:'Swvl',          acctId:5,  due:'Jun 16',   prio:'med',  type:'task',     done:false, am:'os' },
+  { id:'t6', title:'Credit top-up nudge — Talabat',        account:'Talabat Egypt', acctId:1,  due:'Jun 15',   prio:'med',  type:'email',    done:false, am:'na' },
+  { id:'t7', title:'LinkedIn enrich — Tradeline',          account:'Tradeline',     acctId:15, due:'Jun 18',   prio:'low',  type:'task',     done:true,  am:'kf' },
+]; }
+
+function seedApprovals(){ return [
+  { id:'a1', name:'Disty Technologies', domain:'disty.com',     source:'Website sign-up', when:'12m ago', score:74, tier:'warm', suggest:'kf', dupe:false, contact:'Mona Adel · Talent Lead',  size:'200–500'  },
+  { id:'a2', name:'Rabbit Mart',        domain:'rabbitmart.com',source:'Website sign-up', when:'40m ago', score:84, tier:'hot',  suggest:'sh', dupe:true, dupeOwner:'na', contact:'Tarek Nabil · HR Director', size:'500–1000' },
+  { id:'a3', name:'Cartona',            domain:'cartona.com',   source:'Webflow demo',    when:'1h ago',  score:69, tier:'warm', suggest:'os', dupe:false, contact:'Sara Galal · Recruiter',   size:'100–200'  },
+  { id:'a4', name:'Bosta',              domain:'bosta.co',      source:'Website sign-up', when:'2h ago',  score:77, tier:'warm', suggest:'ym', dupe:false, contact:'Hossam Ali · People Ops',  size:'500–1000' },
+  { id:'a5', name:'Lucky Egypt',        domain:'lucky.app',     source:'Website sign-up', when:'3h ago',  score:61, tier:'warm', suggest:'kf', dupe:false, contact:'Nada Reda · HR',           size:'50–100'   },
+]; }
+
+// ---------- CONSTANTS ----------
+const STAGE = {
+  lead:     { label:'Lead',     v:'neutral' },
+  mql:      { label:'MQL',      v:'info'    },
+  sql:      { label:'SQL',      v:'info'    },
+  demo:     { label:'Demo',     v:'brand'   },
+  proposal: { label:'Proposal', v:'warn'    },
+  won:      { label:'Won',      v:'ok'      },
+  lost:     { label:'Lost',     v:'bad'     },
+};
+const REN = {
+  active:   { label:'Active',        v:'ok'      },
+  upcoming: { label:'Upcoming 60d+', v:'info'    },
+  out30:    { label:'30 days out',   v:'warn'    },
+  overdue:  { label:'Overdue',       v:'bad'     },
+  renewed:  { label:'Renewed',       v:'lime'    },
+  churned:  { label:'Churned',       v:'neutral' },
+};
+const TIER = {
+  hot:  { label:'🔥 Hot',  v:'lime'    },
+  warm: { label:'✓ Warm',  v:'warn'    },
+  cool: { label:'⚠ Cool',  v:'neutral' },
+};
+const PAID = { 'Paid':'ok','Free Trial':'info','Without Charge':'brand','Not Paid':'neutral' };
+
+const CHIP = {
+  neutral:'background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);',
+  ok:     'background:var(--ok-bg);color:var(--ok);',
+  warn:   'background:var(--warn-bg);color:var(--warn);',
+  bad:    'background:var(--bad-bg);color:var(--bad);',
+  info:   'background:var(--info-bg);color:var(--info);',
+  brand:  'background:var(--purple-100);color:var(--purple-700);',
+  lime:   'background:var(--accent-soft);color:var(--accent-ink);',
+};
+function chip(v){ return 'display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;' + (CHIP[v] || CHIP.neutral); }
+
+// ---------- HELPERS ----------
+function accts(){ return state.accounts || (state.accounts = seedAccounts()); }
+function tasksList(){ return state.tasks || (state.tasks = seedTasks()); }
+function approvalsList(){ return state.approvals || (state.approvals = seedApprovals()); }
+function amById(id){ return AMS.find(a => a.id === id) || { name:'—', initials:'—' }; }
+
+function me(){
+  const r = state.role;
+  if (r === 'rc')    return { id:'ym',    name:'Yara Mostafa', initials:'YM', roleLabel:'Recruitment Consultant', roleShort:'RC' };
+  if (r === 'admin') return { id:'admin', name:'Amr Hammad',   initials:'AH', roleLabel:'Sales Admin',            roleShort:'Admin' };
+  return { id:'na', name:'Nour Adel', initials:'NA', roleLabel:'Account Manager', roleShort:'AM' };
+}
+
+function photoUrl(key){ const n = PHOTOS[key]; return n ? 'https://i.pravatar.cc/160?img=' + n : null; }
+function avatar(initials, size, key){
+  const s = size || 30;
+  const url = photoUrl(key || initials);
+  if (url) return 'width:'+s+'px;height:'+s+'px;border-radius:999px;background-image:url(\''+url+'\');background-size:cover;background-position:center;background-color:var(--purple-700);color:transparent;display:grid;place-items:center;font-weight:800;font-size:'+Math.round(s*0.36)+'px;flex-shrink:0;box-shadow:0 0 0 1px var(--border);';
+  return 'width:'+s+'px;height:'+s+'px;border-radius:999px;background:linear-gradient(135deg,var(--purple-700),#6C56D9);color:#fff;display:grid;place-items:center;font-weight:700;font-size:'+Math.round(s*0.38)+'px;flex-shrink:0;';
+}
+function logoStyle(size){ const s = size || 34; return 'width:'+s+'px;height:'+s+'px;border-radius:9px;background:var(--cg-900);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:'+Math.round(s*0.38)+'px;flex-shrink:0;'; }
+function initialsOf(n){ return n.split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
+function egp(n){ if (!n) return 'EGP 0'; if (n >= 1000) return 'EGP ' + (n/1000).toFixed(n >= 100000 ? 0 : 1).replace('.0','') + 'k'; return 'EGP ' + n; }
+function short(n){ if (!n) return '0'; if (n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'k'; return '' + n; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+// ---------- ACTIONS ----------
+function setState(patch){ Object.assign(state, patch); render(); }
+function go(page){ setState({ page, detailId: null }); }
+function toggleSidebar(){ setState({ sidebarCollapsed: !state.sidebarCollapsed }); }
+function openDetail(id){ setState({ detailId: id, detailTab: 'overview' }); }
+function closeDetail(){ setState({ detailId: null }); }
+function toggleTask(id){
+  const t = tasksList();
+  const x = t.find(i => i.id === id);
+  if (x) x.done = !x.done;
+  setState({ tasks: t.slice() });
+}
+function setRange(r){ setState({ range: r }); }
+function setCallsTab(t){ setState({ callsTab: t }); }
+function toast(msg){
+  state.toast = msg;
+  render();
+  clearTimeout(window._crmToast);
+  window._crmToast = setTimeout(() => { state.toast = null; render(); }, 2600);
+}
+function setRole(r){ setState({ role: r }); }
+
+// expose to inline handlers
+Object.assign(window, { go, toggleSidebar, openDetail, closeDetail, toggleTask, setRange, setCallsTab, toast, setRole });
+
+// ---------- SPARKLINE ----------
+function sparkBars(seed, useAccent){
+  const out = []; let s = seed;
+  for (let i = 0; i < 11; i++) {
+    s = (s * 9301 + 49297) % 233280;
+    const v = 30 + (s / 233280) * 65;
+    out.push('<div style="width:4px;border-radius:2px;height:'+v.toFixed(0)+'%;background:'+(useAccent ? 'var(--accent)' : 'var(--cg-300)')+';"></div>');
+  }
+  return '<div style="display:flex;align-items:flex-end;gap:2px;height:28px;">' + out.join('') + '</div>';
+}
+
+// ---------- CHART (rolling revenue) ----------
+function chartPaths(){
+  const pts = [28,32,30,36,40,38,46,44,52,50,58,62];
+  const net = pts.map(v => v - 6);
+  const W=720,H=220,pl=36,pr=16,pt=16,pb=20;
+  const iw=W-pl-pr, ih=H-pt-pb, max=70, min=14;
+  const x = i => pl + (i/(pts.length-1))*iw;
+  const y = v => pt + ih - ((v-min)/(max-min))*ih;
+  const line = arr => arr.map((v,i) => (i?'L':'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  const area = line(pts) + ' L ' + x(pts.length-1).toFixed(1) + ',' + (pt+ih).toFixed(1) + ' L ' + pl + ',' + (pt+ih).toFixed(1) + ' Z';
+  return { gross: line(pts), net: line(net), area, W, H };
+}
+
+// ---------- ICONS ----------
+const ICON = {
+  home:          '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  companies:     '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  pipeline:      '<path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6"/>',
+  renewal:       '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  notifications: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  tasks:         '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  amperf:        '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  reports:       '<path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-4-4L4 14.7"/><path d="M14 8h5v5"/>',
+  logs:          '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
+  users:         '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  utm:           '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  search:        '<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>',
+  plus:          '<path d="M12 5v14M5 12h14"/>',
+  check:         '<path d="M20 6L9 17l-5-5"/>',
+  chevronL:      '<path d="M15 18l-6-6 6-6"/>',
+  chevronR:      '<path d="M9 18l6-6-6-6"/>',
+};
+function svg(name, size, strokeWidth){
+  const w = size || 16;
+  const sw = strokeWidth || 1.9;
+  return '<svg width="'+w+'" height="'+w+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round">'+ICON[name]+'</svg>';
+}
+
+// =========================================================================
+//   RENDER: SIDEBAR
+// =========================================================================
+function renderSidebar(){
+  const col = state.sidebarCollapsed;
+  const nav = (key, iconName, label, badge, badgeStyle) => {
+    const active = state.page === key;
+    const bStyle = badgeStyle || 'margin-left:auto;background:var(--surface-2);border:1px solid var(--border);color:var(--text-3);font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;';
+    const cls = 'nav-h' + (active ? ' nav-active' : '');
+    return '<div onclick="go(\''+key+'\')" class="'+cls+'" style="display:flex;align-items:center;'+(col?'justify-content:center;':'')+'gap:10px;padding:8px '+(col?'8px':'10px')+';border-radius:8px;font-size:13px;font-weight:'+(active?600:500)+';cursor:pointer;color:'+(active?'#fff':'var(--text-2)')+';background:'+(active?'var(--cg-900)':'transparent')+';transition:background .12s;">'
+      + svg(iconName, 16)
+      + (col ? '' : '<span>'+label+'</span>')
+      + (badge != null && !col ? '<span class="tnum" style="'+bStyle+'">'+badge+'</span>' : '')
+      + '</div>';
+  };
+  const section = (label) => col ? '' : '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-4);padding:14px 10px 6px;font-weight:600;">'+label+'</div>';
+  const acts = accts();
+  const counts = {
+    accounts:      acts.length,
+    openLeads:     acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length,
+    renewals:      acts.filter(a => a.end && !['lost'].includes(a.stage)).length,
+    tasksDueToday: tasksList().filter(t => t.due === 'Today' && !t.done).length,
+    unreadNotifs:  7,
+  };
+  const badBadge = 'margin-left:auto;background:var(--bad);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;';
+  const meObj = me();
+  return '<div class="sc" style="background:var(--surface);border-right:1px solid var(--border);padding:18px '+(col?'8px':'14px')+';display:flex;flex-direction:column;gap:4px;overflow-y:auto;overflow-x:hidden;transition:padding .2s;">'
+    // brand
+    + '<div style="display:flex;align-items:center;gap:9px;padding:8px 8px 16px;border-bottom:1px solid var(--border);margin-bottom:12px;overflow:hidden;">'
+      + '<div style="display:inline-flex;align-items:center;gap:8px;">'
+        + '<div style="width:26px;height:26px;border-radius:7px;background:var(--cg-900);color:var(--accent);display:grid;place-items:center;font-weight:900;font-size:14px;flex-shrink:0;">R</div>'
+        + (col ? '' : '<span style="font-size:15px;font-weight:800;letter-spacing:-.025em;color:var(--text);">Recruitera</span>')
+      + '</div>'
+      + (col ? '' : '<span style="font-size:10px;color:var(--text-3);font-weight:700;letter-spacing:.06em;background:var(--surface-2);border:1px solid var(--border);padding:2px 7px;border-radius:5px;text-transform:uppercase;">CRM</span>')
+    + '</div>'
+    // WORKSPACE
+    + section('Workspace')
+    + nav('home',          'home',          'Dashboard')
+    + nav('accounts',      'companies',     'Companies',     counts.accounts)
+    + nav('pipeline',      'pipeline',      'Pipeline',      counts.openLeads)
+    + nav('renewal',       'renewal',       'Renewal',       counts.renewals)
+    + nav('notifications', 'notifications', 'Notifications', counts.unreadNotifs, badBadge)
+    + nav('tasks',         'tasks',         'Tasks',         counts.tasksDueToday)
+    // OPERATIONS
+    + section('Operations')
+    + nav('amperf',  'amperf',  'AM Performance')
+    + nav('reports', 'reports', 'Reports')
+    + nav('logs',    'logs',    'Logs')
+    + nav('users',   'users',   'Users')
+    + nav('utm',     'utm',     'UTM Generator')
+    // profile / collapse
+    + '<div style="margin-top:auto;padding:12px 8px 4px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;">'
+      + '<div style="'+avatar(meObj.initials, 30)+'">'+meObj.initials+'</div>'
+      + (col ? '' :
+          '<div style="min-width:0;flex:1;">'
+          + '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+meObj.name+'</div>'
+          + '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">'+meObj.roleLabel+'</div>'
+          + '</div>')
+      + '<div onclick="toggleSidebar()" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;flex-shrink:0;color:var(--text-3);">'
+        + svg(col ? 'chevronR' : 'chevronL', 13, 2)
+      + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: TOPBAR
+// =========================================================================
+const PAGE_TITLES = {
+  home:'Dashboard', accounts:'Companies', pipeline:'Sales Pipeline',
+  renewal:'Renewal Pipeline', notifications:'Notifications', tasks:'Tasks',
+  amperf:'AM Performance', reports:'Reports', logs:'System Logs',
+  users:'Users & Permissions', utm:'UTM Generator',
+};
+function renderTopbar(){
+  const title = state.detailId ? 'Company Profile' : (PAGE_TITLES[state.page] || '');
+  return '<div style="height:60px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3);font-weight:500;">'
+      + '<span style="cursor:pointer;" onclick="go(\'home\')">Home</span>'
+      + '<span style="color:var(--text-4);">/</span>'
+      + '<span style="color:var(--text);font-weight:600;">'+esc(title)+'</span>'
+    + '</div>'
+    + '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;width:300px;">'
+      + '<span style="color:var(--text-3);display:flex;">'+svg('search',14,2)+'</span>'
+      + '<input placeholder="Search companies, contacts, tasks…" style="background:transparent;border:0;outline:0;font-family:inherit;font-size:13px;color:var(--text);width:100%;">'
+      + '<span style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border-2);color:var(--text-3);font-weight:600;">⌘K</span>'
+    + '</div>'
+    + '<button onclick="toast(\'New employer flow — coming in Phase 2\')" style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;background:var(--cg-900);color:#fff;font-weight:600;font-size:13px;">'
+      + svg('plus',14,2.2)
+      + 'New employer'
+    + '</button>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: DASHBOARD
+// =========================================================================
+function renderDashboard(){
+  const acts = accts();
+  const meObj = me();
+  const role = state.role;
+  const pipelineVal = acts.filter(a => ['mql','demo','proposal'].includes(a.stage)).reduce((s,a) => s+a.value, 0);
+  const wonVal = acts.filter(a => a.stage === 'won').reduce((s,a) => s+a.value, 0);
+  const paidCount = acts.filter(a => a.paid === 'Paid').length;
+
+  // MY TARGET banner data
+  const target = { target: egp(280000), invoiced: egp(224000), remaining: egp(56000), attainPct: '80%' };
+  const targetBanner =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px 28px;box-shadow:var(--sh1);margin-bottom:20px;position:relative;overflow:hidden;">'
+    + '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#22C55E 0%,#A8D800 100%);"></div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">'
+      + '<span style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);">MY TARGET</span>'
+      + '<span style="font-size:12px;color:var(--text-3);font-weight:500;">· June 2026 · '+meObj.name+'</span>'
+      + '<div style="flex:1;"></div>'
+      + '<span class="tnum" style="'+chip('ok')+'">'+target.attainPct+' attained</span>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:28px;align-items:center;">'
+      + '<div>'
+        + '<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Target</div>'
+        + '<div class="tnum" style="font-size:30px;font-weight:900;letter-spacing:-.03em;color:var(--text);">'+target.target+'</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">June 2026</div>'
+      + '</div>'
+      + '<div>'
+        + '<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Invoiced</div>'
+        + '<div class="tnum" style="font-size:30px;font-weight:900;letter-spacing:-.03em;color:#22C55E;">'+target.invoiced+'</div>'
+        + '<div style="display:flex;align-items:center;gap:5px;margin-top:4px;">'
+          + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>'
+          + '<span style="font-size:11.5px;color:#22C55E;font-weight:700;">+11% vs last month</span>'
+        + '</div>'
+      + '</div>'
+      + '<div>'
+        + '<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Remaining</div>'
+        + '<div class="tnum" style="font-size:30px;font-weight:900;letter-spacing:-.03em;color:var(--text-2);">'+target.remaining+'</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">7 days left</div>'
+      + '</div>'
+      + '<div>'
+        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
+          + '<div style="flex:1;height:14px;border-radius:999px;background:var(--surface-2);overflow:hidden;position:relative;display:flex;">'
+            + '<div style="height:100%;width:80%;background:#22C55E;"></div>'
+            + '<div style="height:100%;width:20%;background:transparent;"></div>'
+          + '</div>'
+          + '<span class="tnum" style="font-size:16px;font-weight:800;color:#22C55E;">80%</span>'
+        + '</div>'
+        + '<div style="display:flex;gap:16px;">'
+          + '<div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:3px;background:#22C55E;"></div><span style="font-size:11.5px;color:var(--text-2);font-weight:600;">Invoiced '+target.invoiced+'</span></div>'
+          + '<div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:3px;background:var(--surface-2);border:1px solid var(--border-2);"></div><span style="font-size:11.5px;color:var(--text-3);font-weight:600;">Remaining '+target.remaining+'</span></div>'
+        + '</div>'
+        + '<div style="display:flex;align-items:flex-end;gap:4px;margin-top:14px;height:36px;">'
+          + ['Jan','Feb','Mar','Apr','May','Jun'].map((m,i) => {
+              const h = [40,55,45,70,62,80][i];
+              const cur = i === 5;
+              return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">'
+                + '<div style="width:100%;height:'+h+'%;border-radius:2px;background:'+(cur?'#22C55E':'var(--surface-2)')+';border:1px solid '+(cur?'#22C55E':'var(--border)')+';"></div>'
+                + '<span style="font-size:9px;color:var(--text-4);font-weight:600;">'+m+'</span>'
+              + '</div>';
+            }).join('')
+        + '</div>'
+      + '</div>'
+    + '</div>'
+  + '</div>';
+
+  // My companies
+  const myCos = acts.filter(a => a.am === meObj.id || meObj.id === 'admin').slice(0, 4);
+  const myCoOpen = acts.filter(a => a.am === meObj.id && ['mql','demo','proposal'].includes(a.stage)).length;
+  const myCoCount = acts.filter(a => a.am === meObj.id).length;
+  const myCoBlock =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh1);overflow:hidden;">'
+    + '<div style="display:flex;align-items:center;gap:10px;padding:18px 20px 14px;">'
+      + '<span style="font-size:15px;font-weight:800;letter-spacing:-.01em;">My companies</span>'
+      + '<span class="tnum" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text);">'+myCoCount+'</span>'
+      + '<span style="font-size:13px;color:var(--text-3);font-weight:500;">'+myCoOpen+' open</span>'
+      + '<div style="flex:1;"></div>'
+      + '<span onclick="go(\'accounts\')" style="font-size:13px;color:var(--accent-ink);font-weight:700;cursor:pointer;">View all</span>'
+    + '</div>'
+    + myCos.map(co => {
+        const st = STAGE[co.stage] || STAGE.lead;
+        return '<div class="row-h" onclick="openDetail('+co.id+')" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--border);cursor:pointer;">'
+          + '<div style="'+logoStyle(34)+'">'+initialsOf(co.name)+'</div>'
+          + '<div style="min-width:0;flex:1;">'
+            + '<div style="font-size:14px;font-weight:700;color:var(--text);">'+esc(co.name)+'</div>'
+            + '<div style="font-size:12px;color:var(--text-3);margin-top:2px;">'+esc(co.plan)+'</div>'
+          + '</div>'
+          + '<span style="'+chip(st.v)+'">'+st.label+'</span>'
+          + '<span class="tnum" style="font-size:14px;font-weight:700;color:var(--text);min-width:80px;text-align:right;">'+egp(co.value)+'</span>'
+        + '</div>';
+      }).join('')
+  + '</div>';
+
+  // My tasks
+  const myTasks = tasksList().slice(0, 4);
+  const myTasksBlock =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh1);overflow:hidden;">'
+    + '<div style="display:flex;align-items:center;gap:10px;padding:18px 20px 14px;">'
+      + '<span style="font-size:15px;font-weight:800;letter-spacing:-.01em;">My Tasks</span>'
+      + '<span class="tnum" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:var(--warn-bg);font-size:12px;font-weight:700;color:var(--warn);">'+tasksList().filter(t=>t.due==='Today'&&!t.done).length+'</span>'
+      + '<div style="flex:1;"></div>'
+      + '<span onclick="go(\'tasks\')" style="font-size:13px;color:var(--accent-ink);font-weight:700;cursor:pointer;">View all</span>'
+    + '</div>'
+    + myTasks.map(t => {
+        const check = 'width:18px;height:18px;border-radius:6px;flex-shrink:0;cursor:pointer;display:grid;place-items:center;border:1.5px solid '+(t.done?'var(--accent)':'var(--border-2)')+';background:'+(t.done?'var(--accent)':'var(--surface)')+';';
+        const titleStyle = 'font-size:13px;font-weight:600;color:'+(t.done?'var(--text-3)':'var(--text)')+';text-decoration:'+(t.done?'line-through':'none')+';';
+        return '<div style="display:flex;align-items:flex-start;gap:14px;padding:14px 20px;border-top:1px solid var(--border);">'
+          + '<div onclick="toggleTask(\''+t.id+'\')" style="'+check+'">'+(t.done?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="'+(state.role==='rc'?'#2D3844':'#2D3844')+'" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':'')+'</div>'
+          + '<div style="min-width:0;flex:1;">'
+            + '<div style="'+titleStyle+'">'+esc(t.title)+'</div>'
+            + '<div style="font-size:12px;color:var(--text-3);margin-top:3px;">'+esc(t.account)+'</div>'
+          + '</div>'
+          + '<span style="'+chip(t.due==='Today'?'bad':'neutral')+'">'+esc(t.due)+'</span>'
+        + '</div>';
+      }).join('')
+  + '</div>';
+
+  // Today's calls & meetings
+  const callItems = [
+    { time:'10:00', duration:'30m', type:'call',    typeGlyph:'📞', status:'upcoming', title:'Fawry procurement discovery',    company:'Fawry',        initials:'SH', am:'sh', hasNote:false, note:'' },
+    { time:'11:30', duration:'45m', type:'meeting', typeGlyph:'👥', status:'upcoming', title:'MaxAB renewal negotiation',       company:'MaxAB',        initials:'KF', am:'kf', hasNote:true,  note:'Prep: last-quarter usage report + Growth+ discount offer' },
+    { time:'14:00', duration:'30m', type:'demo',    typeGlyph:'🖥', status:'upcoming', title:'Instabug HR team demo',           company:'Instabug',     initials:'NA', am:'na', hasNote:false, note:'' },
+    { time:'15:30', duration:'20m', type:'call',    typeGlyph:'📞', status:'done',     title:'Edita follow-up',                 company:'Edita',        initials:'KF', am:'kf', hasNote:true,  note:'Sent WhatsApp: renewal quote follows this week' },
+    { time:'16:00', duration:'30m', type:'meeting', typeGlyph:'👥', status:'done',     title:'Talabat QBR wrap-up',             company:'Talabat Egypt',initials:'NA', am:'na', hasNote:false, note:'' },
+    { time:'17:00', duration:'15m', type:'call',    typeGlyph:'📞', status:'upcoming', title:'Halan pricing questions',         company:'Halan',        initials:'SH', am:'sh', hasNote:false, note:'' },
+  ];
+  const shown = state.callsTab === 'all' ? callItems : callItems.filter(c => c.status === (state.callsTab === 'upcoming' ? 'upcoming' : 'done'));
+  const callsTab = (key, label) => {
+    const active = state.callsTab === key;
+    return '<div onclick="setCallsTab(\''+key+'\')" style="padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;color:'+(active?'var(--text)':'var(--text-3)')+';background:'+(active?'var(--surface)':'transparent')+';box-shadow:'+(active?'var(--sh1)':'none')+';">'+label+'</div>';
+  };
+  const callsBlock =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh1);overflow:hidden;margin-top:16px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;padding:18px 20px 14px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:15px;font-weight:800;letter-spacing:-.01em;">📞 Today\'s calls &amp; meetings</span>'
+      + '<span class="tnum" style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:var(--accent-soft);font-size:12px;font-weight:700;color:var(--accent-ink);">'+callItems.length+'</span>'
+      + '<div style="flex:1;"></div>'
+      + '<div style="display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:2px;">'
+        + callsTab('all','All') + callsTab('upcoming','Upcoming') + callsTab('done','Done')
+      + '</div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);">'
+      + shown.map(c => {
+          const dotColor = c.status === 'done' ? 'var(--ok)' : 'var(--accent)';
+          const statusChip = c.status === 'done'
+            ? '<span style="'+chip('ok')+'">✓ Done</span>'
+            : '<span style="'+chip('info')+'">Upcoming</span>';
+          const typeIcon = 'width:24px;height:24px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;font-size:12px;';
+          return '<div style="display:flex;gap:14px;padding:16px 20px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);">'
+            + '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:44px;">'
+              + '<span class="tnum" style="font-size:13px;font-weight:800;color:var(--text);">'+c.time+'</span>'
+              + '<span style="font-size:10px;font-weight:600;color:var(--text-4);">'+c.duration+'</span>'
+              + '<div style="width:8px;height:8px;border-radius:999px;background:'+dotColor+';margin-top:4px;"></div>'
+            + '</div>'
+            + '<div style="min-width:0;flex:1;">'
+              + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">'
+                + '<div style="'+typeIcon+'">'+c.typeGlyph+'</div>'
+                + statusChip
+              + '</div>'
+              + '<div style="font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:3px;">'+esc(c.title)+'</div>'
+              + '<div style="font-size:12px;color:var(--text-3);font-weight:500;">'+esc(c.company)+'</div>'
+              + (c.hasNote ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:6px;padding:6px 10px;background:var(--surface-2);border-radius:7px;border:1px solid var(--border);line-height:1.4;">'+esc(c.note)+'</div>' : '')
+            + '</div>'
+            + '<div style="'+avatar(c.initials, 32, c.initials)+'">'+c.initials+'</div>'
+          + '</div>';
+        }).join('')
+      + (shown.length === 0 ? '<div style="grid-column:1/-1;padding:40px 20px;text-align:center;color:var(--text-4);font-size:13px;font-weight:600;">No calls or meetings in this filter.</div>' : '')
+    + '</div>'
+  + '</div>';
+
+  // KPI strip
+  const delta = (txt, good) => '<span style="font-size:12px;font-weight:600;color:'+(good?'var(--ok)':'var(--bad)')+';">'+txt+'</span>';
+  const kpis = [
+    { label:'Pipeline value',   value: egp(pipelineVal),                 sub:'open · new business', delta: delta('▲ 14%',true), accent:true },
+    { label:'Won (QTD)',        value: egp(wonVal),                      sub:'closed revenue',      delta: delta('▲ 22%',true) },
+    { label:'Active customers', value: '' + paidCount,                   sub:'paying employers',    delta: delta('▲ 3',  true) },
+    { label:'Renewals 30d',     value: '2',                              sub:'EGP 250k at risk',    delta: delta('▼ risk',false) },
+    { label:'Win rate',         value: '61%',                            sub:'last 90 days',        delta: delta('▲ 4%', true) },
+  ];
+  const kpiStrip =
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">'
+    + kpis.map((k, i) => {
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--sh1);position:relative;overflow:hidden;">'
+          + (k.accent ? '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);"></div>' : '')
+          + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);">'+esc(k.label)+'</span>'+k.delta+'</div>'
+          + '<div class="tnum" style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--text);margin-bottom:2px;">'+esc(k.value)+'</div>'
+          + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-bottom:10px;">'+esc(k.sub)+'</div>'
+          + sparkBars(i*3+7, k.accent)
+        + '</div>';
+      }).join('')
+  + '</div>';
+
+  return '<div style="padding:24px 28px 56px;max-width:1400px;">'
+    + targetBanner
+    + kpiStrip
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start;">'
+      + myCoBlock
+      + myTasksBlock
+    + '</div>'
+    + callsBlock
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: COMPANIES (Accounts)
+// =========================================================================
+function filteredAccounts(){
+  const s = state;
+  let rows = accts().slice();
+  // tab
+  if (s.acctTab === 'leads')    rows = rows.filter(a => a.stage === 'lead');
+  else if (s.acctTab === 'pipeline') rows = rows.filter(a => ['mql','sql','demo','proposal'].includes(a.stage));
+  else if (s.acctTab === 'paid')     rows = rows.filter(a => a.paid === 'Paid');
+  else if (s.acctTab === 'trial')    rows = rows.filter(a => a.paid === 'Free Trial');
+  else if (s.acctTab === 'expired')  rows = rows.filter(a => a.act === 'Expired');
+  else if (s.acctTab === 'won')      rows = rows.filter(a => a.stage === 'won');
+  // filters
+  if (s.acctStage  !== 'all') rows = rows.filter(a => a.stage === s.acctStage);
+  if (s.acctSource !== 'all') rows = rows.filter(a => a.source === s.acctSource);
+  if (s.acctStatus !== 'all') rows = rows.filter(a => s.acctStatus === 'Expired' ? a.act === 'Expired' : a.paid === s.acctStatus);
+  if (s.acctIcp    !== 'all') rows = rows.filter(a => s.acctIcp === 'hi' ? a.score >= 80 : s.acctIcp === 'mid' ? (a.score >= 60 && a.score < 80) : a.score < 60);
+  if (s.acctOwner  !== 'all') rows = rows.filter(a => a.am === s.acctOwner);
+  if (s.acctTrial  !== 'all') rows = rows.filter(a => s.acctTrial === 'on' ? (a.paid === 'Free Trial' && a.act === 'Active') : s.acctTrial === 'expired' ? a.act === 'Expired' : !a.act);
+  if (s.acctPlan   !== 'all') rows = rows.filter(a => a.plan === s.acctPlan);
+  const q = (s.acctSearch || '').trim().toLowerCase();
+  if (q) rows = rows.filter(a => a.name.toLowerCase().includes(q) || a.domain.toLowerCase().includes(q));
+  return rows;
+}
+
+function synthContact(a){
+  // deterministic mock contact per account
+  const first = ['Ahmed','Mona','Sara','Karim','Nada','Yasmin','Hossam','Tarek','Rania','Omar','Heba','Nour'][a.id % 12];
+  const last  = ['Adel','Nabil','Galal','Salem','Farid','Reda','Ali','Hassan','Ibrahim','Kamal','Zaki','Amin'][(a.id * 3) % 12];
+  const email = (first + '.' + last).toLowerCase() + '@' + a.domain;
+  const phone = '+20 10' + String(1000 + (a.id * 137) % 8999) + ' ' + String(1000 + (a.id * 977) % 8999);
+  return { name: first + ' ' + last, email, phone };
+}
+
+// Actions for Companies view
+function setAcctTab(t){ setState({ acctTab: t }); }
+function setAcctSearch(v){ state.acctSearch = v; render(); }
+function setAcctSel(k, v){ setState({ [k]: v }); }
+Object.assign(window, { setAcctTab, setAcctSearch, setAcctSel });
+
+function renderCompanies(){
+  const s = state;
+  const all = accts();
+  const rows = filteredAccounts();
+  // tab counts
+  const tabDefs = [
+    { key:'all',      label:'All',            count: all.length },
+    { key:'leads',    label:'Leads',          count: all.filter(a => a.stage === 'lead').length },
+    { key:'pipeline', label:'Pipeline',       count: all.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length },
+    { key:'paid',     label:'Paid',           count: all.filter(a => a.paid === 'Paid').length },
+    { key:'trial',    label:'Trial',          count: all.filter(a => a.paid === 'Free Trial').length },
+    { key:'expired',  label:'Expired',        count: all.filter(a => a.act === 'Expired').length },
+    { key:'won',      label:'Won',            count: all.filter(a => a.stage === 'won').length },
+  ];
+  const tabsHtml = tabDefs.map(t => {
+    const active = s.acctTab === t.key;
+    const style = 'padding:9px 14px;margin-bottom:-1px;font-size:13px;font-weight:'+(active?700:600)+';cursor:pointer;color:'+(active?'var(--text)':'var(--text-3)')+';border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';display:inline-flex;align-items:center;gap:6px;';
+    return '<div onclick="setAcctTab(\''+t.key+'\')" style="'+style+'">'+t.label+' <span class="tnum" style="opacity:.55;">'+t.count+'</span></div>';
+  }).join('');
+
+  // filter dropdown factory
+  const selStyle = 'height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;outline:0;';
+  const sel = (key, opts) => {
+    return '<select onchange="setAcctSel(\''+key+'\', this.value)" style="'+selStyle+'">'
+      + opts.map(o => '<option value="'+esc(o.v)+'"'+(s[key] === o.v ? ' selected' : '')+'>'+esc(o.l)+'</option>').join('')
+      + '</select>';
+  };
+  const amOpts = [{v:'all',l:'Owner: All'}].concat(AMS.map(a => ({v:a.id, l:a.name})));
+
+  const filterBar =
+    '<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap;">'
+      + '<div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;background:var(--surface);border:1px solid var(--border-2);border-radius:8px;flex:1;max-width:300px;">'
+        + '<span style="color:var(--text-3);display:flex;">'+svg('search',14,2)+'</span>'
+        + '<input value="'+esc(s.acctSearch)+'" oninput="setAcctSearch(this.value)" placeholder="Search company or domain…" style="border:0;outline:0;font-family:inherit;font-size:13px;flex:1;background:transparent;color:var(--text);">'
+      + '</div>'
+      + sel('acctStatus', [{v:'all',l:'Status: All'},{v:'Paid',l:'Paid'},{v:'Free Trial',l:'Free Trial'},{v:'Expired',l:'Expired'}])
+      + sel('acctStage',  [{v:'all',l:'All stages'},{v:'lead',l:'Lead'},{v:'mql',l:'MQL'},{v:'demo',l:'Demo'},{v:'proposal',l:'Proposal'},{v:'won',l:'Won'},{v:'lost',l:'Lost'}])
+      + sel('acctSource', [{v:'all',l:'All sources'},{v:'Referral',l:'Referral'},{v:'Outbound',l:'Outbound'},{v:'Inbound',l:'Inbound'},{v:'LinkedIn',l:'LinkedIn'},{v:'Webflow',l:'Webflow'},{v:'Partner',l:'Partner'}])
+      + sel('acctIcp',    [{v:'all',l:'ICP: All'},{v:'hi',l:'80+ Hot'},{v:'mid',l:'60–79'},{v:'lo',l:'Below 60'}])
+      + sel('acctOwner',  amOpts)
+      + sel('acctTrial',  [{v:'all',l:'Trial: All'},{v:'on',l:'On trial'},{v:'never',l:'Never trialled'},{v:'expired',l:'Trial expired'}])
+      + sel('acctPlan',   [{v:'all',l:'Plan: All'},{v:'Enterprise',l:'Enterprise'},{v:'Pro',l:'Pro'},{v:'Growth',l:'Growth'},{v:'Starter',l:'Starter'}])
+      + '<div style="flex:1;"></div>'
+      + '<div class="tnum" style="font-size:12px;color:var(--text-3);font-weight:600;">'+rows.length+' companies</div>'
+    + '</div>';
+
+  const th  = 'padding:10px 14px;text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap;';
+  const thR = th + 'text-align:right;';
+  const td  = 'padding:9px 14px;height:52px;border-bottom:1px solid var(--border);vertical-align:middle;';
+  const tdR = td + 'text-align:right;';
+
+  const tableRows = rows.map(a => {
+    const am = amById(a.am);
+    const st = STAGE[a.stage] || STAGE.lead;
+    const c  = synthContact(a);
+    const paidChip = a.act === 'Expired'
+      ? '<span style="'+chip('bad')+'">● Expired</span>'
+      : '<span style="'+chip(PAID[a.paid]||'neutral')+'">● '+esc(a.paid)+'</span>';
+    const scoreColor = a.score >= 80 ? 'var(--ok)' : a.score >= 60 ? 'var(--warn)' : 'var(--text-3)';
+    return '<tr class="row-h" onclick="openDetail('+a.id+')" style="cursor:pointer;">'
+      + '<td style="'+td+'padding-left:16px;">'
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+          + '<div style="'+logoStyle(34)+'">'+initialsOf(a.name)+'</div>'
+          + '<div><div style="font-size:13px;font-weight:600;color:var(--text);">'+esc(a.name)+'</div>'
+          + '<div style="font-size:11px;color:var(--text-3);margin-top:1px;">'+esc(a.domain)+'</div></div>'
+        + '</div>'
+      + '</td>'
+      + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:8px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12px;font-weight:600;color:var(--text-2);">'+esc(am.name)+'</span></div></td>'
+      + '<td style="'+td+'"><div style="font-size:12.5px;font-weight:600;color:var(--text);">'+esc(c.email)+'</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" class="tnum">'+esc(c.phone)+'</div></td>'
+      + '<td style="'+td+'"><span style="'+chip(st.v)+'">'+st.label+'</span></td>'
+      + '<td style="'+td+'"><span style="font-size:12.5px;font-weight:600;color:var(--text-2);">'+esc(a.plan)+'</span></td>'
+      + '<td style="'+tdR+'font-size:12.5px;font-weight:700;color:var(--text);" class="tnum">'+a.jobs+'</td>'
+      + '<td style="'+tdR+'"><span class="tnum" style="font-size:12.5px;font-weight:700;color:'+scoreColor+';">'+a.score+'</span></td>'
+      + '<td style="'+td+'">'+paidChip+'</td>'
+      + '<td style="'+td+'"><span style="font-size:12px;color:var(--text-3);">'+esc(a.source)+'</span></td>'
+      + '<td style="'+tdR+'"><span style="font-size:12px;color:var(--text-2);">'+esc(a.since)+'</span></td>'
+    + '</tr>';
+  }).join('');
+
+  const table =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'
+      + '<div class="sc" style="overflow-x:auto;">'
+        + '<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:1180px;">'
+          + '<thead><tr>'
+            + '<th style="'+th+'padding-left:16px;">Company</th>'
+            + '<th style="'+th+'">Owner</th>'
+            + '<th style="'+th+'">Contact</th>'
+            + '<th style="'+th+'">Stage</th>'
+            + '<th style="'+th+'">Plan</th>'
+            + '<th style="'+thR+'">Jobs</th>'
+            + '<th style="'+thR+'">ICP score</th>'
+            + '<th style="'+th+'">Status</th>'
+            + '<th style="'+th+'">Source</th>'
+            + '<th style="'+thR+'">Created</th>'
+          + '</tr></thead>'
+          + '<tbody>' + tableRows + '</tbody>'
+        + '</table>'
+      + '</div>'
+      + (rows.length === 0 ? '<div style="padding:44px;text-align:center;color:var(--text-3);font-size:13px;font-weight:500;">No accounts match these filters.</div>' : '')
+    + '</div>';
+
+  const tabsStrip = '<div style="display:flex;gap:2px;margin-bottom:14px;border-bottom:1px solid var(--border);">' + tabsHtml + '</div>';
+
+  return '<div style="padding:20px 28px 56px;">' + tabsStrip + filterBar + table + '</div>';
+}
+
+// =========================================================================
+//   RENDER: PIPELINE (Sales Kanban)
+// =========================================================================
+const PIPE_COLS = [
+  { key:'mql',      label:'MQL',      accent:'var(--info)'    },
+  { key:'demo',     label:'Demo',     accent:'var(--purple-700)' },
+  { key:'proposal', label:'Proposal', accent:'var(--warn)'    },
+  { key:'won',      label:'Won',      accent:'var(--ok)'      },
+  { key:'lost',     label:'Lost',     accent:'var(--bad)'     },
+];
+function renderPipeline(){
+  const acts = accts();
+  const inFunnel = acts.filter(a => ['mql','sql','demo','proposal','won','lost'].includes(a.stage));
+  const qualifiedCount = inFunnel.filter(a => a.stage !== 'lead').length;
+
+  // KPI cards
+  const openVal = acts.filter(a => ['mql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
+  const wonVal  = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
+  const propCount = acts.filter(a => a.stage === 'proposal').length;
+  const kpiIcon = (v, glyph) => 'width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;'+CHIP[v];
+  const pipeKpis = [
+    { label:'Open pipeline',   value: egp(openVal),  sub:'Active new-business',    icon:'📊', v:'lime',  accent:true },
+    { label:'Won QTD',         value: egp(wonVal),   sub:'Closed revenue',         icon:'🏆', v:'ok',    accent:false },
+    { label:'Proposals live',  value: '' + propCount,sub:'Awaiting decision',      icon:'📄', v:'warn',  accent:false },
+    { label:'Avg deal size',   value: egp(Math.round(openVal / Math.max(inFunnel.filter(a=>['mql','demo','proposal'].includes(a.stage)).length,1))), sub:'Open pipeline', icon:'💼', v:'info', accent:false },
+  ];
+  const kpiCards =
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">'
+    + pipeKpis.map(k => '<div style="position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--sh1);">'
+        + (k.accent ? '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);"></div>' : '')
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+          + '<div style="'+kpiIcon(k.v)+'">'+k.icon+'</div>'
+          + '<span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+k.label+'</span>'
+        + '</div>'
+        + '<div class="tnum" style="font-size:26px;font-weight:800;letter-spacing:-.025em;line-height:1.1;">'+k.value+'</div>'
+        + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:4px;">'+k.sub+'</div>'
+      + '</div>').join('')
+    + '</div>';
+
+  // kanban columns
+  const columns = PIPE_COLS.map(col => {
+    const cards = acts.filter(a => a.stage === col.key);
+    const sum = cards.reduce((s,a)=>s+a.value,0);
+    const avg = cards.length ? Math.round(sum / cards.length) : 0;
+
+    const cardHtml = cards.map(a => {
+      const am = amById(a.am);
+      const tier = TIER[a.tier] || TIER.warm;
+      return '<div class="row-h" onclick="openDetail('+a.id+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
+        + '<div style="display:flex;align-items:center;gap:9px;">'
+          + '<div style="'+logoStyle(32)+'">'+initialsOf(a.name)+'</div>'
+          + '<div style="min-width:0;flex:1;">'
+            + '<div style="font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.name)+'</div>'
+            + '<div style="font-size:11px;color:var(--text-3);font-weight:600;">'+esc(a.industry)+'</div>'
+          + '</div>'
+          + '<span style="'+chip(tier.v)+'">'+tier.label+'</span>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:5px;padding:8px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">'
+          + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">ACV</span><span class="tnum" style="font-weight:700;color:var(--text);">'+egp(a.value)+'</span></div>'
+          + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">'+(a.stage==='won'?'Closed':'Close')+'</span><span style="font-weight:600;color:var(--text-2);">'+esc(a.end||'—')+'</span></div>'
+          + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">Score</span><span class="tnum" style="font-weight:700;color:'+(a.score>=80?'var(--ok)':a.score>=60?'var(--warn)':'var(--text-3)')+';">'+a.score+'</span></div>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:7px;">'
+          + '<div style="'+avatar(am.initials,24,am.initials)+'">'+am.initials+'</div>'
+          + '<span style="font-size:11.5px;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(am.name)+'</span>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+
+    return '<div style="display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;min-height:560px;">'
+      // header
+      + '<div style="display:flex;align-items:center;gap:8px;padding:12px 14px 11px;border-top:3px solid '+col.accent+';background:var(--surface);">'
+        + '<span style="width:9px;height:9px;border-radius:999px;background:'+col.accent+';flex-shrink:0;"></span>'
+        + '<span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);">'+col.label+'</span>'
+        + '<span class="tnum" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">'+cards.length+'</span>'
+        + '<div style="flex:1;"></div>'
+        + '<span class="tnum" style="font-size:11px;font-weight:700;color:var(--text-3);">'+egp(sum)+'</span>'
+      + '</div>'
+      // cards
+      + '<div class="sc" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0;">'
+        + cardHtml
+        + (cards.length === 0 ? '<div style="padding:36px 12px;text-align:center;color:var(--text-4);font-size:12px;font-weight:600;border:1.5px dashed var(--border-2);border-radius:10px;">No leads</div>' : '')
+      + '</div>'
+      // footer
+      + '<div style="border-top:1px solid var(--border);background:var(--surface);padding:8px 14px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'
+          + '<span>Total</span><span class="tnum" style="font-size:12px;color:var(--text);">'+egp(sum)+'</span>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-top:3px;">'
+          + '<span>Avg</span><span class="tnum" style="font-size:12px;color:var(--text-2);">'+egp(avg)+'</span>'
+        + '</div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+
+  return '<div style="padding:20px 28px 56px;display:flex;flex-direction:column;gap:18px;">'
+    + '<div style="display:flex;align-items:center;gap:12px;">'
+      + '<h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">Sales Pipeline</h1>'
+      + '<span class="tnum" style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text-2);">'+qualifiedCount+' leads</span>'
+      + '<div style="flex:1;"></div>'
+      + '<button onclick="toast(\'Export CSV — coming Phase 3\')" style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;">↓ Export</button>'
+    + '</div>'
+    + kpiCards
+    + '<div class="sc" style="display:grid;grid-template-columns:repeat(5,minmax(280px,1fr));gap:14px;align-items:stretch;overflow-x:auto;">'
+      + columns
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: RENEWAL Kanban
+// =========================================================================
+const REN_COLS = [
+  { key:'active',   label:'Active',        dot:'var(--ok)'      },
+  { key:'upcoming', label:'Upcoming 60d+', dot:'var(--info)'    },
+  { key:'out30',    label:'30 days out',   dot:'var(--warn)'    },
+  { key:'overdue',  label:'Overdue',       dot:'var(--bad)'     },
+  { key:'renewed',  label:'Renewed',       dot:'var(--accent)'  },
+  { key:'churned',  label:'Churned',       dot:'var(--text-4)'  },
+];
+function renderRenewal(){
+  const withRen = accts().filter(a => a.ren);
+  const daysChip = (renKey) => {
+    const map = { active:'ok', upcoming:'info', out30:'warn', overdue:'bad', renewed:'lime', churned:'neutral' };
+    return chip(map[renKey] || 'neutral');
+  };
+  const columns = REN_COLS.map(col => {
+    const cards = withRen.filter(a => a.ren === col.key);
+    const cardHtml = cards.map(a => {
+      const label = REN[a.ren] ? REN[a.ren].label : a.ren;
+      return '<div class="row-h" onclick="openDetail('+a.id+')" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:8px;">'
+        + '<div style="font-size:14.5px;font-weight:800;letter-spacing:-.01em;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.name)+'</div>'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+          + '<span style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(a.plan)+'</span>'
+          + '<span class="tnum" style="font-size:13px;font-weight:800;color:var(--text);">'+egp(a.value)+'</span>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:8px;border-top:1px solid var(--border);">'
+          + '<span style="font-size:11px;color:var(--text-3);font-weight:600;">Ends '+esc(a.end||'—')+'</span>'
+          + '<span style="'+daysChip(a.ren)+'">'+label+'</span>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+    return '<div style="display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;min-height:520px;">'
+      + '<div style="display:flex;align-items:center;gap:9px;padding:14px 16px 12px;background:var(--surface);">'
+        + '<span style="width:10px;height:10px;border-radius:999px;background:'+col.dot+';flex-shrink:0;"></span>'
+        + '<span style="font-size:14px;font-weight:800;letter-spacing:-.01em;">'+col.label+'</span>'
+        + '<div style="flex:1;"></div>'
+        + '<span class="tnum" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);font-size:12px;font-weight:800;padding:2px 10px;border-radius:999px;">'+cards.length+'</span>'
+      + '</div>'
+      + '<div class="sc" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0;">'
+        + cardHtml
+        + (cards.length === 0 ? '<div style="padding:30px 10px;text-align:center;color:var(--text-4);font-size:12.5px;font-weight:600;">No customers here</div>' : '')
+      + '</div>'
+    + '</div>';
+  }).join('');
+  return '<div style="padding:20px 28px 56px;display:flex;flex-direction:column;gap:18px;">'
+    + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
+      + '<div>'
+        + '<h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">Renewal Pipeline</h1>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Active contracts, bucketed by days remaining until renewal.</div>'
+      + '</div>'
+      + '<div style="flex:1;"></div>'
+      + '<button onclick="toast(\'Renewals refreshed\')" style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;">↻ Refresh</button>'
+    + '</div>'
+    + '<div class="sc" style="display:grid;grid-template-columns:repeat(6,minmax(220px,1fr));gap:12px;overflow-x:auto;">' + columns + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: TASKS
+// =========================================================================
+function renderTasks(){
+  const tasks = tasksList();
+  const urgent = tasks.filter(t => t.due === 'Today' && !t.done);
+  const group = [
+    { text:'WhatsApp re: plan expiry & renewal options', acct:'Edita',         am:'Karim Fawzy' },
+    { text:'Credit top-up nudge — 64% consumed',         acct:'Talabat Egypt', am:'Nour Adel' },
+    { text:'Quarterly business review scheduling',       acct:'Juhayna',       am:'Yara Mostafa' },
+    { text:'Renewal health check — pull usage report',   acct:'Vodafone Egypt',am:'Karim Fawzy' },
+  ];
+  const th = 'padding:10px 14px;text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap;';
+  const td = 'padding:11px 14px;height:52px;border-bottom:1px solid var(--border);vertical-align:middle;';
+
+  const check = 'width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border-2);background:var(--surface);flex-shrink:0;cursor:pointer;';
+
+  const urgentCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+        + '<span style="width:8px;height:8px;border-radius:999px;background:var(--bad);"></span>'
+        + '<span style="font-size:14px;font-weight:800;">Urgent tasks</span>'
+        + '<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--bad-bg);color:var(--bad);">'+urgent.length+'</span>'
+      + '</div>'
+      + urgent.map(t => {
+          const am = amById(t.am);
+          return '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
+            + '<div onclick="toggleTask(\''+t.id+'\')" style="'+check+'"></div>'
+            + '<div style="flex:1;min-width:0;">'
+              + '<div style="font-size:13.5px;font-weight:700;">'+esc(t.title)+'</div>'
+              + '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">'+esc(t.account)+' · '+esc(t.type)+'</div>'
+            + '</div>'
+            + '<div style="'+avatar(am.initials,28,am.initials)+'">'+am.initials+'</div>'
+          + '</div>';
+        }).join('')
+      + (urgent.length === 0 ? '<div style="padding:24px 0;text-align:center;color:var(--text-4);font-size:12.5px;font-weight:600;">No urgent tasks 🎉</div>' : '')
+    + '</div>';
+
+  const groupCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+        + '<span style="width:8px;height:8px;border-radius:999px;background:var(--accent);"></span>'
+        + '<span style="font-size:14px;font-weight:800;">Group tasks</span>'
+        + '<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--accent-soft);color:var(--accent-ink);">'+group.length+'</span>'
+      + '</div>'
+      + group.map(t => '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
+          + '<div style="'+check+'"></div>'
+          + '<div style="flex:1;min-width:0;">'
+            + '<div style="font-size:13.5px;font-weight:700;">'+esc(t.text)+'</div>'
+            + '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">'+esc(t.acct)+' · '+esc(t.am)+'</div>'
+          + '</div>'
+          + '<span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-ink);">Employer</span>'
+        + '</div>').join('')
+    + '</div>';
+
+  const filters = ['All time','Today','This week','Next week','Later','Done'];
+  const filterChips = filters.map((f, i) => '<div style="height:32px;padding:0 14px;display:inline-flex;align-items:center;border-radius:8px;font-size:13px;font-weight:'+(i===0?700:500)+';cursor:pointer;border:'+(i===0?'2px solid var(--cg-900)':'1px solid var(--border)')+';background:'+(i===0?'var(--cg-900)':'var(--surface)')+';color:'+(i===0?'#fff':'var(--text-2)')+';">'+f+'</div>').join('');
+
+  const allRows = tasks.map(t => {
+    const am = amById(t.am);
+    return '<tr class="row-h">'
+      + '<td style="'+td+'"><span style="font-size:12px;color:var(--text-3);" class="tnum">'+esc(t.due)+'</span></td>'
+      + '<td style="'+td+'"><span style="font-size:13px;font-weight:700;color:var(--accent-ink);cursor:pointer;" onclick="openDetail('+t.acctId+')">'+esc(t.account)+'</span></td>'
+      + '<td style="'+td+'"><span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);">'+esc(t.type)+'</span></td>'
+      + '<td style="'+td+'"><span style="font-size:13px;color:var(--text);">'+esc(t.title)+'</span></td>'
+      + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:7px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12.5px;font-weight:600;">'+esc(am.name)+'</span></div></td>'
+      + '<td style="'+td+'"><span style="font-size:12.5px;color:var(--text-2);">'+esc(am.name)+'</span></td>'
+    + '</tr>';
+  }).join('');
+
+  const tableBlock =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;gap:0;padding:0 20px;border-bottom:1px solid var(--border);">'
+        + '<div style="font-size:13px;font-weight:700;padding:14px 0;border-bottom:2px solid var(--cg-900);margin-right:20px;">All tasks '+tasks.length+'</div>'
+        + '<div style="font-size:13px;font-weight:500;color:var(--text-3);padding:14px 0;margin-right:20px;cursor:pointer;">Overdue</div>'
+        + '<div style="font-size:13px;font-weight:500;color:var(--text-3);padding:14px 0;cursor:pointer;">Past 3 days</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;">'+filterChips+'</div>'
+      + '<div class="sc" style="overflow-x:auto;">'
+        + '<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:900px;">'
+          + '<thead><tr>'
+            + '<th style="'+th+'">Date / Time</th>'
+            + '<th style="'+th+'">Company</th>'
+            + '<th style="'+th+'">Type</th>'
+            + '<th style="'+th+'">Description</th>'
+            + '<th style="'+th+'">Responsible</th>'
+            + '<th style="'+th+'">Created by</th>'
+          + '</tr></thead>'
+          + '<tbody>' + allRows + '</tbody>'
+        + '</table>'
+      + '</div>'
+    + '</div>';
+
+  return '<div style="padding:28px 32px 56px;max-width:1300px;">'
+    + '<div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;">'
+      + '<div style="font-size:22px;font-weight:800;letter-spacing:-.025em;">Tasks</div>'
+      + '<div style="flex:1;"></div>'
+      + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);outline:0;">'
+        + '<option>All AMs</option>' + AMS.map(a => '<option>'+esc(a.name)+'</option>').join('')
+      + '</select>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">' + urgentCard + groupCard + '</div>'
+    + tableBlock
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: NOTIFICATIONS
+// =========================================================================
+function renderNotifications(){
+  const items = [
+    { title:'Task overdue · Call back Fawry procurement', sub:'Due today · owner Salma Hassan', tag:'Overdue task', time:'10m ago', unread:true, icon:'⏰', v:'bad',    acctId:3  },
+    { title:'MaxAB plan expired — renewal overdue',       sub:'Growth · EGP 130k · act now',    tag:'Deal expiring',time:'25m ago', unread:true, icon:'⚡', v:'warn',   acctId:7  },
+    { title:'You reached 80% of your June target',        sub:'EGP 224k of EGP 280k invoiced',  tag:'Target alert', time:'1h ago',  unread:true, icon:'🎯', v:'ok',     acctId:null },
+    { title:'Edita expires in 24 days',                   sub:'Growth plan · EGP 120k renewal', tag:'Deal expiring',time:'2h ago',  unread:true, icon:'⚡', v:'warn',   acctId:12 },
+    { title:'Reminder · send proposal to Halan',          sub:'You set this reminder for today', tag:'Reminder',    time:'3h ago',  unread:true, icon:'🔔', v:'lime',   acctId:8  },
+    { title:'Task overdue · WhatsApp Edita re: plan expiry', sub:'Due today · owner Karim Fawzy', tag:'Overdue task', time:'4h ago', unread:true, icon:'⏰', v:'bad',   acctId:12 },
+    { title:'Karim Fawzy is falling behind target (52%)', sub:'June · EGP 114k of EGP 220k',    tag:'Target alert', time:'6h ago',  unread:true, icon:'📊', v:'info',   acctId:null },
+    { title:'Breadfast signed Enterprise plan',           sub:'EGP 240k · 1 year · closed by Nour Adel', tag:'Deal won', time:'1d ago', unread:false, icon:'🏆', v:'ok',  acctId:6  },
+  ];
+  const unreadCount = items.filter(n => n.unread).length;
+  const iconWrap = (v) => 'width:36px;height:36px;border-radius:10px;background:'+({bad:'var(--bad-bg)',warn:'var(--warn-bg)',ok:'var(--ok-bg)',info:'var(--info-bg)',lime:'var(--accent-soft)'}[v]||'var(--surface-2)')+';display:grid;place-items:center;font-size:16px;flex-shrink:0;';
+  const list = items.map(n =>
+    '<div class="row-h" onclick="'+(n.acctId?('openDetail('+n.acctId+')'):'toast(\'Nothing to open on this notification\')')+'" style="display:flex;align-items:flex-start;gap:14px;padding:16px 18px;background:var(--surface);border-radius:12px;cursor:pointer;margin-bottom:4px;border:1px solid var(--border);">'
+      + '<div style="'+iconWrap(n.v)+'">'+n.icon+'</div>'
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">'+esc(n.title)+'</div>'
+        + '<div style="font-size:13px;color:var(--text-2);font-weight:500;margin-bottom:5px;">'+esc(n.sub)+'</div>'
+        + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-4);font-weight:700;">'+esc(n.tag)+' · '+esc(n.time)+'</div>'
+      + '</div>'
+      + (n.unread ? '<span style="width:8px;height:8px;border-radius:999px;background:var(--accent);flex-shrink:0;margin-top:6px;"></span>' : '')
+    + '</div>').join('');
+  return '<div style="padding:28px 32px 56px;max-width:860px;">'
+    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">'
+      + '<div style="font-size:22px;font-weight:800;letter-spacing:-.025em;">Notifications</div>'
+      + (unreadCount > 0 ? '<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;background:var(--bad-bg);color:var(--bad);">'+unreadCount+' unread</span>' : '')
+      + '<div style="flex:1;"></div>'
+      + '<button onclick="toast(\'All notifications marked as read\')" style="display:inline-flex;align-items:center;height:34px;padding:0 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text-2);">Mark all read</button>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:2px;">' + list + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: REPORTS
+// =========================================================================
+function renderReports(){
+  const acts = accts();
+  const pipelineVal = acts.filter(a => ['mql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
+  const wonVal = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
+  const winRate = Math.round(acts.filter(a=>a.stage==='won').length / acts.filter(a=>['won','lost'].includes(a.stage)).length * 100);
+  const paidCount = acts.filter(a=>a.paid==='Paid').length;
+
+  const km = [
+    { l:'Total revenue',  v: egp(wonVal),        sub:'Closed-won this period', delta:'+22%', good:true,  accent:true },
+    { l:'Open pipeline',  v: egp(pipelineVal),   sub:'New business',            delta:'+14%', good:true },
+    { l:'Win rate',       v: winRate + '%',      sub:'Won ÷ (won + lost)',      delta:'+4pp', good:true },
+    { l:'Active customers', v: '' + paidCount,   sub:'Paying employers',        delta:'+3',   good:true },
+    { l:'Avg deal size',  v: egp(Math.round(wonVal / Math.max(acts.filter(a=>a.stage==='won').length, 1))), sub:'Won deals',      delta:'+8%',  good:true },
+    { l:'Sales cycle',    v: '32d',              sub:'MQL → Won avg',           delta:'-4d',  good:true },
+    { l:'Trial → paid',   v: '48%',              sub:'Conversion rate',         delta:'+6pp', good:true },
+    { l:'Net revenue',    v: egp(Math.round(wonVal*0.85)),sub:'After discounts',delta:'+18%', good:true },
+  ];
+  const kmCards = km.map(k => '<div style="position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);">'
+    + (k.accent ? '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);"></div>' : '')
+    + '<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+k.l+'</div>'
+    + '<div style="display:flex;align-items:baseline;gap:8px;margin-top:8px;flex-wrap:wrap;">'
+      + '<span class="tnum" style="font-size:24px;font-weight:800;letter-spacing:-.025em;line-height:1.05;">'+k.v+'</span>'
+      + '<span class="tnum" style="font-size:12px;font-weight:700;color:'+(k.good?'var(--ok)':'var(--bad)')+';">'+k.delta+'</span>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:3px;">'+k.sub+'</div>'
+  + '</div>').join('');
+
+  // Stage summary table
+  const stageTable = ['mql','demo','proposal','won','lost'].map(sk => {
+    const rows = acts.filter(a => a.stage === sk);
+    const st = STAGE[sk];
+    const sum = rows.reduce((s,a)=>s+a.value,0);
+    const avg = rows.length ? Math.round(sum/rows.length) : 0;
+    return '<div style="display:grid;grid-template-columns:1.4fr 80px 140px 140px 140px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);">'
+      + '<span style="'+chip(st.v)+'">'+st.label+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;text-align:right;">'+rows.length+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;text-align:right;color:var(--text);">'+egp(sum)+'</span>'
+      + '<span class="tnum" style="font-size:12px;text-align:right;color:var(--text-2);">'+egp(avg)+'</span>'
+      + '<span class="tnum" style="font-size:12px;text-align:right;color:var(--text-3);">~' + ({mql:5,demo:9,proposal:14,won:0,lost:0}[sk]) + 'd</span>'
+    + '</div>';
+  }).join('');
+  const stageHead = '<div style="display:grid;grid-template-columns:1.4fr 80px 140px 140px 140px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
+    + ['Stage','Count','Value','Avg deal','Avg time in stage'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
+  + '</div>';
+
+  // AM leaderboard mini
+  const amRows = AMS.slice(0,6).map(am => {
+    const owned = acts.filter(a => a.am === am.id);
+    const won = owned.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
+    const cap = Math.round(am.cap*100);
+    return { name: am.name, initials: am.initials, owned: owned.length, won, cap };
+  }).sort((a,b) => b.won - a.won);
+  const amTable = amRows.map(r => '<div style="display:grid;grid-template-columns:2fr 60px 120px 140px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);">'
+    + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(r.initials,28,r.initials)+'">'+r.initials+'</div><span style="font-size:13px;font-weight:600;">'+esc(r.name)+'</span></div>'
+    + '<span class="tnum" style="font-size:12.5px;text-align:right;font-weight:700;">'+r.owned+'</span>'
+    + '<span class="tnum" style="font-size:12.5px;text-align:right;font-weight:700;color:var(--ok);">'+egp(r.won)+'</span>'
+    + '<div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;"><div style="height:100%;width:'+r.cap+'%;background:'+(r.cap>=70?'var(--ok)':r.cap>=40?'var(--warn)':'var(--bad)')+';"></div></div><span class="tnum" style="font-size:11px;font-weight:700;color:var(--text-3);">'+r.cap+'%</span></div>'
+  + '</div>').join('');
+  const amHead = '<div style="display:grid;grid-template-columns:2fr 60px 120px 140px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
+    + ['Account manager','Accounts','Won (period)','Target attainment'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
+  + '</div>';
+
+  return '<div class="sc" style="padding:20px 28px 80px;display:flex;flex-direction:column;gap:18px;">'
+    + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
+      + '<div><h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-.025em;">Reports</h1>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Cross-team performance — pipeline health, revenue, retention.</div>'
+      + '</div><div style="flex:1;"></div>'
+      + '<select style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>This Month</option><option>This Quarter</option><option>This Year</option></select>'
+      + '<select style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All AMs</option>'+AMS.map(a=>'<option>'+esc(a.name)+'</option>').join('')+'</select>'
+      + '<button onclick="toast(\'Export PDF — coming Phase 5\')" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">📄 Export PDF</button>'
+    + '</div>'
+    + '<div><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><h2 style="margin:0;font-size:17px;font-weight:800;letter-spacing:-.015em;">Key metrics</h2><span style="font-size:11.5px;color:var(--text-3);font-weight:600;">Last 30 days</span></div>'
+      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'+kmCards+'</div>'
+    + '</div>'
+    + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Pipeline health</h2>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
+        + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Counts, value and time-in-stage.</div></div>'
+        + stageHead + stageTable
+      + '</div>'
+    + '</div>'
+    + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Team leaderboard</h2>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'+amHead + amTable+'</div>'
+    + '</div>'
+    + '<div style="padding:20px 24px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;font-size:13px;color:var(--accent-ink);font-weight:600;">📊 Revenue-over-time chart, retention cohort table, funnel drop-off, and full CSV export land in a future phase.</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: LOGS
+// =========================================================================
+function renderLogs(){
+  const logs = [
+    { kind:'stage',        acct:'MaxAB',           from:'proposal', to:'won',  user:'Karim Fawzy',   when:'2m ago',  body:'Auto-invoice queued · collection task created' },
+    { kind:'stage',        acct:'Fawry',           from:'demo',     to:'proposal', user:'Salma Hassan',when:'18m ago', body:'Proposal EGP 180k · closes Jul 20' },
+    { kind:'note',         acct:'Talabat Egypt',   user:'Nour Adel',        when:'42m ago', body:'Champion promoted — new CHRO Adham Fathy. Loop in on QBR.' },
+    { kind:'qualification',acct:'Swvl',            user:'Omar Sherif',      when:'1h ago',  body:'BANT: Budget ✓ · Authority ? · Need ✓ · Timeline: Q3' },
+    { kind:'renewal',      acct:'Edita',           user:'System',            when:'2h ago',  body:'Auto-moved to 30-days-out bucket' },
+    { kind:'stage',        acct:'Paymob',          from:'proposal', to:'lost', user:'Nour Adel',    when:'3h ago',  body:'Loss reason: went with competitor · budget cited' },
+    { kind:'activity',     acct:'Instabug',        user:'Nour Adel',        when:'4h ago',  body:'Demo booked for Jul 6 · 14:00 with TA lead' },
+    { kind:'task',         acct:'Halan',           user:'Salma Hassan',      when:'5h ago',  body:'Task completed: Send Growth pricing sheet' },
+    { kind:'note',         acct:'Juhayna',         user:'Yara Mostafa',      when:'7h ago',  body:'QBR feedback: happy with new ATS integration' },
+  ];
+  const kindMap = { stage:{l:'Stage change',v:'info'}, activity:{l:'Activity',v:'brand'}, note:{l:'Note',v:'lime'}, task:{l:'Task',v:'neutral'}, qualification:{l:'Qualification',v:'warn'}, renewal:{l:'Renewal',v:'ok'} };
+  const rows = logs.map(l => {
+    const k = kindMap[l.kind] || kindMap.note;
+    const acctObj = accts().find(a => a.name === l.acct);
+    const click = acctObj ? 'openDetail('+acctObj.id+')' : 'toast(\'Account not in seed data\')';
+    return '<div class="row-h" onclick="'+click+'" style="display:grid;grid-template-columns:104px 1fr auto;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border);cursor:pointer;">'
+      + '<span style="'+chip(k.v)+'">'+k.l+'</span>'
+      + '<div style="min-width:0;">'
+        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;">'
+          + '<span style="font-size:14px;font-weight:700;color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px;">'+esc(l.acct)+'</span>'
+          + (l.from ? '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);font-weight:500;">Stage changed: <span style="'+chip(STAGE[l.from].v)+'">'+STAGE[l.from].label+'</span> <span style="color:var(--text-3);">→</span> <span style="'+chip(STAGE[l.to].v)+'">'+STAGE[l.to].label+'</span></span>' : '')
+        + '</div>'
+        + (l.body ? '<div style="font-size:12.5px;color:var(--text-2);font-weight:500;line-height:1.45;">'+esc(l.body)+'</div>' : '')
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;">'
+        + '<div style="font-size:12.5px;font-weight:700;color:var(--text-2);">'+esc(l.user)+'</div>'
+        + '<div class="tnum" style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px;">'+esc(l.when)+'</div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+  return '<div class="sc" style="padding:20px 28px 56px;display:flex;flex-direction:column;gap:18px;">'
+    + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
+      + '<div><h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">System logs</h1>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Every stage change, qualification edit and activity across all accounts.</div>'
+      + '</div><div style="flex:1;"></div>'
+      + '<button onclick="toast(\'Logs refreshed\')" style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;">↻ Refresh</button>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:240px;height:36px;padding:0 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;">'
+        + '<span style="color:var(--text-3);display:flex;">'+svg('search',14,2)+'</span>'
+        + '<input placeholder="Search account, user, field, text…" style="border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;flex:1;color:var(--text);">'
+      + '</div>'
+      + '<select style="height:36px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text-2);"><option>All kinds</option><option>Stage change</option><option>Activity</option><option>Note</option><option>Task</option><option>Qualification</option><option>Renewal</option></select>'
+      + '<input type="date" style="height:36px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;color:var(--text-2);background:var(--surface);">'
+      + '<span style="font-size:12px;color:var(--text-3);">→</span>'
+      + '<input type="date" style="height:36px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;color:var(--text-2);background:var(--surface);">'
+      + '<span class="tnum" style="font-size:13px;color:var(--text-3);font-weight:700;">'+logs.length+' entries</span>'
+    + '</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--sh1);">'+rows+'</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: USERS & PERMISSIONS
+// =========================================================================
+function setUsersTab(t){ setState({ usersTab: t }); }
+Object.assign(window, { setUsersTab });
+function renderUsers(){
+  const tab = state.usersTab || 'members';
+  const members = AMS.map(a => ({
+    initials: a.initials, name: a.name, email: (a.name.split(' ')[0].toLowerCase())+'@recruitera.ai',
+    role: a.role,
+  }));
+  const tabBtn = (k, label) => {
+    const active = tab === k;
+    return '<div onclick="setUsersTab(\''+k+'\')" style="font-size:14px;font-weight:'+(active?800:600)+';color:'+(active?'var(--text)':'var(--text-3)')+';padding:14px 0;margin-bottom:-1px;border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';cursor:pointer;">'+label+'</div>';
+  };
+  const tabs = '<div style="display:flex;gap:32px;border-bottom:1px solid var(--border);align-items:center;">'
+    + tabBtn('members','All Team Members') + tabBtn('roles','Hiring Roles and Permissions')
+  + '</div>';
+
+  const membersHead = '<div style="display:grid;grid-template-columns:2fr 2.4fr 1fr 80px;gap:18px;align-items:center;padding:18px 28px;border-bottom:1px solid var(--border);">'
+    + ['Name','Email Address','Role','Options'].map((l,i) => '<span style="font-size:13px;font-weight:800;'+(i===3?'text-align:right;':'')+'">'+l+'</span>').join('')
+  + '</div>';
+  const memberRows = members.map(u => '<div class="row-h" style="display:grid;grid-template-columns:2fr 2.4fr 1fr 80px;gap:18px;align-items:center;padding:18px 28px;border-bottom:1px solid var(--border);">'
+    + '<div style="display:flex;align-items:center;gap:14px;min-width:0;"><div style="'+avatar(u.initials,36,u.initials)+'">'+u.initials+'</div><span style="font-size:14.5px;font-weight:700;">'+esc(u.name)+'</span></div>'
+    + '<span style="font-size:14px;color:var(--text-2);font-weight:500;">'+esc(u.email)+'</span>'
+    + '<span style="font-size:14px;color:var(--text-2);font-weight:600;">'+esc(u.role)+'</span>'
+    + '<div style="display:flex;justify-content:flex-end;"><button onclick="toast(\'Menu — coming Phase 4\')" style="width:36px;height:36px;display:grid;place-items:center;border-radius:8px;color:var(--text-3);cursor:pointer;">⋮</button></div>'
+  + '</div>').join('');
+
+  const membersPanel =
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">'
+      + '<div style="display:flex;align-items:center;gap:10px;flex:1;height:48px;padding:0 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh1);">'
+        + '<span style="color:var(--text-3);display:flex;">'+svg('search',18,2)+'</span>'
+        + '<input placeholder="Search for Users" style="border:0;outline:0;background:transparent;font-family:inherit;font-size:14px;flex:1;color:var(--text);">'
+      + '</div>'
+      + '<button onclick="toast(\'Invite user — coming Phase 4\')" style="display:inline-flex;align-items:center;gap:7px;height:48px;padding:0 22px;border-radius:11px;background:var(--accent);color:var(--on-accent);font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">'+svg('plus',15,2.4)+' Add User</button>'
+    + '</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'+membersHead + memberRows+'</div>';
+
+  const roles = [
+    { key:'admin', label:'Admin', sys:true, count: 1, desc:'Full access — everything.' },
+    { key:'lead',  label:'Team Lead', sys:true, count: 2, desc:'Can see accounts owned by their team.' },
+    { key:'am',    label:'Account Manager', sys:true, count: 7, desc:'Manages own accounts.' },
+    { key:'rc',    label:'Recruitment Consultant', sys:true, count: 1, desc:'Read-only on assigned employers, full on jobs & candidates.' },
+  ];
+  const rolesPanel =
+    '<div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;">'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid var(--border);">'
+          + '<span style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Roles</span>'
+          + '<button onclick="toast(\'Add role — coming Phase 4\')" style="display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 11px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);font-size:11.5px;font-weight:700;cursor:pointer;">+ Add</button>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;padding:8px;gap:4px;">'
+          + roles.map((r,i) => '<div style="display:flex;align-items:center;gap:10px;padding:12px 12px;border-radius:8px;cursor:pointer;background:'+(i===0?'var(--surface-2)':'transparent')+';">'
+            + '<div style="flex:1;min-width:0;">'
+              + '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:14px;font-weight:800;">'+esc(r.label)+'</span>'
+                + (r.sys ? '<span style="display:inline-flex;padding:1px 7px;border-radius:5px;font-size:9.5px;letter-spacing:.06em;font-weight:800;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border);">SYS</span>' : '')
+              + '</div>'
+              + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px;">'+esc(r.desc)+'</div>'
+            + '</div>'
+            + '<span class="tnum" style="font-size:13px;font-weight:800;color:var(--text-2);">'+r.count+'</span>'
+          + '</div>').join('')
+        + '</div>'
+      + '</div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;box-shadow:var(--sh1);">'
+        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><h3 style="margin:0;font-size:17px;font-weight:800;letter-spacing:-.015em;">Admin</h3><span style="display:inline-flex;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:800;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border);">SYSTEM ROLE</span></div>'
+        + '<div style="font-size:13px;color:var(--text-2);font-weight:500;line-height:1.55;margin-bottom:20px;">Full access to every module. System roles cannot be edited — clone to create a custom role with fine-grained toggles.</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+          + [
+              ['View companies','on'],['Edit companies','on'],['Delete companies','on'],['Impersonate','on'],
+              ['View pipeline','on'],['Move stages','on'],['Access reports','on'],['Manage users','on'],
+              ['Manage roles','on'],['Manage renewals','on'],['UTM generator','on'],['System logs','on'],
+            ].map(p => '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;">'
+              + '<span style="font-size:12.5px;font-weight:600;color:var(--text);">'+p[0]+'</span>'
+              + '<div style="width:32px;height:18px;border-radius:999px;background:'+(p[1]==='on'?'var(--accent)':'var(--border-2)')+';position:relative;"><div style="position:absolute;width:14px;height:14px;border-radius:999px;background:#fff;top:2px;'+(p[1]==='on'?'right:2px;':'left:2px;')+'"></div></div>'
+            + '</div>').join('')
+        + '</div>'
+      + '</div>'
+    + '</div>';
+
+  return '<div class="sc" style="padding:20px 28px 56px;display:flex;flex-direction:column;gap:18px;">'
+    + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
+      + '<div><h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">Users &amp; Permissions</h1>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;max-width:640px;">Roles decide what a person can <i>do</i>. Each person reports to a lead — a Team Lead or Admin sees every account owned by anyone reporting to them.</div>'
+      + '</div><div style="flex:1;"></div>'
+      + '<button onclick="toast(\'Invite user — coming Phase 4\')" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:13.5px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">'+svg('plus',14,2.4)+' Invite User</button>'
+    + '</div>'
+    + tabs
+    + (tab === 'members' ? membersPanel : rolesPanel)
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: UTM GENERATOR
+// =========================================================================
+function setUtmField(k, v){ state[k] = v; render(); }
+function buildUtm(){
+  const s = state;
+  const base = (s.utmBase || 'https://recruitera.ai/').trim();
+  const params = [];
+  if (s.utmSource)   params.push('utm_source='+encodeURIComponent(s.utmSource));
+  if (s.utmMedium)   params.push('utm_medium='+encodeURIComponent(s.utmMedium));
+  if (s.utmCampaign) params.push('utm_campaign='+encodeURIComponent(s.utmCampaign));
+  if (s.utmContent)  params.push('utm_content='+encodeURIComponent(s.utmContent));
+  return params.length ? base + (base.includes('?')?'&':'?') + params.join('&') : base;
+}
+function copyUtm(){
+  const url = buildUtm();
+  navigator.clipboard.writeText(url).then(() => toast('Copied UTM link'));
+}
+function applyPreset(source, medium){ setState({ utmSource: source, utmMedium: medium }); }
+Object.assign(window, { setUtmField, copyUtm, applyPreset });
+
+function renderUtm(){
+  // ensure defaults
+  if (state.utmBase == null) state.utmBase = 'https://recruitera.ai/';
+  if (state.utmSource == null) state.utmSource = '';
+  if (state.utmMedium == null) state.utmMedium = '';
+  if (state.utmCampaign == null) state.utmCampaign = '';
+  if (state.utmContent == null) state.utmContent = '';
+
+  const url = buildUtm();
+  const sources = ['linkedin','facebook','instagram','tiktok','twitter','youtube','google','bing','newsletter','partner','referral'];
+  const mediums = ['paid-social','organic-social','cpc','email','affiliate','display','video','referral'];
+  const input = (k, ph) => '<input value="'+esc(state[k])+'" oninput="setUtmField(\''+k+'\', this.value)" placeholder="'+esc(ph)+'" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface-2);color:var(--text);outline:0;box-sizing:border-box;">';
+  const sel = (k, opts) => '<select onchange="setUtmField(\''+k+'\', this.value)" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface-2);color:var(--text);outline:0;">'
+    + '<option value="">— '+k.replace('utm','').toLowerCase()+' —</option>'
+    + opts.map(o => '<option value="'+o+'"'+(state[k]===o?' selected':'')+'>'+o+'</option>').join('')
+  + '</select>';
+
+  const presets = [
+    { l:'LinkedIn organic',  s:'linkedin',   m:'organic-social' },
+    { l:'LinkedIn ads',      s:'linkedin',   m:'paid-social' },
+    { l:'Facebook ads',      s:'facebook',   m:'paid-social' },
+    { l:'Instagram ads',     s:'instagram',  m:'paid-social' },
+    { l:'Google Ads',        s:'google',     m:'cpc' },
+    { l:'Newsletter',        s:'newsletter', m:'email' },
+    { l:'Partner referral',  s:'partner',    m:'referral' },
+    { l:'YouTube pre-roll',  s:'youtube',    m:'video' },
+    { l:'TikTok',            s:'tiktok',     m:'paid-social' },
+  ];
+  const presetChips = presets.map(p => '<div onclick="applyPreset(\''+p.s+'\',\''+p.m+'\')" style="padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;">'+p.l+'</div>').join('');
+
+  const inputCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
+      + '<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px;">Campaign details</div>'
+      + '<div style="display:flex;flex-direction:column;gap:12px;">'
+        + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Base URL</div>' + input('utmBase','https://recruitera.ai/') + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+          + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Source</div>'+ sel('utmSource', sources) +'</div>'
+          + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Medium</div>'+ sel('utmMedium', mediums) +'</div>'
+        + '</div>'
+        + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Campaign name</div>' + input('utmCampaign','e.g. ats-launch-q2') + '</div>'
+        + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Content <span style="font-weight:400;color:var(--text-3);">(optional)</span></div>' + input('utmContent','e.g. post-v1 / ad-v1') + '</div>'
+      + '</div>'
+    + '</div>';
+
+  const presetsCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;box-shadow:var(--sh1);">'
+      + '<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px;">Quick presets</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:7px;">'+presetChips+'</div>'
+    + '</div>';
+
+  const chips = [];
+  if (state.utmSource)   chips.push({ k:'source',   v:state.utmSource });
+  if (state.utmMedium)   chips.push({ k:'medium',   v:state.utmMedium });
+  if (state.utmCampaign) chips.push({ k:'campaign', v:state.utmCampaign });
+  if (state.utmContent)  chips.push({ k:'content',  v:state.utmContent });
+  const chipsHtml = chips.length ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">'
+    + chips.map(c => '<div style="display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);"><span style="font-size:9px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">'+c.k+'</span><span style="font-size:11px;font-weight:700;color:var(--accent-ink);font-family:monospace;">'+esc(c.v)+'</span></div>').join('')
+  + '</div>' : '';
+
+  const outputCard =
+    '<div style="background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+        + '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);">Generated URL</span>'
+        + '<span class="tnum" style="font-size:11px;color:var(--text-4);font-family:monospace;">'+url.length+' chars</span>'
+      + '</div>'
+      + '<div style="font-family:monospace;font-size:12.5px;color:var(--accent-ink);word-break:break-all;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;line-height:1.5;">'+esc(url)+'</div>'
+      + chipsHtml
+      + '<div style="display:flex;gap:8px;margin-top:14px;">'
+        + '<button onclick="copyUtm()" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">📋 Copy URL</button>'
+        + '<button onclick="toast(\'Saved to link history — coming Phase 4\')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:600;cursor:pointer;">💾 Save</button>'
+      + '</div>'
+    + '</div>';
+
+  return '<div class="sc" style="padding:24px 28px 56px;display:flex;flex-direction:column;gap:18px;max-width:1400px;">'
+    + '<div style="display:flex;align-items:center;gap:12px;">'
+      + '<h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">UTM Link Generator</h1>'
+      + '<span style="font-size:12px;color:var(--text-3);font-weight:500;">Track every campaign, every channel</span>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;">'
+      + '<div style="display:flex;flex-direction:column;gap:16px;">' + inputCard + presetsCard + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:14px;">' + outputCard + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: AM PERFORMANCE
+// =========================================================================
+function renderAmperf(){
+  const acts = accts();
+  const totalCalls = 128, totalEmails = 214, totalWa = 87, totalDeals = 42, totalInvoices = 18, totalGaps = 6;
+  const kpis = [
+    { l:'Calls',     v: '' + totalCalls,   sub:'total this week', icon:'📞', v2:'info',  accent:true },
+    { l:'Emails',    v: '' + totalEmails,  sub:'sent + replied',  icon:'✉',  v2:'brand' },
+    { l:'WhatsApps', v: '' + totalWa,      sub:'threads active',  icon:'💬', v2:'ok' },
+    { l:'Deals moved', v: '' + totalDeals, sub:'stage transitions',icon:'⇄', v2:'warn' },
+    { l:'Invoices',  v: '' + totalInvoices, sub:'issued',        icon:'📄', v2:'lime' },
+    { l:'Gaps',      v: '' + totalGaps,     sub:'silent > 4d',    icon:'⚠', v2:'bad' },
+  ];
+  const kpiIcon = (v) => 'width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;'+CHIP[v];
+  const kpiCards = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;">'
+    + kpis.map(k => '<div style="position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--sh1);">'
+        + (k.accent ? '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);"></div>' : '')
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><div style="'+kpiIcon(k.v2)+'">'+k.icon+'</div><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+k.l+'</span></div>'
+        + '<div class="tnum" style="font-size:28px;font-weight:800;letter-spacing:-.025em;line-height:1.1;">'+k.v+'</div>'
+        + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:4px;">'+k.sub+'</div>'
+      + '</div>').join('')
+  + '</div>';
+
+  // AM rows synthesized from AMS + owned accounts
+  const rows = AMS.map(am => {
+    const owned = acts.filter(a => a.am === am.id);
+    const calls = 4 + Math.round(am.weight * 0.6);
+    const emails = 6 + Math.round(am.weight * 0.9);
+    const wa = 2 + Math.round(am.weight * 0.4);
+    const deals = owned.filter(a => ['proposal','won'].includes(a.stage)).length;
+    const invoices = owned.filter(a => a.paid === 'Paid').length;
+    const gaps = owned.filter(a => a.last && a.last.includes('d ago') && parseInt(a.last) >= 4).length;
+    const score = Math.min(100, Math.round(am.cap * 100));
+    const status = score >= 70 ? { label:'Top Performer', v:'ok' } : score >= 40 ? { label:'Average', v:'warn' } : { label:'Needs Attention', v:'bad' };
+    return { am, calls, emails, wa, deals, invoices, gaps, score, status, owned: owned.length };
+  }).sort((a,b) => b.score - a.score);
+
+  const cellStyle = (v, warn) => 'display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:24px;padding:0 8px;border-radius:6px;background:'+(v===0?'var(--surface-2)':warn?'var(--warn-bg)':'var(--surface-2)')+';color:'+(v===0?'var(--text-4)':warn?'var(--warn)':'var(--text)')+';font-size:12.5px;font-weight:700;border:1px solid var(--border);';
+
+  const tableHead = '<div style="display:grid;grid-template-columns:2.2fr 80px 90px 100px 110px 100px 90px 180px 130px 110px;gap:10px;align-items:center;padding:14px 18px;min-width:1280px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
+    + ['Account Manager','Calls','Emails','WhatsApp','Deals moved','Invoices','Gaps','Score','Status','Action'].map((l,i) => {
+        const align = i===0 ? '' : i===9 ? 'text-align:right;' : 'text-align:center;';
+        const color = l === 'Gaps' ? 'var(--bad)' : 'var(--text-2)';
+        return '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:'+color+';'+align+'">'+l+'</div>';
+      }).join('')
+  + '</div>';
+
+  const rowsHtml = rows.map(r => {
+    const barColor = r.score >= 70 ? 'var(--ok)' : r.score >= 40 ? 'var(--warn)' : 'var(--bad)';
+    return '<div class="row-h" style="display:grid;grid-template-columns:2.2fr 80px 90px 100px 110px 100px 90px 180px 130px 110px;gap:10px;align-items:center;padding:14px 18px;min-width:1280px;border-bottom:1px solid var(--border);cursor:pointer;">'
+      + '<div style="display:flex;align-items:center;gap:12px;min-width:0;">'
+        + '<div style="'+avatar(r.am.initials,34,r.am.initials)+'">'+r.am.initials+'</div>'
+        + '<div style="min-width:0;">'
+          + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;">'+esc(r.am.name)+'</div>'
+          + '<div class="tnum" style="font-size:11.5px;color:var(--text-3);font-weight:600;">'+r.owned+' owned</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="text-align:center;"><span class="tnum" style="'+cellStyle(r.calls)+'">'+r.calls+'</span></div>'
+      + '<div style="text-align:center;"><span class="tnum" style="'+cellStyle(r.emails)+'">'+r.emails+'</span></div>'
+      + '<div style="text-align:center;"><span class="tnum" style="'+cellStyle(r.wa)+'">'+r.wa+'</span></div>'
+      + '<div style="text-align:center;"><span class="tnum" style="'+cellStyle(r.deals)+'">'+r.deals+'</span></div>'
+      + '<div style="text-align:center;"><span class="tnum" style="'+cellStyle(r.invoices)+'">'+r.invoices+'</span></div>'
+      + '<div style="text-align:center;"><span class="tnum" style="'+cellStyle(r.gaps, r.gaps>0)+'">'+r.gaps+'</span></div>'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+        + '<div style="flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;border:1px solid var(--border);"><div style="height:100%;width:'+r.score+'%;background:'+barColor+';border-radius:999px;"></div></div>'
+        + '<span class="tnum" style="font-size:13px;font-weight:800;width:30px;text-align:right;">'+r.score+'</span>'
+      + '</div>'
+      + '<div><span style="'+chip(r.status.v)+'">'+r.status.label+'</span></div>'
+      + '<div style="text-align:right;"><span onclick="toast(\'Drill-down '+esc(r.am.name)+' — coming Phase 4\')" style="font-size:12.5px;color:var(--accent-ink);font-weight:700;cursor:pointer;text-decoration:underline;">View details</span></div>'
+    + '</div>';
+  }).join('');
+
+  const table = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'
+    + '<div class="sc" style="overflow-x:auto;">' + tableHead + rowsHtml + '</div>'
+  + '</div>';
+
+  const subtabs = '<div style="display:flex;gap:0;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;">'
+    + ['Team Performance','All Activities','Targets','Leaderboard','Gaps'].map((l,i) => {
+        const active = i === 0;
+        return '<div style="display:inline-flex;align-items:center;gap:8px;padding:12px 20px;font-size:13px;font-weight:'+(active?800:600)+';color:'+(active?'var(--text)':'var(--text-3)')+';margin-bottom:-1px;border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';cursor:pointer;">'+l+'</div>';
+      }).join('')
+  + '</div>';
+
+  const filters = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">'
+    + '<span style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Filter</span>'
+    + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All AMs</option>'+AMS.map(a=>'<option>'+esc(a.name)+'</option>').join('')+'</select>'
+    + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>This Week</option><option>Today</option><option>This Month</option></select>'
+    + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All status</option><option>Top Performer</option><option>Average</option><option>Needs Attention</option></select>'
+    + '<div style="flex:1;"></div><span class="tnum" style="font-size:13px;color:var(--text-3);font-weight:700;">'+rows.length+' AMs shown</span>'
+  + '</div>';
+
+  return '<div class="sc" style="padding:20px 28px 56px;display:flex;flex-direction:column;gap:18px;">'
+    + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
+      + '<div><h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">AM Performance</h1>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Team activity, scoring &amp; daily drill-down.</div>'
+      + '</div><div style="flex:1;"></div>'
+      + '<button onclick="toast(\'Export CSV — coming Phase 5\')" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">↓ Export CSV</button>'
+    + '</div>'
+    + subtabs + filters + kpiCards + table
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: PLACEHOLDER (for views not yet built in this phase)
+// =========================================================================
+function renderPlaceholder(pageKey){
+  const title = PAGE_TITLES[pageKey] || 'Coming soon';
+  const phaseMap = {
+    accounts:'Phase 1b', pipeline:'Phase 2', renewal:'Phase 2',
+    tasks:'Phase 2', notifications:'Phase 2',
+    reports:'Phase 3', logs:'Phase 3', users:'Phase 3',
+    utm:'Phase 3', amperf:'Phase 3',
+  };
+  const phase = phaseMap[pageKey] || 'Next phase';
+  return '<div style="padding:24px 28px;">'
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="width:56px;height:56px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);display:inline-grid;place-items:center;color:var(--text-3);margin-bottom:16px;">'+svg('logs',24,1.5)+'</div>'
+      + '<div style="font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--text);margin-bottom:6px;">'+esc(title)+'</div>'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:500;max-width:420px;margin:0 auto;">This view will be built in <b style="color:var(--text-2);">'+phase+'</b> of the CRM v2 revamp. The Dashboard is fully wired; use it to try the sidebar navigation, role switch, and sidebar collapse.</div>'
+      + '<button onclick="go(\'home\')" style="margin-top:20px;height:34px;padding:0 16px;border-radius:8px;background:var(--cg-900);color:#fff;font-weight:600;font-size:13px;">← Back to Dashboard</button>'
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: COMPANY PROFILE (full page)
+// =========================================================================
+function setDetailTab(t){ setState({ detailTab: t }); }
+function prevDetail(){
+  const list = accts();
+  const idx = list.findIndex(x => x.id === state.detailId);
+  if (idx > 0) setState({ detailId: list[idx-1].id, detailTab:'overview' });
+}
+function nextDetail(){
+  const list = accts();
+  const idx = list.findIndex(x => x.id === state.detailId);
+  if (idx >= 0 && idx < list.length - 1) setState({ detailId: list[idx+1].id, detailTab:'overview' });
+}
+Object.assign(window, { setDetailTab, prevDetail, nextDetail });
+
+function renderDetail(){
+  const list = accts();
+  const a = list.find(x => x.id === state.detailId);
+  if (!a) { state.detailId = null; return renderDashboard(); }
+  const am = amById(a.am);
+  const st = STAGE[a.stage] || STAGE.lead;
+  const c = synthContact(a);
+  const idx = list.findIndex(x => x.id === a.id);
+  const inSalesCycle = ['mql','sql','demo','proposal'].includes(a.stage);
+  const isLost = a.stage === 'lost';
+  const isWon  = a.stage === 'won';
+  const canDisqualify = ['lead','mql'].includes(a.stage);
+
+  // --- breadcrumb + pager ---
+  const crumb =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
+      + '<div onclick="closeDetail()" style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:6px;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;background:var(--surface-2);">'+svg('chevronL',12,2.4)+' Companies</div>'
+      + '<span style="font-size:11px;color:var(--text-3);">›</span>'
+      + '<span style="font-size:12px;font-weight:600;color:var(--text);">'+esc(a.name)+'</span>'
+      + '<div style="flex:1;"></div>'
+      + '<div style="display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface);">'
+        + '<div onclick="prevDetail()" style="display:grid;place-items:center;width:26px;height:22px;border-radius:5px;cursor:pointer;color:'+(idx>0?'var(--text-2)':'var(--text-4)')+';">'+svg('chevronL',13,2.4)+'</div>'
+        + '<span class="tnum" style="font-size:12px;font-weight:600;color:var(--text-2);padding:0 6px;min-width:52px;text-align:center;">'+(idx+1)+' / '+list.length+'</span>'
+        + '<div onclick="nextDetail()" style="display:grid;place-items:center;width:26px;height:22px;border-radius:5px;cursor:pointer;color:'+(idx<list.length-1?'var(--text-2)':'var(--text-4)')+';">'+svg('chevronR',13,2.4)+'</div>'
+      + '</div>'
+    + '</div>';
+
+  // --- header card ---
+  const actionBtn = (bg, color, border, glyph, label, onclick) =>
+    '<button onclick="'+onclick+'" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:9px;background:'+bg+';color:'+color+';border:1px solid '+border+';font-size:14px;font-weight:'+(bg==='var(--accent)'||bg==='var(--cg-900)'?700:600)+';cursor:pointer;">'+glyph+label+'</button>';
+
+  const chipStyle = (v) => chip(v) + ';font-size:12px;padding:4px 12px;';
+
+  const headerCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:16px;box-shadow:var(--sh1);overflow:hidden;">'
+      + '<div style="padding:22px 24px 20px;">'
+        + '<div style="display:flex;align-items:flex-start;gap:16px;">'
+          + '<div style="'+logoStyle(56)+'">'+initialsOf(a.name)+'</div>'
+          + '<div style="flex:1;min-width:0;">'
+            // name + actions
+            + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">'
+              + '<div>'
+                + '<h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-.025em;line-height:1.15;">'+esc(a.name)+'</h1>'
+                + '<div style="font-size:12px;color:var(--text-3);font-weight:500;margin-top:4px;">'+esc(a.domain)+' · Customer since '+esc(a.since)+'</div>'
+              + '</div>'
+              + '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">'
+                + actionBtn('var(--accent)','var(--on-accent)','var(--accent-strong)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>','Impersonate',"toast('Impersonation session started — this is a preview')")
+                + actionBtn('var(--surface)','var(--text-2)','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>','JS view',"toast('Opened as Job Seeker view')")
+                + actionBtn('var(--surface)','#25D366','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.4A10 10 0 1 0 12 2z"/></svg>','WhatsApp',"toast('Opening WhatsApp Web')")
+                + actionBtn('var(--surface)','var(--text-2)','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>','Email',"toast('Compose email — coming Phase 2')")
+                + actionBtn('var(--cg-900)','#fff','var(--cg-900)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>','Proposal',"toast('Proposal builder — coming Phase 2')")
+              + '</div>'
+            + '</div>'
+            // chips
+            + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;">'
+              + '<span style="'+chipStyle(st.v)+'">'+st.label+'</span>'
+              + '<span style="'+chipStyle(PAID[a.paid]||'neutral')+'">● '+esc(a.paid)+'</span>'
+              + '<span style="'+chipStyle('neutral')+'">📍 '+esc(a.region)+'</span>'
+              + '<span style="'+chipStyle('neutral')+'">🏭 '+esc(a.industry)+'</span>'
+            + '</div>'
+            // loss reason
+            + (isLost ? '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bad-bg);border:1px solid var(--bad);border-radius:8px;margin-bottom:12px;">'
+                + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
+                + '<span style="font-size:12px;font-weight:700;color:var(--bad);">Loss reason:</span>'
+                + '<span style="font-size:12px;font-weight:600;color:var(--bad);">Went with competitor · budget cited</span>'
+              + '</div>' : '')
+            // plan/proposal row
+            + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+              + (inSalesCycle
+                ? '<span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--accent-strong);border-radius:8px;background:var(--accent-soft);font-size:13px;font-weight:700;color:var(--accent-ink);">📄 Proposal · '+esc(a.plan)+'</span>'
+                  + '<span style="display:inline-flex;align-items:center;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:600;color:var(--text-2);">'+egp(a.value)+'</span>'
+                  + (a.end ? '<span style="display:inline-flex;align-items:center;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:600;color:var(--text-2);">Closes '+esc(a.end)+'</span>' : '')
+                : '<span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:700;color:var(--text-2);">💼 '+esc(a.plan)+(a.end?' · renews '+esc(a.end):'')+'</span>')
+              + (canDisqualify ? '<button onclick="toast(\'Disqualify flow — coming Phase 2\')" style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--bad);background:var(--bad-bg);font-size:13px;font-weight:700;color:var(--bad);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>Disqualify</button>' : '')
+            + '</div>'
+          + '</div>'
+        + '</div>'
+      + '</div>'
+      // stats band
+      + '<div style="display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);">'
+        + [
+            { l:'Deal value',    v: egp(a.value),                   sub:'annual contract' },
+            { l:'ICP score',     v: a.score + '',                    sub:'/ 100' },
+            { l:'Active jobs',   v: '' + a.jobs,                     sub:'live postings' },
+            { l:'Credits used',  v: a.total ? Math.round(a.used/a.total*100)+'%' : '—', sub: a.total ? a.used+' / '+a.total : 'no plan' },
+            { l:'Job views',    v: short(a.views),                  sub:'last 30 days' },
+            { l:'Applications', v: short(a.applies),                sub:'last 30 days' },
+            { l:'Owner',        v: am.initials,                     sub: esc(am.name) },
+          ].map((s,i,arr) => '<div style="padding:16px 18px;'+(i<arr.length-1?'border-right:1px solid var(--border);':'')+'">'
+            + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+s.l+'</div>'
+            + '<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(s.v)+'</div>'
+            + '<div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">'+esc(s.sub)+'</div>'
+          + '</div>').join('')
+      + '</div>'
+    + '</div>';
+
+  // --- tabs ---
+  const tabDefs = [
+    { key:'overview',  label:'Overview' },
+    { key:'activity',  label:'Activity' },
+    { key:'usage',     label:'Jobs & usage' },
+    { key:'plans',     label:'Plans & credits' },
+    { key:'billing',   label:'Invoices' },
+    { key:'contacts',  label:'Team & users' },
+    { key:'documents', label:'Documents' },
+  ];
+  const tabsBar = '<div class="sc" style="display:flex;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto;">'
+    + tabDefs.map(t => {
+        const active = state.detailTab === t.key;
+        return '<button onclick="setDetailTab(\''+t.key+'\')" style="padding:11px 18px;margin-bottom:-1px;font-size:13px;font-weight:'+(active?700:600)+';cursor:pointer;color:'+(active?'var(--text)':'var(--text-3)')+';background:transparent;border:0;border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';white-space:nowrap;">'+t.label+'</button>';
+      }).join('')
+  + '</div>';
+
+  // --- overview tab body ---
+  const meetings = [
+    { date:'JUN 24', time:'11:30', title:'Renewal negotiation call',   with:'Hesham Kamel · CFO' },
+    { date:'JUL 02', time:'14:00', title:'Q3 usage review',            with:'Nadia Farid · TA Lead' },
+    { date:'JUL 15', time:'10:00', title:'Contract signing kickoff',   with:'Legal + AM' },
+  ];
+  const richNotes = [
+    { actor:'Nour Adel',   initials:'NA', type:'call',    typeChip:chip('info'),  ago:'2h ago',  text:'Left voicemail with '+c.name+'. Following up via WhatsApp tomorrow before the demo.' },
+    { actor:'Karim Fawzy', initials:'KF', type:'meeting', typeChip:chip('brand'), ago:'yesterday', text:'Great intro call. They want visibility on how our talent pool compares to LinkedIn. Sending benchmark deck.' },
+  ];
+  const owners = [
+    { name: am.name,      role:'Owner',     ring:'var(--accent-strong)', email: (am.initials.toLowerCase())+'@recruitera.ai', initials: am.initials },
+    { name:'Yara Mostafa',role:'RC',        ring:'var(--info)',          email:'yara@recruitera.ai',       initials:'YM' },
+    { name:'Amr Hammad',  role:'Admin',     ring:'var(--warn)',          email:'a.hammad@icareer.ai',      initials:'AH' },
+  ];
+  const acctTasks = [
+    { text:'Send renewal proposal draft to '+c.name,         dateLabel:'Due today',    by:'· by KF' },
+    { text:'Prepare last-quarter usage report for QBR',       dateLabel:'Jul 02',       by:'· by NA' },
+    { text:'Confirm champion for signing authority',          dateLabel:'This week',    by:'' },
+  ];
+
+  const contactCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.9"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+        + '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Contact Person</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+        + [ ['Name', c.name], ['Title', 'Talent Acquisition Lead'], ['Email', c.email], ['Phone', c.phone] ].map(f => {
+            return '<div><div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:5px;">'+f[0]+'</div>'
+              + '<input value="'+esc(f[1])+'" style="width:100%;height:36px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;font-weight:600;color:var(--text);background:var(--surface);outline:0;"></div>';
+          }).join('')
+      + '</div>'
+    + '</div>';
+
+  const meetingsCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+        + '<div style="display:flex;align-items:center;gap:6px;">'
+          + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.9"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'
+          + '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Meetings</div>'
+        + '</div>'
+        + '<button onclick="toast(\'Book meeting — coming Phase 2\')" style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 12px;border-radius:7px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">'+svg('plus',12,2.4)+' Book</button>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+        + meetings.map(m =>
+            '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);">'
+              + '<div style="flex-shrink:0;text-align:center;min-width:52px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">'
+                + '<div style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);">'+m.date+'</div>'
+                + '<div class="tnum" style="font-size:13px;font-weight:800;color:var(--text);margin-top:1px;">'+m.time+'</div>'
+              + '</div>'
+              + '<div style="flex:1;min-width:0;">'
+                + '<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(m.title)+'</div>'
+                + '<div style="font-size:11px;color:var(--text-3);margin-top:3px;">with '+esc(m.with)+'</div>'
+              + '</div>'
+            + '</div>').join('')
+      + '</div>'
+    + '</div>';
+
+  const notesCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="margin-bottom:14px;">'
+        + '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Notes</div>'
+        + '<h2 style="margin:4px 0 0;font-size:16px;font-weight:800;letter-spacing:-.02em;">Internal notes</h2>'
+      + '</div>'
+      + '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;">'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">'
+          + ['📞 Call','👥 Meeting','✉ Email','📝 Note'].map((l,i) => '<button style="height:26px;padding:0 10px;border-radius:6px;background:'+(i===0?'var(--cg-900)':'var(--surface)')+';color:'+(i===0?'#fff':'var(--text-2)')+';border:1px solid '+(i===0?'var(--cg-900)':'var(--border)')+';font-size:11px;font-weight:700;cursor:pointer;">'+l+'</button>').join('')
+        + '</div>'
+        + '<textarea placeholder="What happened? Use @ to mention or @name/task to assign…" style="width:100%;min-height:72px;border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;color:var(--text);resize:vertical;line-height:1.5;"></textarea>'
+        + '<div style="display:flex;justify-content:flex-end;margin-top:8px;">'
+          + '<button onclick="toast(\'Note added\')" style="display:inline-flex;align-items:center;height:32px;padding:0 18px;border-radius:8px;font-size:13px;font-weight:700;background:var(--accent);color:var(--on-accent);cursor:pointer;border:1px solid var(--accent-strong);">Add note</button>'
+        + '</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px;">'
+        + richNotes.map(rn =>
+            '<div style="display:flex;gap:12px;padding:14px;border:1px solid var(--border);border-radius:11px;">'
+              + '<div style="'+avatar(rn.initials,32,rn.initials)+'">'+rn.initials+'</div>'
+              + '<div style="flex:1;min-width:0;">'
+                + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
+                  + '<span style="font-size:13px;font-weight:700;color:var(--text);">'+esc(rn.actor)+'</span>'
+                  + '<span style="'+rn.typeChip+'">'+rn.type+'</span>'
+                  + '<span style="font-size:11px;color:var(--text-3);font-weight:500;">'+rn.ago+'</span>'
+                + '</div>'
+                + '<div style="font-size:13px;color:var(--text-2);line-height:1.55;font-weight:500;white-space:pre-wrap;word-break:break-word;">'+esc(rn.text)+'</div>'
+              + '</div>'
+            + '</div>').join('')
+      + '</div>'
+    + '</div>';
+
+  const ownersCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:14px;">Account team</div>'
+      + '<div style="display:flex;flex-direction:column;gap:12px;">'
+        + owners.map(o => '<div style="display:flex;align-items:center;gap:11px;">'
+            + '<div style="'+avatar(o.initials,32,o.initials)+'">'+o.initials+'</div>'
+            + '<div style="flex:1;min-width:0;">'
+              + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;">'+esc(o.name)+'</span>'
+                + '<span style="font-size:9px;font-weight:800;color:'+o.ring+';border:1px solid '+o.ring+';padding:0 5px;border-radius:5px;">'+o.role+'</span>'
+              + '</div>'
+              + '<div style="font-size:11px;color:var(--text-3);">'+esc(o.email)+'</div>'
+            + '</div>'
+          + '</div>').join('')
+      + '</div>'
+    + '</div>';
+
+  const proposalCard = inSalesCycle
+    ? '<div style="background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+          + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Proposal</div>'
+          + '<span style="'+chip(st.v)+'">'+st.label+'</span>'
+        + '</div>'
+        + '<div style="font-size:17px;font-weight:800;letter-spacing:-.01em;margin-bottom:14px;">'+esc(a.plan)+' · 1 Year Access</div>'
+        + '<div style="display:flex;flex-direction:column;gap:10px;">'
+          + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);"><span>Deal value</span><span style="color:var(--text);font-weight:700;">'+egp(a.value)+'</span></div>'
+          + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);"><span>Close date</span><span>'+esc(a.end||'—')+'</span></div>'
+          + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);"><span>ICP score</span><span style="color:var(--ok);font-weight:700;">'+a.score+' / 100</span></div>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:14px;">'
+          + '<button onclick="toast(\''+esc(a.name)+' → Won (preview)\')" style="flex:1;height:34px;display:grid;place-items:center;border-radius:8px;background:var(--ok);color:#fff;font-size:12px;font-weight:700;cursor:pointer;border:0;">Mark Won</button>'
+          + '<button onclick="toast(\'Disqualify flow — coming Phase 2\')" style="flex:1;height:34px;display:grid;place-items:center;border-radius:8px;background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad);font-size:12px;font-weight:700;cursor:pointer;">Disqualify</button>'
+        + '</div>'
+      + '</div>'
+    : (isWon && a.total ?
+        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+          + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+            + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Plan</div>'
+            + '<span style="'+chip('ok')+'">'+esc(a.plan)+'</span>'
+          + '</div>'
+          + '<div style="font-size:17px;font-weight:800;letter-spacing:-.01em;margin-bottom:14px;">'+esc(a.plan)+' plan</div>'
+          + '<div>'
+            + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:5px;"><span>Credits</span><span class="tnum">'+a.used+' / '+a.total+'</span></div>'
+            + '<div style="height:7px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.round(a.used/a.total*100)+'%;background:'+(a.used/a.total>=.85?'var(--bad)':a.used/a.total>=.65?'var(--warn)':'var(--accent)')+';border-radius:999px;"></div></div>'
+          + '</div>'
+          + (a.end ? '<div style="margin-top:12px;padding:9px 12px;background:var(--surface-2);border-radius:8px;font-size:12px;font-weight:600;color:var(--text-2);">Renews '+esc(a.end)+'</div>' : '')
+        + '</div>'
+      : '');
+
+  const attributionCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="1.9"><path d="M5 12a7 7 0 0 1 7-7"/><circle cx="12" cy="12" r="2"/><path d="M14 14l4 6M10 14l-4 6"/></svg>'
+        + '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Attribution</div>'
+      + '</div>'
+      + [
+          ['Source', a.source],
+          ['Referral', a.source === 'Referral' ? 'partner network' : '—'],
+          ['Joined at', a.since],
+          ['First touch', a.source === 'Outbound' ? 'Cold email · Q1 campaign' : a.source === 'Webflow' ? 'Website demo form' : a.source],
+        ].map((r,i,arr) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;'+(i<arr.length-1?'border-bottom:1px solid var(--border);':'')+'">'
+          + '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">'+r[0]+'</div>'
+          + '<div style="font-size:13px;font-weight:700;">'+esc(r[1])+'</div>'
+        + '</div>').join('')
+    + '</div>';
+
+  const tasksCard =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:8px;">'
+        + '<div>'
+          + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Tasks</div>'
+          + '<div class="tnum" style="font-size:14px;font-weight:800;margin-top:4px;">'+acctTasks.length+' open</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:12px;">'
+        + '<input placeholder="Quick task…" style="flex:1;height:32px;border:1px solid var(--border-2);border-radius:7px;padding:0 10px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--text);outline:0;">'
+      + '</div>'
+      + '<div class="sc" style="display:flex;flex-direction:column;gap:7px;max-height:300px;overflow-y:auto;padding-right:4px;">'
+        + acctTasks.map(t => '<div style="display:flex;align-items:flex-start;gap:9px;padding:9px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;">'
+            + '<div style="width:14px;height:14px;border:1.5px solid var(--border-2);border-radius:3px;flex-shrink:0;margin-top:2px;cursor:pointer;background:var(--surface);"></div>'
+            + '<div style="flex:1;min-width:0;">'
+              + '<div style="font-size:12px;color:var(--text);line-height:1.45;">'+esc(t.text)+'</div>'
+              + '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">'
+                + '<span style="font-size:10.5px;font-weight:700;color:var(--warn);">'+esc(t.dateLabel)+'</span>'
+                + (t.by ? '<span style="font-size:10.5px;color:var(--text-3);">'+esc(t.by)+'</span>' : '')
+              + '</div>'
+            + '</div>'
+          + '</div>').join('')
+      + '</div>'
+    + '</div>';
+
+  const overviewBody =
+    '<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start;">'
+      + '<div style="display:flex;flex-direction:column;gap:16px;">' + contactCard + meetingsCard + notesCard + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:16px;">' + ownersCard + proposalCard + attributionCard + tasksCard + '</div>'
+    + '</div>';
+
+  // --- tab bodies (non-overview: placeholder) ---
+  const otherTabBody = (label) =>
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border);display:inline-grid;place-items:center;color:var(--text-3);margin-bottom:14px;">'+svg('logs',20,1.5)+'</div>'
+      + '<div style="font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--text);margin-bottom:6px;">'+esc(label)+'</div>'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:500;max-width:460px;margin:0 auto;">This tab lands after we wire live Supabase data — Activity pulls from the <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">activities</code> table, Jobs &amp; usage from the employer sync, Invoices from <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">contract_cycles</code>. Deferred until backend is connected.</div>'
+    + '</div>';
+
+  let tabBody;
+  if (state.detailTab === 'overview') tabBody = overviewBody;
+  else {
+    const map = { activity:'Activity timeline', usage:'Jobs & usage', plans:'Plans & credits', billing:'Invoices', contacts:'Team & users', documents:'Documents' };
+    tabBody = otherTabBody(map[state.detailTab] || 'Coming soon');
+  }
+
+  return '<div style="padding:20px 28px 56px;max-width:1400px;">' + crumb + headerCard + tabsBar + tabBody + '</div>';
+}
+
+// =========================================================================
+//   RENDER: TOAST
+// =========================================================================
+function renderToast(){
+  if (!state.toast) return '';
+  return '<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--cg-900);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:var(--sh3);animation:toastIn .18s ease-out;z-index:200;">'+esc(state.toast)+'</div>';
+}
+
+// =========================================================================
+//   RENDER: ROOT
+// =========================================================================
+function render(){
+  const col = state.sidebarCollapsed;
+  let mainContent;
+  if (state.detailId) {
+    mainContent = renderDetail();
+  } else if (state.page === 'home') {
+    mainContent = renderDashboard();
+  } else if (state.page === 'accounts') {
+    mainContent = renderCompanies();
+  } else if (state.page === 'pipeline') {
+    mainContent = renderPipeline();
+  } else if (state.page === 'renewal') {
+    mainContent = renderRenewal();
+  } else if (state.page === 'tasks') {
+    mainContent = renderTasks();
+  } else if (state.page === 'notifications') {
+    mainContent = renderNotifications();
+  } else if (state.page === 'reports') {
+    mainContent = renderReports();
+  } else if (state.page === 'logs') {
+    mainContent = renderLogs();
+  } else if (state.page === 'users') {
+    mainContent = renderUsers();
+  } else if (state.page === 'utm') {
+    mainContent = renderUtm();
+  } else if (state.page === 'amperf') {
+    mainContent = renderAmperf();
+  } else {
+    mainContent = renderPlaceholder(state.page);
+  }
+  document.getElementById('app').innerHTML =
+    '<div style="display:grid;grid-template-columns:'+(col?'56px':'232px')+' 1fr;height:100vh;overflow:hidden;background:var(--bg);">'
+      + renderSidebar()
+      + '<div style="display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative;">'
+        + renderTopbar()
+        + '<div class="sc" style="flex:1;overflow-y:auto;min-height:0;">'
+          + mainContent
+        + '</div>'
+      + '</div>'
+    + '</div>'
+    + renderToast();
+}
+
+// =========================================================================
+//   PHASE 4: LIVE SUPABASE DATA
+// =========================================================================
+// Maps a Supabase `accounts` row to the render shape used by seedAccounts().
+// Falls back to raw_data JSON and sensible defaults for fields we can't derive.
+function mapAcctFromSupabase(a, idx){
+  const rd = a.raw_data || {};
+  const name = a.name || rd['Company Name'] || rd.company_name || rd.company_name_lowercase || rd.Contact_Name || '(unnamed)';
+  const domain = a.domain || rd.domain || '';
+  const paid = a.paid_status || 'Not Paid';
+  const act  = a.activation_status || null;
+  const stage = a.stage || 'lead';
+  const source = a.source || rd.Source || '';
+  const region = a.region || rd.region || '';
+  const industry = a.industry || rd.industry || '';
+  const value = Number(a.deal_value || rd.deal_value || 0) || 0;
+  const score = Number(a.icp_score || rd.icp_score || 50);
+  const tier = score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool';
+  // Renewal bucket derived from close_date proximity
+  const end = a.close_date || null;
+  let ren = null;
+  if (end) {
+    const d = Date.parse(end);
+    if (!isNaN(d)) {
+      const days = (d - Date.now()) / (1000*60*60*24);
+      if (act === 'Expired') ren = 'churned';
+      else if (days < 0) ren = 'overdue';
+      else if (days <= 30) ren = 'out30';
+      else if (days <= 60) ren = 'active';
+      else ren = 'upcoming';
+    }
+  }
+  // AM mapping — try to match am_mail to our AMS roster; else keep first letter
+  const amMail = (a.am_mail || '').toLowerCase();
+  const amMatch = AMS.find(x => amMail.startsWith(x.name.split(' ')[0].toLowerCase()));
+  const am = amMatch ? amMatch.id : (AMS[idx % AMS.length].id);
+  const since = a.bubble_created_at || a.created_at
+    ? new Date(a.bubble_created_at || a.created_at).toLocaleDateString('en-US', { month:'short', year:'numeric' })
+    : '—';
+  return {
+    id: a.id,                              // uuid (used only for detail routing)
+    name, domain, am, stage, paid, act,
+    plan: rd.plan || rd.Plan || '—',
+    used: Number(rd.credits_used || 0),
+    total: Number(rd.credits_total || 0),
+    jobs: Number(rd.jobs_active || rd.active_jobs || 0),
+    views: Number(rd.views_30d || 0),
+    applies: Number(rd.applies_30d || 0),
+    last: rd.last_activity || '—',
+    source, region, industry, value, score, tier,
+    ren, end, since,
+  };
+}
+
+async function fetchAccountsLive(token){
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  const rows = [];
+  let offset = 0;
+  const pageSize = 1000;
+  // 3-page cap on preview to keep it snappy (up to 3000 accounts)
+  for (let page = 0; page < 3; page++) {
+    const url = SB_URL + '/rest/v1/accounts?select=*&order=created_at.asc&limit=' + pageSize + '&offset=' + offset + '&merged_into=is.null';
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('Supabase ' + res.status + ': ' + (await res.text()).slice(0,120));
+    const batch = await res.json();
+    if (!batch || batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows.map(mapAcctFromSupabase);
+}
+
+async function fetchTasksLive(token){
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  // activities table: type='task', not archived, task_done=false, limit 100
+  const url = SB_URL + '/rest/v1/activities?select=id,account_id,title,text,type,task_due_date,task_done,author_id&type=eq.task&task_done=is.false&is_archived=is.false&order=task_due_date.asc.nullslast&limit=100';
+  const res = await fetch(url, { headers });
+  if (!res.ok) return [];
+  const rows = await res.json();
+  const accountsById = new Map((state.accounts || []).map(a => [a.id, a]));
+  return rows.map(r => {
+    const acct = accountsById.get(r.account_id);
+    const dueLabel = r.task_due_date
+      ? (() => {
+          const d = new Date(r.task_due_date);
+          const today = new Date(); today.setHours(0,0,0,0);
+          const t = new Date(d); t.setHours(0,0,0,0);
+          const diff = (t - today) / (1000*60*60*24);
+          if (diff === 0) return 'Today';
+          if (diff === 1) return 'Tomorrow';
+          if (diff < 0) return 'Overdue';
+          return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+        })()
+      : '—';
+    return {
+      id: r.id,
+      title: r.title || r.text || '(untitled task)',
+      account: acct ? acct.name : '(account)',
+      acctId: r.account_id,
+      due: dueLabel,
+      prio: dueLabel === 'Today' || dueLabel === 'Overdue' ? 'high' : 'med',
+      type: 'task',
+      done: !!r.task_done,
+      am: acct ? acct.am : 'na',
+    };
+  });
+}
+
+async function bootLiveData(){
+  const token = getAccessToken();
+  if (!token) {
+    state.dataSource = 'mock';
+    state.dataStatus = 'idle';
+    console.log('[CRM v2] no auth token → running in preview mode with mock data');
+    return;
+  }
+  state.dataStatus = 'loading';
+  render();
+  try {
+    const accounts = await fetchAccountsLive(token);
+    if (accounts.length === 0) {
+      // Empty results → keep mocks so preview isn't blank
+      state.dataStatus = 'ready';
+      console.log('[CRM v2] Supabase returned 0 accounts — keeping mock preview data');
+      render();
+      return;
+    }
+    state.accounts = accounts;
+    state.dataSource = 'live';
+    // Tasks depend on accounts being loaded (for name mapping)
+    try {
+      const tasks = await fetchTasksLive(token);
+      if (tasks.length) state.tasks = tasks;
+    } catch(e){ console.warn('[CRM v2] tasks fetch failed:', e); }
+    state.dataStatus = 'ready';
+    console.log('[CRM v2] live · ' + accounts.length + ' accounts loaded');
+    render();
+  } catch(e) {
+    console.error('[CRM v2] live fetch failed:', e);
+    state.dataStatus = 'error';
+    state.dataError = String(e.message || e);
+    render();
+  }
+}
+
+// ---------- BOOT ----------
+render();
+bootLiveData();
+console.log('[CRM v2] mounted · role='+state.role+' · page='+state.page);
+</script>
+</body>
+</html>
