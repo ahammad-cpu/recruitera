@@ -786,9 +786,14 @@ function filteredAccounts(){
   // tab
   if (s.acctTab === 'leads')    rows = rows.filter(a => a.stage === 'lead');
   else if (s.acctTab === 'pipeline') rows = rows.filter(a => ['mql','sql','demo','proposal'].includes(a.stage));
-  else if (s.acctTab === 'paid')     rows = rows.filter(a => a.paid === 'Paid');
-  else if (s.acctTab === 'trial')    rows = rows.filter(a => a.paid === 'Free Trial');
-  else if (s.acctTab === 'expired')  rows = rows.filter(a => a.act === 'Expired');
+  // Paid = currently paying customers only (Paid OR Without Charge AND still Active)
+  else if (s.acctTab === 'paid')     rows = rows.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Active');
+  // Trial = still on an active trial
+  else if (s.acctTab === 'trial')    rows = rows.filter(a => a.paid === 'Free Trial' && a.act === 'Active');
+  // Expired = trials that ran out without converting
+  else if (s.acctTab === 'expired')  rows = rows.filter(a => a.paid === 'Free Trial' && a.act === 'Expired');
+  // Churned = customers who WERE paying but activation has since expired
+  else if (s.acctTab === 'churned')  rows = rows.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Expired');
   else if (s.acctTab === 'won')      rows = rows.filter(a => a.stage === 'won');
   // filters
   if (s.acctStage  !== 'all') rows = rows.filter(a => a.stage === s.acctStage);
@@ -892,9 +897,10 @@ function renderCompanies(){
     { key:'all',      label:'All',            count: all.length },
     { key:'leads',    label:'Leads',          count: all.filter(a => a.stage === 'lead').length },
     { key:'pipeline', label:'Pipeline',       count: all.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length },
-    { key:'paid',     label:'Paid',           count: all.filter(a => a.paid === 'Paid').length },
-    { key:'trial',    label:'Trial',          count: all.filter(a => a.paid === 'Free Trial').length },
-    { key:'expired',  label:'Expired',        count: all.filter(a => a.act === 'Expired').length },
+    { key:'paid',     label:'Paid',           count: all.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Active').length },
+    { key:'trial',    label:'Trial',          count: all.filter(a => a.paid === 'Free Trial' && a.act === 'Active').length },
+    { key:'expired',  label:'Expired',        count: all.filter(a => a.paid === 'Free Trial' && a.act === 'Expired').length },
+    { key:'churned',  label:'Churned',        count: all.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Expired').length },
     { key:'won',      label:'Won',            count: all.filter(a => a.stage === 'won').length },
   ];
   const tabsHtml = tabDefs.map(t => {
@@ -2395,12 +2401,15 @@ function mapAcctFromSupabase(a, idx){
   const value = Number(a.deal_value || a.proposal_amount || 0) || 0;
   const score = Number(a.recruitera_score || 0);
   const tier  = (a.recruitera_tier || '').toLowerCase() || (score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool');
-  // Contract cycle (if any) — but a plan only makes sense on a Won account.
-  // Prod has plenty of rows where is_paid_customer=true but stage='lead' from
-  // a stale Bubble sync — so we STRICTLY gate on stage='won' here. Cleanup
-  // of those inconsistent rows is a separate SQL job.
+  // Plan shows for anyone who's actually paying (or was paying) — Won,
+  // "Paid", or "Without Charge". Leads/MQL/SQL/Demo/Proposal don't get a
+  // plan even if a stale is_paid_customer=true flag exists.
   const cycle = LIVE_CYCLES_BY_ACCT?.get(a.id);
-  const plan  = stage === 'won' ? (cycle?.plan || rd.plan || rd.Plan || '—') : '—';
+  const eligibleForPlan = stage === 'won'
+                        || paid === 'Paid'
+                        || paid === 'Without Charge';
+  const planFromData = cycle?.plan || rd.plan || rd.Plan || '';
+  const plan  = eligibleForPlan ? (planFromData || '—') : '—';
   // Renewal end date still uses the cycle end for the bucket calc regardless
   const cycleEnds = cycle?.ends_at || null;
   // Close/end date — for renewal bucketing prefer contract end; else deal_close_date; else close_date
@@ -2549,15 +2558,39 @@ async function fetchContactsLive(token, accountIds){
     map.get('08ad87b0-a900-4c0c-baa0-5e8a9eb537b2') || 'MISSING');
 }
 
-async function fetchCyclesLive(token){
-  const rows = await fetchAllPages(token, '/rest/v1/contract_cycles?select=account_id,status,plan_tier,value,currency,ends_at,cycle_number&order=cycle_number.desc');
+async function fetchCyclesLive(token, accountIds){
+  // Same RLS shape as contacts — bulk read is truncated. Per-account eq. is
+  // the only pattern that reliably returns rows.
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   const map = new Map();
-  for (const c of rows) {
-    if (!map.has(c.account_id)) {
-      map.set(c.account_id, { plan: c.plan_tier || '—', value: Number(c.value||0), currency: c.currency || 'EGP', ends_at: c.ends_at, status: c.status });
+  if (!accountIds || accountIds.length === 0) { LIVE_CYCLES_BY_ACCT = map; return; }
+  const CONCURRENCY = 20;
+  let cursor = 0, totalRows = 0, failed = 0;
+  async function worker(){
+    while (cursor < accountIds.length) {
+      const aid = accountIds[cursor++];
+      const url = SB_URL + '/rest/v1/contract_cycles?select=account_id,status,plan_tier,value,currency,ends_at,cycle_number&account_id=eq.' + aid + '&order=cycle_number.desc';
+      try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) { failed++; continue; }
+        const rows = await res.json();
+        if (!rows || rows.length === 0) continue;
+        // Take the highest cycle_number (already sorted desc)
+        const c = rows[0];
+        totalRows += rows.length;
+        map.set(aid, {
+          plan: c.plan_tier || '—',
+          value: Number(c.value || 0),
+          currency: c.currency || 'EGP',
+          ends_at: c.ends_at,
+          status: c.status,
+        });
+      } catch { failed++; }
     }
   }
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
   LIVE_CYCLES_BY_ACCT = map;
+  console.log('[CRM v2] cycles fetched: ' + totalRows + ' rows → ' + map.size + ' accounts (per-account eq.; ' + failed + ' failed)');
 }
 
 async function fetchTrackingLive(token){
@@ -2676,7 +2709,7 @@ async function bootLiveData(){
     // Now the ID-scoped fetches, in parallel. Each swallows errors independently.
     await Promise.all([
       fetchContactsLive(token, accountIds).catch(e => console.warn('[CRM v2] contacts:', e.message)),
-      fetchCyclesLive(token).catch(e => console.warn('[CRM v2] cycles:', e.message)),
+      fetchCyclesLive(token, accountIds).catch(e => console.warn('[CRM v2] cycles:', e.message)),
       fetchTrackingLive(token).catch(e => console.warn('[CRM v2] tracking:', e.message)),
     ]);
     // Map the raw account rows now that the joins are populated
