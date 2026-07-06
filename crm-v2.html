@@ -193,7 +193,13 @@ function chip(v){ return 'display:inline-flex;align-items:center;gap:5px;padding
 function accts(){ return state.accounts || (state.accounts = seedAccounts()); }
 function tasksList(){ return state.tasks || (state.tasks = seedTasks()); }
 function approvalsList(){ return state.approvals || (state.approvals = seedApprovals()); }
-function amById(id){ return AMS.find(a => a.id === id) || { name:'—', initials:'—' }; }
+function amById(id){
+  if (LIVE_AMS){
+    const live = LIVE_AMS.find(a => a.id === id);
+    if (live) return live;
+  }
+  return AMS.find(a => a.id === id) || { name:'—', initials:'—' };
+}
 
 function me(){
   const r = state.role;
@@ -614,12 +620,20 @@ function filteredAccounts(){
 }
 
 function synthContact(a){
-  // deterministic mock contact per account
+  // Prefer live contact from Supabase if available
+  if (LIVE_CONTACTS_BY_ACCT){
+    const live = LIVE_CONTACTS_BY_ACCT.get(a.id);
+    if (live && (live.name || live.email || live.phone)){
+      return { name: live.name || '—', email: live.email || '—', phone: live.phone || '—', title: live.title || '' };
+    }
+  }
+  // Fallback: deterministic mock. Only meaningful for the 17 numeric-id seed rows.
+  if (typeof a.id !== 'number') return { name:'—', email:'—', phone:'—', title:'' };
   const first = ['Ahmed','Mona','Sara','Karim','Nada','Yasmin','Hossam','Tarek','Rania','Omar','Heba','Nour'][a.id % 12];
   const last  = ['Adel','Nabil','Galal','Salem','Farid','Reda','Ali','Hassan','Ibrahim','Kamal','Zaki','Amin'][(a.id * 3) % 12];
   const email = (first + '.' + last).toLowerCase() + '@' + a.domain;
   const phone = '+20 10' + String(1000 + (a.id * 137) % 8999) + ' ' + String(1000 + (a.id * 977) % 8999);
-  return { name: first + ' ' + last, email, phone };
+  return { name: first + ' ' + last, email, phone, title:'' };
 }
 
 // Actions for Companies view
@@ -1905,55 +1919,155 @@ function render(){
 // =========================================================================
 //   PHASE 4: LIVE SUPABASE DATA
 // =========================================================================
-// Maps a Supabase `accounts` row to the render shape used by seedAccounts().
-// Falls back to raw_data JSON and sensible defaults for fields we can't derive.
+// Cache: live AMs from Supabase profiles (populated once at boot).
+let LIVE_AMS = null;
+let LIVE_CONTACTS_BY_ACCT = null;   // Map<accountId, {name, email, phone, title}>
+let LIVE_CYCLES_BY_ACCT = null;     // Map<accountId, {plan, value, ends_at, status}>
+let LIVE_TRACKING_BY_ACCT = null;   // Map<accountId, {first_source, first_campaign, ...}>
+
+function formatMonYr(iso){
+  if (!iso) return '—';
+  const d = new Date(iso); if (isNaN(d)) return '—';
+  return d.toLocaleDateString('en-US', { month:'short', year:'numeric' });
+}
+function formatShortDate(iso){
+  if (!iso) return null;
+  const d = new Date(iso); if (isNaN(d)) return null;
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
 function mapAcctFromSupabase(a, idx){
   const rd = a.raw_data || {};
-  const name = a.name || rd['Company Name'] || rd.company_name || rd.company_name_lowercase || rd.Contact_Name || '(unnamed)';
+  const name = a.name || rd['Company Name'] || rd.company_name || rd.company_name_lowercase || '(unnamed)';
   const domain = a.domain || rd.domain || '';
-  const paid = a.paid_status || 'Not Paid';
-  const act  = a.activation_status || null;
-  const stage = a.stage || 'lead';
+  const paid = a.paid_status || (a.is_paid_customer ? 'Paid' : 'Not Paid');
+  const act  = a.activation_status || (a.trial_status === 'active' ? 'Active' : null);
+  const stage = a.stage || (a.is_disqualified ? 'lost' : 'lead');
   const source = a.source || rd.Source || '';
-  const region = a.region || rd.region || '';
+  const region = a.region || rd.region || a.location || '';
   const industry = a.industry || rd.industry || '';
-  const value = Number(a.deal_value || rd.deal_value || 0) || 0;
-  const score = Number(a.icp_score || rd.icp_score || 50);
-  const tier = score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool';
-  // Renewal bucket derived from close_date proximity
-  const end = a.close_date || null;
+  // deal_value wins; if 0, try proposal_amount
+  const value = Number(a.deal_value || a.proposal_amount || 0) || 0;
+  const score = Number(a.recruitera_score || 0);
+  const tier  = (a.recruitera_tier || '').toLowerCase() || (score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool');
+  // Contract cycle (if any) supersedes plan info
+  const cycle = LIVE_CYCLES_BY_ACCT?.get(a.id);
+  const plan  = cycle?.plan || rd.plan || rd.Plan || '—';
+  const cycleEnds = cycle?.ends_at || null;
+  // Close/end date — for renewal bucketing prefer contract end; else deal_close_date; else close_date
+  const rawEnd = cycleEnds || a.deal_close_date || a.close_date || null;
+  const end = formatShortDate(rawEnd);
   let ren = null;
-  if (end) {
-    const d = Date.parse(end);
+  if (rawEnd) {
+    const d = Date.parse(rawEnd);
     if (!isNaN(d)) {
       const days = (d - Date.now()) / (1000*60*60*24);
-      if (act === 'Expired') ren = 'churned';
+      if (act === 'Expired' || cycle?.status === 'churned') ren = 'churned';
+      else if (cycle?.status === 'renewed') ren = 'renewed';
       else if (days < 0) ren = 'overdue';
       else if (days <= 30) ren = 'out30';
       else if (days <= 60) ren = 'active';
       else ren = 'upcoming';
     }
   }
-  // AM mapping — try to match am_mail to our AMS roster; else keep first letter
-  const amMail = (a.am_mail || '').toLowerCase();
-  const amMatch = AMS.find(x => amMail.startsWith(x.name.split(' ')[0].toLowerCase()));
-  const am = amMatch ? amMatch.id : (AMS[idx % AMS.length].id);
-  const since = a.bubble_created_at || a.created_at
-    ? new Date(a.bubble_created_at || a.created_at).toLocaleDateString('en-US', { month:'short', year:'numeric' })
-    : '—';
+  // Owner — prefer live profile match by am_mail, else fall back to synthesized AMS entry
+  const amMail = (a.am_mail || '').toLowerCase().trim();
+  let am = null;
+  if (LIVE_AMS && amMail) {
+    const found = LIVE_AMS.find(x => x.email && x.email.toLowerCase() === amMail);
+    if (found) am = found.id;
+  }
+  if (!am && amMail) {
+    const first = amMail.split('@')[0].split('.')[0];
+    const match = AMS.find(x => x.name.split(' ')[0].toLowerCase() === first);
+    if (match) am = match.id;
+  }
+  if (!am) am = AMS[idx % AMS.length].id;
+  const since = formatMonYr(a.bubble_created_at || a.paid_since || a.created_at);
   return {
-    id: a.id,                              // uuid (used only for detail routing)
+    id: a.id,
     name, domain, am, stage, paid, act,
-    plan: rd.plan || rd.Plan || '—',
-    used: Number(rd.credits_used || 0),
-    total: Number(rd.credits_total || 0),
-    jobs: Number(rd.jobs_active || rd.active_jobs || 0),
-    views: Number(rd.views_30d || 0),
-    applies: Number(rd.applies_30d || 0),
-    last: rd.last_activity || '—',
+    plan,
+    used: 0, total: 0, jobs: 0, views: 0, applies: 0,   // deferred — no source table yet
+    last: a.updated_at ? formatShortDate(a.updated_at) : '—',
     source, region, industry, value, score, tier,
     ren, end, since,
+    // Extras for Company Profile
+    _bant: {
+      budget:    a.bant_budget_yes,
+      authority: a.bant_authority_yes,
+      need:      a.bant_need_yes,
+      timing:    a.bant_timing_yes,
+    },
+    _isDisqualified: a.is_disqualified,
+    _disqReason: a.disq_reason,
+    _lostReason: a.lost_reason,
+    _lostDetail: a.lost_detail,
+    _cycleValue: cycle?.value,
+    _cycleCurrency: cycle?.currency,
+    _tracking: LIVE_TRACKING_BY_ACCT?.get(a.id),
   };
+}
+
+async function fetchAllPages(token, path){
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  const rows = [];
+  let offset = 0;
+  const pageSize = 1000;
+  for (let page = 0; page < 3; page++) {
+    const glue = path.includes('?') ? '&' : '?';
+    const url = SB_URL + path + glue + 'limit=' + pageSize + '&offset=' + offset;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('Supabase ' + res.status + ': ' + (await res.text()).slice(0,120));
+    const batch = await res.json();
+    if (!batch || batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows;
+}
+
+async function fetchProfilesLive(token){
+  const rows = await fetchAllPages(token, '/rest/v1/profiles?select=id,email,full_name,role,active&active=is.true&order=full_name.asc');
+  LIVE_AMS = rows.map(p => ({
+    id: p.id,
+    email: p.email,
+    name: p.full_name || (p.email || '').split('@')[0],
+    initials: initialsOf(p.full_name || (p.email || '?').split('@')[0]),
+    role: p.role || 'AM',
+  }));
+}
+
+async function fetchContactsLive(token){
+  const rows = await fetchAllPages(token, '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary&order=is_primary.desc.nullslast,created_at.asc');
+  const map = new Map();
+  for (const c of rows) {
+    if (!map.has(c.account_id)) {
+      map.set(c.account_id, { name: c.full_name || '', title: c.job_title || '', email: c.email || '', phone: c.phone || '' });
+    }
+  }
+  LIVE_CONTACTS_BY_ACCT = map;
+}
+
+async function fetchCyclesLive(token){
+  const rows = await fetchAllPages(token, '/rest/v1/contract_cycles?select=account_id,status,plan_tier,value,currency,ends_at,cycle_number&order=cycle_number.desc');
+  const map = new Map();
+  for (const c of rows) {
+    if (!map.has(c.account_id)) {
+      map.set(c.account_id, { plan: c.plan_tier || '—', value: Number(c.value||0), currency: c.currency || 'EGP', ends_at: c.ends_at, status: c.status });
+    }
+  }
+  LIVE_CYCLES_BY_ACCT = map;
+}
+
+async function fetchTrackingLive(token){
+  const rows = await fetchAllPages(token, '/rest/v1/marketing_tracking?select=account_id,first_source,first_medium,first_campaign,first_landing_page,first_date,last_source,last_medium,last_campaign,last_date,device_type,touch_count');
+  const map = new Map();
+  for (const t of rows) {
+    if (t.account_id && !map.has(t.account_id)) map.set(t.account_id, t);
+  }
+  LIVE_TRACKING_BY_ACCT = map;
 }
 
 async function fetchAccountsLive(token){
@@ -2022,9 +2136,16 @@ async function bootLiveData(){
   state.dataStatus = 'loading';
   render();
   try {
+    // Fetch joins in parallel so the account mapper has real relations to attach.
+    // Each swallow-errors so a missing table doesn't nuke the whole preview.
+    await Promise.all([
+      fetchProfilesLive(token).catch(e => console.warn('[CRM v2] profiles:', e.message)),
+      fetchContactsLive(token).catch(e => console.warn('[CRM v2] contacts:', e.message)),
+      fetchCyclesLive(token).catch(e => console.warn('[CRM v2] cycles:', e.message)),
+      fetchTrackingLive(token).catch(e => console.warn('[CRM v2] tracking:', e.message)),
+    ]);
     const accounts = await fetchAccountsLive(token);
     if (accounts.length === 0) {
-      // Empty results → keep mocks so preview isn't blank
       state.dataStatus = 'ready';
       console.log('[CRM v2] Supabase returned 0 accounts — keeping mock preview data');
       render();
@@ -2038,7 +2159,11 @@ async function bootLiveData(){
       if (tasks.length) state.tasks = tasks;
     } catch(e){ console.warn('[CRM v2] tasks fetch failed:', e); }
     state.dataStatus = 'ready';
-    console.log('[CRM v2] live · ' + accounts.length + ' accounts loaded');
+    console.log('[CRM v2] live · ' + accounts.length + ' accounts · '
+      + (LIVE_CONTACTS_BY_ACCT?.size||0) + ' contacts · '
+      + (LIVE_CYCLES_BY_ACCT?.size||0) + ' cycles · '
+      + (LIVE_TRACKING_BY_ACCT?.size||0) + ' tracking · '
+      + (LIVE_AMS?.length||0) + ' profiles');
     render();
   } catch(e) {
     console.error('[CRM v2] live fetch failed:', e);
