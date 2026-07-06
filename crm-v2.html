@@ -247,6 +247,68 @@ function toast(msg){
 }
 function setRole(r){ setState({ role: r }); }
 
+// ---------- MERGE MODAL ----------
+function openMergeModal(seedId){
+  // Snapshot the current dupe map so the modal stays consistent even if state changes
+  const dupeMap = buildDupeMap(accts().filter(a => !isJunkAccount(a)));
+  const entry = dupeMap.get(seedId);
+  if (!entry) { toast('No duplicates found for this row'); return; }
+  const partnerIds = [seedId, ...entry.partners];
+  // Default keeper = the account most likely to be canonical:
+  //   1. Highest ICP score wins
+  //   2. Tiebreak on "furthest along in funnel" (won > proposal > demo > sql > mql > lead > lost)
+  const funnelWeight = { won:6, proposal:5, demo:4, sql:3, mql:2, lead:1, lost:0 };
+  const rows = partnerIds.map(id => accts().find(a => a.id === id)).filter(Boolean);
+  rows.sort((a,b) => (b.score||0) - (a.score||0) || (funnelWeight[b.stage]||0) - (funnelWeight[a.stage]||0));
+  setState({
+    mergeOpen: true,
+    mergeIds: partnerIds,
+    mergeKeeper: rows[0]?.id || seedId,
+    mergeReasons: Array.from(entry.reasons),
+    mergeStatus: 'idle',
+    mergeError: null,
+  });
+}
+function closeMergeModal(){ setState({ mergeOpen: false, mergeStatus: 'idle', mergeError: null }); }
+function setMergeKeeper(id){ setState({ mergeKeeper: id }); }
+async function submitMerge(){
+  const s = state;
+  if (!s.mergeKeeper || !s.mergeIds || s.mergeIds.length < 2) return;
+  const token = getAccessToken();
+  if (!token) { toast('Login required to merge — no auth token'); return; }
+  const loserIds = s.mergeIds.filter(id => id !== s.mergeKeeper);
+  state.mergeStatus = 'submitting';
+  render();
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/rpc/manual_merge_accounts', {
+      method: 'POST',
+      headers: {
+        apikey: SB_KEY,
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_keeper_id: s.mergeKeeper, p_loser_ids: loserIds }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error('Supabase ' + res.status + ': ' + t.slice(0, 200));
+    }
+    // Refetch accounts to reflect the merge (losers now have merged_into set)
+    const accounts = await fetchAccountsLive(token);
+    state.accounts = accounts;
+    state.mergeOpen = false;
+    state.mergeStatus = 'done';
+    render();
+    toast('Merged ' + loserIds.length + ' duplicate' + (loserIds.length > 1 ? 's' : '') + ' — reversible via unmerge');
+  } catch (e) {
+    console.error('[CRM v2] merge failed:', e);
+    state.mergeStatus = 'error';
+    state.mergeError = String(e.message || e);
+    render();
+  }
+}
+Object.assign(window, { openMergeModal, closeMergeModal, setMergeKeeper, submitMerge });
+
 // expose to inline handlers
 Object.assign(window, { go, toggleSidebar, openDetail, closeDetail, toggleTask, setRange, setCallsTab, toast, setRole });
 
@@ -618,12 +680,67 @@ function isJunkAccount(a){
   return false;
 }
 
-// Build duplicate index once per render: Map<normalized-name, count>.
-// Used to badge suspected duplicates in the table.
+// Normalize helpers for duplicate matching
+function normName(s){ return String(s || '').trim().toLowerCase().replace(/\s+/g,' '); }
+function normDomain(s){
+  return String(s || '').trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/\/.*$/,'');
+}
+function normPhone(s){
+  const digits = String(s || '').replace(/\D+/g,'');
+  // Keep last 9-10 digits so "+201001234567" and "01001234567" match
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+function emailDomain(s){
+  const m = String(s || '').toLowerCase().match(/@([^\s@]+)$/);
+  return m ? m[1] : '';
+}
+// Domains that are junk-signal — matching by them would falsely link
+// unrelated accounts. Excluded from the domain + email-domain indexes.
+const GENERIC_DOMAINS = new Set([
+  'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','live.com','aol.com','mail.com',
+  'protonmail.com','yandex.com','msn.com','me.com',
+]);
+
+// Build multi-key duplicate detector. Returns:
+//   Map<accountId, { reasons: Set<'name'|'domain'|'phone'|'email'>, partners: Set<accountId> }>
+// A row is a duplicate if it shares AT LEAST ONE key with another row.
+function buildDupeMap(rows){
+  const contactOf = (a) => LIVE_CONTACTS_BY_ACCT?.get(a.id) || {};
+  const byKey = { name: new Map(), domain: new Map(), phone: new Map(), email: new Map() };
+  const add = (bucket, key, id) => {
+    if (!key) return;
+    if (!byKey[bucket].has(key)) byKey[bucket].set(key, []);
+    byKey[bucket].get(key).push(id);
+  };
+  for (const a of rows) {
+    const c = contactOf(a);
+    add('name',   normName(a.name), a.id);
+    const dom = normDomain(a.domain);
+    if (dom && !GENERIC_DOMAINS.has(dom)) add('domain', dom, a.id);
+    add('phone',  normPhone(c.phone), a.id);
+    const ed = emailDomain(c.email);
+    if (ed && !GENERIC_DOMAINS.has(ed)) add('email', ed, a.id);
+  }
+  const out = new Map();
+  for (const [bucket, m] of Object.entries(byKey)) {
+    for (const ids of m.values()) {
+      if (ids.length < 2) continue;
+      for (const id of ids) {
+        if (!out.has(id)) out.set(id, { reasons: new Set(), partners: new Set() });
+        const entry = out.get(id);
+        entry.reasons.add(bucket);
+        for (const other of ids) if (other !== id) entry.partners.add(other);
+      }
+    }
+  }
+  return out;
+}
+
+// Back-compat helper: name-only count for junk detector display
 function buildDupeIndex(rows){
   const m = new Map();
   for (const a of rows) {
-    const key = String(a.name || '').trim().toLowerCase().replace(/\s+/g,' ');
+    const key = normName(a.name);
     if (!key) continue;
     m.set(key, (m.get(key) || 0) + 1);
   }
@@ -635,13 +752,10 @@ function filteredAccounts(){
   let rows = accts().slice();
   // Hide junk unless the user explicitly opts in via the "Show junk" toggle
   if (!s.acctShowJunk) rows = rows.filter(a => !isJunkAccount(a));
-  // Duplicates-only filter (opt-in)
+  // Duplicates-only filter (opt-in) — now checks name/domain/phone/email
   if (s.acctDupesOnly) {
-    const idx = buildDupeIndex(rows);
-    rows = rows.filter(a => {
-      const key = String(a.name || '').trim().toLowerCase().replace(/\s+/g,' ');
-      return idx.get(key) > 1;
-    });
+    const dm = buildDupeMap(rows);
+    rows = rows.filter(a => dm.has(a.id));
   }
   // tab
   if (s.acctTab === 'leads')    rows = rows.filter(a => a.stage === 'lead');
@@ -738,11 +852,12 @@ function renderCompanies(){
   const s = state;
   const all = accts();
   const rows = filteredAccounts();
-  // Dupe index across the CURRENT filtered rows (so the ⚠ badge only
-  // fires when the visible list still has more than one occurrence).
-  const dupeIndex = buildDupeIndex(rows);
+  // Multi-key dupe detector across the CURRENT filtered rows so the ⚠ badge
+  // only fires when the visible list still has partners. Also computes the
+  // full-set counts for the toggle labels.
+  const dupeMap = buildDupeMap(rows);
   const junkCount = all.filter(isJunkAccount).length;
-  const dupeCount = (function(){ const idx = buildDupeIndex(all.filter(a => !isJunkAccount(a))); let n = 0; idx.forEach(v => { if (v > 1) n += v; }); return n; })();
+  const dupeCount = buildDupeMap(all.filter(a => !isJunkAccount(a))).size;
   // tab counts
   const tabDefs = [
     { key:'all',      label:'All',            count: all.length },
@@ -800,8 +915,10 @@ function renderCompanies(){
 
   const th  = 'padding:10px 14px;text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap;';
   const thR = th + 'text-align:right;';
+  const thC = th + 'text-align:center;';
   const td  = 'padding:9px 14px;height:52px;border-bottom:1px solid var(--border);vertical-align:middle;';
   const tdR = td + 'text-align:right;';
+  const tdC = td + 'text-align:center;';
 
   const tableRows = rows.map(a => {
     const am = amById(a.am);
@@ -814,7 +931,13 @@ function renderCompanies(){
           + '<div style="'+logoStyle(34)+'">'+initialsOf(a.name)+'</div>'
           + '<div style="min-width:0;">'
             + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;color:var(--text);">'+esc(a.name)+'</span>'
-              + ((() => { const k = String(a.name||'').trim().toLowerCase().replace(/\s+/g,' '); return dupeIndex.get(k) > 1 ? '<span title="'+dupeIndex.get(k)+' rows share this name — likely duplicates" style="'+chip('bad')+'">⚠ dupe ×'+dupeIndex.get(k)+'</span>' : ''; })())
+              + ((() => {
+                  const entry = dupeMap.get(a.id);
+                  if (!entry) return '';
+                  const total = entry.partners.size + 1;
+                  const reasons = Array.from(entry.reasons).join(', ');
+                  return '<span onclick="event.stopPropagation();openMergeModal('+JSON.stringify(a.id)+')" title="Matches '+total+' rows via '+reasons+' — click to review &amp; merge" style="'+chip('bad')+';cursor:pointer;">⚠ dupe ×'+total+' →</span>';
+                })())
             + '</div>'
             + '<div style="font-size:11px;color:var(--text-3);margin-top:1px;">'+esc(a.domain || '—')+'</div>'
           + '</div>'
@@ -824,7 +947,7 @@ function renderCompanies(){
       + '<td style="'+td+'"><div style="font-size:12.5px;font-weight:600;color:var(--text);">'+esc(c.email)+'</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" class="tnum">'+esc(c.phone)+'</div></td>'
       + '<td style="'+td+'"><span style="'+chip(st.v)+'">'+st.label+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:12.5px;font-weight:600;color:var(--text-2);">'+esc(a.plan)+'</span></td>'
-      + '<td style="'+tdR+'"><span class="tnum" style="font-size:12.5px;font-weight:700;color:'+scoreColor+';">'+a.score+'</span></td>'
+      + '<td style="'+tdC+'"><span class="tnum" style="font-size:12.5px;font-weight:700;color:'+scoreColor+';">'+a.score+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:12px;color:var(--text-3);">'+esc(a.source)+'</span></td>'
       + '<td style="'+tdR+'"><span style="font-size:12px;color:var(--text-2);">'+esc(a.since)+'</span></td>'
     + '</tr>';
@@ -840,7 +963,7 @@ function renderCompanies(){
             + '<th style="'+th+'">Contact</th>'
             + sortHead('stage',   'Stage',     th)
             + sortHead('plan',    'Plan',      th)
-            + sortHead('score',   'ICP score', thR)
+            + sortHead('score',   'ICP score', thC)
             + sortHead('source',  'Source',    th)
             + sortHead('created', 'Created',   thR)
           + '</tr></thead>'
@@ -2063,6 +2186,78 @@ function renderDetail(){
 }
 
 // =========================================================================
+//   RENDER: MERGE MODAL
+// =========================================================================
+function renderMergeModal(){
+  if (!state.mergeOpen) return '';
+  const ids = state.mergeIds || [];
+  const rows = ids.map(id => accts().find(a => a.id === id)).filter(Boolean);
+  const keeper = state.mergeKeeper;
+  const reasons = state.mergeReasons || [];
+  const busy = state.mergeStatus === 'submitting';
+
+  const reasonChips = reasons.map(r => {
+    const label = { name:'Same name', domain:'Same domain', phone:'Same phone', email:'Same email domain' }[r] || r;
+    return '<span style="'+chip('warn')+'">'+label+'</span>';
+  }).join(' ');
+
+  const rowsHtml = rows.map(a => {
+    const am = amById(a.am);
+    const c = synthContact(a);
+    const isKeeper = a.id === keeper;
+    return '<label style="display:grid;grid-template-columns:24px 1.6fr 1.4fr 100px 90px 90px 100px;gap:12px;align-items:center;padding:14px 16px;border:2px solid '+(isKeeper?'var(--accent)':'var(--border)')+';border-radius:12px;background:'+(isKeeper?'var(--accent-soft)':'var(--surface)')+';cursor:pointer;">'
+      + '<input type="radio" name="merge-keeper" value="'+esc(a.id)+'"'+(isKeeper?' checked':'')+' onchange="setMergeKeeper('+JSON.stringify(a.id)+')" style="width:16px;height:16px;accent-color:var(--accent);">'
+      + '<div style="min-width:0;">'
+        + '<div style="font-size:13.5px;font-weight:700;color:var(--text);">'+esc(a.name)+(isKeeper?' <span style="font-size:10px;font-weight:800;color:var(--accent-ink);background:var(--accent);padding:1px 6px;border-radius:4px;margin-left:6px;">KEEP</span>':'')+'</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">'+esc(a.domain || '—')+'</div>'
+      + '</div>'
+      + '<div style="min-width:0;">'
+        + '<div style="font-size:12px;color:var(--text);">'+esc(c.email || '—')+'</div>'
+        + '<div class="tnum" style="font-size:11px;color:var(--text-3);margin-top:2px;">'+esc(c.phone || '—')+'</div>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(am.name)+'</div>'
+      + '<div><span style="'+chip((STAGE[a.stage]||STAGE.lead).v)+'">'+(STAGE[a.stage]||STAGE.lead).label+'</span></div>'
+      + '<div class="tnum" style="font-size:13px;font-weight:800;text-align:center;color:'+(a.score>=80?'var(--ok)':a.score>=60?'var(--warn)':'var(--text-3)')+';">'+a.score+'</div>'
+      + '<div style="font-size:11.5px;color:var(--text-3);text-align:right;">'+esc(a.since || '—')+'</div>'
+    + '</label>';
+  }).join('');
+
+  const errorBanner = state.mergeStatus === 'error'
+    ? '<div style="padding:12px 14px;background:var(--bad-bg);border:1px solid var(--bad);border-radius:8px;font-size:12px;color:var(--bad);font-weight:600;margin-bottom:12px;">✗ '+esc(state.mergeError||'Merge failed')+'</div>'
+    : '';
+
+  const loserCount = ids.length - 1;
+  return '<div onclick="closeMergeModal()" style="position:fixed;inset:0;background:rgba(45,56,68,.55);display:grid;place-items:center;z-index:300;padding:24px;">'
+    + '<div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh3);width:100%;max-width:1080px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">'
+      // header
+      + '<div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;">'
+        + '<div style="width:36px;height:36px;border-radius:9px;background:var(--bad-bg);color:var(--bad);display:grid;place-items:center;font-size:18px;flex-shrink:0;">⚠</div>'
+        + '<div style="flex:1;min-width:0;">'
+          + '<h2 style="margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em;">Merge '+ids.length+' duplicate accounts</h2>'
+          + '<div style="font-size:12.5px;color:var(--text-2);margin-top:4px;">Pick which row to <b>keep</b>. The other '+loserCount+' will have <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">merged_into</code> set to the keeper — reversible via <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">unmerge_account</code>.</div>'
+          + '<div style="display:flex;gap:6px;margin-top:8px;">Match reason: '+reasonChips+'</div>'
+        + '</div>'
+        + '<button onclick="closeMergeModal()" style="width:32px;height:32px;border-radius:8px;color:var(--text-3);cursor:pointer;font-size:20px;">×</button>'
+      + '</div>'
+      // body
+      + '<div class="sc" style="padding:16px 24px;overflow-y:auto;flex:1;">'
+        + errorBanner
+        + '<div style="display:grid;grid-template-columns:24px 1.6fr 1.4fr 100px 90px 90px 100px;gap:12px;padding:0 16px 8px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);">'
+          + '<div></div><div>Company</div><div>Contact</div><div>Owner</div><div>Stage</div><div style="text-align:center;">ICP</div><div style="text-align:right;">Created</div>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:8px;">' + rowsHtml + '</div>'
+      + '</div>'
+      // footer
+      + '<div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface-2);">'
+        + '<div style="font-size:12px;color:var(--text-3);font-weight:500;flex:1;">Keeper stays. '+loserCount+' loser row'+(loserCount>1?'s':'')+' will be hidden from all views.</div>'
+        + '<button onclick="closeMergeModal()" '+(busy?'disabled':'')+' style="height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:'+(busy?'not-allowed':'pointer')+';">Cancel</button>'
+        + '<button onclick="submitMerge()" '+(busy?'disabled':'')+' style="height:36px;padding:0 18px;border-radius:8px;border:1px solid var(--accent-strong);background:'+(busy?'var(--surface-2)':'var(--accent)')+';font-size:13px;font-weight:700;color:'+(busy?'var(--text-3)':'var(--on-accent)')+';cursor:'+(busy?'wait':'pointer')+';">'+(busy?'Merging…':'Confirm merge')+'</button>'
+      + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
 //   RENDER: TOAST
 // =========================================================================
 function renderToast(){
@@ -2121,6 +2316,7 @@ function render(){
         + '</div>'
       + '</div>'
     + '</div>'
+    + renderMergeModal()
     + renderToast();
   // Restore focus + cursor to the same input the user was typing in.
   if (focusId) {
