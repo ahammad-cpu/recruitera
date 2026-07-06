@@ -660,6 +660,9 @@ function filteredAccounts(){
   if (s.acctPlan   !== 'all') rows = rows.filter(a => a.plan === s.acctPlan);
   const q = (s.acctSearch || '').trim().toLowerCase();
   if (q) rows = rows.filter(a => a.name.toLowerCase().includes(q) || a.domain.toLowerCase().includes(q));
+  // Apply sort last so filters compose predictably
+  const sort = s.acctSort || { key: 'created', dir: 'desc' };
+  rows.sort((a, b) => compareAccts(a, b, sort.key) * (sort.dir === 'asc' ? 1 : -1));
   return rows;
 }
 
@@ -684,7 +687,52 @@ function synthContact(a){
 function setAcctTab(t){ setState({ acctTab: t }); }
 function setAcctSearch(v){ state.acctSearch = v; render(); }
 function setAcctSel(k, v){ setState({ [k]: v }); }
-Object.assign(window, { setAcctTab, setAcctSearch, setAcctSel });
+function setAcctSort(key){
+  // Same column → flip direction; new column → default desc for scores/dates, asc otherwise
+  const s = state.acctSort || {};
+  if (s.key === key) {
+    setState({ acctSort: { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } });
+  } else {
+    const defaultDesc = ['score','created'].includes(key);
+    setState({ acctSort: { key, dir: defaultDesc ? 'desc' : 'asc' } });
+  }
+}
+Object.assign(window, { setAcctTab, setAcctSearch, setAcctSel, setAcctSort });
+
+// Header renderer for sortable columns (Companies table)
+function sortHead(key, label, baseStyle, extraStyle){
+  const s = state.acctSort || { key: 'created', dir: 'desc' };
+  const active = s.key === key;
+  const arrow = active ? (s.dir === 'asc' ? '↑' : '↓') : '↕';
+  const arrowColor = active ? 'var(--text)' : 'var(--text-4)';
+  return '<th style="'+baseStyle+(extraStyle||'')+'cursor:pointer;user-select:none;" onclick="setAcctSort(\''+key+'\')">'
+    + '<span style="display:inline-flex;align-items:center;gap:6px;'+(baseStyle.includes('text-align:right')?'':'')+'">'
+    + label + '<span style="color:'+arrowColor+';font-weight:'+(active?800:500)+';">'+arrow+'</span>'
+    + '</span></th>';
+}
+
+// Sort comparator that handles nulls, strings, numbers, and owner-name lookup
+function compareAccts(a, b, key){
+  let av, bv;
+  if (key === 'owner') {
+    av = amById(a.am).name || ''; bv = amById(b.am).name || '';
+  } else if (key === 'score') {
+    av = a.score || 0; bv = b.score || 0;
+  } else if (key === 'created') {
+    av = a._sinceRaw ? Date.parse(a._sinceRaw) : 0;
+    bv = b._sinceRaw ? Date.parse(b._sinceRaw) : 0;
+  } else if (key === 'stage') {
+    // Sort by funnel order, not alphabetically
+    const order = { lead:0, mql:1, sql:2, demo:3, proposal:4, won:5, lost:6 };
+    av = order[a.stage] ?? 99; bv = order[b.stage] ?? 99;
+  } else {
+    av = (a[key] || '').toString().toLowerCase();
+    bv = (b[key] || '').toString().toLowerCase();
+  }
+  if (av < bv) return -1;
+  if (av > bv) return 1;
+  return 0;
+}
 
 function renderCompanies(){
   const s = state;
@@ -759,9 +807,6 @@ function renderCompanies(){
     const am = amById(a.am);
     const st = STAGE[a.stage] || STAGE.lead;
     const c  = synthContact(a);
-    const paidChip = a.act === 'Expired'
-      ? '<span style="'+chip('bad')+'">● Expired</span>'
-      : '<span style="'+chip(PAID[a.paid]||'neutral')+'">● '+esc(a.paid)+'</span>';
     const scoreColor = a.score >= 80 ? 'var(--ok)' : a.score >= 60 ? 'var(--warn)' : 'var(--text-3)';
     return '<tr class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="cursor:pointer;">'
       + '<td style="'+td+'padding-left:16px;">'
@@ -780,7 +825,6 @@ function renderCompanies(){
       + '<td style="'+td+'"><span style="'+chip(st.v)+'">'+st.label+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:12.5px;font-weight:600;color:var(--text-2);">'+esc(a.plan)+'</span></td>'
       + '<td style="'+tdR+'"><span class="tnum" style="font-size:12.5px;font-weight:700;color:'+scoreColor+';">'+a.score+'</span></td>'
-      + '<td style="'+td+'">'+paidChip+'</td>'
       + '<td style="'+td+'"><span style="font-size:12px;color:var(--text-3);">'+esc(a.source)+'</span></td>'
       + '<td style="'+tdR+'"><span style="font-size:12px;color:var(--text-2);">'+esc(a.since)+'</span></td>'
     + '</tr>';
@@ -791,15 +835,14 @@ function renderCompanies(){
       + '<div class="sc" style="overflow-x:auto;">'
         + '<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:1080px;">'
           + '<thead><tr>'
-            + '<th style="'+th+'padding-left:16px;">Company</th>'
-            + '<th style="'+th+'">Owner</th>'
+            + sortHead('name',    'Company',   th, 'padding-left:16px;')
+            + sortHead('owner',   'Owner',     th)
             + '<th style="'+th+'">Contact</th>'
-            + '<th style="'+th+'">Stage</th>'
-            + '<th style="'+th+'">Plan</th>'
-            + '<th style="'+thR+'">ICP score</th>'
-            + '<th style="'+th+'">Status</th>'
-            + '<th style="'+th+'">Source</th>'
-            + '<th style="'+thR+'">Created</th>'
+            + sortHead('stage',   'Stage',     th)
+            + sortHead('plan',    'Plan',      th)
+            + sortHead('score',   'ICP score', thR)
+            + sortHead('source',  'Source',    th)
+            + sortHead('created', 'Created',   thR)
           + '</tr></thead>'
           + '<tbody>' + tableRows + '</tbody>'
         + '</table>'
@@ -2103,7 +2146,8 @@ let LIVE_LOGS = null;               // Global recent activities feed
 function formatMonYr(iso){
   if (!iso) return '—';
   const d = new Date(iso); if (isNaN(d)) return '—';
-  return d.toLocaleDateString('en-US', { month:'short', year:'numeric' });
+  // "5 Jan 2026" — day + short month + year
+  return d.getDate() + ' ' + d.toLocaleDateString('en-US', { month:'short', year:'numeric' });
 }
 function formatShortDate(iso){
   if (!iso) return null;
@@ -2166,7 +2210,8 @@ function mapAcctFromSupabase(a, idx){
     if (match) am = match.id;
   }
   if (!am) am = AMS[idx % AMS.length].id;
-  const since = formatMonYr(a.bubble_created_at || a.paid_since || a.created_at);
+  const sinceRaw = a.bubble_created_at || a.paid_since || a.created_at;
+  const since = formatMonYr(sinceRaw);
   return {
     id: a.id,
     name, domain, am, stage, paid, act,
@@ -2175,6 +2220,7 @@ function mapAcctFromSupabase(a, idx){
     last: a.updated_at ? formatShortDate(a.updated_at) : '—',
     source, region, industry, value, score, tier,
     ren, end, since,
+    _sinceRaw: sinceRaw,     // ISO date used for the Created column sort
     // Extras for Company Profile
     _bant: {
       budget:    a.bant_budget_yes,
