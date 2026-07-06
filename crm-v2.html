@@ -225,7 +225,11 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '
 function setState(patch){ Object.assign(state, patch); render(); }
 function go(page){ setState({ page, detailId: null }); }
 function toggleSidebar(){ setState({ sidebarCollapsed: !state.sidebarCollapsed }); }
-function openDetail(id){ setState({ detailId: id, detailTab: 'overview' }); }
+function openDetail(id){
+  setState({ detailId: id, detailTab: 'overview' });
+  // Lazy fetch activities for this account when opened (live only)
+  if (state.dataSource === 'live') loadActivitiesForAccount(id);
+}
 function closeDetail(){ setState({ detailId: null }); }
 function toggleTask(id){
   const t = tasksList();
@@ -471,7 +475,7 @@ function renderDashboard(){
     + '</div>'
     + myCos.map(co => {
         const st = STAGE[co.stage] || STAGE.lead;
-        return '<div class="row-h" onclick="openDetail('+co.id+')" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--border);cursor:pointer;">'
+        return '<div class="row-h" onclick="openDetail('+JSON.stringify(co.id)+')" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--border);cursor:pointer;">'
           + '<div style="'+logoStyle(34)+'">'+initialsOf(co.name)+'</div>'
           + '<div style="min-width:0;flex:1;">'
             + '<div style="font-size:14px;font-weight:700;color:var(--text);">'+esc(co.name)+'</div>'
@@ -701,7 +705,7 @@ function renderCompanies(){
       ? '<span style="'+chip('bad')+'">● Expired</span>'
       : '<span style="'+chip(PAID[a.paid]||'neutral')+'">● '+esc(a.paid)+'</span>';
     const scoreColor = a.score >= 80 ? 'var(--ok)' : a.score >= 60 ? 'var(--warn)' : 'var(--text-3)';
-    return '<tr class="row-h" onclick="openDetail('+a.id+')" style="cursor:pointer;">'
+    return '<tr class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="cursor:pointer;">'
       + '<td style="'+td+'padding-left:16px;">'
         + '<div style="display:flex;align-items:center;gap:10px;">'
           + '<div style="'+logoStyle(34)+'">'+initialsOf(a.name)+'</div>'
@@ -796,7 +800,7 @@ function renderPipeline(){
     const cardHtml = cards.map(a => {
       const am = amById(a.am);
       const tier = TIER[a.tier] || TIER.warm;
-      return '<div class="row-h" onclick="openDetail('+a.id+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
+      return '<div class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
         + '<div style="display:flex;align-items:center;gap:9px;">'
           + '<div style="'+logoStyle(32)+'">'+initialsOf(a.name)+'</div>'
           + '<div style="min-width:0;flex:1;">'
@@ -878,7 +882,7 @@ function renderRenewal(){
     const cards = withRen.filter(a => a.ren === col.key);
     const cardHtml = cards.map(a => {
       const label = REN[a.ren] ? REN[a.ren].label : a.ren;
-      return '<div class="row-h" onclick="openDetail('+a.id+')" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:8px;">'
+      return '<div class="row-h" onclick="openDetail('+JSON.stringify(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:8px;">'
         + '<div style="font-size:14.5px;font-weight:800;letter-spacing:-.01em;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.name)+'</div>'
         + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
           + '<span style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(a.plan)+'</span>'
@@ -978,7 +982,7 @@ function renderTasks(){
     const am = amById(t.am);
     return '<tr class="row-h">'
       + '<td style="'+td+'"><span style="font-size:12px;color:var(--text-3);" class="tnum">'+esc(t.due)+'</span></td>'
-      + '<td style="'+td+'"><span style="font-size:13px;font-weight:700;color:var(--accent-ink);cursor:pointer;" onclick="openDetail('+t.acctId+')">'+esc(t.account)+'</span></td>'
+      + '<td style="'+td+'"><span style="font-size:13px;font-weight:700;color:var(--accent-ink);cursor:pointer;" onclick="openDetail('+JSON.stringify(t.acctId)+')">'+esc(t.account)+'</span></td>'
       + '<td style="'+td+'"><span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);">'+esc(t.type)+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:13px;color:var(--text);">'+esc(t.title)+'</span></td>'
       + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:7px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12.5px;font-weight:600;">'+esc(am.name)+'</span></div></td>'
@@ -1039,7 +1043,7 @@ function renderNotifications(){
   const unreadCount = items.filter(n => n.unread).length;
   const iconWrap = (v) => 'width:36px;height:36px;border-radius:10px;background:'+({bad:'var(--bad-bg)',warn:'var(--warn-bg)',ok:'var(--ok-bg)',info:'var(--info-bg)',lime:'var(--accent-soft)'}[v]||'var(--surface-2)')+';display:grid;place-items:center;font-size:16px;flex-shrink:0;';
   const list = items.map(n =>
-    '<div class="row-h" onclick="'+(n.acctId?('openDetail('+n.acctId+')'):'toast(\'Nothing to open on this notification\')')+'" style="display:flex;align-items:flex-start;gap:14px;padding:16px 18px;background:var(--surface);border-radius:12px;cursor:pointer;margin-bottom:4px;border:1px solid var(--border);">'
+    '<div class="row-h" onclick="'+(n.acctId?('openDetail('+JSON.stringify(n.acctId)+')'):'toast(\'Nothing to open on this notification\')')+'" style="display:flex;align-items:flex-start;gap:14px;padding:16px 18px;background:var(--surface);border-radius:12px;cursor:pointer;margin-bottom:4px;border:1px solid var(--border);">'
       + '<div style="'+iconWrap(n.v)+'">'+n.icon+'</div>'
       + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">'+esc(n.title)+'</div>'
@@ -1153,22 +1157,54 @@ function renderReports(){
 //   RENDER: LOGS
 // =========================================================================
 function renderLogs(){
-  const logs = [
-    { kind:'stage',        acct:'MaxAB',           from:'proposal', to:'won',  user:'Karim Fawzy',   when:'2m ago',  body:'Auto-invoice queued · collection task created' },
-    { kind:'stage',        acct:'Fawry',           from:'demo',     to:'proposal', user:'Salma Hassan',when:'18m ago', body:'Proposal EGP 180k · closes Jul 20' },
-    { kind:'note',         acct:'Talabat Egypt',   user:'Nour Adel',        when:'42m ago', body:'Champion promoted — new CHRO Adham Fathy. Loop in on QBR.' },
-    { kind:'qualification',acct:'Swvl',            user:'Omar Sherif',      when:'1h ago',  body:'BANT: Budget ✓ · Authority ? · Need ✓ · Timeline: Q3' },
-    { kind:'renewal',      acct:'Edita',           user:'System',            when:'2h ago',  body:'Auto-moved to 30-days-out bucket' },
-    { kind:'stage',        acct:'Paymob',          from:'proposal', to:'lost', user:'Nour Adel',    when:'3h ago',  body:'Loss reason: went with competitor · budget cited' },
-    { kind:'activity',     acct:'Instabug',        user:'Nour Adel',        when:'4h ago',  body:'Demo booked for Jul 6 · 14:00 with TA lead' },
-    { kind:'task',         acct:'Halan',           user:'Salma Hassan',      when:'5h ago',  body:'Task completed: Send Growth pricing sheet' },
-    { kind:'note',         acct:'Juhayna',         user:'Yara Mostafa',      when:'7h ago',  body:'QBR feedback: happy with new ATS integration' },
-  ];
+  let logs;
+  if (LIVE_LOGS && LIVE_LOGS.length){
+    const accById = new Map((accts()||[]).map(a => [a.id, a]));
+    const now = Date.now();
+    const timeAgoLog = (iso) => {
+      if (!iso) return '';
+      const d = Date.parse(iso); if (isNaN(d)) return '';
+      const s = (now - d) / 1000;
+      if (s < 60) return 'just now';
+      if (s < 3600) return Math.round(s/60) + 'm ago';
+      if (s < 86400) return Math.round(s/3600) + 'h ago';
+      if (s < 86400*7) return Math.round(s/86400) + 'd ago';
+      return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    };
+    logs = LIVE_LOGS.map(row => {
+      const acct = accById.get(row.account_id);
+      const author = LIVE_AMS?.find(x => x.id === row.author_id);
+      const kind = row.type === 'stage' ? 'stage' : row.type === 'note' ? 'note' : row.type === 'task' ? 'task' : row.type === 'meeting' || row.type === 'call' || row.type === 'email' ? 'activity' : 'note';
+      const body = row.text || row.title || (row.from_stage && row.to_stage ? '' : '(no content)');
+      return {
+        kind,
+        acct: acct?.name || '(unknown account)',
+        acctId: acct?.id || null,
+        from: row.from_stage || null,
+        to: row.to_stage || null,
+        user: author?.name || 'Unknown',
+        when: timeAgoLog(row.created_at),
+        body,
+      };
+    });
+  } else {
+    logs = [
+      { kind:'stage',        acct:'MaxAB',           from:'proposal', to:'won',  user:'Karim Fawzy',   when:'2m ago',  body:'Auto-invoice queued · collection task created' },
+      { kind:'stage',        acct:'Fawry',           from:'demo',     to:'proposal', user:'Salma Hassan',when:'18m ago', body:'Proposal EGP 180k · closes Jul 20' },
+      { kind:'note',         acct:'Talabat Egypt',   user:'Nour Adel',        when:'42m ago', body:'Champion promoted — new CHRO Adham Fathy. Loop in on QBR.' },
+      { kind:'qualification',acct:'Swvl',            user:'Omar Sherif',      when:'1h ago',  body:'BANT: Budget ✓ · Authority ? · Need ✓ · Timeline: Q3' },
+      { kind:'renewal',      acct:'Edita',           user:'System',            when:'2h ago',  body:'Auto-moved to 30-days-out bucket' },
+      { kind:'stage',        acct:'Paymob',          from:'proposal', to:'lost', user:'Nour Adel',    when:'3h ago',  body:'Loss reason: went with competitor · budget cited' },
+      { kind:'activity',     acct:'Instabug',        user:'Nour Adel',        when:'4h ago',  body:'Demo booked for Jul 6 · 14:00 with TA lead' },
+      { kind:'task',         acct:'Halan',           user:'Salma Hassan',      when:'5h ago',  body:'Task completed: Send Growth pricing sheet' },
+      { kind:'note',         acct:'Juhayna',         user:'Yara Mostafa',      when:'7h ago',  body:'QBR feedback: happy with new ATS integration' },
+    ];
+  }
   const kindMap = { stage:{l:'Stage change',v:'info'}, activity:{l:'Activity',v:'brand'}, note:{l:'Note',v:'lime'}, task:{l:'Task',v:'neutral'}, qualification:{l:'Qualification',v:'warn'}, renewal:{l:'Renewal',v:'ok'} };
   const rows = logs.map(l => {
     const k = kindMap[l.kind] || kindMap.note;
-    const acctObj = accts().find(a => a.name === l.acct);
-    const click = acctObj ? 'openDetail('+acctObj.id+')' : 'toast(\'Account not in seed data\')';
+    const targetId = l.acctId || (accts().find(a => a.name === l.acct)?.id);
+    const click = targetId != null ? 'openDetail('+JSON.stringify(targetId)+')' : 'toast(\'Account not in seed data\')';
     return '<div class="row-h" onclick="'+click+'" style="display:grid;grid-template-columns:104px 1fr auto;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border);cursor:pointer;">'
       + '<span style="'+chip(k.v)+'">'+k.l+'</span>'
       + '<div style="min-width:0;">'
@@ -1659,15 +1695,57 @@ function renderDetail(){
   + '</div>';
 
   // --- overview tab body ---
-  const meetings = [
-    { date:'JUN 24', time:'11:30', title:'Renewal negotiation call',   with:'Hesham Kamel · CFO' },
-    { date:'JUL 02', time:'14:00', title:'Q3 usage review',            with:'Nadia Farid · TA Lead' },
-    { date:'JUL 15', time:'10:00', title:'Contract signing kickoff',   with:'Legal + AM' },
-  ];
-  const richNotes = [
-    { actor:'Nour Adel',   initials:'NA', type:'call',    typeChip:chip('info'),  ago:'2h ago',  text:'Left voicemail with '+c.name+'. Following up via WhatsApp tomorrow before the demo.' },
-    { actor:'Karim Fawzy', initials:'KF', type:'meeting', typeChip:chip('brand'), ago:'yesterday', text:'Great intro call. They want visibility on how our talent pool compares to LinkedIn. Sending benchmark deck.' },
-  ];
+  // Prefer live activities for this account when loaded
+  const liveActs = LIVE_ACTIVITIES_BY_ACCT.get(a.id);
+  const monShort = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const timeAgo = (iso) => {
+    if (!iso) return '';
+    const d = Date.parse(iso); if (isNaN(d)) return '';
+    const s = (Date.now() - d) / 1000;
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.round(s/60) + 'm ago';
+    if (s < 86400) return Math.round(s/3600) + 'h ago';
+    if (s < 86400*7) return Math.round(s/86400) + 'd ago';
+    if (s < 86400*30) return Math.round(s/86400/7) + 'w ago';
+    return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  };
+  const chipByType = { note: chip('lime'), call: chip('info'), meeting: chip('brand'), email: chip('neutral'), stage: chip('warn'), task: chip('neutral') };
+
+  let meetings, richNotes;
+  if (liveActs) {
+    // Upcoming/recent meetings: activities with meeting_start_at
+    const now = Date.now();
+    const meetActs = liveActs.filter(a => a.meeting_start_at)
+      .sort((x,y) => Math.abs(Date.parse(x.meeting_start_at) - now) - Math.abs(Date.parse(y.meeting_start_at) - now))
+      .slice(0, 3);
+    meetings = meetActs.map(m => {
+      const d = new Date(m.meeting_start_at);
+      return {
+        date: monShort[d.getMonth()] + ' ' + String(d.getDate()).padStart(2,'0'),
+        time: d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }),
+        title: m.title || m.text || (m.meeting_kind ? m.meeting_kind + ' meeting' : 'Meeting'),
+        with: c.name || '—',
+      };
+    });
+    if (meetings.length === 0) meetings = [];  // empty state below will handle
+
+    // Notes: activities of type note/call/email/meeting (not stage/task)
+    const noteActs = liveActs.filter(x => ['note','call','email','meeting'].includes(x.type)).slice(0, 5);
+    richNotes = noteActs.map(n => {
+      const author = LIVE_AMS?.find(x => x.id === n.author_id) || amById('na');
+      return {
+        actor: author.name || 'Unknown',
+        initials: author.initials || initialsOf(author.name || '??'),
+        type: n.type,
+        typeChip: chipByType[n.type] || chip('neutral'),
+        ago: timeAgo(n.created_at),
+        text: n.text || n.title || '(no content)',
+      };
+    });
+  } else {
+    meetings = [];
+    richNotes = [];
+  }
   const owners = [
     { name: am.name,      role:'Owner',     ring:'var(--accent-strong)', email: (am.initials.toLowerCase())+'@recruitera.ai', initials: am.initials },
     { name:'Yara Mostafa',role:'RC',        ring:'var(--info)',          email:'yara@recruitera.ai',       initials:'YM' },
@@ -1703,7 +1781,9 @@ function renderDetail(){
         + '<button onclick="toast(\'Book meeting — coming Phase 2\')" style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 12px;border-radius:7px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">'+svg('plus',12,2.4)+' Book</button>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:8px;">'
-        + meetings.map(m =>
+        + (meetings.length === 0
+          ? '<div style="padding:24px 12px;text-align:center;color:var(--text-4);font-size:12.5px;font-weight:600;">No meetings scheduled</div>'
+          : meetings.map(m =>
             '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);">'
               + '<div style="flex-shrink:0;text-align:center;min-width:52px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">'
                 + '<div style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);">'+m.date+'</div>'
@@ -1713,7 +1793,7 @@ function renderDetail(){
                 + '<div style="font-size:13px;font-weight:700;color:var(--text);">'+esc(m.title)+'</div>'
                 + '<div style="font-size:11px;color:var(--text-3);margin-top:3px;">with '+esc(m.with)+'</div>'
               + '</div>'
-            + '</div>').join('')
+            + '</div>').join(''))
       + '</div>'
     + '</div>';
 
@@ -1733,7 +1813,9 @@ function renderDetail(){
         + '</div>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:10px;">'
-        + richNotes.map(rn =>
+        + (richNotes.length === 0
+          ? '<div style="padding:24px 12px;text-align:center;color:var(--text-4);font-size:12.5px;font-weight:600;border:1px dashed var(--border);border-radius:10px;">No notes yet — write one above</div>'
+          : richNotes.map(rn =>
             '<div style="display:flex;gap:12px;padding:14px;border:1px solid var(--border);border-radius:11px;">'
               + '<div style="'+avatar(rn.initials,32,rn.initials)+'">'+rn.initials+'</div>'
               + '<div style="flex:1;min-width:0;">'
@@ -1744,7 +1826,7 @@ function renderDetail(){
                 + '</div>'
                 + '<div style="font-size:13px;color:var(--text-2);line-height:1.55;font-weight:500;white-space:pre-wrap;word-break:break-word;">'+esc(rn.text)+'</div>'
               + '</div>'
-            + '</div>').join('')
+            + '</div>').join(''))
       + '</div>'
     + '</div>';
 
@@ -1924,6 +2006,8 @@ let LIVE_AMS = null;
 let LIVE_CONTACTS_BY_ACCT = null;   // Map<accountId, {name, email, phone, title}>
 let LIVE_CYCLES_BY_ACCT = null;     // Map<accountId, {plan, value, ends_at, status}>
 let LIVE_TRACKING_BY_ACCT = null;   // Map<accountId, {first_source, first_campaign, ...}>
+let LIVE_ACTIVITIES_BY_ACCT = new Map(); // Map<accountId, activities[]>
+let LIVE_LOGS = null;               // Global recent activities feed
 
 function formatMonYr(iso){
   if (!iso) return '—';
@@ -2089,6 +2173,29 @@ async function fetchAccountsLive(token){
   return rows.map(mapAcctFromSupabase);
 }
 
+async function loadActivitiesForAccount(accountId){
+  if (LIVE_ACTIVITIES_BY_ACCT.has(accountId)) return; // cached
+  const token = getAccessToken();
+  if (!token) return;
+  try {
+    const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+    const url = SB_URL + '/rest/v1/activities?select=id,type,text,title,author_id,created_at,meeting_start_at,meeting_end_at,meeting_kind,call_direction,call_duration_minutes,from_stage,to_stage&account_id=eq.' + encodeURIComponent(accountId) + '&is_archived=is.false&order=created_at.desc&limit=50';
+    const res = await fetch(url, { headers });
+    if (!res.ok) return;
+    const rows = await res.json();
+    LIVE_ACTIVITIES_BY_ACCT.set(accountId, rows);
+    if (state.detailId === accountId) render();
+  } catch(e){ console.warn('[CRM v2] activities load failed:', e.message); }
+}
+
+async function fetchLogsFeedLive(token){
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  const url = SB_URL + '/rest/v1/activities?select=id,account_id,type,text,title,author_id,created_at,from_stage,to_stage&is_archived=is.false&order=created_at.desc&limit=100';
+  const res = await fetch(url, { headers });
+  if (!res.ok) return;
+  LIVE_LOGS = await res.json();
+}
+
 async function fetchTasksLive(token){
   const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   // activities table: type='task', not archived, task_done=false, limit 100
@@ -2153,11 +2260,12 @@ async function bootLiveData(){
     }
     state.accounts = accounts;
     state.dataSource = 'live';
-    // Tasks depend on accounts being loaded (for name mapping)
+    // Tasks + global activity feed for Logs page (both non-blocking)
     try {
       const tasks = await fetchTasksLive(token);
       if (tasks.length) state.tasks = tasks;
     } catch(e){ console.warn('[CRM v2] tasks fetch failed:', e); }
+    fetchLogsFeedLive(token).then(() => { if (state.page === 'logs') render(); }).catch(e => console.warn('[CRM v2] logs fetch failed:', e.message));
     state.dataStatus = 'ready';
     console.log('[CRM v2] live · ' + accounts.length + ' accounts · '
       + (LIVE_CONTACTS_BY_ACCT?.size||0) + ' contacts · '
