@@ -283,27 +283,43 @@ async function submitMerge(){
   const loserIds = s.mergeIds.filter(id => id !== s.mergeKeeper);
   state.mergeStatus = 'submitting';
   render();
+  // merge_accounts takes ONE loser per call → loop, short-circuit on failure.
+  // Prefer merge_accounts over manual_merge_accounts because the latter has a
+  // broken k.email reference AND hard-deletes losers instead of soft-merging.
+  const headers = {
+    apikey: SB_KEY,
+    Authorization: 'Bearer ' + token,
+    'Content-Type': 'application/json',
+  };
   try {
-    const res = await fetch(SB_URL + '/rest/v1/rpc/manual_merge_accounts', {
-      method: 'POST',
-      headers: {
-        apikey: SB_KEY,
-        Authorization: 'Bearer ' + token,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ p_keeper_id: s.mergeKeeper, p_loser_ids: loserIds }),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error('Supabase ' + res.status + ': ' + t.slice(0, 200));
+    let done = 0;
+    for (const loserId of loserIds) {
+      const res = await fetch(SB_URL + '/rest/v1/rpc/merge_accounts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          _primary_id: s.mergeKeeper,
+          _duplicate_id: loserId,
+          _reason: 'crm-v2 dupe review',
+        }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error('Supabase ' + res.status + ' after ' + done + '/' + loserIds.length + ' merged: ' + t.slice(0, 180));
+      }
+      done++;
     }
-    // Refetch accounts to reflect the merge (losers now have merged_into set)
-    const accounts = await fetchAccountsLive(token);
+    // Refetch accounts + contacts so losers vanish and merged data surfaces
+    // on the keeper without a page reload.
+    const [accounts] = await Promise.all([
+      fetchAccountsLive(token),
+      fetchContactsLive(token).catch(() => {}),
+    ]);
     state.accounts = accounts;
     state.mergeOpen = false;
     state.mergeStatus = 'done';
     render();
-    toast('Merged ' + loserIds.length + ' duplicate' + (loserIds.length > 1 ? 's' : '') + ' — reversible via unmerge');
+    toast('Merged ' + done + ' duplicate' + (done > 1 ? 's' : '') + ' — reversible via unmerge_account');
   } catch (e) {
     console.error('[CRM v2] merge failed:', e);
     state.mergeStatus = 'error';
