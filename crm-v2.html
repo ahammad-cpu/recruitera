@@ -607,9 +607,42 @@ function renderDashboard(){
 // =========================================================================
 //   RENDER: COMPANIES (Accounts)
 // =========================================================================
+// Junk detector — placeholder / dev rows that shouldn't clutter the CRM.
+// Currently matches 69 "untitled" rows + a handful of "test" leftovers in prod.
+const JUNK_NAMES = new Set(['untitled','test','tests','asdf','none','n/a','na','-','.']);
+function isJunkAccount(a){
+  const n = String(a.name || '').trim().toLowerCase().replace(/\s+/g,' ');
+  if (!n) return true;
+  if (JUNK_NAMES.has(n)) return true;
+  if (n.length <= 1) return true;
+  return false;
+}
+
+// Build duplicate index once per render: Map<normalized-name, count>.
+// Used to badge suspected duplicates in the table.
+function buildDupeIndex(rows){
+  const m = new Map();
+  for (const a of rows) {
+    const key = String(a.name || '').trim().toLowerCase().replace(/\s+/g,' ');
+    if (!key) continue;
+    m.set(key, (m.get(key) || 0) + 1);
+  }
+  return m;
+}
+
 function filteredAccounts(){
   const s = state;
   let rows = accts().slice();
+  // Hide junk unless the user explicitly opts in via the "Show junk" toggle
+  if (!s.acctShowJunk) rows = rows.filter(a => !isJunkAccount(a));
+  // Duplicates-only filter (opt-in)
+  if (s.acctDupesOnly) {
+    const idx = buildDupeIndex(rows);
+    rows = rows.filter(a => {
+      const key = String(a.name || '').trim().toLowerCase().replace(/\s+/g,' ');
+      return idx.get(key) > 1;
+    });
+  }
   // tab
   if (s.acctTab === 'leads')    rows = rows.filter(a => a.stage === 'lead');
   else if (s.acctTab === 'pipeline') rows = rows.filter(a => ['mql','sql','demo','proposal'].includes(a.stage));
@@ -657,6 +690,11 @@ function renderCompanies(){
   const s = state;
   const all = accts();
   const rows = filteredAccounts();
+  // Dupe index across the CURRENT filtered rows (so the ⚠ badge only
+  // fires when the visible list still has more than one occurrence).
+  const dupeIndex = buildDupeIndex(rows);
+  const junkCount = all.filter(isJunkAccount).length;
+  const dupeCount = (function(){ const idx = buildDupeIndex(all.filter(a => !isJunkAccount(a))); let n = 0; idx.forEach(v => { if (v > 1) n += v; }); return n; })();
   // tab counts
   const tabDefs = [
     { key:'all',      label:'All',            count: all.length },
@@ -707,6 +745,8 @@ function renderCompanies(){
       + sel('acctTrial',  [{v:'all',l:'Trial: All'},{v:'on',l:'On trial'},{v:'never',l:'Never trialled'},{v:'expired',l:'Trial expired'}])
       + sel('acctPlan',   [{v:'all',l:'Plan: All'},{v:'Enterprise',l:'Enterprise'},{v:'Pro',l:'Pro'},{v:'Growth',l:'Growth'},{v:'Starter',l:'Starter'}])
       + '<div style="flex:1;"></div>'
+      + (junkCount > 0 ? '<button onclick="setAcctSel(\'acctShowJunk\', '+(!s.acctShowJunk)+')" title="'+junkCount+' junk rows (untitled / test / placeholder) hidden by default" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid '+(s.acctShowJunk?'var(--warn)':'var(--border-2)')+';background:'+(s.acctShowJunk?'var(--warn-bg)':'var(--surface)')+';color:'+(s.acctShowJunk?'var(--warn)':'var(--text-2)')+';font-size:12px;font-weight:600;cursor:pointer;">'+(s.acctShowJunk?'✓ ':'')+'Show junk ('+junkCount+')</button>' : '')
+      + (dupeCount > 0 ? '<button onclick="setAcctSel(\'acctDupesOnly\', '+(!s.acctDupesOnly)+')" title="Rows sharing a normalized name" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid '+(s.acctDupesOnly?'var(--bad)':'var(--border-2)')+';background:'+(s.acctDupesOnly?'var(--bad-bg)':'var(--surface)')+';color:'+(s.acctDupesOnly?'var(--bad)':'var(--text-2)')+';font-size:12px;font-weight:600;cursor:pointer;">'+(s.acctDupesOnly?'✓ ':'')+'Duplicates only ('+dupeCount+')</button>' : '')
       + '<div class="tnum" style="font-size:12px;color:var(--text-3);font-weight:600;">'+rows.length+' companies</div>'
     + '</div>';
 
@@ -727,8 +767,12 @@ function renderCompanies(){
       + '<td style="'+td+'padding-left:16px;">'
         + '<div style="display:flex;align-items:center;gap:10px;">'
           + '<div style="'+logoStyle(34)+'">'+initialsOf(a.name)+'</div>'
-          + '<div><div style="font-size:13px;font-weight:600;color:var(--text);">'+esc(a.name)+'</div>'
-          + '<div style="font-size:11px;color:var(--text-3);margin-top:1px;">'+esc(a.domain)+'</div></div>'
+          + '<div style="min-width:0;">'
+            + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;color:var(--text);">'+esc(a.name)+'</span>'
+              + ((() => { const k = String(a.name||'').trim().toLowerCase().replace(/\s+/g,' '); return dupeIndex.get(k) > 1 ? '<span title="'+dupeIndex.get(k)+' rows share this name — likely duplicates" style="'+chip('bad')+'">⚠ dupe ×'+dupeIndex.get(k)+'</span>' : ''; })())
+            + '</div>'
+            + '<div style="font-size:11px;color:var(--text-3);margin-top:1px;">'+esc(a.domain || '—')+'</div>'
+          + '</div>'
         + '</div>'
       + '</td>'
       + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:8px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12px;font-weight:600;color:var(--text-2);">'+esc(am.name)+'</span></div></td>'
