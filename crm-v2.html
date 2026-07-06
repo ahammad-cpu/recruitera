@@ -680,7 +680,17 @@ function renderCompanies(){
       + opts.map(o => '<option value="'+esc(o.v)+'"'+(s[key] === o.v ? ' selected' : '')+'>'+esc(o.l)+'</option>').join('')
       + '</select>';
   };
-  const amOpts = [{v:'all',l:'Owner: All'}].concat(AMS.map(a => ({v:a.id, l:a.name})));
+  // Owner dropdown: use real profiles when live, else mock roster.
+  // Only include owners that actually appear in the current account list so
+  // the dropdown isn't cluttered with 40+ inactive profiles.
+  const ownerIdsInUse = new Set(all.map(a => a.am));
+  const rosterSource = LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : AMS;
+  const amOpts = [{v:'all',l:'Owner: All'}].concat(
+    rosterSource
+      .filter(p => ownerIdsInUse.has(p.id))
+      .sort((a,b) => (a.name||'').localeCompare(b.name||''))
+      .map(p => ({v:p.id, l:p.name}))
+  );
 
   const filterBar =
     '<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap;">'
@@ -2093,10 +2103,18 @@ function mapAcctFromSupabase(a, idx){
       else ren = 'upcoming';
     }
   }
-  // Owner — prefer live profile match by am_mail, else fall back to synthesized AMS entry
+  // Owner resolution priority:
+  //   1. owner_id (authoritative FK to profiles.id — used by RLS)
+  //   2. am_mail → live profile lookup by email
+  //   3. am_mail → mock roster by first name (dev / logged-out preview)
+  //   4. Cycle through mock roster by index so at least SOMETHING renders
   const amMail = (a.am_mail || '').toLowerCase().trim();
   let am = null;
-  if (LIVE_AMS && amMail) {
+  if (LIVE_AMS && a.owner_id) {
+    const owned = LIVE_AMS.find(x => x.id === a.owner_id);
+    if (owned) am = owned.id;
+  }
+  if (!am && LIVE_AMS && amMail) {
     const found = LIVE_AMS.find(x => x.email && x.email.toLowerCase() === amMail);
     if (found) am = found.id;
   }
