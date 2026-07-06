@@ -2396,11 +2396,11 @@ function mapAcctFromSupabase(a, idx){
   const score = Number(a.recruitera_score || 0);
   const tier  = (a.recruitera_tier || '').toLowerCase() || (score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool');
   // Contract cycle (if any) — but a plan only makes sense on a Won account.
-  // Lead/MQL/SQL/Demo/Proposal shouldn't display "Enterprise plan" just because
-  // a stale contract_cycle row exists in the DB from a prior sync.
+  // Prod has plenty of rows where is_paid_customer=true but stage='lead' from
+  // a stale Bubble sync — so we STRICTLY gate on stage='won' here. Cleanup
+  // of those inconsistent rows is a separate SQL job.
   const cycle = LIVE_CYCLES_BY_ACCT?.get(a.id);
-  const isWonOrPaid = stage === 'won' || paid === 'Paid' || paid === 'Without Charge' || a.is_paid_customer;
-  const plan  = isWonOrPaid ? (cycle?.plan || rd.plan || rd.Plan || '—') : '—';
+  const plan  = stage === 'won' ? (cycle?.plan || rd.plan || rd.Plan || '—') : '—';
   // Renewal end date still uses the cycle end for the bucket calc regardless
   const cycleEnds = cycle?.ends_at || null;
   // Close/end date — for renewal bucketing prefer contract end; else deal_close_date; else close_date
@@ -2523,6 +2523,8 @@ async function fetchContactsLive(token){
     if (!entry.phone && c.phone)     entry.phone = c.phone;
   }
   LIVE_CONTACTS_BY_ACCT = map;
+  console.log('[CRM v2] contacts fetched: ' + rows.length + ' rows → ' + map.size + ' accounts. Alumil sample:',
+    map.get('08ad87b0-a900-4c0c-baa0-5e8a9eb537b2') || 'MISSING');
 }
 
 async function fetchCyclesLive(token){
