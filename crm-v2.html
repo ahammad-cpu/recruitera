@@ -397,13 +397,19 @@ function renderSidebar(){
       + '</div>';
   };
   const section = (label) => col ? '' : '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-4);padding:14px 10px 6px;font-weight:600;">'+label+'</div>';
+  // Hide the mock 17 during the live-data load window — otherwise the sidebar
+  // flashes "17" then jumps to "614" and looks like a bug. Show a placeholder
+  // dot until dataStatus === 'ready' (or we know we're staying in mock mode).
+  const showRealCounts = state.dataSource === 'live' || (state.dataSource === 'mock' && state.dataStatus === 'idle' && !getAccessToken());
   const acts = accts();
+  const activeAccts = acts.filter(a => !isJunkAccount(a));
+  const num = (n) => showRealCounts ? n : '…';
   const counts = {
-    accounts:      acts.length,
-    openLeads:     acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length,
-    renewals:      acts.filter(a => a.end && !['lost'].includes(a.stage)).length,
-    tasksDueToday: tasksList().filter(t => t.due === 'Today' && !t.done).length,
-    unreadNotifs:  7,
+    accounts:      num(activeAccts.length),
+    openLeads:     num(activeAccts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length),
+    renewals:      num(activeAccts.filter(a => a.end && !['lost'].includes(a.stage)).length),
+    tasksDueToday: num(tasksList().filter(t => t.due === 'Today' && !t.done).length),
+    unreadNotifs:  num(7),
   };
   const badBadge = 'margin-left:auto;background:var(--bad);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;';
   const meObj = me();
@@ -870,14 +876,17 @@ function compareAccts(a, b, key){
 
 function renderCompanies(){
   const s = state;
-  const all = accts();
+  // Tab counts reflect whatever the user's junk toggle is set to, so the
+  // sidebar's "Companies · N" and the tab "All · N" agree with each other.
+  const rawAll = accts();
+  const all = s.acctShowJunk ? rawAll : rawAll.filter(a => !isJunkAccount(a));
   const rows = filteredAccounts();
   // Multi-key dupe detector across the CURRENT filtered rows so the ⚠ badge
   // only fires when the visible list still has partners. Also computes the
   // full-set counts for the toggle labels.
   const dupeMap = buildDupeMap(rows);
-  const junkCount = all.filter(isJunkAccount).length;
-  const dupeCount = buildDupeMap(all.filter(a => !isJunkAccount(a))).size;
+  const junkCount = rawAll.filter(isJunkAccount).length; // total across the whole book, not the filtered set
+  const dupeCount = buildDupeMap(all).size;
   // tab counts
   const tabDefs = [
     { key:'all',      label:'All',            count: all.length },
@@ -2488,12 +2497,23 @@ async function fetchProfilesLive(token){
 }
 
 async function fetchContactsLive(token){
+  // Pull ALL contacts, then MERGE per account. The primary might not carry
+  // email/phone (some accounts have separate rows for who-does-what) — fill
+  // any missing field from a later contact so the table shows whatever the
+  // account actually has on file, not just the primary's blanks.
   const rows = await fetchAllPages(token, '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary&order=is_primary.desc.nullslast,created_at.asc');
   const map = new Map();
   for (const c of rows) {
-    if (!map.has(c.account_id)) {
-      map.set(c.account_id, { name: c.full_name || '', title: c.job_title || '', email: c.email || '', phone: c.phone || '' });
+    if (!c.account_id) continue;
+    let entry = map.get(c.account_id);
+    if (!entry) {
+      entry = { name:'', title:'', email:'', phone:'' };
+      map.set(c.account_id, entry);
     }
+    if (!entry.name  && c.full_name) entry.name  = c.full_name;
+    if (!entry.title && c.job_title) entry.title = c.job_title;
+    if (!entry.email && c.email)     entry.email = c.email;
+    if (!entry.phone && c.phone)     entry.phone = c.phone;
   }
   LIVE_CONTACTS_BY_ACCT = map;
 }
