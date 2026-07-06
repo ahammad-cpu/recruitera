@@ -154,14 +154,18 @@ function seedApprovals(){ return [
 ]; }
 
 // ---------- CONSTANTS ----------
+// Stage semantics (Phase D):
+//   won  = invoice sent, awaiting collection (finance team's queue)
+//   paid = invoice collected, revenue recognized (AM performance target)
 const STAGE = {
-  lead:     { label:'Lead',     v:'neutral' },
-  mql:      { label:'MQL',      v:'info'    },
-  sql:      { label:'SQL',      v:'info'    },
-  demo:     { label:'Demo',     v:'brand'   },
-  proposal: { label:'Proposal', v:'warn'    },
-  won:      { label:'Won',      v:'ok'      },
-  lost:     { label:'Lost',     v:'bad'     },
+  lead:     { label:'Lead',        v:'neutral' },
+  mql:      { label:'MQL',         v:'info'    },
+  sql:      { label:'SQL',         v:'info'    },
+  demo:     { label:'Demo',        v:'brand'   },
+  proposal: { label:'Proposal',    v:'warn'    },
+  won:      { label:'Invoiced',    v:'warn'    },
+  paid:     { label:'Collected',   v:'ok'      },
+  lost:     { label:'Lost',        v:'bad'     },
 };
 const REN = {
   active:   { label:'Active',        v:'ok'      },
@@ -261,7 +265,7 @@ function openMergeModal(seedId){
   // Default keeper = the account most likely to be canonical:
   //   1. Highest ICP score wins
   //   2. Tiebreak on "furthest along in funnel" (won > proposal > demo > sql > mql > lead > lost)
-  const funnelWeight = { won:6, proposal:5, demo:4, sql:3, mql:2, lead:1, lost:0 };
+  const funnelWeight = { paid:7, won:6, proposal:5, demo:4, sql:3, mql:2, lead:1, lost:0 };
   const rows = partnerIds.map(id => accts().find(a => a.id === id)).filter(Boolean);
   rows.sort((a,b) => (b.score||0) - (a.score||0) || (funnelWeight[b.stage]||0) - (funnelWeight[a.stage]||0));
   setState({
@@ -496,7 +500,7 @@ function renderDashboard(){
   const meObj = me();
   const role = state.role;
   const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a) => s+a.value, 0);
-  const wonVal = acts.filter(a => a.stage === 'won').reduce((s,a) => s+a.value, 0);
+  const paidVal = acts.filter(a => a.stage === 'paid').reduce((s,a) => s+a.value, 0);
   const paidCount = acts.filter(a => a.paid === 'Paid').length;
 
   // MY TARGET banner data
@@ -663,7 +667,7 @@ function renderDashboard(){
   const delta = (txt, good) => '<span style="font-size:12px;font-weight:600;color:'+(good?'var(--ok)':'var(--bad)')+';">'+txt+'</span>';
   const kpis = [
     { label:'Pipeline value',   value: egp(pipelineVal),                 sub:'open · new business', delta: delta('▲ 14%',true), accent:true },
-    { label:'Won (QTD)',        value: egp(wonVal),                      sub:'closed revenue',      delta: delta('▲ 22%',true) },
+    { label:'Collected (QTD)',        value: egp(paidVal),                      sub:'closed revenue',      delta: delta('▲ 22%',true) },
     { label:'Active customers', value: '' + paidCount,                   sub:'paying employers',    delta: delta('▲ 3',  true) },
     { label:'Renewals 30d',     value: '2',                              sub:'EGP 250k at risk',    delta: delta('▼ risk',false) },
     { label:'Win rate',         value: '61%',                            sub:'last 90 days',        delta: delta('▲ 4%', true) },
@@ -786,14 +790,15 @@ function filteredAccounts(){
   // tab
   if (s.acctTab === 'leads')    rows = rows.filter(a => a.stage === 'lead');
   else if (s.acctTab === 'pipeline') rows = rows.filter(a => ['mql','sql','demo','proposal'].includes(a.stage));
-  // Paid = currently paying customers only (Paid OR Without Charge AND still Active)
-  else if (s.acctTab === 'paid')     rows = rows.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Active');
+  // Paid = collection happened (stage='paid'). This is what AM Performance targets.
+  else if (s.acctTab === 'paid')     rows = rows.filter(a => a.stage === 'paid');
   // Trial = still on an active trial
   else if (s.acctTab === 'trial')    rows = rows.filter(a => a.paid === 'Free Trial' && a.act === 'Active');
   // Expired = trials that ran out without converting
   else if (s.acctTab === 'expired')  rows = rows.filter(a => a.paid === 'Free Trial' && a.act === 'Expired');
-  // Churned = customers who WERE paying but activation has since expired
-  else if (s.acctTab === 'churned')  rows = rows.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Expired');
+  // Churned = collected before, but activation expired (paid stage + expired activation)
+  else if (s.acctTab === 'churned')  rows = rows.filter(a => a.stage === 'paid' && a.act === 'Expired');
+  // Won = invoiced but not yet collected — the finance team's queue
   else if (s.acctTab === 'won')      rows = rows.filter(a => a.stage === 'won');
   // filters
   if (s.acctStage  !== 'all') rows = rows.filter(a => a.stage === s.acctStage);
@@ -868,7 +873,7 @@ function compareAccts(a, b, key){
     bv = b._sinceRaw ? Date.parse(b._sinceRaw) : 0;
   } else if (key === 'stage') {
     // Sort by funnel order, not alphabetically
-    const order = { lead:0, mql:1, sql:2, demo:3, proposal:4, won:5, lost:6 };
+    const order = { lead:0, mql:1, sql:2, demo:3, proposal:4, won:5, paid:6, lost:7 };
     av = order[a.stage] ?? 99; bv = order[b.stage] ?? 99;
   } else {
     av = (a[key] || '').toString().toLowerCase();
@@ -897,11 +902,11 @@ function renderCompanies(){
     { key:'all',      label:'All',            count: all.length },
     { key:'leads',    label:'Leads',          count: all.filter(a => a.stage === 'lead').length },
     { key:'pipeline', label:'Pipeline',       count: all.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length },
-    { key:'paid',     label:'Paid',           count: all.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Active').length },
+    { key:'paid',     label:'Collected',      count: all.filter(a => a.stage === 'paid' && a.act !== 'Expired').length },
     { key:'trial',    label:'Trial',          count: all.filter(a => a.paid === 'Free Trial' && a.act === 'Active').length },
     { key:'expired',  label:'Expired',        count: all.filter(a => a.paid === 'Free Trial' && a.act === 'Expired').length },
-    { key:'churned',  label:'Churned',        count: all.filter(a => (a.paid === 'Paid' || a.paid === 'Without Charge') && a.act === 'Expired').length },
-    { key:'won',      label:'Won',            count: all.filter(a => a.stage === 'won').length },
+    { key:'churned',  label:'Churned',        count: all.filter(a => a.stage === 'paid' && a.act === 'Expired').length },
+    { key:'won',      label:'Invoiced',       count: all.filter(a => a.stage === 'won').length },
   ];
   const tabsHtml = tabDefs.map(t => {
     const active = s.acctTab === t.key;
@@ -936,7 +941,7 @@ function renderCompanies(){
         + (s.acctSearch ? '<button title="Clear" onclick="setAcctSearch(\'\')" style="border:0;background:transparent;color:var(--text-3);cursor:pointer;padding:0;font-size:16px;line-height:1;">×</button>' : '')
       + '</div>'
       + sel('acctStatus', [{v:'all',l:'Status: All'},{v:'Paid',l:'Paid'},{v:'Free Trial',l:'Free Trial'},{v:'Expired',l:'Expired'}])
-      + sel('acctStage',  [{v:'all',l:'All stages'},{v:'lead',l:'Lead'},{v:'mql',l:'MQL'},{v:'demo',l:'Demo'},{v:'proposal',l:'Proposal'},{v:'won',l:'Won'},{v:'lost',l:'Lost'}])
+      + sel('acctStage',  [{v:'all',l:'All stages'},{v:'lead',l:'Lead'},{v:'mql',l:'MQL'},{v:'demo',l:'Demo'},{v:'proposal',l:'Proposal'},{v:'won',l:'Invoiced'},{v:'paid',l:'Collected'},{v:'lost',l:'Lost'}])
       + sel('acctSource', [{v:'all',l:'All sources'},{v:'Referral',l:'Referral'},{v:'Outbound',l:'Outbound'},{v:'Inbound',l:'Inbound'},{v:'LinkedIn',l:'LinkedIn'},{v:'Webflow',l:'Webflow'},{v:'Partner',l:'Partner'}])
       + sel('acctIcp',    [{v:'all',l:'ICP: All'},{v:'hi',l:'80+ Hot'},{v:'mid',l:'60–79'},{v:'lo',l:'Below 60'}])
       + sel('acctOwner',  amOpts)
@@ -1016,13 +1021,16 @@ function renderCompanies(){
 // =========================================================================
 //   RENDER: PIPELINE (Sales Kanban)
 // =========================================================================
+// Phase D funnel: 7 columns. Won = invoiced (finance queue), Paid = collected
+// (revenue recognized, AM performance target).
 const PIPE_COLS = [
-  { key:'mql',      label:'MQL',      accent:'var(--info)'    },
-  { key:'sql',      label:'SQL',      accent:'var(--info)'    },
-  { key:'demo',     label:'Demo',     accent:'var(--purple-700)' },
-  { key:'proposal', label:'Proposal', accent:'var(--warn)'    },
-  { key:'won',      label:'Won',      accent:'var(--ok)'      },
-  { key:'lost',     label:'Lost',     accent:'var(--bad)'     },
+  { key:'mql',      label:'MQL',       accent:'var(--info)'       },
+  { key:'sql',      label:'SQL',       accent:'var(--info)'       },
+  { key:'demo',     label:'Demo',      accent:'var(--purple-700)' },
+  { key:'proposal', label:'Proposal',  accent:'var(--warn)'       },
+  { key:'won',      label:'Invoiced',  accent:'var(--warn)'       },
+  { key:'paid',     label:'Collected', accent:'var(--ok)'         },
+  { key:'lost',     label:'Lost',      accent:'var(--bad)'        },
 ];
 function renderPipeline(){
   const acts = accts();
@@ -1031,12 +1039,12 @@ function renderPipeline(){
 
   // KPI cards
   const openVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
-  const wonVal  = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
+  const paidVal = acts.filter(a => a.stage === 'paid').reduce((s,a)=>s+a.value,0);
   const propCount = acts.filter(a => a.stage === 'proposal').length;
   const kpiIcon = (v, glyph) => 'width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;'+CHIP[v];
   const pipeKpis = [
     { label:'Open pipeline',   value: egp(openVal),  sub:'Active new-business',    icon:'📊', v:'lime',  accent:true },
-    { label:'Won QTD',         value: egp(wonVal),   sub:'Closed revenue',         icon:'🏆', v:'ok',    accent:false },
+    { label:'Won QTD',         value: egp(paidVal),   sub:'Closed revenue',         icon:'🏆', v:'ok',    accent:false },
     { label:'Proposals live',  value: '' + propCount,sub:'Awaiting decision',      icon:'📄', v:'warn',  accent:false },
     { label:'Avg deal size',   value: egp(Math.round(openVal / Math.max(inFunnel.filter(a=>['mql','sql','demo','proposal'].includes(a.stage)).length,1))), sub:'Open pipeline', icon:'💼', v:'info', accent:false },
   ];
@@ -1117,7 +1125,7 @@ function renderPipeline(){
       + '<button onclick="toast(\'Export CSV — coming Phase 3\')" style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;">↓ Export</button>'
     + '</div>'
     + kpiCards
-    + '<div class="sc" style="display:grid;grid-template-columns:repeat(6,minmax(260px,1fr));gap:14px;align-items:stretch;overflow-x:auto;">'
+    + '<div class="sc" style="display:grid;grid-template-columns:repeat(7,minmax(240px,1fr));gap:12px;align-items:stretch;overflow-x:auto;">'
       + columns
     + '</div>'
   + '</div>';
@@ -1331,14 +1339,15 @@ function renderNotifications(){
 function renderReports(){
   const acts = accts();
   const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
-  const wonVal = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
-  const winRate = Math.round(acts.filter(a=>a.stage==='won').length / acts.filter(a=>['won','lost'].includes(a.stage)).length * 100);
+  const paidVal = acts.filter(a => a.stage === 'paid').reduce((s,a)=>s+a.value,0);
+  // Collection rate = collected ÷ (collected + invoiced) — % of closed deals that actually paid
+  const collectRate = Math.round(acts.filter(a=>a.stage==='paid').length / Math.max(acts.filter(a=>['won','paid'].includes(a.stage)).length, 1) * 100);
   const paidCount = acts.filter(a=>a.paid==='Paid').length;
 
   const km = [
-    { l:'Total revenue',  v: egp(wonVal),        sub:'Closed-won this period', delta:'+22%', good:true,  accent:true },
+    { l:'Total revenue',  v: egp(paidVal),        sub:'Closed-won this period', delta:'+22%', good:true,  accent:true },
     { l:'Open pipeline',  v: egp(pipelineVal),   sub:'New business',            delta:'+14%', good:true },
-    { l:'Win rate',       v: winRate + '%',      sub:'Won ÷ (won + lost)',      delta:'+4pp', good:true },
+    { l:'Collect rate',   v: collectRate + '%',  sub:'Collected ÷ invoiced',      delta:'+4pp', good:true },
     { l:'Active customers', v: '' + paidCount,   sub:'Paying employers',        delta:'+3',   good:true },
     { l:'Avg deal size',  v: egp(Math.round(wonVal / Math.max(acts.filter(a=>a.stage==='won').length, 1))), sub:'Won deals',      delta:'+8%',  good:true },
     { l:'Sales cycle',    v: '32d',              sub:'MQL → Won avg',           delta:'-4d',  good:true },
@@ -1713,7 +1722,7 @@ function renderAmperf(){
     { l:'Emails',    v: '' + totalEmails,  sub:'sent + replied',  icon:'✉',  v2:'brand' },
     { l:'WhatsApps', v: '' + totalWa,      sub:'threads active',  icon:'💬', v2:'ok' },
     { l:'Deals moved', v: '' + totalDeals, sub:'stage transitions',icon:'⇄', v2:'warn' },
-    { l:'Invoices',  v: '' + totalInvoices, sub:'issued',        icon:'📄', v2:'lime' },
+    { l:'Collections',v:'' + totalInvoices, sub:'collected this week', icon:'💰', v2:'lime' },
     { l:'Gaps',      v: '' + totalGaps,     sub:'silent > 4d',    icon:'⚠', v2:'bad' },
   ];
   const kpiIcon = (v) => 'width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;'+CHIP[v];
@@ -1733,7 +1742,9 @@ function renderAmperf(){
     const emails = 6 + Math.round(am.weight * 0.9);
     const wa = 2 + Math.round(am.weight * 0.4);
     const deals = owned.filter(a => ['proposal','won'].includes(a.stage)).length;
-    const invoices = owned.filter(a => a.paid === 'Paid').length;
+    // Phase D: AM target is now collections (stage='paid'), not just Paid billing status
+    const invoices = owned.filter(a => a.stage === 'paid').length;
+    const invoiced_not_collected = owned.filter(a => a.stage === 'won').length;
     const gaps = owned.filter(a => a.last && a.last.includes('d ago') && parseInt(a.last) >= 4).length;
     const score = Math.min(100, Math.round(am.cap * 100));
     const status = score >= 70 ? { label:'Top Performer', v:'ok' } : score >= 40 ? { label:'Average', v:'warn' } : { label:'Needs Attention', v:'bad' };
@@ -1743,7 +1754,7 @@ function renderAmperf(){
   const cellStyle = (v, warn) => 'display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:24px;padding:0 8px;border-radius:6px;background:'+(v===0?'var(--surface-2)':warn?'var(--warn-bg)':'var(--surface-2)')+';color:'+(v===0?'var(--text-4)':warn?'var(--warn)':'var(--text)')+';font-size:12.5px;font-weight:700;border:1px solid var(--border);';
 
   const tableHead = '<div style="display:grid;grid-template-columns:2.2fr 80px 90px 100px 110px 100px 90px 180px 130px 110px;gap:10px;align-items:center;padding:14px 18px;min-width:1280px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
-    + ['Account Manager','Calls','Emails','WhatsApp','Deals moved','Invoices','Gaps','Score','Status','Action'].map((l,i) => {
+    + ['Account Manager','Calls','Emails','WhatsApp','Deals moved','Collected','Gaps','Score','Status','Action'].map((l,i) => {
         const align = i===0 ? '' : i===9 ? 'text-align:right;' : 'text-align:center;';
         const color = l === 'Gaps' ? 'var(--bad)' : 'var(--text-2)';
         return '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:'+color+';'+align+'">'+l+'</div>';
