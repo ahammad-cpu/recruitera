@@ -489,7 +489,7 @@ function renderDashboard(){
   const acts = accts();
   const meObj = me();
   const role = state.role;
-  const pipelineVal = acts.filter(a => ['mql','demo','proposal'].includes(a.stage)).reduce((s,a) => s+a.value, 0);
+  const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a) => s+a.value, 0);
   const wonVal = acts.filter(a => a.stage === 'won').reduce((s,a) => s+a.value, 0);
   const paidCount = acts.filter(a => a.paid === 'Paid').length;
 
@@ -551,7 +551,7 @@ function renderDashboard(){
 
   // My companies
   const myCos = acts.filter(a => a.am === meObj.id || meObj.id === 'admin').slice(0, 4);
-  const myCoOpen = acts.filter(a => a.am === meObj.id && ['mql','demo','proposal'].includes(a.stage)).length;
+  const myCoOpen = acts.filter(a => a.am === meObj.id && ['mql','sql','demo','proposal'].includes(a.stage)).length;
   const myCoCount = acts.filter(a => a.am === meObj.id).length;
   const myCoBlock =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh1);overflow:hidden;">'
@@ -1003,6 +1003,7 @@ function renderCompanies(){
 // =========================================================================
 const PIPE_COLS = [
   { key:'mql',      label:'MQL',      accent:'var(--info)'    },
+  { key:'sql',      label:'SQL',      accent:'var(--info)'    },
   { key:'demo',     label:'Demo',     accent:'var(--purple-700)' },
   { key:'proposal', label:'Proposal', accent:'var(--warn)'    },
   { key:'won',      label:'Won',      accent:'var(--ok)'      },
@@ -1014,7 +1015,7 @@ function renderPipeline(){
   const qualifiedCount = inFunnel.filter(a => a.stage !== 'lead').length;
 
   // KPI cards
-  const openVal = acts.filter(a => ['mql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
+  const openVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
   const wonVal  = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
   const propCount = acts.filter(a => a.stage === 'proposal').length;
   const kpiIcon = (v, glyph) => 'width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;'+CHIP[v];
@@ -1022,7 +1023,7 @@ function renderPipeline(){
     { label:'Open pipeline',   value: egp(openVal),  sub:'Active new-business',    icon:'📊', v:'lime',  accent:true },
     { label:'Won QTD',         value: egp(wonVal),   sub:'Closed revenue',         icon:'🏆', v:'ok',    accent:false },
     { label:'Proposals live',  value: '' + propCount,sub:'Awaiting decision',      icon:'📄', v:'warn',  accent:false },
-    { label:'Avg deal size',   value: egp(Math.round(openVal / Math.max(inFunnel.filter(a=>['mql','demo','proposal'].includes(a.stage)).length,1))), sub:'Open pipeline', icon:'💼', v:'info', accent:false },
+    { label:'Avg deal size',   value: egp(Math.round(openVal / Math.max(inFunnel.filter(a=>['mql','sql','demo','proposal'].includes(a.stage)).length,1))), sub:'Open pipeline', icon:'💼', v:'info', accent:false },
   ];
   const kpiCards =
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">'
@@ -1101,7 +1102,7 @@ function renderPipeline(){
       + '<button onclick="toast(\'Export CSV — coming Phase 3\')" style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;">↓ Export</button>'
     + '</div>'
     + kpiCards
-    + '<div class="sc" style="display:grid;grid-template-columns:repeat(5,minmax(280px,1fr));gap:14px;align-items:stretch;overflow-x:auto;">'
+    + '<div class="sc" style="display:grid;grid-template-columns:repeat(6,minmax(260px,1fr));gap:14px;align-items:stretch;overflow-x:auto;">'
       + columns
     + '</div>'
   + '</div>';
@@ -1314,7 +1315,7 @@ function renderNotifications(){
 // =========================================================================
 function renderReports(){
   const acts = accts();
-  const pipelineVal = acts.filter(a => ['mql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
+  const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
   const wonVal = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
   const winRate = Math.round(acts.filter(a=>a.stage==='won').length / acts.filter(a=>['won','lost'].includes(a.stage)).length * 100);
   const paidCount = acts.filter(a=>a.paid==='Paid').length;
