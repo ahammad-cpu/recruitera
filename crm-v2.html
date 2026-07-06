@@ -2504,44 +2504,48 @@ async function fetchProfilesLive(token){
 }
 
 async function fetchContactsLive(token, accountIds){
-  // Bulk SELECT * FROM contacts silently returns almost nothing under the
-  // current RLS shape (91 rows for 614 accounts observed in prod). Mirror
-  // what crm.html does: filter by account_id and only fetch what we already
-  // have visibility to. Chunk the IN list so the URL stays under ~4KB.
+  // RLS on contacts silently truncates BOTH unfiltered SELECT * AND
+  // account_id=in.(...) queries to ~91 rows in prod (empirical). Only per-
+  // account eq.<uuid> lookups (the pattern crm.html uses) reliably return
+  // the row set. Fire one query per account, capped at CONCURRENCY parallel
+  // in-flight requests so we don't hammer the server or hit rate limits.
   const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   const map = new Map();
   if (!accountIds || accountIds.length === 0) { LIVE_CONTACTS_BY_ACCT = map; return; }
-  const CHUNK = 80; // 80 uuids × ~37 chars + boilerplate ≈ 3.2KB per URL
-  const chunks = [];
-  for (let i = 0; i < accountIds.length; i += CHUNK) chunks.push(accountIds.slice(i, i + CHUNK));
-
-  const batches = await Promise.all(chunks.map(async (ids) => {
-    const inList = ids.join(',');
-    const url = SB_URL + '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary'
-              + '&account_id=in.(' + inList + ')'
-              + '&order=is_primary.desc.nullslast,created_at.asc'
-              + '&limit=5000';
-    const res = await fetch(url, { headers });
-    if (!res.ok) { console.warn('[CRM v2] contacts chunk failed:', res.status); return []; }
-    return res.json();
-  }));
-
+  const CONCURRENCY = 20;
+  let cursor = 0;
   let totalRows = 0;
-  for (const rows of batches) {
-    totalRows += rows.length;
-    for (const c of rows) {
-      if (!c.account_id) continue;
-      let entry = map.get(c.account_id);
-      if (!entry) { entry = { name:'', title:'', email:'', phone:'' }; map.set(c.account_id, entry); }
-      if (!entry.name  && c.full_name) entry.name  = c.full_name;
-      if (!entry.title && c.job_title) entry.title = c.job_title;
-      if (!entry.email && c.email)     entry.email = c.email;
-      if (!entry.phone && c.phone)     entry.phone = c.phone;
+  let failed = 0;
+
+  async function worker(){
+    while (cursor < accountIds.length) {
+      const idx = cursor++;
+      const aid = accountIds[idx];
+      const url = SB_URL + '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary'
+                + '&account_id=eq.' + aid
+                + '&order=is_primary.desc.nullslast,created_at.asc';
+      try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) { failed++; continue; }
+        const rows = await res.json();
+        if (!rows || rows.length === 0) continue;
+        totalRows += rows.length;
+        for (const c of rows) {
+          let entry = map.get(aid);
+          if (!entry) { entry = { name:'', title:'', email:'', phone:'' }; map.set(aid, entry); }
+          if (!entry.name  && c.full_name) entry.name  = c.full_name;
+          if (!entry.title && c.job_title) entry.title = c.job_title;
+          if (!entry.email && c.email)     entry.email = c.email;
+          if (!entry.phone && c.phone)     entry.phone = c.phone;
+        }
+      } catch (e) { failed++; }
     }
   }
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
   LIVE_CONTACTS_BY_ACCT = map;
-  console.log('[CRM v2] contacts fetched: ' + totalRows + ' rows → ' + map.size + ' accounts across '
-    + chunks.length + ' chunks. Alumil sample:',
+  console.log('[CRM v2] contacts fetched: ' + totalRows + ' rows → ' + map.size + ' accounts (per-account eq. mode; '
+    + failed + ' failed). Alumil sample:',
     map.get('08ad87b0-a900-4c0c-baa0-5e8a9eb537b2') || 'MISSING');
 }
 
