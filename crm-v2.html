@@ -1819,7 +1819,7 @@ function renderPipeline(){
     const cardHtml = cards.map(a => {
       const am = amById(a.am);
       const tier = TIER[a.tier] || TIER.warm;
-      return '<div class="row-h pipe-card" draggable="true" ondragstart="pipeDragStart(event, '+jsArg(a.id)+')" ondragend="pipeDragEnd(event)" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:grab;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
+      return '<div class="row-h pipe-card" draggable="true" ondragstart="pipeDragStart(event, '+jsArg(a.id)+')" ondragend="pipeDragEnd(event)" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:10px 12px;cursor:grab;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:8px;">'
         + '<div style="display:flex;align-items:center;gap:9px;">'
           + logoBadge(a.name, a.domain, 32, a.logo_url)
           + '<div style="min-width:0;flex:1;">'
@@ -1828,7 +1828,7 @@ function renderPipeline(){
           + '</div>'
           + '<span style="'+chip(tier.v)+'">'+tier.label+'</span>'
         + '</div>'
-        + '<div style="display:flex;flex-direction:column;gap:5px;padding:8px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">'
+        + '<div style="display:flex;flex-direction:column;gap:3px;padding:6px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">'
           + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">ACV</span><span class="tnum" style="font-weight:700;color:var(--text);">'+egp(a.value)+'</span></div>'
           + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">'+(a.stage==='won'?'Closed':'Close')+'</span><span style="font-weight:600;color:var(--text-2);">'+esc(a.end||'—')+'</span></div>'
           + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">Score</span><span class="tnum" style="font-weight:700;color:'+(a.score>=80?'var(--ok)':a.score>=60?'var(--warn)':'var(--text-3)')+';">'+a.score+'</span></div>'
