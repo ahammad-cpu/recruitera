@@ -1840,7 +1840,7 @@ function renderPipeline(){
       + '</div>';
     }).join('');
 
-    return '<div class="pipe-col" data-stage="'+col.key+'" ondragover="pipeDragOver(event)" ondragleave="pipeDragLeave(event)" ondrop="pipeDrop(event, \''+col.key+'\')" style="display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;min-height:560px;">'
+    return '<div class="pipe-col" data-stage="'+col.key+'" ondragover="pipeDragOver(event)" ondragleave="pipeDragLeave(event)" ondrop="pipeDrop(event, \''+col.key+'\')" style="display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;height:calc(100vh - 340px);min-height:420px;max-height:720px;">'
       // header
       + '<div style="display:flex;align-items:center;gap:8px;padding:12px 14px 11px;border-top:3px solid '+col.accent+';background:var(--surface);">'
         + '<span style="width:9px;height:9px;border-radius:999px;background:'+col.accent+';flex-shrink:0;"></span>'
