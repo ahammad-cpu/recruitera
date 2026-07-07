@@ -508,50 +508,92 @@ const LOST_REASONS = [
   'Product gap',
   'Other',
 ];
-function promptLostReason(){
-  const numbered = LOST_REASONS.map((r,i) => (i+1)+'. '+r).join('\n');
-  const raw = prompt('Reason for loss (pick 1–'+LOST_REASONS.length+' or type your own):\n\n'+numbered, '1');
-  if (raw == null) return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const idx = parseInt(trimmed, 10);
-  const reason = (idx >= 1 && idx <= LOST_REASONS.length) ? LOST_REASONS[idx-1] : trimmed;
-  const detail = prompt('Any details? (optional)', '') || '';
-  return { reason, detail: detail.trim() };
-}
-async function changeAccountStage(accountId, newStage){
+async function _writeStage(accountId, newStage, extra){
   const acct = (state.accounts || []).find(x => x.id === accountId);
-  if (!acct || acct.stage === newStage) return;
-  let lostReason = null, lostDetail = null;
-  if (newStage === 'lost') {
-    const picked = promptLostReason();
-    if (!picked) return;
-    lostReason = picked.reason;
-    lostDetail = picked.detail || null;
-  }
+  if (!acct) return;
   const prev = acct.stage;
   const prevReason = acct._lostReason;
   const prevDetail = acct._lostDetail;
   acct.stage = newStage;
-  if (newStage === 'lost') { acct._lostReason = lostReason; acct._lostDetail = lostDetail; }
+  if (extra && 'lost_reason' in extra) acct._lostReason = extra.lost_reason;
+  if (extra && 'lost_detail' in extra) acct._lostDetail = extra.lost_detail;
   render();
   const token = getAccessToken();
   if (!token) { acct.stage = prev; acct._lostReason = prevReason; acct._lostDetail = prevDetail; render(); toast('Login required'); return; }
-  const body = { stage: newStage };
-  if (newStage === 'lost') { body.lost_reason = lostReason; body.lost_detail = lostDetail; }
   try {
     const res = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(accountId), {
       method: 'PATCH',
       headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=minimal' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(Object.assign({ stage: newStage }, extra || {})),
     });
     if (!res.ok) throw new Error('Stage ' + res.status);
-    toast(newStage === 'lost' ? ('Lost · ' + lostReason) : ('Stage → ' + (STAGE[newStage] && STAGE[newStage].label || newStage)));
+    toast(newStage === 'lost' ? ('Lost · ' + (extra && extra.lost_reason || 'reason set')) : ('Stage → ' + (STAGE[newStage] && STAGE[newStage].label || newStage)));
   } catch (e) {
     acct.stage = prev; acct._lostReason = prevReason; acct._lostDetail = prevDetail; render();
     toast('Stage change failed: ' + (e.message || e));
   }
 }
+async function changeAccountStage(accountId, newStage){
+  const acct = (state.accounts || []).find(x => x.id === accountId);
+  if (!acct || acct.stage === newStage) return;
+  if (newStage === 'lost') { openLostModal(accountId); return; }
+  return _writeStage(accountId, newStage);
+}
+function openLostModal(accountId){
+  setState({ lostModal: { open:true, accountId, reason: LOST_REASONS[0], custom:'', detail:'' } });
+}
+function closeLostModal(){ setState({ lostModal: { open:false } }); }
+function setLostField(k, v){ state.lostModal = Object.assign({}, state.lostModal, { [k]: v }); render(); }
+async function submitLostModal(){
+  const m = state.lostModal || {};
+  let reason = m.reason || LOST_REASONS[0];
+  if (reason === 'Other') {
+    const custom = (m.custom || '').trim();
+    if (!custom) { toast('Add a custom reason or pick another option'); return; }
+    reason = custom;
+  }
+  const accountId = m.accountId;
+  const detail = (m.detail || '').trim() || null;
+  closeLostModal();
+  await _writeStage(accountId, 'lost', { lost_reason: reason, lost_detail: detail });
+}
+function renderLostModal(){
+  const m = state.lostModal || {};
+  if (!m.open) return '';
+  const acct = (state.accounts || []).find(x => x.id === m.accountId);
+  const name = acct ? acct.name : 'this company';
+  const opt = (label) => {
+    const active = m.reason === label;
+    return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;border:1px solid '+(active?'var(--accent-strong)':'var(--border-2)')+';background:'+(active?'var(--accent-soft)':'var(--surface)')+';font-size:13px;font-weight:600;color:'+(active?'var(--accent-ink)':'var(--text-2)')+';cursor:pointer;">'
+      + '<input type="radio" name="lost-reason"'+(active?' checked':'')+' onchange="setLostField(\'reason\', '+jsArg(label)+')" style="width:14px;height:14px;accent-color:var(--accent-strong);margin:0;">'
+      + '<span>'+esc(label)+'</span>'
+    + '</label>';
+  };
+  const grid = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + LOST_REASONS.map(opt).join('') + '</div>';
+  const otherActive = m.reason === 'Other';
+  return '<div onclick="closeLostModal()" style="position:fixed;inset:0;background:rgba(15,20,30,.55);z-index:120;display:flex;align-items:center;justify-content:center;padding:20px;">'
+    + '<div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:min(520px,100%);box-shadow:0 20px 50px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:90vh;overflow:hidden;">'
+      + '<div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">'
+        + '<div>'
+          + '<div style="font-size:16px;font-weight:800;letter-spacing:-.02em;">Mark as Lost</div>'
+          + '<div style="font-size:12px;color:var(--text-3);margin-top:2px;">Pick a reason for losing '+esc(name)+'.</div>'
+        + '</div>'
+        + '<button onclick="closeLostModal()" style="width:30px;height:30px;border-radius:8px;color:var(--text-3);cursor:pointer;font-size:18px;">×</button>'
+      + '</div>'
+      + '<div class="sc" style="padding:18px 22px;overflow-y:auto;">'
+        + grid
+        + (otherActive ? '<input value="'+esc(m.custom||'')+'" oninput="setLostField(\'custom\', this.value)" placeholder="Custom reason…" style="width:100%;margin-top:12px;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:0;box-sizing:border-box;">' : '')
+        + '<div style="margin-top:14px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Details (optional)</div>'
+        + '<textarea rows="3" oninput="setLostField(\'detail\', this.value)" placeholder="Context, quote, competitor name, next steps…" style="width:100%;padding:10px 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:0;resize:vertical;line-height:1.45;box-sizing:border-box;">'+esc(m.detail||'')+'</textarea>'
+      + '</div>'
+      + '<div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--surface-2);">'
+        + '<button onclick="closeLostModal()" style="height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer;">Cancel</button>'
+        + '<button onclick="submitLostModal()" style="height:36px;padding:0 18px;border-radius:8px;border:1px solid var(--bad);background:var(--bad);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Mark Lost</button>'
+      + '</div>'
+    + '</div>'
+  + '</div>';
+}
+Object.assign(window, { openLostModal, closeLostModal, setLostField, submitLostModal });
 async function changeAccountOwner(accountId, newOwnerId){
   const acct = (state.accounts || []).find(x => x.id === accountId);
   if (!acct || acct.am === newOwnerId) return;
@@ -3855,6 +3897,7 @@ function render(){
     + renderCycleModal()
     + renderContactModal()
     + renderMergeModal()
+    + renderLostModal()
     + renderToast();
   // Restore focus + cursor to the same input the user was typing in.
   if (focusId) {
