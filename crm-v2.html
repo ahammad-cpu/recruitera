@@ -2171,15 +2171,17 @@ function renderDetail(){
   const tracking = a._tracking || {};
   const utm = a._utm || {};
   const truncUrl = (u) => { if (!u) return '—'; u = String(u); return u.length > 42 ? u.slice(0,39) + '…' : u; };
-  // Hide rows entirely when the underlying value is missing — no more em-dash
-  // clutter for accounts with sparse attribution data.
+  // Row behavior:
+  //   opts.core = true → always render, show em-dash when empty (the 5 core fields)
+  //   opts.core absent → hide entirely when empty (used by expandable sections)
   const attrRow = (label, value, opts) => {
-    if (value == null || value === '') return '';
-    const raw = String(value);
-    const isLink = opts && opts.link;
+    const empty = value == null || value === '';
+    if (empty && !(opts && opts.core)) return '';
+    const raw = empty ? '—' : String(value);
+    const isLink = opts && opts.link && !empty;
     const display = isLink
       ? '<a href="'+esc(raw)+'" target="_blank" style="color:var(--accent-ink);text-decoration:none;font-weight:700;">'+esc(truncUrl(raw))+'</a>'
-      : '<span style="font-weight:700;color:var(--text);">'+esc(raw)+'</span>';
+      : '<span style="font-weight:700;color:'+(empty?'var(--text-4)':'var(--text)')+';">'+esc(raw)+'</span>';
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);min-width:0;">'
       + '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;flex-shrink:0;">'+label+'</div>'
       + '<div style="font-size:12.5px;min-width:0;text-align:right;overflow:hidden;text-overflow:ellipsis;">'+display+'</div>'
@@ -2200,12 +2202,12 @@ function renderDetail(){
         + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="1.9"><path d="M5 12a7 7 0 0 1 7-7"/><circle cx="12" cy="12" r="2"/><path d="M14 14l4 6M10 14l-4 6"/></svg>'
         + '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Attribution</div>'
       + '</div>'
-      // Core identity — always shown
-      + attrRow('Source',    a.source)
-      + attrRow('Medium',    a._medium)
-      + attrRow('Campaign',  a._campaign)
-      + attrRow('Joined at', a.since)
-      + attrRow('First touch', a._firstTouch ? formatShortDate(a._firstTouch) : null)
+      // Core identity — always shown (em-dash when empty)
+      + attrRow('Source',      a.source,                                                { core: true })
+      + attrRow('Medium',      a._medium,                                               { core: true })
+      + attrRow('Campaign',    a._campaign,                                             { core: true })
+      + attrRow('Joined at',   a.since,                                                 { core: true })
+      + attrRow('First touch', a._firstTouch ? formatShortDate(a._firstTouch) : null,   { core: true })
       // UTM section — collapses if all 4 fields empty
       + attrSection('UTM Parameters', [
           ['utm_source',   utm.source],
