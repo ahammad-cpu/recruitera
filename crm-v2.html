@@ -445,7 +445,22 @@ async function submitContact(){
     render();
   }
 }
-Object.assign(window, { openContactModal, closeContactModal, setContactField, submitContact });
+function editPrimaryContact(accountId){
+  const entry = LIVE_CONTACTS_BY_ACCT && LIVE_CONTACTS_BY_ACCT.get(accountId);
+  if (entry && entry._primary) { openContactModal(accountId, entry._primary); return; }
+  const a = (state.accounts || []).find(x => x.id === accountId);
+  if (a && a._rawContact) {
+    openContactModal(accountId, {
+      full_name: a._rawContact.name || '',
+      email:     a._rawContact.email || '',
+      phone:     a._rawContact.phone || '',
+      is_primary: true,
+    });
+    return;
+  }
+  openContactModal(accountId);
+}
+Object.assign(window, { openContactModal, closeContactModal, setContactField, submitContact, editPrimaryContact });
 
 // ---------- DOCUMENT UPLOAD / DOWNLOAD / DELETE ----------
 async function triggerDocUpload(accountId){
@@ -2812,14 +2827,19 @@ function renderDetail(){
 
   const contactCard =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
-      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;">'
-        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.9"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-        + '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Contact Person</div>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:16px;">'
+        + '<div style="display:flex;align-items:center;gap:6px;">'
+          + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.9"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+          + '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Contact Person</div>'
+        + '</div>'
+        + '<button title="Edit contact" onclick="editPrimaryContact('+jsArg(a.id)+')" style="width:26px;height:26px;display:inline-grid;place-items:center;border-radius:6px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-3);cursor:pointer;">'
+          + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
+        + '</button>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-        + [ ['Name', c.name], ['Title', 'Talent Acquisition Lead'], ['Email', c.email], ['Phone', c.phone] ].map(f => {
+        + [ ['Name', c.name], ['Title', c.title || '—'], ['Email', c.email], ['Phone', c.phone] ].map(f => {
             return '<div><div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:5px;">'+f[0]+'</div>'
-              + '<input value="'+esc(f[1])+'" style="width:100%;height:36px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;font-weight:600;color:var(--text);background:var(--surface);outline:0;"></div>';
+              + '<div style="width:100%;min-height:36px;border:1px solid var(--border-2);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:600;color:var(--text);background:var(--surface);box-sizing:border-box;word-break:break-word;">'+esc(f[1]||'—')+'</div></div>';
           }).join('')
       + '</div>'
     + '</div>';
@@ -3553,7 +3573,7 @@ async function fetchContactsLive(token, accountIds){
     while (cursor < accountIds.length) {
       const idx = cursor++;
       const aid = accountIds[idx];
-      const url = SB_URL + '/rest/v1/contacts?select=account_id,full_name,job_title,email,phone,is_primary'
+      const url = SB_URL + '/rest/v1/contacts?select=id,account_id,full_name,job_title,email,phone,is_primary,notes'
                 + '&account_id=eq.' + aid
                 + '&order=is_primary.desc.nullslast,created_at.asc';
       try {
@@ -3564,11 +3584,12 @@ async function fetchContactsLive(token, accountIds){
         totalRows += rows.length;
         for (const c of rows) {
           let entry = map.get(aid);
-          if (!entry) { entry = { name:'', title:'', email:'', phone:'' }; map.set(aid, entry); }
+          if (!entry) { entry = { name:'', title:'', email:'', phone:'', _primary:null }; map.set(aid, entry); }
           if (!entry.name  && c.full_name) entry.name  = c.full_name;
           if (!entry.title && c.job_title) entry.title = c.job_title;
           if (!entry.email && c.email)     entry.email = c.email;
           if (!entry.phone && c.phone)     entry.phone = c.phone;
+          if (!entry._primary) entry._primary = c;
         }
       } catch (e) { failed++; }
     }
