@@ -2202,12 +2202,14 @@ function renderDetail(){
         + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="1.9"><path d="M5 12a7 7 0 0 1 7-7"/><circle cx="12" cy="12" r="2"/><path d="M14 14l4 6M10 14l-4 6"/></svg>'
         + '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Attribution</div>'
       + '</div>'
-      // Core identity — always shown (em-dash when empty)
-      + attrRow('Source',      a.source,                                                { core: true })
-      + attrRow('Medium',      a._medium,                                               { core: true })
-      + attrRow('Campaign',    a._campaign,                                             { core: true })
-      + attrRow('Joined at',   a.since,                                                 { core: true })
-      + attrRow('First touch', a._firstTouch ? formatShortDate(a._firstTouch) : null,   { core: true })
+      // Core identity — MEDIUM and CAMPAIGN prefer the most recent (last touch)
+      // value from marketing_tracking, falling back to the account-level column.
+      // This unifies the two attribution surfaces so we don't show the same
+      // field twice with potentially different values.
+      + attrRow('Source',    a.source,                                          { core: true })
+      + attrRow('Medium',    tracking.last_medium   || a._medium,               { core: true })
+      + attrRow('Campaign',  tracking.last_campaign || a._campaign,             { core: true })
+      + attrRow('Joined at', a.since,                                           { core: true })
       // UTM section — collapses if all 4 fields empty
       + attrSection('UTM Parameters', [
           ['utm_source',   utm.source],
@@ -2231,11 +2233,12 @@ function renderDetail(){
       // stay compact.
       + (function(){
           const t = tracking;
+          // Last touch data now surfaces in the core Medium/Campaign rows above,
+          // so this block focuses on First touch details + meta + landing page.
           const hasFirst = t.first_source || t.first_medium || t.first_date;
-          const hasLast  = t.last_source  || t.last_medium  || t.last_date;
           const hasMeta  = t.days_to_convert || t.device_type || t.signup_language || t.cta_clicked;
           const hasLanding = t.first_landing_page;
-          if (!hasFirst && !hasLast && !hasMeta && !hasLanding) return '';
+          if (!hasFirst && !hasMeta && !hasLanding) return '';
 
           const touchCount = t.touch_count;
           const touchDot = (v) => v ? '<span style="display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;color:var(--text);"><span style="width:8px;height:8px;border-radius:999px;background:var(--info);"></span>'+esc(v)+'</span>' : '<span style="color:var(--text-4);font-weight:700;">—</span>';
@@ -2243,31 +2246,21 @@ function renderDetail(){
 
           return '<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--accent);">'
             + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
-              + '<div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Marketing Tracking</div>'
+              + '<div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">First-touch history</div>'
               + (touchCount ? '<span style="font-size:10.5px;font-weight:700;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:999px;">'+touchCount+' touch'+(touchCount>1?'es':'')+'</span>' : '')
             + '</div>'
-            // First touch block
             + (hasFirst ? '<div style="margin-bottom:12px;">'
                 + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">First touch</div>'
                 + '<div style="margin-bottom:2px;">'+touchDot(t.first_source)+'</div>'
                 + (t.first_medium ? '<div style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(t.first_medium)+(t.first_campaign?' · '+esc(t.first_campaign):'')+'</div>' : '')
                 + (t.first_date ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" class="tnum">'+formatShortDate(t.first_date)+'</div>' : '')
               + '</div>' : '')
-            // Last touch block
-            + (hasLast ? '<div style="margin-bottom:12px;">'
-                + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">Last touch</div>'
-                + '<div style="margin-bottom:2px;">'+touchDot(t.last_source)+'</div>'
-                + (t.last_medium ? '<div style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(t.last_medium)+(t.last_campaign?' · '+esc(t.last_campaign):'')+'</div>' : '')
-                + (t.last_date ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" class="tnum">'+formatShortDate(t.last_date)+'</div>' : '')
-              + '</div>' : '')
-            // Meta grid (2 columns): Days to convert / Device, then Lang / CTA
             + (hasMeta ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:10px;">'
                 + meta('Days to convert', t.days_to_convert)
                 + meta('Device',          t.device_type)
                 + meta('Lang',            t.signup_language)
                 + meta('CTA',             t.cta_clicked)
               + '</div>' : '')
-            // First landing page (full width, wraps)
             + (hasLanding ? '<div>'
                 + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">First landing page</div>'
                 + '<a href="'+esc(t.first_landing_page)+'" target="_blank" style="font-size:12px;color:var(--accent-ink);font-weight:600;word-break:break-all;text-decoration:none;line-height:1.4;">'+esc(t.first_landing_page)+'</a>'
