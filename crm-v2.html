@@ -235,8 +235,29 @@ function go(page){ setState({ page, detailId: null }); }
 function toggleSidebar(){ setState({ sidebarCollapsed: !state.sidebarCollapsed }); }
 function openDetail(id){
   setState({ detailId: id, detailTab: 'overview' });
-  // Lazy fetch activities for this account when opened (live only)
-  if (state.dataSource === 'live') loadActivitiesForAccount(id);
+  // Lazy fetch activities + per-account details (cycles / all contacts / files)
+  // when opened (live only)
+  if (state.dataSource === 'live') {
+    loadActivitiesForAccount(id);
+    loadDetailsForAccount(id);
+  }
+}
+
+async function loadDetailsForAccount(accountId){
+  if (LIVE_DETAILS_BY_ACCT.has(accountId)) return;
+  const token = getAccessToken();
+  if (!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  const qs = (path) => fetch(SB_URL + path, { headers }).then(r => r.ok ? r.json() : []).catch(() => []);
+  try {
+    const [cycles, contacts, files] = await Promise.all([
+      qs('/rest/v1/contract_cycles?select=*&account_id=eq.' + encodeURIComponent(accountId) + '&order=cycle_number.desc'),
+      qs('/rest/v1/contacts?select=*&account_id=eq.' + encodeURIComponent(accountId) + '&order=is_primary.desc.nullslast,created_at.asc'),
+      qs('/rest/v1/files?select=*&account_id=eq.' + encodeURIComponent(accountId) + '&order=uploaded_at.desc'),
+    ]);
+    LIVE_DETAILS_BY_ACCT.set(accountId, { cycles, contacts, files });
+    if (state.detailId === accountId) render();
+  } catch(e){ console.warn('[CRM v2] loadDetails failed:', e.message); }
 }
 function closeDetail(){ setState({ detailId: null }); }
 function toggleTask(id){
@@ -1992,6 +2013,195 @@ function renderActivityTimeline(a){
   + '</div>';
 }
 
+// =========================================================================
+//   RENDER: COMPANY PROFILE → PLANS & CREDITS TAB
+// =========================================================================
+function renderPlansTab(a){
+  const loaded = LIVE_DETAILS_BY_ACCT.has(a.id);
+  const cycles = loaded ? (LIVE_DETAILS_BY_ACCT.get(a.id).cycles || []) : [];
+
+  if (state.dataSource === 'live' && !loaded) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:600;">Loading contract cycles…</div>'
+    + '</div>';
+  }
+  if (cycles.length === 0) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border);display:inline-grid;place-items:center;color:var(--text-3);margin-bottom:14px;">'+svg('logs',20,1.5)+'</div>'
+      + '<div style="font-size:16px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;">No plans yet</div>'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:500;max-width:420px;margin:0 auto;">Contract cycles appear here once a plan is set — plan tier, dates, and renewal history.</div>'
+    + '</div>';
+  }
+
+  // Current = first (already ordered by cycle_number desc)
+  const current = cycles[0];
+  const history = cycles.slice(1);
+
+  const statusChip = (s) => {
+    const map = { active:'ok', renewed:'lime', churned:'neutral', overdue:'bad', upcoming:'info' };
+    return chip(map[s] || 'neutral');
+  };
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const fmtValue = (v, ccy) => v ? (ccy||'EGP') + ' ' + Number(v).toLocaleString('en-US') : '—';
+
+  const currentCard =
+    '<div style="background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">'
+        + '<div>'
+          + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Current cycle</div>'
+          + '<div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:4px;">'+esc(current.plan_tier || '—')+'</div>'
+        + '</div>'
+        + '<span style="'+statusChip(current.status)+'">'+esc(current.status || 'active')+'</span>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+        + [
+            ['Deal value',      fmtValue(current.value, current.currency)],
+            ['Cycle number',    current.cycle_number || 1],
+            ['Started',         fmtDate(current.started_at)],
+            ['Ends',            fmtDate(current.ends_at)],
+            ['Renewal due',     fmtDate(current.renewal_due_date)],
+            ['Offer sent',      fmtDate(current.offer_sent_date)],
+            ['Original price',  fmtValue(current.original_price, current.currency)],
+            ['Discount',        current.discount_given ? fmtValue(current.discount_given, current.currency) : '—'],
+            ['Old fees',        fmtValue(current.old_fees_amount, current.currency)],
+            ['New offer',       fmtValue(current.new_offer_amount, current.currency)],
+            ['Payment type',    current.payment_type],
+            ['Auto renew',      current.auto_renew ? 'Yes' : (current.auto_renew === false ? 'No' : '—')],
+          ].map(([l,v]) => '<div style="padding:8px 0;">'
+            + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">'+l+'</div>'
+            + '<div class="tnum" style="font-size:13px;font-weight:700;color:'+(v && v !== '—' ? 'var(--text)' : 'var(--text-4)')+';">'+esc(v || '—')+'</div>'
+          + '</div>').join('')
+      + '</div>'
+      + (current.notes ? '<div style="margin-top:14px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;">'+esc(current.notes)+'</div>' : '')
+    + '</div>';
+
+  const historyCard = history.length === 0 ? '' :
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
+      + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:14px;">Cycle history · '+history.length+'</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px;">'
+        + history.map(c => '<div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;">'
+            + '<span class="tnum" style="font-size:11px;font-weight:800;color:var(--text-3);">#'+(c.cycle_number || '—')+'</span>'
+            + '<div>'
+              + '<div style="font-size:13px;font-weight:700;">'+esc(c.plan_tier || '—')+'</div>'
+              + '<div class="tnum" style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px;">'+fmtDate(c.started_at)+' → '+fmtDate(c.ends_at)+'</div>'
+            + '</div>'
+            + '<span class="tnum" style="font-size:13px;font-weight:700;">'+fmtValue(c.value, c.currency)+'</span>'
+            + '<span style="'+statusChip(c.status)+'">'+esc(c.status || 'active')+'</span>'
+          + '</div>').join('')
+      + '</div>'
+    + '</div>';
+
+  return '<div style="display:flex;flex-direction:column;gap:16px;">' + currentCard + historyCard + '</div>';
+}
+
+// =========================================================================
+//   RENDER: COMPANY PROFILE → TEAM & USERS TAB
+// =========================================================================
+function renderContactsTab(a){
+  const loaded = LIVE_DETAILS_BY_ACCT.has(a.id);
+  const contacts = loaded ? (LIVE_DETAILS_BY_ACCT.get(a.id).contacts || []) : [];
+
+  if (state.dataSource === 'live' && !loaded) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:600;">Loading contacts…</div>'
+    + '</div>';
+  }
+  if (contacts.length === 0) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border);display:inline-grid;place-items:center;color:var(--text-3);margin-bottom:14px;">'+svg('users',20,1.5)+'</div>'
+      + '<div style="font-size:16px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;">No contacts yet</div>'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:500;max-width:420px;margin:0 auto;">Add the first contact so the account team can reach the right person.</div>'
+    + '</div>';
+  }
+
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+      + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Contacts · '+contacts.length+'</div>'
+      + '<button onclick="toast(\'Add contact — coming next\')" style="height:32px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);border:1px solid var(--accent-strong);font-size:12.5px;font-weight:700;cursor:pointer;">+ Add contact</button>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;">'
+      + contacts.map(c => {
+          const initials = initialsOf(c.full_name || c.email || '?');
+          return '<div style="display:grid;grid-template-columns:40px 1.4fr 1.4fr 1.2fr 24px;gap:14px;align-items:center;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;">'
+            + '<div style="'+avatar(initials, 34, initials)+'">'+initials+'</div>'
+            + '<div style="min-width:0;">'
+              + '<div style="display:flex;align-items:center;gap:8px;">'
+                + '<span style="font-size:13.5px;font-weight:700;color:var(--text);">'+esc(c.full_name || '(no name)')+'</span>'
+                + (c.is_primary ? '<span style="font-size:9.5px;font-weight:800;letter-spacing:.06em;background:var(--accent);color:var(--on-accent);padding:2px 7px;border-radius:5px;">PRIMARY</span>' : '')
+              + '</div>'
+              + (c.job_title ? '<div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:2px;">'+esc(c.job_title)+'</div>' : '')
+            + '</div>'
+            + '<div style="min-width:0;">'+(c.email ? '<a href="mailto:'+esc(c.email)+'" style="font-size:12.5px;color:var(--accent-ink);font-weight:600;text-decoration:none;word-break:break-all;">'+esc(c.email)+'</a>' : '<span style="color:var(--text-4);font-size:12.5px;">—</span>')+'</div>'
+            + '<div>'+(c.phone ? '<a href="tel:'+esc(c.phone)+'" class="tnum" style="font-size:12.5px;color:var(--text);font-weight:600;text-decoration:none;">'+esc(c.phone)+'</a>' : '<span style="color:var(--text-4);font-size:12.5px;">—</span>')+'</div>'
+            + '<button onclick="toast(\'Contact actions — coming next\')" style="width:28px;height:28px;border-radius:7px;color:var(--text-3);cursor:pointer;font-size:14px;">⋮</button>'
+          + '</div>';
+        }).join('')
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
+//   RENDER: COMPANY PROFILE → DOCUMENTS TAB
+// =========================================================================
+function renderDocumentsTab(a){
+  const loaded = LIVE_DETAILS_BY_ACCT.has(a.id);
+  const files = loaded ? (LIVE_DETAILS_BY_ACCT.get(a.id).files || []) : [];
+
+  if (state.dataSource === 'live' && !loaded) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:600;">Loading documents…</div>'
+    + '</div>';
+  }
+  if (files.length === 0) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
+      + '<div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border);display:inline-grid;place-items:center;color:var(--text-3);margin-bottom:14px;">'+svg('logs',20,1.5)+'</div>'
+      + '<div style="font-size:16px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;">No documents yet</div>'
+      + '<div style="font-size:13px;color:var(--text-3);font-weight:500;max-width:420px;margin:0 auto;">Contracts, proposals, and supporting files uploaded here stay attached to this account.</div>'
+    + '</div>';
+  }
+
+  const fmtBytes = (n) => {
+    if (!n) return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+    if (n < 1073741824) return (n/1048576).toFixed(1) + ' MB';
+    return (n/1073741824).toFixed(2) + ' GB';
+  };
+  const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const iconFor = (mime) => {
+    const m = (mime || '').toLowerCase();
+    if (m.includes('pdf')) return '📕';
+    if (m.includes('image')) return '🖼';
+    if (m.includes('spreadsheet') || m.includes('excel') || m.includes('csv')) return '📊';
+    if (m.includes('word') || m.includes('document')) return '📝';
+    if (m.includes('presentation') || m.includes('powerpoint')) return '📽';
+    if (m.includes('zip') || m.includes('archive')) return '📦';
+    return '📄';
+  };
+
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+      + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Documents · '+files.length+'</div>'
+      + '<button onclick="toast(\'Upload file — coming next\')" style="height:32px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);border:1px solid var(--accent-strong);font-size:12.5px;font-weight:700;cursor:pointer;">+ Upload</button>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + files.map(f => {
+          const author = LIVE_AMS?.find(x => x.id === f.uploaded_by);
+          return '<div style="display:grid;grid-template-columns:36px 1fr auto auto 24px;gap:14px;align-items:center;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;">'
+            + '<div style="width:36px;height:36px;border-radius:9px;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;font-size:18px;">'+iconFor(f.mime_type)+'</div>'
+            + '<div style="min-width:0;">'
+              + '<div style="font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(f.name || '(unnamed)')+'</div>'
+              + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px;">'+fmtDate(f.uploaded_at)+(author ? ' · '+esc(author.name) : '')+'</div>'
+            + '</div>'
+            + '<span class="tnum" style="font-size:11.5px;color:var(--text-3);font-weight:700;">'+fmtBytes(f.size_bytes)+'</span>'
+            + '<button onclick="toast(\'Download — coming next\')" style="height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:11.5px;font-weight:700;cursor:pointer;">↓ Download</button>'
+            + '<button onclick="toast(\'File actions — coming next\')" style="width:28px;height:28px;border-radius:7px;color:var(--text-3);cursor:pointer;font-size:14px;">⋮</button>'
+          + '</div>';
+        }).join('')
+    + '</div>'
+  + '</div>';
+}
+
 function renderDetail(){
   const list = accts();
   const a = list.find(x => x.id === state.detailId);
@@ -2499,11 +2709,13 @@ function renderDetail(){
     + '</div>';
 
   let tabBody;
-  if (state.detailTab === 'overview') tabBody = overviewBody;
-  else if (state.detailTab === 'activity') tabBody = renderActivityTimeline(a);
+  if      (state.detailTab === 'overview')  tabBody = overviewBody;
+  else if (state.detailTab === 'activity')  tabBody = renderActivityTimeline(a);
+  else if (state.detailTab === 'plans')     tabBody = renderPlansTab(a);
+  else if (state.detailTab === 'contacts')  tabBody = renderContactsTab(a);
+  else if (state.detailTab === 'documents') tabBody = renderDocumentsTab(a);
   else {
-    const map = { plans:'Plans & credits', contacts:'Team & users', documents:'Documents' };
-    tabBody = otherTabBody(map[state.detailTab] || 'Coming soon');
+    tabBody = otherTabBody('Coming soon');
   }
 
   return '<div style="padding:20px 28px 56px;max-width:1400px;">' + crumb + headerCard + tabsBar + tabBody + '</div>';
@@ -2661,6 +2873,7 @@ let LIVE_CONTACTS_BY_ACCT = null;   // Map<accountId, {name, email, phone, title
 let LIVE_CYCLES_BY_ACCT = null;     // Map<accountId, {plan, value, ends_at, status}>
 let LIVE_TRACKING_BY_ACCT = null;   // Map<accountId, {first_source, first_campaign, ...}>
 let LIVE_ACTIVITIES_BY_ACCT = new Map(); // Map<accountId, activities[]>
+let LIVE_DETAILS_BY_ACCT = new Map();    // Map<accountId, { cycles, contacts, files }>
 let LIVE_LOGS = null;               // Global recent activities feed
 
 function formatMonYr(iso){
