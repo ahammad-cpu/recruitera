@@ -658,6 +658,36 @@ async function removeAccountTag(accountId, tagId){
 }
 Object.assign(window, { addAccountTag, removeAccountTag });
 
+// ---------- DELETE ACCOUNT ----------
+async function deleteAccount(accountId){
+  const a = (state.accounts || []).find(x => x.id === accountId);
+  if (!a) return;
+  const label = a.name || 'this account';
+  const ok = confirm('Delete "' + label + '"?\n\nThis permanently removes the account plus any linked contacts, activities, cycles, tags and documents. This cannot be undone.');
+  if (!ok) return;
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(accountId), {
+      method: 'DELETE',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, Prefer:'return=minimal' },
+    });
+    if (!res.ok) throw new Error('Delete ' + res.status + ': ' + (await res.text()).slice(0,160));
+    state.accounts = (state.accounts || []).filter(x => x.id !== accountId);
+    LIVE_DETAILS_BY_ACCT.delete(accountId);
+    LIVE_ACTIVITIES_BY_ACCT.delete(accountId);
+    LIVE_CONTACTS_BY_ACCT?.delete?.(accountId);
+    LIVE_CYCLES_BY_ACCT?.delete?.(accountId);
+    LIVE_TRACKING_BY_ACCT?.delete?.(accountId);
+    if (state.detailId === accountId) state.detailId = null;
+    render();
+    toast('Deleted ' + label);
+  } catch (e) {
+    toast('Delete failed: ' + (e.message || e));
+  }
+}
+Object.assign(window, { deleteAccount });
+
 // ---------- DOCUMENT UPLOAD / DOWNLOAD / DELETE ----------
 async function triggerDocUpload(accountId){
   // Uses a hidden file input approach: create → click → wait for change → upload
@@ -2858,6 +2888,7 @@ function renderDetail(){
                 + actionBtn('var(--surface)','#25D366','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.4A10 10 0 1 0 12 2z"/></svg>','WhatsApp',"toast('Opening WhatsApp Web')")
                 + actionBtn('var(--surface)','var(--text-2)','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>','Email',"toast('Compose email — coming Phase 2')")
                 + actionBtn('var(--cg-900)','#fff','var(--cg-900)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>','Proposal',"toast('Proposal builder — coming Phase 2')")
+                + '<button title="Delete company" onclick="deleteAccount('+jsArg(a.id)+')" style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9px;background:var(--surface);color:var(--bad);border:1px solid var(--bad);cursor:pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>'
               + '</div>'
             + '</div>'
             // chips (removed — stage lives in the stat band, paid/region/industry are already elsewhere)
