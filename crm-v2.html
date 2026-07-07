@@ -250,13 +250,13 @@ async function loadDetailsForAccount(accountId){
   const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   const qs = (path) => fetch(SB_URL + path, { headers }).then(r => r.ok ? r.json() : []).catch(() => []);
   try {
-    const [cycles, contacts, files] = await Promise.all([
+    const [cycles, contacts, files, tags] = await Promise.all([
       qs('/rest/v1/contract_cycles?select=*&account_id=eq.' + encodeURIComponent(accountId) + '&order=cycle_number.desc'),
       qs('/rest/v1/contacts?select=*&account_id=eq.' + encodeURIComponent(accountId) + '&order=is_primary.desc.nullslast,created_at.asc'),
-      // account_documents is what /crm writes to; 'files' table was my earlier misread.
       qs('/rest/v1/account_documents?select=*&account_id=eq.' + encodeURIComponent(accountId) + '&is_archived=is.false&order=created_at.desc'),
+      qs('/rest/v1/account_tags?select=tag_id,added_at,tags(id,label,color)&account_id=eq.' + encodeURIComponent(accountId) + '&order=added_at.asc'),
     ]);
-    LIVE_DETAILS_BY_ACCT.set(accountId, { cycles, contacts, files });
+    LIVE_DETAILS_BY_ACCT.set(accountId, { cycles, contacts, files, tags });
     if (state.detailId === accountId) render();
   } catch(e){ console.warn('[CRM v2] loadDetails failed:', e.message); }
 }
@@ -574,6 +574,53 @@ async function submitComposerNote(accountId){
   }
 }
 Object.assign(window, { setComposerKind, setComposerText, insertMention, submitComposerNote });
+
+// ---------- TAGS ----------
+async function addAccountTag(accountId){
+  const label = (prompt('Tag label') || '').trim();
+  if (!label) return;
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json' };
+  try {
+    const findRes = await fetch(SB_URL + '/rest/v1/tags?select=id,label,color&label=eq.' + encodeURIComponent(label) + '&limit=1', { headers });
+    let tag = findRes.ok ? (await findRes.json())[0] : null;
+    if (!tag) {
+      const insRes = await fetch(SB_URL + '/rest/v1/tags', {
+        method: 'POST',
+        headers: Object.assign({}, headers, { Prefer:'return=representation' }),
+        body: JSON.stringify({ label, color: '#6b7280', is_preset: false }),
+      });
+      if (!insRes.ok) throw new Error('Tag ' + insRes.status);
+      tag = (await insRes.json())[0];
+    }
+    const linkRes = await fetch(SB_URL + '/rest/v1/account_tags', {
+      method: 'POST',
+      headers: Object.assign({}, headers, { Prefer:'resolution=ignore-duplicates' }),
+      body: JSON.stringify({ account_id: accountId, tag_id: tag.id }),
+    });
+    if (!linkRes.ok && linkRes.status !== 409) throw new Error('Link ' + linkRes.status);
+    LIVE_DETAILS_BY_ACCT.delete(accountId);
+    await loadDetailsForAccount(accountId);
+    render();
+    toast('Tag added');
+  } catch (e) { toast('Tag failed: ' + (e.message || e)); }
+}
+async function removeAccountTag(accountId, tagId){
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/account_tags?account_id=eq.' + encodeURIComponent(accountId) + '&tag_id=eq.' + encodeURIComponent(tagId), {
+      method: 'DELETE',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) throw new Error('Untag ' + res.status);
+    LIVE_DETAILS_BY_ACCT.delete(accountId);
+    await loadDetailsForAccount(accountId);
+    render();
+  } catch (e) { toast('Untag failed: ' + (e.message || e)); }
+}
+Object.assign(window, { addAccountTag, removeAccountTag });
 
 // ---------- DOCUMENT UPLOAD / DOWNLOAD / DELETE ----------
 async function triggerDocUpload(accountId){
@@ -2756,6 +2803,20 @@ function renderDetail(){
               + '<div>'
                 + '<h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-.025em;line-height:1.15;">'+esc(a.name)+'</h1>'
                 + '<div style="font-size:12px;color:var(--text-3);font-weight:500;margin-top:4px;">'+esc(a.domain)+' · Customer since '+esc(a.since)+'</div>'
+                + (function(){
+                    const tags = (LIVE_DETAILS_BY_ACCT.get(a.id)?.tags) || [];
+                    const tagPill = (t) => {
+                      const label = t.tags?.label || '';
+                      const color = t.tags?.color || '#6b7280';
+                      return '<span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--border-2);font-size:12px;font-weight:600;color:var(--text-2);">'
+                        + '<span style="width:8px;height:8px;border-radius:50%;background:'+esc(color)+';display:inline-block;"></span>'
+                        + esc(label)
+                        + '<span onclick="event.stopPropagation();removeAccountTag('+jsArg(a.id)+', '+jsArg(t.tag_id)+')" title="Remove tag" style="cursor:pointer;color:var(--text-4);font-size:14px;line-height:1;margin-left:2px;">×</span>'
+                      + '</span>';
+                    };
+                    const addBtn = '<button onclick="addAccountTag('+jsArg(a.id)+')" style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 12px;border-radius:999px;background:transparent;border:1.5px dashed var(--border-2);font-size:12px;font-weight:600;color:var(--text-3);cursor:pointer;">+ Add tag</button>';
+                    return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+ tags.map(tagPill).join('') + addBtn + '</div>';
+                  })()
               + '</div>'
               + '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">'
                 + actionBtn('var(--surface)','#25D366','var(--border-2)','<svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.4A10 10 0 1 0 12 2z"/></svg>','WhatsApp',"toast('Opening WhatsApp Web')")
