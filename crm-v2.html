@@ -2038,11 +2038,49 @@ function renderDetail(){
     // Mock fallback — the seed data doesn't carry rc_mail, so show Yara
     owners.push({ name:'Yara Mostafa', role:'RC', ring:'var(--info)', email:'yara@recruitera.ai', initials:'YM' });
   }
-  const acctTasks = [
-    { text:'Send renewal proposal draft to '+c.name,         dateLabel:'Due today',    by:'· by KF' },
-    { text:'Prepare last-quarter usage report for QBR',       dateLabel:'Jul 02',       by:'· by NA' },
-    { text:'Confirm champion for signing authority',          dateLabel:'This week',    by:'' },
-  ];
+  // Tasks: derive open tasks for this account from the lazy-loaded activities
+  // stream. Falls back to a hardcoded sample only in mock preview mode.
+  let acctTasks;
+  if (LIVE_ACTIVITIES_BY_ACCT.has(a.id)) {
+    const taskActs = (LIVE_ACTIVITIES_BY_ACCT.get(a.id) || [])
+      .filter(x => x.type === 'task' && !x.task_done);
+    // Sort by due date (soonest first, undated last)
+    taskActs.sort((x,y) => {
+      const dx = x.task_due_date ? Date.parse(x.task_due_date) : Infinity;
+      const dy = y.task_due_date ? Date.parse(y.task_due_date) : Infinity;
+      return dx - dy;
+    });
+    const dueLabelFor = (iso) => {
+      if (!iso) return 'No due date';
+      const d = new Date(iso); if (isNaN(d)) return 'No due date';
+      const today = new Date(); today.setHours(0,0,0,0);
+      const t = new Date(d);   t.setHours(0,0,0,0);
+      const diff = Math.round((t - today) / 86400000);
+      if (diff < 0)   return 'Overdue';
+      if (diff === 0) return 'Due today';
+      if (diff === 1) return 'Tomorrow';
+      if (diff <= 7)  return 'This week';
+      return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    };
+    acctTasks = taskActs.map(r => {
+      const author = LIVE_AMS?.find(x => x.id === r.author_id);
+      return {
+        text: r.title || r.text || '(untitled task)',
+        dateLabel: dueLabelFor(r.task_due_date),
+        by: author ? '· by ' + author.initials : '',
+      };
+    });
+  } else if (state.dataSource === 'live') {
+    // Live mode but activities not loaded yet for this account
+    acctTasks = [];
+  } else {
+    // Mock preview fallback
+    acctTasks = [
+      { text:'Send renewal proposal draft to '+c.name,   dateLabel:'Due today', by:'· by KF' },
+      { text:'Prepare last-quarter usage report for QBR', dateLabel:'Jul 02',    by:'· by NA' },
+      { text:'Confirm champion for signing authority',    dateLabel:'This week', by:'' },
+    ];
+  }
 
   const contactCard =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
@@ -2286,16 +2324,27 @@ function renderDetail(){
         + '<input placeholder="Quick task…" style="flex:1;height:32px;border:1px solid var(--border-2);border-radius:7px;padding:0 10px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--text);outline:0;">'
       + '</div>'
       + '<div class="sc" style="display:flex;flex-direction:column;gap:7px;max-height:300px;overflow-y:auto;padding-right:4px;">'
-        + acctTasks.map(t => '<div style="display:flex;align-items:flex-start;gap:9px;padding:9px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;">'
-            + '<div style="width:14px;height:14px;border:1.5px solid var(--border-2);border-radius:3px;flex-shrink:0;margin-top:2px;cursor:pointer;background:var(--surface);"></div>'
-            + '<div style="flex:1;min-width:0;">'
-              + '<div style="font-size:12px;color:var(--text);line-height:1.45;">'+esc(t.text)+'</div>'
-              + '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">'
-                + '<span style="font-size:10.5px;font-weight:700;color:var(--warn);">'+esc(t.dateLabel)+'</span>'
-                + (t.by ? '<span style="font-size:10.5px;color:var(--text-3);">'+esc(t.by)+'</span>' : '')
-              + '</div>'
+        + (acctTasks.length === 0
+          ? '<div style="padding:20px 12px;text-align:center;font-size:12.5px;color:var(--text-4);font-weight:600;border:1px dashed var(--border-2);border-radius:9px;">'
+              + (state.dataSource === 'live' && !LIVE_ACTIVITIES_BY_ACCT.has(a.id)
+                ? 'Loading tasks…'
+                : 'No open tasks')
             + '</div>'
-          + '</div>').join('')
+          : acctTasks.map(t => {
+              const isOverdue = t.dateLabel === 'Overdue';
+              const isToday   = t.dateLabel === 'Due today';
+              const dateColor = isOverdue ? 'var(--bad)' : isToday ? 'var(--warn)' : 'var(--text-3)';
+              return '<div style="display:flex;align-items:flex-start;gap:9px;padding:9px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;">'
+                + '<div style="width:14px;height:14px;border:1.5px solid var(--border-2);border-radius:3px;flex-shrink:0;margin-top:2px;cursor:pointer;background:var(--surface);"></div>'
+                + '<div style="flex:1;min-width:0;">'
+                  + '<div style="font-size:12px;color:var(--text);line-height:1.45;">'+esc(t.text)+'</div>'
+                  + '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">'
+                    + '<span style="font-size:10.5px;font-weight:700;color:'+dateColor+';">'+esc(t.dateLabel)+'</span>'
+                    + (t.by ? '<span style="font-size:10.5px;color:var(--text-3);">'+esc(t.by)+'</span>' : '')
+                  + '</div>'
+                + '</div>'
+              + '</div>';
+            }).join(''))
       + '</div>'
     + '</div>';
 
@@ -2754,7 +2803,7 @@ async function loadActivitiesForAccount(accountId){
   if (!token) return;
   try {
     const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
-    const url = SB_URL + '/rest/v1/activities?select=id,type,text,title,author_id,created_at,meeting_start_at,meeting_end_at,meeting_kind,call_direction,call_duration_minutes,from_stage,to_stage&account_id=eq.' + encodeURIComponent(accountId) + '&is_archived=is.false&order=created_at.desc&limit=50';
+    const url = SB_URL + '/rest/v1/activities?select=id,type,text,title,author_id,created_at,meeting_start_at,meeting_end_at,meeting_kind,call_direction,call_duration_minutes,from_stage,to_stage,task_due_date,task_done,priority&account_id=eq.' + encodeURIComponent(accountId) + '&is_archived=is.false&order=created_at.desc&limit=100';
     const res = await fetch(url, { headers });
     if (!res.ok) return;
     const rows = await res.json();
