@@ -845,6 +845,17 @@ function synthContact(a){
       return { name: live.name || '—', email: live.email || '—', phone: live.phone || '—', title: live.title || '' };
     }
   }
+  // Fallback #1 for live accounts: raw_data Bubble-legacy contact fields.
+  // Covers accounts created between backfill runs whose contact info is only
+  // in accounts.raw_data.
+  if (a._rawContact){
+    return {
+      name:  a._rawContact.name  || '—',
+      email: a._rawContact.email || '—',
+      phone: a._rawContact.phone || '—',
+      title: '',
+    };
+  }
   // Fallback: deterministic mock. Only meaningful for the 17 numeric-id seed rows.
   if (typeof a.id !== 'number') return { name:'—', email:'—', phone:'—', title:'' };
   const first = ['Ahmed','Mona','Sara','Karim','Nada','Yasmin','Hossam','Tarek','Rania','Omar','Heba','Nour'][a.id % 12];
@@ -2148,7 +2159,20 @@ function renderPlansTab(a){
 // =========================================================================
 function renderContactsTab(a){
   const loaded = LIVE_DETAILS_BY_ACCT.has(a.id);
-  const contacts = loaded ? (LIVE_DETAILS_BY_ACCT.get(a.id).contacts || []) : [];
+  let contacts = loaded ? (LIVE_DETAILS_BY_ACCT.get(a.id).contacts || []) : [];
+
+  // Fallback: if the contacts table returned nothing but raw_data has the
+  // Bubble-legacy Contact_* fields, synthesize a virtual primary row so the
+  // tab isn't blank for new accounts that predate the next backfill sweep.
+  if (loaded && contacts.length === 0 && a._rawContact) {
+    contacts = [{
+      full_name: a._rawContact.name || '(unnamed)',
+      email:     a._rawContact.email,
+      phone:     a._rawContact.phone,
+      is_primary: true,
+      notes:     'from raw_data (unsynced)',
+    }];
+  }
 
   if (state.dataSource === 'live' && !loaded) {
     return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 32px;box-shadow:var(--sh1);text-align:center;">'
@@ -3023,6 +3047,17 @@ function mapAcctFromSupabase(a, idx){
     _lostDetail: a.lost_detail,
     _rcMail: a.rc_mail,
     _amMail: a.am_mail,
+    // Bubble-legacy contact fallback: some accounts have Contact_* in raw_data
+    // but no contacts row yet (backfill gap for new accounts). UI reads this
+    // when LIVE_CONTACTS_BY_ACCT / loadDetailsForAccount return empty.
+    _rawContact: (function(){
+      const rd = a.raw_data || {};
+      const name  = (rd['Contact_Name']  || '').trim();
+      const email = (rd['Contact_Email'] || '').trim();
+      const phone = (rd['Contact_Mobile']|| '').trim();
+      if (!name && !email && !phone) return null;
+      return { name, email, phone };
+    })(),
     _cycleValue: cycle?.value,
     _cycleCurrency: cycle?.currency,
     _tracking: LIVE_TRACKING_BY_ACCT?.get(a.id),
