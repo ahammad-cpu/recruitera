@@ -499,24 +499,56 @@ function editPrimaryContact(accountId){
   }
   openContactModal(accountId);
 }
+const LOST_REASONS = [
+  'Went with competitor',
+  'Budget / price',
+  'Not the right fit',
+  'Timing / no urgency',
+  'No response / ghosted',
+  'Product gap',
+  'Other',
+];
+function promptLostReason(){
+  const numbered = LOST_REASONS.map((r,i) => (i+1)+'. '+r).join('\n');
+  const raw = prompt('Reason for loss (pick 1–'+LOST_REASONS.length+' or type your own):\n\n'+numbered, '1');
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const idx = parseInt(trimmed, 10);
+  const reason = (idx >= 1 && idx <= LOST_REASONS.length) ? LOST_REASONS[idx-1] : trimmed;
+  const detail = prompt('Any details? (optional)', '') || '';
+  return { reason, detail: detail.trim() };
+}
 async function changeAccountStage(accountId, newStage){
   const acct = (state.accounts || []).find(x => x.id === accountId);
   if (!acct || acct.stage === newStage) return;
+  let lostReason = null, lostDetail = null;
+  if (newStage === 'lost') {
+    const picked = promptLostReason();
+    if (!picked) return;
+    lostReason = picked.reason;
+    lostDetail = picked.detail || null;
+  }
   const prev = acct.stage;
+  const prevReason = acct._lostReason;
+  const prevDetail = acct._lostDetail;
   acct.stage = newStage;
+  if (newStage === 'lost') { acct._lostReason = lostReason; acct._lostDetail = lostDetail; }
   render();
   const token = getAccessToken();
-  if (!token) { acct.stage = prev; render(); toast('Login required'); return; }
+  if (!token) { acct.stage = prev; acct._lostReason = prevReason; acct._lostDetail = prevDetail; render(); toast('Login required'); return; }
+  const body = { stage: newStage };
+  if (newStage === 'lost') { body.lost_reason = lostReason; body.lost_detail = lostDetail; }
   try {
     const res = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(accountId), {
       method: 'PATCH',
       headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=minimal' },
-      body: JSON.stringify({ stage: newStage }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error('Stage ' + res.status);
-    toast('Stage → ' + (STAGE[newStage] && STAGE[newStage].label || newStage));
+    toast(newStage === 'lost' ? ('Lost · ' + lostReason) : ('Stage → ' + (STAGE[newStage] && STAGE[newStage].label || newStage)));
   } catch (e) {
-    acct.stage = prev; render();
+    acct.stage = prev; acct._lostReason = prevReason; acct._lostDetail = prevDetail; render();
     toast('Stage change failed: ' + (e.message || e));
   }
 }
