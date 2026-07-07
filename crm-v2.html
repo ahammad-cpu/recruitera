@@ -2835,10 +2835,12 @@ function renderDetail(){
   }
   // Tasks: derive open tasks for this account from the lazy-loaded activities
   // stream. Falls back to a hardcoded sample only in mock preview mode.
-  let acctTasks;
+  let acctTasks, acctDoneCount = 0;
   if (LIVE_ACTIVITIES_BY_ACCT.has(a.id)) {
-    const taskActs = (LIVE_ACTIVITIES_BY_ACCT.get(a.id) || [])
-      .filter(x => x.type === 'task' && !x.task_done);
+    const allTasks = (LIVE_ACTIVITIES_BY_ACCT.get(a.id) || [])
+      .filter(x => x.type === 'task');
+    acctDoneCount = allTasks.filter(x => x.task_done).length;
+    const taskActs = allTasks.filter(x => !x.task_done);
     // Sort by due date (soonest first, undated last)
     taskActs.sort((x,y) => {
       const dx = x.task_due_date ? Date.parse(x.task_due_date) : Infinity;
@@ -3129,14 +3131,18 @@ function renderDetail(){
 
   const tasksCard =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
-      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:8px;">'
-        + '<div>'
-          + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Tasks</div>'
-          + '<div class="tnum" style="font-size:14px;font-weight:800;margin-top:4px;">'+acctTasks.length+' open</div>'
-        + '</div>'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;">'
+        + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Tasks</div>'
+        + (acctDoneCount > 0
+          ? '<a onclick="toast(\'Done tasks — coming soon\')" style="font-size:12px;font-weight:700;color:var(--accent-ink);cursor:pointer;text-decoration:underline;">View '+acctDoneCount+' done →</a>'
+          : '')
       + '</div>'
+      + '<div class="tnum" style="font-size:16px;font-weight:800;margin-bottom:12px;">'+acctTasks.length+' open</div>'
       + '<div style="display:flex;gap:6px;margin-bottom:12px;">'
-        + '<input placeholder="Quick task…" style="flex:1;height:32px;border:1px solid var(--border-2);border-radius:7px;padding:0 10px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--text);outline:0;">'
+        + '<input placeholder="Quick task…" style="flex:1;height:34px;border:1px solid var(--border-2);border-radius:7px;padding:0 10px;font-family:inherit;font-size:12.5px;background:var(--surface);color:var(--text);outline:0;">'
+        + '<select style="height:34px;border:1px solid var(--border-2);border-radius:7px;padding:0 6px;font-family:inherit;font-size:12.5px;font-weight:700;background:var(--surface);color:var(--text);outline:0;cursor:pointer;">'
+          + '<option>Quick</option><option>Follow up</option><option>Call</option><option>Meeting</option><option>Check plan</option>'
+        + '</select>'
       + '</div>'
       + '<div class="sc" style="display:flex;flex-direction:column;gap:7px;max-height:300px;overflow-y:auto;padding-right:4px;">'
         + (acctTasks.length === 0
