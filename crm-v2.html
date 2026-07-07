@@ -2817,7 +2817,7 @@ function renderDetail(){
   // No Admin row — that's global, not account-scoped.
   const owners = [{
     name: am.name,
-    role: 'Owner',
+    role: 'AC',
     ring: 'var(--accent-strong)',
     email: am.email || ((am.initials||'??').toLowerCase() + '@recruitera.ai'),
     initials: am.initials || '??',
@@ -2827,7 +2827,7 @@ function renderDetail(){
   if (rcMail && LIVE_AMS) {
     const rc = LIVE_AMS.find(p => (p.email||'').toLowerCase() === rcMail);
     if (rc && rc.id !== am.id) {
-      owners.push({ name: rc.name, role: 'RC', ring: 'var(--info)', email: rc.email, initials: rc.initials });
+      owners.push({ name: rc.name, role: 'CS', ring: 'var(--info)', email: rc.email, initials: rc.initials });
     }
   } else if (!LIVE_AMS) {
     // Mock fallback — the seed data doesn't carry rc_mail, so show Yara
@@ -2959,15 +2959,30 @@ function renderDetail(){
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">'
       + '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:14px;">Account team</div>'
       + '<div style="display:flex;flex-direction:column;gap:12px;">'
-        + owners.map(o => '<div style="display:flex;align-items:center;gap:11px;">'
-            + '<div style="'+avatar(o.initials,32,o.initials)+'">'+o.initials+'</div>'
-            + '<div style="flex:1;min-width:0;">'
-              + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;">'+esc(o.name)+'</span>'
-                + '<span style="font-size:9px;font-weight:800;color:'+o.ring+';border:1px solid '+o.ring+';padding:0 5px;border-radius:5px;">'+o.role+'</span>'
+        + owners.map(o => {
+            const isOwner = o.role === 'AC';
+            let ownerPicker = '';
+            if (isOwner) {
+              const roster = (LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : AMS);
+              let opts = roster.map(p => '<option value="'+esc(p.id)+'"'+(p.id===a.am?' selected':'')+'>'+esc(p.name || p.id)+'</option>').join('');
+              if (a.am && !roster.some(p => p.id === a.am)) {
+                opts = '<option value="'+esc(a.am)+'" selected>'+esc(am.name || a.am)+'</option>' + opts;
+              }
+              ownerPicker = '<select title="Change owner" onchange="changeAccountOwner('+jsArg(a.id)+', this.value)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;">'+opts+'</select>';
+            }
+            return '<div style="display:flex;align-items:center;gap:11px;">'
+              + '<div style="position:relative;'+(isOwner?'cursor:pointer;':'')+'" title="'+(isOwner?'Click to change owner':'')+'">'
+                + '<div style="'+avatar(o.initials,32,o.initials)+'">'+o.initials+'</div>'
+                + ownerPicker
               + '</div>'
-              + '<div style="font-size:11px;color:var(--text-3);">'+esc(o.email)+'</div>'
-            + '</div>'
-          + '</div>').join('')
+              + '<div style="flex:1;min-width:0;">'
+                + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;">'+esc(o.name)+'</span>'
+                  + '<span style="font-size:9px;font-weight:800;color:'+o.ring+';border:1px solid '+o.ring+';padding:0 5px;border-radius:5px;">'+o.role+'</span>'
+                + '</div>'
+                + '<div style="font-size:11px;color:var(--text-3);">'+esc(o.email)+'</div>'
+              + '</div>'
+            + '</div>';
+          }).join('')
       + '</div>'
     + '</div>';
 
