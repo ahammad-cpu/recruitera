@@ -169,7 +169,7 @@ const STAGE = {
   lost:     { label:'Lost',        v:'bad'     },
 };
 const REN = {
-  d90:      { label:'90d+',    v:'ok'      },
+  d90:      { label:'90 days', v:'ok'      },
   d60:      { label:'60 days', v:'info'    },
   d30:      { label:'30 days', v:'warn'    },
   overdue:  { label:'Overdue', v:'bad'     },
@@ -1953,7 +1953,7 @@ function renderPipeline(){
 //   RENDER: RENEWAL Kanban
 // =========================================================================
 const REN_COLS = [
-  { key:'d90',      label:'90d+',    dot:'var(--ok)'      },
+  { key:'d90',      label:'90 days', dot:'var(--ok)'      },
   { key:'d60',      label:'60 days', dot:'var(--info)'    },
   { key:'d30',      label:'30 days', dot:'var(--warn)'    },
   { key:'overdue',  label:'Overdue', dot:'var(--bad)'     },
@@ -3984,7 +3984,8 @@ function mapAcctFromSupabase(a, idx){
       }
       else if (days <= 30) ren = 'd30';
       else if (days <= 60) ren = 'd60';
-      else ren = 'd90';
+      else if (days <= 90) ren = 'd90';
+      // >90 days → not in the renewal pipeline yet
     }
   }
   // Owner resolution priority:
