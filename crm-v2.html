@@ -260,8 +260,8 @@ function logoBadge(name, domain, size, logoUrl){
   return '<div style="'+logoStyle(s)+'">'+inner+'</div>';
 }
 function initialsOf(n){ return n.split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
-function egp(n){ if (!n) return 'EGP 0'; if (n >= 1000) return 'EGP ' + (n/1000).toFixed(n >= 100000 ? 0 : 1).replace('.0','') + 'k'; return 'EGP ' + n; }
-function short(n){ if (!n) return '0'; if (n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'k'; return '' + n; }
+function egp(n){ const v = Number(n) || 0; return v.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' EGP'; }
+function short(n){ const v = Number(n) || 0; return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 // HTML-safe wrapper for inline handler arguments. JSON.stringify handles the
 // numeric-vs-string distinction (numbers stay bare, strings get quotes), and
