@@ -826,6 +826,27 @@ async function removeAccountLogo(accountId){
 }
 Object.assign(window, { uploadAccountLogo, removeAccountLogo });
 
+// ---------- DELETE CONTRACT CYCLE ----------
+async function deleteCycle(accountId, cycleId){
+  if (!cycleId) { toast('Cycle id missing'); return; }
+  if (!confirm('Delete this contract cycle?\n\nRenewal bucket and deal-value fallbacks recompute from the remaining cycles.')) return;
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/contract_cycles?id=eq.' + encodeURIComponent(cycleId), {
+      method: 'DELETE',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, Prefer:'return=minimal' },
+    });
+    if (!res.ok) throw new Error('Delete ' + res.status + ': ' + (await res.text()).slice(0,140));
+    LIVE_DETAILS_BY_ACCT.delete(accountId);
+    LIVE_CYCLES_BY_ACCT?.delete?.(accountId);
+    await loadDetailsForAccount(accountId);
+    render();
+    toast('Cycle deleted');
+  } catch (e) { toast('Delete failed: ' + (e.message || e)); }
+}
+Object.assign(window, { deleteCycle });
+
 // ---------- DOCUMENT UPLOAD / DOWNLOAD / DELETE ----------
 async function triggerDocUpload(accountId){
   // Uses a hidden file input approach: create → click → wait for change → upload
@@ -2876,6 +2897,7 @@ function renderPlansTab(a){
         + invoiceChip(c.status)
         + '<button onclick="openCycleModal('+jsArg(a.id)+', '+jsArg(c)+')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">✎ Edit status</button>'
         + '<button onclick="openCycleModal('+jsArg(a.id)+', '+jsArg(c)+')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">Edit cycle</button>'
+        + '<button title="Delete cycle" onclick="deleteCycle('+jsArg(a.id)+', '+jsArg(c.id)+')" style="height:30px;width:30px;display:inline-grid;place-items:center;border-radius:7px;border:1px solid var(--bad);background:var(--surface);color:var(--bad);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>'
       + '</div>'
       // 4-column grid: TERM START · TERM END · LENGTH · AMOUNT
       + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">'
