@@ -223,6 +223,26 @@ function logoStyle(size){ const s = size || 34; return 'width:'+s+'px;height:'+s
 // Google's favicon service — free, unlimited, never CORS-blocked. Small (max
 // 64px) so acceptable for table rows and headers. Falls back to the initials
 // text sitting behind the <img> when the domain has no favicon.
+const LOGO_DOMAIN_CACHE = new Map();  // name(lower) -> domain string | null
+const LOGO_DOMAIN_INFLIGHT = new Set();
+function resolveDomainByName(name){
+  const key = (name || '').trim().toLowerCase();
+  if (!key || key.length < 3) return null;
+  if (LOGO_DOMAIN_CACHE.has(key)) return LOGO_DOMAIN_CACHE.get(key);
+  if (LOGO_DOMAIN_INFLIGHT.has(key)) return null;
+  LOGO_DOMAIN_INFLIGHT.add(key);
+  // Clearbit's public autocomplete — no auth, free, returns [{name,domain,logo}].
+  fetch('https://autocomplete.clearbit.com/v1/companies/suggest?query=' + encodeURIComponent(name))
+    .then(r => r.ok ? r.json() : [])
+    .then(list => {
+      const d = list && list[0] && list[0].domain ? list[0].domain : null;
+      LOGO_DOMAIN_CACHE.set(key, d);
+      LOGO_DOMAIN_INFLIGHT.delete(key);
+      if (d) render();
+    })
+    .catch(() => { LOGO_DOMAIN_CACHE.set(key, null); LOGO_DOMAIN_INFLIGHT.delete(key); });
+  return null;
+}
 function logoImg(domain, size){
   if (!domain) return '';
   const s = size || 34;
@@ -232,7 +252,9 @@ function logoImg(domain, size){
 }
 function logoBadge(name, domain, size){
   const s = size || 34;
-  return '<div style="'+logoStyle(s)+'">'+initialsOf(name)+logoImg(domain, s)+'</div>';
+  let d = domain;
+  if (!d && name) d = resolveDomainByName(name);
+  return '<div style="'+logoStyle(s)+'">'+initialsOf(name)+logoImg(d, s)+'</div>';
 }
 function initialsOf(n){ return n.split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 function egp(n){ if (!n) return 'EGP 0'; if (n >= 1000) return 'EGP ' + (n/1000).toFixed(n >= 100000 ? 0 : 1).replace('.0','') + 'k'; return 'EGP ' + n; }
