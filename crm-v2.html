@@ -1831,7 +1831,6 @@ function renderPipeline(){
         + '<div style="display:flex;flex-direction:column;gap:3px;padding:6px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">'
           + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">ACV</span><span class="tnum" style="font-weight:700;color:var(--text);">'+egp(a.value)+'</span></div>'
           + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">'+(a.stage==='won'?'Closed':'Close')+'</span><span style="font-weight:600;color:var(--text-2);">'+esc(a.end||'—')+'</span></div>'
-          + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">Score</span><span class="tnum" style="font-weight:700;color:'+(a.score>=80?'var(--ok)':a.score>=60?'var(--warn)':'var(--text-3)')+';">'+a.score+'</span></div>'
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:7px;">'
           + '<div style="'+avatar(am.initials,24,am.initials)+'">'+am.initials+'</div>'
