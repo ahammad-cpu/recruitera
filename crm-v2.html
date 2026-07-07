@@ -2741,16 +2741,8 @@ function renderDetail(){
             { l:'Closes',     body:'<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(a.end || '—')+'</div>'
                 + '<div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">'+esc(a.end ? 'contract end' : 'no close date')+'</div>' },
             { l:'Stage',      body: stageSelect },
-            { l:'Owner',      body: (function(){
-                const roster = (LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : AMS);
-                let opts = roster.map(o => '<option value="'+esc(o.id)+'"'+(o.id===a.am?' selected':'')+'>'+esc(o.name || o.id)+'</option>').join('');
-                if (a.am && !roster.some(o => o.id === a.am)) {
-                  opts = '<option value="'+esc(a.am)+'" selected>'+esc(am.name || a.am)+'</option>' + opts;
-                }
-                return '<select onchange="changeAccountOwner('+jsArg(a.id)+', this.value)" style="width:100%;margin-top:6px;height:30px;padding:0 8px;border:1px solid var(--border-2);border-radius:7px;background:var(--surface);font-size:13px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit;">'+opts+'</select>';
-              })() },
           ];
-          return '<div style="display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--border);">'
+          return '<div style="display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--border);">'
             + cells.map((s,i,arr) => '<div style="padding:16px 18px;'+(i<arr.length-1?'border-right:1px solid var(--border);':'')+'">'
                 + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+s.l+'</div>'
                 + s.body
