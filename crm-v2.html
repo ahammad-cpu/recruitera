@@ -2233,37 +2233,42 @@ function renderDetail(){
       // stay compact.
       + (function(){
           const t = tracking;
-          // Last touch data now surfaces in the core Medium/Campaign rows above,
-          // so this block focuses on First touch details + meta + landing page.
           const hasFirst = t.first_source || t.first_medium || t.first_date;
-          const hasMeta  = t.days_to_convert || t.device_type || t.signup_language || t.cta_clicked;
+          // Lang dropped per design decision — not signal-bearing enough to
+          // justify column space.
+          const metaCells = [
+            ['Days to convert', t.days_to_convert],
+            ['Device',          t.device_type],
+            ['CTA',             t.cta_clicked],
+          ].filter(([, v]) => v != null && v !== '');
           const hasLanding = t.first_landing_page;
-          if (!hasFirst && !hasMeta && !hasLanding) return '';
+          if (!hasFirst && metaCells.length === 0 && !hasLanding) return '';
 
           const touchCount = t.touch_count;
-          const touchDot = (v) => v ? '<span style="display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;color:var(--text);"><span style="width:8px;height:8px;border-radius:999px;background:var(--info);"></span>'+esc(v)+'</span>' : '<span style="color:var(--text-4);font-weight:700;">—</span>';
-          const meta = (label, value) => '<div><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">'+label+'</div><div class="tnum" style="font-size:13px;font-weight:700;color:'+(value?'var(--text)':'var(--text-4)')+';">'+esc(value||'—')+'</div></div>';
+          const touchDot = (v) => v ? '<span style="display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--text);"><span style="width:8px;height:8px;border-radius:999px;background:var(--info);"></span>'+esc(v)+'</span>' : '';
+          const meta = (label, value) => '<div><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:5px;">'+label+'</div><div class="tnum" style="font-size:13px;font-weight:700;color:var(--text);">'+esc(value)+'</div></div>';
+          // Auto-fit grid: 3 → 3 cols, 2 → 2 cols, 1 → 1 col. Keeps the block
+          // balanced when some meta fields are missing instead of leaving
+          // ghost cells.
+          const metaCols = Math.max(metaCells.length, 1);
 
-          return '<div style="margin-top:16px;padding-top:14px;border-top:2px solid var(--accent);">'
-            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
-              + '<div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">First-touch history</div>'
-              + (touchCount ? '<span style="font-size:10.5px;font-weight:700;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:999px;">'+touchCount+' touch'+(touchCount>1?'es':'')+'</span>' : '')
+          return '<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+              + '<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Marketing tracking</div>'
+              + (touchCount ? '<span style="font-size:10.5px;font-weight:700;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:2px 9px;border-radius:999px;">'+touchCount+' touch'+(touchCount>1?'es':'')+'</span>' : '')
             + '</div>'
-            + (hasFirst ? '<div style="margin-bottom:12px;">'
-                + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">First touch</div>'
-                + '<div style="margin-bottom:2px;">'+touchDot(t.first_source)+'</div>'
+            + (hasFirst ? '<div style="padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;">'
+                + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:6px;">First touch</div>'
+                + '<div style="margin-bottom:3px;">'+touchDot(t.first_source)+'</div>'
                 + (t.first_medium ? '<div style="font-size:12px;color:var(--text-2);font-weight:600;">'+esc(t.first_medium)+(t.first_campaign?' · '+esc(t.first_campaign):'')+'</div>' : '')
-                + (t.first_date ? '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" class="tnum">'+formatShortDate(t.first_date)+'</div>' : '')
+                + (t.first_date ? '<div class="tnum" style="font-size:11.5px;color:var(--text-3);margin-top:3px;">'+formatShortDate(t.first_date)+'</div>' : '')
               + '</div>' : '')
-            + (hasMeta ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:10px;">'
-                + meta('Days to convert', t.days_to_convert)
-                + meta('Device',          t.device_type)
-                + meta('Lang',            t.signup_language)
-                + meta('CTA',             t.cta_clicked)
+            + (metaCells.length ? '<div style="display:grid;grid-template-columns:repeat('+metaCols+',1fr);gap:14px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;">'
+                + metaCells.map(([l,v]) => meta(l, v)).join('')
               + '</div>' : '')
-            + (hasLanding ? '<div>'
-                + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">First landing page</div>'
-                + '<a href="'+esc(t.first_landing_page)+'" target="_blank" style="font-size:12px;color:var(--accent-ink);font-weight:600;word-break:break-all;text-decoration:none;line-height:1.4;">'+esc(t.first_landing_page)+'</a>'
+            + (hasLanding ? '<div style="padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;">'
+                + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:6px;">First landing page</div>'
+                + '<a href="'+esc(t.first_landing_page)+'" target="_blank" style="font-size:12px;color:var(--accent-ink);font-weight:700;word-break:break-all;text-decoration:none;line-height:1.4;">'+esc(t.first_landing_page)+'</a>'
               + '</div>' : '')
           + '</div>';
         })()
@@ -2706,7 +2711,10 @@ async function fetchCyclesLive(token, accountIds){
 }
 
 async function fetchTrackingLive(token){
-  const rows = await fetchAllPages(token, '/rest/v1/marketing_tracking?select=account_id,first_source,first_medium,first_campaign,first_landing_page,first_date,last_source,last_medium,last_campaign,last_date,device_type,touch_count');
+  // Include every field the Attribution card renders. Missed days_to_convert /
+  // signup_language / cta_clicked in the first pass — that's why the Days to
+  // convert and CTA cells looked empty even for accounts that had the data.
+  const rows = await fetchAllPages(token, '/rest/v1/marketing_tracking?select=account_id,first_source,first_medium,first_campaign,first_landing_page,first_date,last_source,last_medium,last_campaign,last_date,device_type,signup_language,cta_clicked,days_to_convert,touch_count');
   const map = new Map();
   for (const t of rows) {
     if (t.account_id && !map.has(t.account_id)) map.set(t.account_id, t);
