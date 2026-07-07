@@ -1812,7 +1812,11 @@ function renderPipeline(){
 
   // kanban columns
   const columns = PIPE_COLS.map(col => {
-    const cards = acts.filter(a => a.stage === col.key);
+    const cards = acts.filter(a => a.stage === col.key).slice().sort((x,y) => {
+      const dx = x._sinceRaw ? Date.parse(x._sinceRaw) : 0;
+      const dy = y._sinceRaw ? Date.parse(y._sinceRaw) : 0;
+      return dy - dx;
+    });
     const sum = cards.reduce((s,a)=>s+a.value,0);
     const avg = cards.length ? Math.round(sum / cards.length) : 0;
 
