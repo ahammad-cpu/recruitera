@@ -2675,6 +2675,9 @@ function renderDetail(){
             + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;">'
               + '<span style="'+chipStyle(st.v)+'">'+st.label+'</span>'
               + '<span style="'+chipStyle(PAID[a.paid]||'neutral')+'">● '+esc(a.paid)+'</span>'
+              + (a.paid === 'Free Trial' && a.act === 'Active' ? '<span style="'+chipStyle('info')+'">🎁 Trial Active</span>' : '')
+              + (a.paid === 'Free Trial' && a.act === 'Expired' ? '<span style="'+chipStyle('bad')+'">🎁 Trial Expired</span>' : '')
+              + (a.end ? '<span style="'+chipStyle('warn')+'">📅 Closes '+esc(a.end)+'</span>' : '')
               + '<span style="'+chipStyle('neutral')+'">📍 '+esc(a.region)+'</span>'
               + '<span style="'+chipStyle('neutral')+'">🏭 '+esc(a.industry)+'</span>'
             + '</div>'
