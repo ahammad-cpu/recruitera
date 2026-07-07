@@ -3968,17 +3968,22 @@ function mapAcctFromSupabase(a, idx){
   // Close/end date — for renewal bucketing prefer contract end; else deal_close_date; else close_date
   const rawEnd = cycleEnds || a.deal_close_date || a.close_date || null;
   const end = formatShortDate(rawEnd);
+  // The renewal pipeline is ONLY for accounts that became real paying
+  // customers — i.e. rows with a contract_cycle. Lost deals and expired
+  // trials never enter it. This keeps the Churned column from filling up
+  // with sales-side "Lost" deals.
   let ren = null;
-  if (rawEnd) {
-    const d = Date.parse(rawEnd);
+  if (cycle && cycleEnds) {
+    const d = Date.parse(cycleEnds);
     if (!isNaN(d)) {
       const days = (d - Date.now()) / (1000*60*60*24);
       const wasPaid = paid === 'Paid' || paid === 'Without Charge';
-      if (cycle?.status === 'churned') ren = 'churned';
-      else if (cycle?.status === 'renewed') ren = 'renewed';
+      if (cycle.status === 'churned') ren = 'churned';
+      else if (cycle.status === 'renewed') ren = 'renewed';
       else if (days < 0) {
-        // Cycle ended: churned if they've dropped off (not paying / activation
-        // expired). Still-active-but-late customers go to Overdue for follow-up.
+        // Cycle ended without a renewal record: churn if they've dropped
+        // off (activation expired / paid flag cleared). Still-paying
+        // customers past the end date go to Overdue for follow-up.
         if (!wasPaid || act === 'Expired') ren = 'churned';
         else ren = 'overdue';
       }
