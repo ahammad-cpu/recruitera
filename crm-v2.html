@@ -2881,7 +2881,7 @@ function renderDetail(){
     { key:'contacts',  label:'Team & users' },
     { key:'documents', label:'Documents' },
   ];
-  const tabsBar = '<div class="sc" style="display:flex;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto;">'
+  const tabsBar = '<div class="sc" style="display:flex;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap;">'
     + tabDefs.map(t => {
         const active = state.detailTab === t.key;
         return '<button onclick="setDetailTab(\''+t.key+'\')" style="padding:11px 18px;margin-bottom:-1px;font-size:13px;font-weight:'+(active?700:600)+';cursor:pointer;color:'+(active?'var(--text)':'var(--text-3)')+';background:transparent;border:0;border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';white-space:nowrap;">'+t.label+'</button>';
