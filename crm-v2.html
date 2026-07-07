@@ -510,7 +510,7 @@ async function changeAccountOwner(accountId, newOwnerId){
 Object.assign(window, { openContactModal, closeContactModal, setContactField, submitContact, editPrimaryContact, changeAccountStage, changeAccountOwner });
 
 // ---------- NOTE / ACTIVITY COMPOSER ----------
-function setComposerKind(k){ state.composerKind = k; render(); setTimeout(() => { const t = document.getElementById('composer-textarea'); if (t) t.focus(); }, 0); }
+function setComposerKind(k){ state.composerKind = k; render(); setTimeout(() => { const t = document.getElementById('composer-textarea'); if (t) t.focus({preventScroll:true}); }, 0); }
 function setComposerText(v){
   state.composerText = v;
   const el = document.getElementById('composer-textarea');
@@ -3484,6 +3484,10 @@ function render(){
     focusId = active.id;
     try { selStart = active.selectionStart; selEnd = active.selectionEnd; } catch {}
   }
+  // Preserve main-scroll position across the innerHTML swap so clicks on
+  // interactive controls deep in the profile don't jerk back to top.
+  const _scrollHost = document.getElementById('main-scroll');
+  const _scrollTop = _scrollHost ? _scrollHost.scrollTop : 0;
   const col = state.sidebarCollapsed;
   let mainContent;
   if (state.detailId) {
@@ -3518,7 +3522,7 @@ function render(){
       + renderSidebar()
       + '<div style="display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative;">'
         + renderTopbar()
-        + '<div class="sc" style="flex:1;overflow-y:auto;min-height:0;">'
+        + '<div id="main-scroll" class="sc" style="flex:1;overflow-y:auto;min-height:0;">'
           + mainContent
         + '</div>'
       + '</div>'
@@ -3534,6 +3538,11 @@ function render(){
       el.focus();
       try { if (selStart != null) el.setSelectionRange(selStart, selEnd ?? selStart); } catch {}
     }
+  }
+  // Restore main-scroll position.
+  if (_scrollTop) {
+    const nextHost = document.getElementById('main-scroll');
+    if (nextHost) nextHost.scrollTop = _scrollTop;
   }
 }
 
