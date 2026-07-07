@@ -2033,65 +2033,114 @@ function renderPlansTab(a){
     + '</div>';
   }
 
-  // Current = first (already ordered by cycle_number desc)
-  const current = cycles[0];
-  const history = cycles.slice(1);
-
-  const statusChip = (s) => {
-    const map = { active:'ok', renewed:'lime', churned:'neutral', overdue:'bad', upcoming:'info' };
-    return chip(map[s] || 'neutral');
-  };
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const fmtShortDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',year:'numeric'}) : '—';
   const fmtValue = (v, ccy) => v ? (ccy||'EGP') + ' ' + Number(v).toLocaleString('en-US') : '—';
+  const monthsBetween = (a,b) => {
+    if (!a || !b) return '—';
+    const da = new Date(a), db = new Date(b);
+    if (isNaN(da) || isNaN(db)) return '—';
+    const m = Math.round((db - da) / (1000*60*60*24*30.44));
+    return m + ' months';
+  };
+  const termLabel = (m) => {
+    if (m === '—') return '—';
+    const n = parseInt(m, 10);
+    if (n >= 11 && n <= 13) return 'Annual';
+    if (n >= 5  && n <= 7)  return 'Semi-annual';
+    if (n >= 2  && n <= 4)  return 'Quarterly';
+    if (n >= 22 && n <= 26) return '2 Years';
+    return m;
+  };
+  const invoiceChip = (status) => {
+    // paid/collected/renewed → Collected, active → Pending, others → status
+    if (['renewed','collected','paid'].includes(status)) return '<span style="'+chip('info')+'">Collected</span>';
+    if (status === 'active') return '<span style="'+chip('warn')+'">Pending</span>';
+    if (status === 'churned') return '<span style="'+chip('bad')+'">Churned</span>';
+    if (status === 'overdue') return '<span style="'+chip('bad')+'">Overdue</span>';
+    return '<span style="'+chip('neutral')+'">'+esc(status || '—')+'</span>';
+  };
+  const typeLabel = (status) => (['renewed','collected','paid','active'].includes(status)) ? 'Paid' : (status === 'churned' ? 'Churned' : status === 'overdue' ? 'Overdue' : 'Free');
+  const typeChipStyle = (status) => (['renewed','collected','paid','active'].includes(status)) ? chip('info') : (status === 'churned' ? chip('neutral') : chip('warn'));
+  const activeChipStyle = (isActive) => isActive ? chip('ok') : chip('neutral');
 
-  const currentCard =
-    '<div style="background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">'
-        + '<div>'
-          + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Current cycle</div>'
-          + '<div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:4px;">'+esc(current.plan_tier || '—')+'</div>'
-        + '</div>'
-        + '<span style="'+statusChip(current.status)+'">'+esc(current.status || 'active')+'</span>'
+  // Header + cycle cards ---------------------------------------------------
+  const cycleCard = (c, isCurrent) => {
+    const months = monthsBetween(c.started_at, c.ends_at);
+    return '<div style="background:var(--surface);border:'+(isCurrent?'2px solid var(--accent)':'1px solid var(--border)')+';border-radius:12px;padding:18px 20px;box-shadow:var(--sh1);">'
+      // Chip row + actions
+      + '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">'
+        + (isCurrent ? '<span style="'+chip('lime')+'">current</span>' : '<span style="'+chip('neutral')+'">completed</span>')
+        + '<span style="'+chip('neutral')+'">'+esc(termLabel(months))+'</span>'
+        + '<span style="'+chip(c.auto_renew ? 'ok' : 'neutral')+'">● '+(c.auto_renew ? 'Auto-renew' : 'Manual')+'</span>'
+        + '<div style="flex:1;"></div>'
+        + '<span style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Invoice</span>'
+        + invoiceChip(c.status)
+        + '<button onclick="toast(\'Edit status — coming next\')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">✎ Edit status</button>'
+        + '<button onclick="toast(\'Edit cycle — coming next\')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">Edit cycle</button>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+      // 4-column grid: TERM START · TERM END · LENGTH · AMOUNT
+      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">'
         + [
-            ['Deal value',      fmtValue(current.value, current.currency)],
-            ['Cycle number',    current.cycle_number || 1],
-            ['Started',         fmtDate(current.started_at)],
-            ['Ends',            fmtDate(current.ends_at)],
-            ['Renewal due',     fmtDate(current.renewal_due_date)],
-            ['Offer sent',      fmtDate(current.offer_sent_date)],
-            ['Original price',  fmtValue(current.original_price, current.currency)],
-            ['Discount',        current.discount_given ? fmtValue(current.discount_given, current.currency) : '—'],
-            ['Old fees',        fmtValue(current.old_fees_amount, current.currency)],
-            ['New offer',       fmtValue(current.new_offer_amount, current.currency)],
-            ['Payment type',    current.payment_type],
-            ['Auto renew',      current.auto_renew ? 'Yes' : (current.auto_renew === false ? 'No' : '—')],
-          ].map(([l,v]) => '<div style="padding:8px 0;">'
-            + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:4px;">'+l+'</div>'
-            + '<div class="tnum" style="font-size:13px;font-weight:700;color:'+(v && v !== '—' ? 'var(--text)' : 'var(--text-4)')+';">'+esc(v || '—')+'</div>'
-          + '</div>').join('')
-      + '</div>'
-      + (current.notes ? '<div style="margin-top:14px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;">'+esc(current.notes)+'</div>' : '')
-    + '</div>';
-
-  const historyCard = history.length === 0 ? '' :
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
-      + '<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:14px;">Cycle history · '+history.length+'</div>'
-      + '<div style="display:flex;flex-direction:column;gap:10px;">'
-        + history.map(c => '<div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;">'
-            + '<span class="tnum" style="font-size:11px;font-weight:800;color:var(--text-3);">#'+(c.cycle_number || '—')+'</span>'
-            + '<div>'
-              + '<div style="font-size:13px;font-weight:700;">'+esc(c.plan_tier || '—')+'</div>'
-              + '<div class="tnum" style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px;">'+fmtDate(c.started_at)+' → '+fmtDate(c.ends_at)+'</div>'
-            + '</div>'
-            + '<span class="tnum" style="font-size:13px;font-weight:700;">'+fmtValue(c.value, c.currency)+'</span>'
-            + '<span style="'+statusChip(c.status)+'">'+esc(c.status || 'active')+'</span>'
+            ['Term start', fmtShortDate(c.started_at)],
+            ['Term end',   fmtShortDate(c.ends_at)],
+            ['Length',     months],
+            ['Amount',     fmtValue(c.value, c.currency)],
+          ].map(([l,v]) => '<div>'
+            + '<div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:6px;">'+l+'</div>'
+            + '<div class="tnum" style="font-size:16px;font-weight:800;letter-spacing:-.01em;color:var(--text);">'+esc(v)+'</div>'
           + '</div>').join('')
       + '</div>'
     + '</div>';
+  };
 
-  return '<div style="display:flex;flex-direction:column;gap:16px;">' + currentCard + historyCard + '</div>';
+  const header =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+      + '<div>'
+        + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Renewal cycles</div>'
+        + '<div style="font-size:16px;font-weight:800;letter-spacing:-.01em;margin-top:4px;">'+cycles.length+' cycle'+(cycles.length>1?'s':'')+' on record</div>'
+      + '</div>'
+      + '<button onclick="toast(\'Add cycle — coming next\')" style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);border:1px solid var(--accent-strong);font-size:13px;font-weight:700;cursor:pointer;">+ Add cycle</button>'
+    + '</div>';
+
+  const cycleList = '<div style="display:flex;flex-direction:column;gap:12px;">'
+    + cycles.map((c, i) => cycleCard(c, i === 0)).join('')
+  + '</div>';
+
+  // Plans history table ---------------------------------------------------
+  const historyTable =
+    '<div style="margin-top:24px;">'
+      + '<h3 style="margin:0 0 12px;font-size:15px;font-weight:800;letter-spacing:-.01em;">Plans history</h3>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--sh1);">'
+        + '<div class="sc" style="overflow-x:auto;">'
+          + '<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:900px;">'
+            + '<thead><tr>'
+              + ['Plan','Amount','Length','Start','Expiry','Type','Active'].map(h => '<th style="padding:12px 14px;text-align:left;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap;">'+h+'</th>').join('')
+            + '</tr></thead>'
+            + '<tbody>'
+              + cycles.map(c => {
+                  const isActive = c.status === 'active';
+                  return '<tr style="border-bottom:1px solid var(--border);">'
+                    + '<td style="padding:12px 14px;font-size:13px;font-weight:700;">'+esc(c.plan_tier || '—')+'</td>'
+                    + '<td style="padding:12px 14px;font-size:12.5px;font-weight:700;" class="tnum">'+esc(fmtValue(c.value, c.currency))+'</td>'
+                    + '<td style="padding:12px 14px;font-size:12px;color:var(--text-2);font-weight:600;">'+esc(monthsBetween(c.started_at, c.ends_at))+'</td>'
+                    + '<td style="padding:12px 14px;font-size:12px;color:var(--text-2);" class="tnum">'+esc(fmtShortDate(c.started_at))+'</td>'
+                    + '<td style="padding:12px 14px;font-size:12px;color:var(--text-2);" class="tnum">'+esc(fmtShortDate(c.ends_at))+'</td>'
+                    + '<td style="padding:12px 14px;"><span style="'+typeChipStyle(c.status)+'">'+typeLabel(c.status)+'</span></td>'
+                    + '<td style="padding:12px 14px;"><span style="'+activeChipStyle(isActive)+'">'+(isActive?'Active':'Expired')+'</span></td>'
+                  + '</tr>';
+                }).join('')
+            + '</tbody>'
+          + '</table>'
+        + '</div>'
+      + '</div>'
+    + '</div>';
+
+  return '<div style="display:flex;flex-direction:column;gap:16px;">'
+    + header
+    + cycleList
+    + historyTable
+  + '</div>';
 }
 
 // =========================================================================
