@@ -830,7 +830,24 @@ function filteredAccounts(){
   if (s.acctTrial  !== 'all') rows = rows.filter(a => s.acctTrial === 'on' ? (a.paid === 'Free Trial' && a.act === 'Active') : s.acctTrial === 'expired' ? a.act === 'Expired' : !a.act);
   if (s.acctPlan   !== 'all') rows = rows.filter(a => a.plan === s.acctPlan);
   const q = (s.acctSearch || '').trim().toLowerCase();
-  if (q) rows = rows.filter(a => a.name.toLowerCase().includes(q) || a.domain.toLowerCase().includes(q));
+  if (q) {
+    // Multi-field search: company name, domain, contact name, email, phone.
+    // Phone normalized to digits only so '+20 100', '01001234567', and
+    // '201001234567' all match the same underlying number.
+    const qDigits = q.replace(/\D+/g, '');
+    rows = rows.filter(a => {
+      if (a.name && a.name.toLowerCase().includes(q))     return true;
+      if (a.domain && a.domain.toLowerCase().includes(q)) return true;
+      const c = synthContact(a);
+      if (c.name  && c.name.toLowerCase().includes(q))    return true;
+      if (c.email && c.email.toLowerCase().includes(q))   return true;
+      if (qDigits && c.phone) {
+        const phoneDigits = String(c.phone).replace(/\D+/g, '');
+        if (phoneDigits.includes(qDigits)) return true;
+      }
+      return false;
+    });
+  }
   // Apply sort last so filters compose predictably
   const sort = s.acctSort || { key: 'created', dir: 'desc' };
   rows.sort((a, b) => compareAccts(a, b, sort.key) * (sort.dir === 'asc' ? 1 : -1));
