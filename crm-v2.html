@@ -460,7 +460,28 @@ function editPrimaryContact(accountId){
   }
   openContactModal(accountId);
 }
-Object.assign(window, { openContactModal, closeContactModal, setContactField, submitContact, editPrimaryContact });
+async function changeAccountStage(accountId, newStage){
+  const acct = (state.accounts || []).find(x => x.id === accountId);
+  if (!acct || acct.stage === newStage) return;
+  const prev = acct.stage;
+  acct.stage = newStage;
+  render();
+  const token = getAccessToken();
+  if (!token) { acct.stage = prev; render(); toast('Login required'); return; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(accountId), {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify({ stage: newStage }),
+    });
+    if (!res.ok) throw new Error('Stage ' + res.status);
+    toast('Stage → ' + (STAGE[newStage] && STAGE[newStage].label || newStage));
+  } catch (e) {
+    acct.stage = prev; render();
+    toast('Stage change failed: ' + (e.message || e));
+  }
+}
+Object.assign(window, { openContactModal, closeContactModal, setContactField, submitContact, editPrimaryContact, changeAccountStage });
 
 // ---------- DOCUMENT UPLOAD / DOWNLOAD / DELETE ----------
 async function triggerDocUpload(accountId){
@@ -2666,32 +2687,34 @@ function renderDetail(){
             // plan/proposal row
             + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
               + (inSalesCycle
-                ? '<span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--accent-strong);border-radius:8px;background:var(--accent-soft);font-size:13px;font-weight:700;color:var(--accent-ink);">📄 Proposal · '+esc(a.plan)+'</span>'
-                  + '<span style="display:inline-flex;align-items:center;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:600;color:var(--text-2);">'+egp(a.value)+'</span>'
+                ? (a.value ? '<span style="display:inline-flex;align-items:center;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:600;color:var(--text-2);">'+egp(a.value)+'</span>' : '')
                   + (a.end ? '<span style="display:inline-flex;align-items:center;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:600;color:var(--text-2);">Closes '+esc(a.end)+'</span>' : '')
-                : '<span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:700;color:var(--text-2);">💼 '+esc(a.plan)+(a.end?' · renews '+esc(a.end):'')+'</span>')
+                : (a.plan && a.plan !== '—' ? '<span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:700;color:var(--text-2);">💼 '+esc(a.plan)+(a.end?' · renews '+esc(a.end):'')+'</span>' : ''))
               + (canDisqualify ? '<button onclick="toast(\'Disqualify flow — coming Phase 2\')" style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--bad);background:var(--bad-bg);font-size:13px;font-weight:700;color:var(--bad);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>Disqualify</button>' : '')
             + '</div>'
           + '</div>'
         + '</div>'
       + '</div>'
       // stats band
-      + '<div style="display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);">'
-        + [
-            { l:'Deal value',    v: a.value ? egp(a.value) : '—',    sub: a.value ? 'annual contract' : 'not set' },
-            { l:'ICP score',     v: a.score ? (a.score + '') : '—',   sub: a.score ? '/ 100' : 'not scored' },
-            // Following four cells have no source column in Supabase yet — surface honestly
-            { l:'Active jobs',   v: a.jobs ? ('' + a.jobs) : '—',     sub: a.jobs ? 'live postings' : 'no data' },
-            { l:'Credits used',  v: a.total ? Math.round(a.used/a.total*100)+'%' : '—', sub: a.total ? a.used+' / '+a.total : 'no plan' },
-            { l:'Job views',     v: a.views ? short(a.views) : '—',   sub: a.views ? 'last 30 days' : 'no data' },
-            { l:'Applications',  v: a.applies ? short(a.applies) : '—', sub: a.applies ? 'last 30 days' : 'no data' },
-            { l:'Owner',         v: am.initials || '—',              sub: esc(am.name) },
-          ].map((s,i,arr) => '<div style="padding:16px 18px;'+(i<arr.length-1?'border-right:1px solid var(--border);':'')+'">'
-            + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+s.l+'</div>'
-            + '<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(s.v)+'</div>'
-            + '<div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">'+esc(s.sub)+'</div>'
-          + '</div>').join('')
-      + '</div>'
+      + (function(){
+          const stageOpts = Object.keys(STAGE).map(k => '<option value="'+k+'"'+(k===a.stage?' selected':'')+'>'+esc(STAGE[k].label)+'</option>').join('');
+          const stageSelect = '<select onchange="changeAccountStage('+jsArg(a.id)+', this.value)" style="width:100%;margin-top:6px;height:30px;padding:0 8px;border:1px solid var(--border-2);border-radius:7px;background:var(--surface);font-size:13px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit;">'+stageOpts+'</select>';
+          const cells = [
+            { l:'Deal value', body:'<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(a.value ? egp(a.value) : '—')+'</div>'
+                + '<div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">'+esc(a.value ? 'annual contract' : 'not set')+'</div>' },
+            { l:'ICP score',  body:'<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(a.score ? (a.score+'') : '—')+'</div>'
+                + '<div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">'+esc(a.score ? '/ 100' : 'not scored')+'</div>' },
+            { l:'Stage',      body: stageSelect },
+            { l:'Owner',      body:'<div class="tnum" style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);">'+esc(am.initials || '—')+'</div>'
+                + '<div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">'+esc(am.name)+'</div>' },
+          ];
+          return '<div style="display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);">'
+            + cells.map((s,i,arr) => '<div style="padding:16px 18px;'+(i<arr.length-1?'border-right:1px solid var(--border);':'')+'">'
+                + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+s.l+'</div>'
+                + s.body
+              + '</div>').join('')
+          + '</div>';
+        })()
     + '</div>';
 
   // --- tabs ---
