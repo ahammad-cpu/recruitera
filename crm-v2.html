@@ -1676,6 +1676,50 @@ const PIPE_COLS = [
   { key:'lost',     label:'Lost',      accent:'var(--bad)'        },
 ];
 function setPipeField(k, v){ state[k] = v; render(); }
+let PIPE_DRAG_ID = null;
+function pipeDragStart(e, id){
+  PIPE_DRAG_ID = id;
+  try { e.dataTransfer.setData('text/plain', String(id)); e.dataTransfer.effectAllowed = 'move'; } catch {}
+  if (e.currentTarget && e.currentTarget.style) { e.currentTarget.style.opacity = '0.55'; }
+}
+function pipeDragEnd(e){
+  PIPE_DRAG_ID = null;
+  if (e.currentTarget && e.currentTarget.style) { e.currentTarget.style.opacity = ''; }
+  document.querySelectorAll('.pipe-col-drop-hi').forEach(el => {
+    el.classList.remove('pipe-col-drop-hi');
+    el.style.background = '';
+    el.style.outline = '';
+  });
+}
+function pipeDragOver(e){
+  e.preventDefault();
+  try { e.dataTransfer.dropEffect = 'move'; } catch {}
+  const col = e.currentTarget;
+  if (!col.classList.contains('pipe-col-drop-hi')) {
+    col.classList.add('pipe-col-drop-hi');
+    col.style.background = 'var(--accent-soft)';
+    col.style.outline = '2px dashed var(--accent-strong)';
+    col.style.outlineOffset = '-2px';
+  }
+}
+function pipeDragLeave(e){
+  const col = e.currentTarget;
+  if (col.contains(e.relatedTarget)) return;
+  col.classList.remove('pipe-col-drop-hi');
+  col.style.background = '';
+  col.style.outline = '';
+}
+function pipeDrop(e, stageKey){
+  e.preventDefault();
+  const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || PIPE_DRAG_ID;
+  const col = e.currentTarget;
+  col.classList.remove('pipe-col-drop-hi');
+  col.style.background = '';
+  col.style.outline = '';
+  if (!id) return;
+  changeAccountStage(id, stageKey);
+}
+Object.assign(window, { pipeDragStart, pipeDragEnd, pipeDragOver, pipeDragLeave, pipeDrop });
 function pipeRangeBounds(){
   const now = new Date();
   const yr = now.getFullYear();
@@ -1743,7 +1787,7 @@ function renderPipeline(){
     const cardHtml = cards.map(a => {
       const am = amById(a.am);
       const tier = TIER[a.tier] || TIER.warm;
-      return '<div class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
+      return '<div class="row-h pipe-card" draggable="true" ondragstart="pipeDragStart(event, '+jsArg(a.id)+')" ondragend="pipeDragEnd(event)" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:grab;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
         + '<div style="display:flex;align-items:center;gap:9px;">'
           + logoBadge(a.name, a.domain, 32, a.logo_url)
           + '<div style="min-width:0;flex:1;">'
@@ -1764,7 +1808,7 @@ function renderPipeline(){
       + '</div>';
     }).join('');
 
-    return '<div style="display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;min-height:560px;">'
+    return '<div class="pipe-col" data-stage="'+col.key+'" ondragover="pipeDragOver(event)" ondragleave="pipeDragLeave(event)" ondrop="pipeDrop(event, \''+col.key+'\')" style="display:flex;flex-direction:column;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;min-height:560px;">'
       // header
       + '<div style="display:flex;align-items:center;gap:8px;padding:12px 14px 11px;border-top:3px solid '+col.accent+';background:var(--surface);">'
         + '<span style="width:9px;height:9px;border-radius:999px;background:'+col.accent+';flex-shrink:0;"></span>'
