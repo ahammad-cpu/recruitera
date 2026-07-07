@@ -392,7 +392,9 @@ async function submitCycle(){
     }
     // Refresh cycles for this account so the tab reflects the write
     LIVE_DETAILS_BY_ACCT.delete(s.cycleModalAccountId);
+    LIVE_CYCLES_BY_ACCT?.delete?.(s.cycleModalAccountId);
     await loadDetailsForAccount(s.cycleModalAccountId);
+    await refreshAccountRow(s.cycleModalAccountId);
     state.cycleModalOpen = false;
     state.cycleModalStatus = 'done';
     render();
@@ -841,9 +843,36 @@ async function deleteCycle(accountId, cycleId){
     LIVE_DETAILS_BY_ACCT.delete(accountId);
     LIVE_CYCLES_BY_ACCT?.delete?.(accountId);
     await loadDetailsForAccount(accountId);
+    await refreshAccountRow(accountId);
     render();
     toast('Cycle deleted');
   } catch (e) { toast('Delete failed: ' + (e.message || e)); }
+}
+// Re-fetch a single account row + its cycles, then re-run mapAcctFromSupabase
+// so downstream fields (ren bucket, end, value, plan) recompute in place.
+// Used after any cycle mutation so the Renewal Pipeline doesn't cling to
+// stale bucket assignments.
+async function refreshAccountRow(accountId){
+  const token = getAccessToken();
+  if (!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  try {
+    const [rawArr, cycArr] = await Promise.all([
+      fetch(SB_URL + '/rest/v1/accounts?select=*&id=eq.' + encodeURIComponent(accountId), { headers }).then(r => r.ok ? r.json() : []),
+      fetch(SB_URL + '/rest/v1/contract_cycles?select=account_id,status,plan_tier,value,currency,ends_at,cycle_number&account_id=eq.' + encodeURIComponent(accountId) + '&order=cycle_number.desc', { headers }).then(r => r.ok ? r.json() : []),
+    ]);
+    if (LIVE_CYCLES_BY_ACCT) {
+      LIVE_CYCLES_BY_ACCT.delete(accountId);
+      const top = cycArr && cycArr[0];
+      if (top) LIVE_CYCLES_BY_ACCT.set(accountId, { plan: top.plan_tier, value: top.value, ends_at: top.ends_at, status: top.status });
+    }
+    if (rawArr && rawArr[0]) {
+      const list = state.accounts || [];
+      const idx = list.findIndex(x => x.id === accountId);
+      const mapped = mapAcctFromSupabase(rawArr[0], idx >= 0 ? idx : 0);
+      if (idx >= 0) list[idx] = mapped; else list.push(mapped);
+    }
+  } catch (e) { console.warn('[CRM v2] refreshAccountRow failed:', e.message); }
 }
 Object.assign(window, { deleteCycle });
 
