@@ -2171,10 +2171,15 @@ function renderDetail(){
   const tracking = a._tracking || {};
   const utm = a._utm || {};
   const truncUrl = (u) => { if (!u) return '—'; u = String(u); return u.length > 42 ? u.slice(0,39) + '…' : u; };
+  // Hide rows entirely when the underlying value is missing — no more em-dash
+  // clutter for accounts with sparse attribution data.
   const attrRow = (label, value, opts) => {
-    const raw = value == null || value === '' ? '—' : String(value);
-    const isLink = opts && opts.link && raw !== '—';
-    const display = isLink ? '<a href="'+esc(raw)+'" target="_blank" style="color:var(--accent-ink);text-decoration:none;font-weight:700;">'+esc(truncUrl(raw))+'</a>' : '<span style="font-weight:700;color:'+(raw==='—'?'var(--text-4)':'var(--text)')+';">'+esc(raw)+'</span>';
+    if (value == null || value === '') return '';
+    const raw = String(value);
+    const isLink = opts && opts.link;
+    const display = isLink
+      ? '<a href="'+esc(raw)+'" target="_blank" style="color:var(--accent-ink);text-decoration:none;font-weight:700;">'+esc(truncUrl(raw))+'</a>'
+      : '<span style="font-weight:700;color:var(--text);">'+esc(raw)+'</span>';
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);min-width:0;">'
       + '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;flex-shrink:0;">'+label+'</div>'
       + '<div style="font-size:12.5px;min-width:0;text-align:right;overflow:hidden;text-overflow:ellipsis;">'+display+'</div>'
@@ -2218,20 +2223,6 @@ function renderDetail(){
       + attrSection('Recruitera Channels', [
           ['Marketing channel', a._wpMarketingChan],
           ['Rec challenge',     a._wpRecChallenge],
-        ])
-      // Marketing tracking multi-touch (from marketing_tracking table)
-      + attrSection('First / Last Touch (Marketing Tracking)', [
-          ['First source',    tracking.first_source],
-          ['First medium',    tracking.first_medium],
-          ['First campaign',  tracking.first_campaign],
-          ['First landing',   tracking.first_landing_page, { link: true }],
-          ['First seen',      tracking.first_date ? formatShortDate(tracking.first_date) : null],
-          ['Last source',     tracking.last_source],
-          ['Last medium',     tracking.last_medium],
-          ['Last campaign',   tracking.last_campaign],
-          ['Last seen',       tracking.last_date ? formatShortDate(tracking.last_date) : null],
-          ['Touches',         tracking.touch_count],
-          ['Device',          tracking.device_type],
         ])
     + '</div>';
 
