@@ -2091,7 +2091,6 @@ function renderDetail(){
   const tabDefs = [
     { key:'overview',  label:'Overview' },
     { key:'activity',  label:'Activity' },
-    { key:'usage',     label:'Jobs & usage' },
     { key:'plans',     label:'Plans & credits' },
     { key:'billing',   label:'Invoices' },
     { key:'contacts',  label:'Team & users' },
@@ -2504,7 +2503,7 @@ function renderDetail(){
   if (state.detailTab === 'overview') tabBody = overviewBody;
   else if (state.detailTab === 'activity') tabBody = renderActivityTimeline(a);
   else {
-    const map = { usage:'Jobs & usage', plans:'Plans & credits', billing:'Invoices', contacts:'Team & users', documents:'Documents' };
+    const map = { plans:'Plans & credits', billing:'Invoices', contacts:'Team & users', documents:'Documents' };
     tabBody = otherTabBody(map[state.detailTab] || 'Coming soon');
   }
 
