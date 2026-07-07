@@ -250,11 +250,13 @@ function logoImg(domain, size){
   const src = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(domain) + '&sz=' + px;
   return '<img src="'+src+'" alt="" loading="lazy" onerror="this.style.display=\'none\'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:'+Math.round(s*0.12)+'px;background:#fff;">';
 }
-function logoBadge(name, domain, size){
+function logoBadge(name, domain, size, logoUrl){
   const s = size || 34;
-  let d = domain;
-  if (!d && name) d = resolveDomainByName(name);
-  return '<div style="'+logoStyle(s)+'">'+initialsOf(name)+logoImg(d, s)+'</div>';
+  const inner = initialsOf(name)
+    + (logoUrl
+        ? '<img src="'+esc(logoUrl)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:'+Math.round(s*0.08)+'px;background:#fff;">'
+        : (function(){ let d = domain; if (!d && name) d = resolveDomainByName(name); return logoImg(d, s); })());
+  return '<div style="'+logoStyle(s)+'">'+inner+'</div>';
 }
 function initialsOf(n){ return n.split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 function egp(n){ if (!n) return 'EGP 0'; if (n >= 1000) return 'EGP ' + (n/1000).toFixed(n >= 100000 ? 0 : 1).replace('.0','') + 'k'; return 'EGP ' + n; }
@@ -687,6 +689,67 @@ async function deleteAccount(accountId){
   }
 }
 Object.assign(window, { deleteAccount });
+
+// ---------- ACCOUNT LOGO (upload / remove) ----------
+async function uploadAccountLogo(accountId){
+  const acct = (state.accounts || []).find(x => x.id === accountId);
+  if (!acct) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    document.body.removeChild(input);
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast('Pick an image file'); return; }
+    if (file.size > 3 * 1024 * 1024) { toast('Image too large — 3 MB max'); return; }
+    const token = getAccessToken();
+    if (!token) { toast('Login required'); return; }
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g,'') || 'png';
+    const path = 'accounts/' + accountId + '.' + ext;
+    toast('Uploading logo…');
+    try {
+      const up = await fetch(SB_URL + '/storage/v1/object/avatars/' + encodeURI(path), {
+        method: 'POST',
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert':'true' },
+        body: file,
+      });
+      if (!up.ok) throw new Error('Storage ' + up.status + ': ' + (await up.text()).slice(0,140));
+      const publicUrl = SB_URL + '/storage/v1/object/public/avatars/' + encodeURI(path) + '?v=' + Math.floor(Date.now()/1000);
+      const pat = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(accountId), {
+        method: 'PATCH',
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=minimal' },
+        body: JSON.stringify({ logo_url: publicUrl }),
+      });
+      if (!pat.ok) throw new Error('Save ' + pat.status);
+      acct.logo_url = publicUrl;
+      render();
+      toast('Logo updated');
+    } catch (e) { toast('Logo upload failed: ' + (e.message || e)); }
+  });
+  input.click();
+}
+async function removeAccountLogo(accountId){
+  const acct = (state.accounts || []).find(x => x.id === accountId);
+  if (!acct) return;
+  if (!confirm('Remove the custom logo?')) return;
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(accountId), {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify({ logo_url: null }),
+    });
+    if (!res.ok) throw new Error('Save ' + res.status);
+    acct.logo_url = null;
+    render();
+    toast('Logo removed');
+  } catch (e) { toast('Failed: ' + (e.message || e)); }
+}
+Object.assign(window, { uploadAccountLogo, removeAccountLogo });
 
 // ---------- DOCUMENT UPLOAD / DOWNLOAD / DELETE ----------
 async function triggerDocUpload(accountId){
@@ -1126,7 +1189,7 @@ function renderDashboard(){
     + myCos.map(co => {
         const st = STAGE[co.stage] || STAGE.lead;
         return '<div class="row-h" onclick="openDetail('+jsArg(co.id)+')" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--border);cursor:pointer;">'
-          + logoBadge(co.name, co.domain, 34)
+          + logoBadge(co.name, co.domain, 34, co.logo_url)
           + '<div style="min-width:0;flex:1;">'
             + '<div style="font-size:14px;font-weight:700;color:var(--text);">'+esc(co.name)+'</div>'
             + '<div style="font-size:12px;color:var(--text-3);margin-top:2px;">'+esc(co.plan)+'</div>'
@@ -1547,7 +1610,7 @@ function renderCompanies(){
     return '<tr class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="cursor:pointer;">'
       + '<td style="'+td+'padding-left:16px;">'
         + '<div style="display:flex;align-items:center;gap:10px;">'
-          + logoBadge(a.name, a.domain, 34)
+          + logoBadge(a.name, a.domain, 34, a.logo_url)
           + '<div style="min-width:0;">'
             + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;color:var(--text);">'+esc(a.name)+'</span>'
               + ((() => {
@@ -1651,7 +1714,7 @@ function renderPipeline(){
       const tier = TIER[a.tier] || TIER.warm;
       return '<div class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px;cursor:pointer;box-shadow:var(--sh1);display:flex;flex-direction:column;gap:12px;">'
         + '<div style="display:flex;align-items:center;gap:9px;">'
-          + logoBadge(a.name, a.domain, 32)
+          + logoBadge(a.name, a.domain, 32, a.logo_url)
           + '<div style="min-width:0;flex:1;">'
             + '<div style="font-size:13.5px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.name)+'</div>'
             + '<div style="font-size:11px;color:var(--text-3);font-weight:600;">'+esc(a.industry)+'</div>'
@@ -2862,7 +2925,7 @@ function renderDetail(){
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:16px;box-shadow:var(--sh1);overflow:hidden;">'
       + '<div style="padding:22px 24px 20px;">'
         + '<div style="display:flex;align-items:flex-start;gap:16px;">'
-          + logoBadge(a.name, a.domain, 56)
+          + '<div title="Click to upload logo" onclick="uploadAccountLogo('+jsArg(a.id)+')" style="cursor:pointer;position:relative;">'+logoBadge(a.name, a.domain, 56, a.logo_url)+(a.logo_url?'<button title="Remove custom logo" onclick="event.stopPropagation();removeAccountLogo('+jsArg(a.id)+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--bad);color:#fff;border:2px solid var(--surface);cursor:pointer;font-size:11px;line-height:1;display:grid;place-items:center;">×</button>':'')+'</div>'
           + '<div style="flex:1;min-width:0;">'
             // name + actions
             + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">'
@@ -3786,6 +3849,7 @@ function mapAcctFromSupabase(a, idx){
     _lostDetail: a.lost_detail,
     _rcMail: a.rc_mail,
     _amMail: a.am_mail,
+    logo_url: a.logo_url || null,
     // Bubble-legacy contact fallback: some accounts have Contact_* in raw_data
     // but no contacts row yet (backfill gap for new accounts). UI reads this
     // when LIVE_CONTACTS_BY_ACCT / loadDetailsForAccount return empty.
