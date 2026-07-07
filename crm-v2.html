@@ -276,6 +276,96 @@ function toast(msg){
 }
 function setRole(r){ setState({ role: r }); }
 
+// ---------- CYCLE EDITOR MODAL ----------
+function openCycleModal(accountId, existingCycle){
+  const cy = existingCycle || {};
+  setState({
+    cycleModalOpen: true,
+    cycleModalAccountId: accountId,
+    cycleModalMode: existingCycle ? 'edit' : 'add',
+    cycleModalStatus: 'idle',
+    cycleModalError: null,
+    cycleForm: {
+      id:           cy.id || null,
+      cycle_number: cy.cycle_number || null,
+      plan_tier:    cy.plan_tier    || '',
+      value:        cy.value != null ? String(cy.value) : '',
+      currency:     cy.currency     || 'EGP',
+      started_at:   cy.started_at   || '',
+      ends_at:      cy.ends_at      || '',
+      status:       cy.status       || 'active',
+      auto_renew:   cy.auto_renew === true,
+      payment_type: cy.payment_type || '',
+      notes:        cy.notes        || '',
+    },
+  });
+}
+function closeCycleModal(){ setState({ cycleModalOpen: false, cycleModalStatus: 'idle', cycleModalError: null }); }
+function setCycleField(k, v){ state.cycleForm = Object.assign({}, state.cycleForm, { [k]: v }); render(); }
+async function submitCycle(){
+  const s = state;
+  const f = s.cycleForm || {};
+  if (!f.plan_tier || !f.started_at || !f.ends_at) {
+    setState({ cycleModalError: 'Plan tier, term start, and term end are required' });
+    return;
+  }
+  const token = getAccessToken();
+  if (!token) { toast('Login required to save cycle'); return; }
+  state.cycleModalStatus = 'submitting';
+  render();
+  const headers = {
+    apikey: SB_KEY,
+    Authorization: 'Bearer ' + token,
+    'Content-Type': 'application/json',
+    Prefer: 'return=representation',
+  };
+  const payload = {
+    account_id:   s.cycleModalAccountId,
+    plan_tier:    f.plan_tier,
+    value:        f.value ? Number(f.value) : null,
+    currency:     f.currency || 'EGP',
+    started_at:   f.started_at,
+    ends_at:      f.ends_at,
+    status:       f.status,
+    auto_renew:   !!f.auto_renew,
+    payment_type: f.payment_type || null,
+    notes:        f.notes || null,
+  };
+  try {
+    let res;
+    if (s.cycleModalMode === 'edit' && f.id) {
+      res = await fetch(SB_URL + '/rest/v1/contract_cycles?id=eq.' + encodeURIComponent(f.id), {
+        method: 'PATCH', headers, body: JSON.stringify(payload),
+      });
+    } else {
+      // New cycle: pick the next cycle_number for this account
+      const existing = LIVE_DETAILS_BY_ACCT.get(s.cycleModalAccountId)?.cycles || [];
+      const maxN = existing.reduce((m,c) => Math.max(m, c.cycle_number || 0), 0);
+      payload.cycle_number = maxN + 1;
+      res = await fetch(SB_URL + '/rest/v1/contract_cycles', {
+        method: 'POST', headers, body: JSON.stringify(payload),
+      });
+    }
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error('Supabase ' + res.status + ': ' + t.slice(0, 180));
+    }
+    // Refresh cycles for this account so the tab reflects the write
+    LIVE_DETAILS_BY_ACCT.delete(s.cycleModalAccountId);
+    await loadDetailsForAccount(s.cycleModalAccountId);
+    state.cycleModalOpen = false;
+    state.cycleModalStatus = 'done';
+    render();
+    toast(s.cycleModalMode === 'edit' ? 'Cycle updated' : 'Cycle added');
+  } catch (e) {
+    console.error('[CRM v2] cycle save failed:', e);
+    state.cycleModalStatus = 'error';
+    state.cycleModalError = String(e.message || e);
+    render();
+  }
+}
+Object.assign(window, { openCycleModal, closeCycleModal, setCycleField, submitCycle });
+
 // ---------- MERGE MODAL ----------
 function openMergeModal(seedId){
   // Snapshot the current dupe map so the modal stays consistent even if state changes
@@ -2104,8 +2194,8 @@ function renderPlansTab(a){
         + '<div style="flex:1;"></div>'
         + '<span style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Invoice</span>'
         + invoiceChip(c.status)
-        + '<button onclick="toast(\'Edit status — coming next\')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">✎ Edit status</button>'
-        + '<button onclick="toast(\'Edit cycle — coming next\')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">Edit cycle</button>'
+        + '<button onclick="openCycleModal('+jsArg(a.id)+', '+jsArg(c)+')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">✎ Edit status</button>'
+        + '<button onclick="openCycleModal('+jsArg(a.id)+', '+jsArg(c)+')" style="height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;">Edit cycle</button>'
       + '</div>'
       // 4-column grid: TERM START · TERM END · LENGTH · AMOUNT
       + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">'
@@ -2128,7 +2218,7 @@ function renderPlansTab(a){
         + '<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Renewal cycles</div>'
         + '<div style="font-size:16px;font-weight:800;letter-spacing:-.01em;margin-top:4px;">'+cycles.length+' cycle'+(cycles.length>1?'s':'')+' on record</div>'
       + '</div>'
-      + '<button onclick="toast(\'Add cycle — coming next\')" style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);border:1px solid var(--accent-strong);font-size:13px;font-weight:700;cursor:pointer;">+ Add cycle</button>'
+      + '<button onclick="openCycleModal('+jsArg(a.id)+')" style="display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);border:1px solid var(--accent-strong);font-size:13px;font-weight:700;cursor:pointer;">+ Add cycle</button>'
     + '</div>';
 
   const cycleList = '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -2812,6 +2902,70 @@ function renderDetail(){
 }
 
 // =========================================================================
+//   RENDER: CYCLE EDITOR MODAL
+// =========================================================================
+function renderCycleModal(){
+  if (!state.cycleModalOpen) return '';
+  const f = state.cycleForm || {};
+  const isEdit = state.cycleModalMode === 'edit';
+  const busy = state.cycleModalStatus === 'submitting';
+  const err  = state.cycleModalStatus === 'error' ? state.cycleModalError : null;
+
+  const fieldStyle = 'width:100%;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:0;box-sizing:border-box;';
+  const labelStyle = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:5px;';
+  const input = (key, type, placeholder) => '<input type="'+(type||'text')+'" value="'+esc(f[key]||'')+'" oninput="setCycleField(\''+key+'\', this.value)" placeholder="'+esc(placeholder||'')+'" style="'+fieldStyle+'">';
+  const select = (key, options) =>
+    '<select onchange="setCycleField(\''+key+'\', this.value)" style="'+fieldStyle+'">'
+    + options.map(o => '<option value="'+esc(o.v)+'"'+(f[key]===o.v?' selected':'')+'>'+esc(o.l)+'</option>').join('')
+    + '</select>';
+
+  const planOpts = ['','Starter','Basic','Growth','Pro','Enterprise','Enterprise+'].map(v => ({ v, l: v || '— pick a plan —' }));
+  const statusOpts = ['active','renewed','churned','overdue','collected','pending'].map(v => ({ v, l: v.charAt(0).toUpperCase()+v.slice(1) }));
+  const paymentOpts = ['','one-time','monthly','quarterly','annual','custom'].map(v => ({ v, l: v || '—' }));
+
+  const field = (label, control) => '<div><div style="'+labelStyle+'">'+label+'</div>'+control+'</div>';
+
+  const body =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+      + field('Plan tier *',   select('plan_tier', planOpts))
+      + field('Status',        select('status', statusOpts))
+      + field('Term start *',  input('started_at', 'date'))
+      + field('Term end *',    input('ends_at',   'date'))
+      + field('Amount',        input('value',    'number', '72000'))
+      + field('Currency',      select('currency', [{v:'EGP',l:'EGP'},{v:'USD',l:'USD'},{v:'EUR',l:'EUR'},{v:'SAR',l:'SAR'}]))
+      + field('Payment type',  select('payment_type', paymentOpts))
+      + field('Auto renew',    '<label style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface);cursor:pointer;"><input type="checkbox"'+(f.auto_renew?' checked':'')+' onchange="setCycleField(\'auto_renew\', this.checked)" style="width:16px;height:16px;accent-color:var(--accent);"><span style="font-size:13px;font-weight:600;color:var(--text-2);">Renew automatically</span></label>')
+    + '</div>'
+    + '<div style="margin-top:14px;"><div style="'+labelStyle+'">Notes</div>'
+      + '<textarea rows="3" oninput="setCycleField(\'notes\', this.value)" placeholder="Discount rationale, renewal terms, discussion notes…" style="width:100%;padding:10px 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);outline:0;resize:vertical;line-height:1.45;box-sizing:border-box;">'+esc(f.notes||'')+'</textarea>'
+    + '</div>';
+
+  return '<div onclick="closeCycleModal()" style="position:fixed;inset:0;background:rgba(45,56,68,.55);display:grid;place-items:center;z-index:300;padding:24px;">'
+    + '<div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh3);width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">'
+      // header
+      + '<div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+        + '<div>'
+          + '<h2 style="margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em;">'+(isEdit?'Edit cycle':'Add new cycle')+'</h2>'
+          + '<div style="font-size:12px;color:var(--text-3);margin-top:3px;">Writes to <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">contract_cycles</code> table</div>'
+        + '</div>'
+        + '<button onclick="closeCycleModal()" style="width:32px;height:32px;border-radius:8px;color:var(--text-3);cursor:pointer;font-size:20px;">×</button>'
+      + '</div>'
+      // body
+      + '<div class="sc" style="padding:20px 24px;overflow-y:auto;flex:1;">'
+        + (err ? '<div style="padding:10px 14px;background:var(--bad-bg);border:1px solid var(--bad);border-radius:8px;font-size:12px;color:var(--bad);font-weight:600;margin-bottom:12px;">✗ '+esc(err)+'</div>' : '')
+        + body
+      + '</div>'
+      // footer
+      + '<div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface-2);">'
+        + '<div style="font-size:12px;color:var(--text-3);font-weight:500;flex:1;">'+(isEdit?'Changes apply immediately on save.':'A new cycle_number will be assigned automatically.')+'</div>'
+        + '<button onclick="closeCycleModal()" '+(busy?'disabled':'')+' style="height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:'+(busy?'not-allowed':'pointer')+';">Cancel</button>'
+        + '<button onclick="submitCycle()" '+(busy?'disabled':'')+' style="height:36px;padding:0 18px;border-radius:8px;border:1px solid var(--accent-strong);background:'+(busy?'var(--surface-2)':'var(--accent)')+';font-size:13px;font-weight:700;color:'+(busy?'var(--text-3)':'var(--on-accent)')+';cursor:'+(busy?'wait':'pointer')+';">'+(busy?'Saving…':(isEdit?'Save changes':'Add cycle'))+'</button>'
+      + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
+// =========================================================================
 //   RENDER: MERGE MODAL
 // =========================================================================
 function renderMergeModal(){
@@ -2942,6 +3096,7 @@ function render(){
         + '</div>'
       + '</div>'
     + '</div>'
+    + renderCycleModal()
     + renderMergeModal()
     + renderToast();
   // Restore focus + cursor to the same input the user was typing in.
@@ -2988,8 +3143,10 @@ function mapAcctFromSupabase(a, idx){
   const source = a.source || rd.Source || '';
   const region = a.region || rd.region || a.location || '';
   const industry = a.industry || rd.industry || '';
-  // deal_value wins; if 0, try proposal_amount
-  const value = Number(a.deal_value || a.proposal_amount || 0) || 0;
+  // deal_value wins; then proposal_amount; then the active contract cycle's amount.
+  // Swedish Group EG had a 72k cycle but no accounts.deal_value → header showed
+  // '—'. Cycle fallback keeps the stat band honest.
+  const value = Number(a.deal_value || a.proposal_amount || LIVE_CYCLES_BY_ACCT?.get(a.id)?.value || 0) || 0;
   const score = Number(a.recruitera_score || 0);
   const tier  = (a.recruitera_tier || '').toLowerCase() || (score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool');
   // Plan shows for anyone who's actually paying (or was paying) — Won,
