@@ -117,22 +117,22 @@ const AMS = [
 const PHOTOS = { NA:44,KF:12,SH:9,OS:33,SY:68,YA:49,MT:10,HR:5,NE:23,AH:15,YM:47 };
 
 function seedAccounts(){ return [
-  { id:1,  name:'Talabat Egypt',   domain:'talabat.com',       am:'na', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:320, total:500, jobs:28, views:14200, applies:1850, last:'2h ago',  source:'Referral',  region:'Cairo',industry:'Food & Delivery',value:480000,score:92,tier:'hot',  ren:'active',   end:'Nov 20, 2026', since:'Mar 2023' },
-  { id:2,  name:'Vodafone Egypt',  domain:'vodafone.com.eg',   am:'kf', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Enterprise', used:0,   total:600, jobs:0,  views:18900, applies:2400, last:'2h ago',  source:'Outbound',  region:'Cairo',industry:'Telecom',        value:520000,score:92,tier:'hot',  ren:'upcoming', end:'Jul 20, 2026', since:'Mar 2024' },
+  { id:1,  name:'Talabat Egypt',   domain:'talabat.com',       am:'na', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:320, total:500, jobs:28, views:14200, applies:1850, last:'2h ago',  source:'Referral',  region:'Cairo',industry:'Food & Delivery',value:480000,score:92,tier:'hot',  ren:'d90',   end:'Nov 20, 2026', since:'Mar 2023' },
+  { id:2,  name:'Vodafone Egypt',  domain:'vodafone.com.eg',   am:'kf', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Enterprise', used:0,   total:600, jobs:0,  views:18900, applies:2400, last:'2h ago',  source:'Outbound',  region:'Cairo',industry:'Telecom',        value:520000,score:92,tier:'hot',  ren:'d60', end:'Jul 20, 2026', since:'Mar 2024' },
   { id:3,  name:'Fawry',           domain:'fawry.com',         am:'sh', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Pro',        used:60,  total:120, jobs:9,  views:5400,  applies:610,  last:'1d ago',  source:'Inbound',   region:'Giza', industry:'Fintech',        value:180000,score:78,tier:'warm', ren:null,       end:null,            since:'Apr 2026' },
   { id:4,  name:'Instabug',        domain:'instabug.com',      am:'na', stage:'demo',     paid:'Free Trial',     act:'Active',  plan:'Growth',     used:22,  total:60,  jobs:5,  views:2100,  applies:240,  last:'3h ago',  source:'Webflow',   region:'Cairo',industry:'Software',       value:95000, score:71,tier:'warm', ren:null,       end:null,            since:'May 2026' },
   { id:5,  name:'Swvl',            domain:'swvl.com',          am:'os', stage:'mql',      paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'2d ago',  source:'LinkedIn',  region:'Cairo',industry:'Mobility',       value:60000, score:58,tier:'warm', ren:null,       end:null,            since:'Jun 2026' },
-  { id:6,  name:'Breadfast',       domain:'breadfast.com',     am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Pro',        used:150, total:200, jobs:14, views:8600,  applies:1100, last:'6h ago',  source:'Referral',  region:'Cairo',industry:'Q-commerce',     value:240000,score:84,tier:'hot',  ren:'active',   end:'Aug 1, 2026',  since:'Feb 2024' },
+  { id:6,  name:'Breadfast',       domain:'breadfast.com',     am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Pro',        used:150, total:200, jobs:14, views:8600,  applies:1100, last:'6h ago',  source:'Referral',  region:'Cairo',industry:'Q-commerce',     value:240000,score:84,tier:'hot',  ren:'d90',   end:'Aug 1, 2026',  since:'Feb 2024' },
   { id:7,  name:'MaxAB',           domain:'maxab.io',          am:'kf', stage:'won',      paid:'Paid',           act:'Expired', plan:'Growth',     used:190, total:200, jobs:11, views:4300,  applies:520,  last:'4d ago',  source:'Outbound',  region:'Giza', industry:'B2B commerce',   value:130000,score:80,tier:'hot',  ren:'overdue',  end:'May 30, 2026', since:'Jun 2024' },
   { id:8,  name:'Halan',           domain:'halan.com',         am:'sh', stage:'proposal', paid:'Free Trial',     act:'Active',  plan:'Pro',        used:88,  total:120, jobs:8,  views:3900,  applies:470,  last:'1d ago',  source:'Inbound',   region:'Cairo',industry:'Fintech',        value:175000,score:76,tier:'warm', ren:null,       end:null,            since:'May 2026' },
   { id:9,  name:'Paymob',          domain:'paymob.com',        am:'na', stage:'lost',     paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'9d ago',  source:'LinkedIn',  region:'Cairo',industry:'Fintech',        value:0,     score:41,tier:'cool', ren:null,       end:null,            since:'Mar 2026' },
   { id:10, name:'Valeo Egypt',     domain:'valeo.com',         am:'os', stage:'lead',     paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'12d ago', source:'Partner',   region:'Cairo',industry:'Automotive',     value:0,     score:47,tier:'cool', ren:null,       end:null,            since:'Jun 2026' },
-  { id:11, name:'Juhayna',         domain:'juhayna.com',       am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:280, total:500, jobs:22, views:9900,  applies:1300, last:'7h ago',  source:'Referral',  region:'Giza', industry:'FMCG',           value:390000,score:88,tier:'hot',  ren:'upcoming', end:'Aug 10, 2026', since:'Sep 2023' },
-  { id:12, name:'Edita',           domain:'edita.com.eg',      am:'kf', stage:'won',      paid:'Paid',           act:'Active',  plan:'Growth',     used:175, total:200, jobs:9,  views:3600,  applies:410,  last:'1d ago',  source:'Outbound',  region:'Giza', industry:'FMCG',           value:120000,score:79,tier:'warm', ren:'out30',    end:'Jul 8, 2026',  since:'Jul 2024' },
+  { id:11, name:'Juhayna',         domain:'juhayna.com',       am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:280, total:500, jobs:22, views:9900,  applies:1300, last:'7h ago',  source:'Referral',  region:'Giza', industry:'FMCG',           value:390000,score:88,tier:'hot',  ren:'d60', end:'Aug 10, 2026', since:'Sep 2023' },
+  { id:12, name:'Edita',           domain:'edita.com.eg',      am:'kf', stage:'won',      paid:'Paid',           act:'Active',  plan:'Growth',     used:175, total:200, jobs:9,  views:3600,  applies:410,  last:'1d ago',  source:'Outbound',  region:'Giza', industry:'FMCG',           value:120000,score:79,tier:'warm', ren:'d30',    end:'Jul 8, 2026',  since:'Jul 2024' },
   { id:13, name:'B.TECH',          domain:'btech.com',         am:'sh', stage:'demo',     paid:'Free Trial',     act:'Active',  plan:'Growth',     used:30,  total:60,  jobs:6,  views:2600,  applies:300,  last:'2d ago',  source:'Inbound',   region:'Cairo',industry:'Retail',         value:88000, score:68,tier:'warm', ren:null,       end:null,            since:'May 2026' },
-  { id:14, name:'Raya Holding',    domain:'rayacorp.com',      am:'na', stage:'won',      paid:'Without Charge', act:'Active',  plan:'Pro',        used:95,  total:150, jobs:7,  views:3100,  applies:360,  last:'3d ago', source:'Partner',   region:'Cairo',industry:'Conglomerate',   value:0,     score:72,tier:'warm', ren:'active',   end:'Dec 1, 2026',  since:'Oct 2023' },
+  { id:14, name:'Raya Holding',    domain:'rayacorp.com',      am:'na', stage:'won',      paid:'Without Charge', act:'Active',  plan:'Pro',        used:95,  total:150, jobs:7,  views:3100,  applies:360,  last:'3d ago', source:'Partner',   region:'Cairo',industry:'Conglomerate',   value:0,     score:72,tier:'warm', ren:'d90',   end:'Dec 1, 2026',  since:'Oct 2023' },
   { id:15, name:'Tradeline',       domain:'tradeline-eg.com',  am:'os', stage:'mql',      paid:'Not Paid',       act:null,      plan:'—',          used:0,   total:0,   jobs:0,  views:0,     applies:0,    last:'5h ago',  source:'LinkedIn',  region:'Cairo',industry:'Electronics',    value:55000, score:56,tier:'warm', ren:null,       end:null,            since:'Jun 2026' },
-  { id:16, name:'Nestlé Egypt',    domain:'nestle.com.eg',     am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:360, total:600, jobs:30, views:15400, applies:2000, last:'8h ago',  source:'Outbound',  region:'Cairo',industry:'FMCG',           value:540000,score:93,tier:'hot',  ren:'upcoming', end:'Jan 15, 2027', since:'Jan 2022' },
+  { id:16, name:'Nestlé Egypt',    domain:'nestle.com.eg',     am:'ym', stage:'won',      paid:'Paid',           act:'Active',  plan:'Enterprise', used:360, total:600, jobs:30, views:15400, applies:2000, last:'8h ago',  source:'Outbound',  region:'Cairo',industry:'FMCG',           value:540000,score:93,tier:'hot',  ren:'d60', end:'Jan 15, 2027', since:'Jan 2022' },
   { id:17, name:'Sarwa Capital',   domain:'sarwa.capital',     am:'kf', stage:'lost',     paid:'Not Paid',       act:'Expired', plan:'Growth',     used:200, total:200, jobs:0,  views:1200,  applies:90,   last:'21d ago', source:'Outbound',  region:'Cairo',industry:'Finance',        value:0,     score:52,tier:'cool', ren:'churned',  end:'Apr 2, 2026',  since:'Apr 2025' },
 ]; }
 
@@ -169,12 +169,12 @@ const STAGE = {
   lost:     { label:'Lost',        v:'bad'     },
 };
 const REN = {
-  active:   { label:'Active',        v:'ok'      },
-  upcoming: { label:'Upcoming 60d+', v:'info'    },
-  out30:    { label:'30 days out',   v:'warn'    },
-  overdue:  { label:'Overdue',       v:'bad'     },
-  renewed:  { label:'Renewed',       v:'lime'    },
-  churned:  { label:'Churned',       v:'neutral' },
+  d90:      { label:'90d+',    v:'ok'      },
+  d60:      { label:'60 days', v:'info'    },
+  d30:      { label:'30 days', v:'warn'    },
+  overdue:  { label:'Overdue', v:'bad'     },
+  renewed:  { label:'Renewed', v:'lime'    },
+  churned:  { label:'Churned', v:'neutral' },
 };
 const TIER = {
   hot:  { label:'🔥 Hot',  v:'lime'    },
@@ -1911,17 +1911,17 @@ function renderPipeline(){
 //   RENDER: RENEWAL Kanban
 // =========================================================================
 const REN_COLS = [
-  { key:'active',   label:'Active',        dot:'var(--ok)'      },
-  { key:'upcoming', label:'Upcoming 60d+', dot:'var(--info)'    },
-  { key:'out30',    label:'30 days out',   dot:'var(--warn)'    },
-  { key:'overdue',  label:'Overdue',       dot:'var(--bad)'     },
-  { key:'renewed',  label:'Renewed',       dot:'var(--accent)'  },
-  { key:'churned',  label:'Churned',       dot:'var(--text-4)'  },
+  { key:'d90',      label:'90d+',    dot:'var(--ok)'      },
+  { key:'d60',      label:'60 days', dot:'var(--info)'    },
+  { key:'d30',      label:'30 days', dot:'var(--warn)'    },
+  { key:'overdue',  label:'Overdue', dot:'var(--bad)'     },
+  { key:'renewed',  label:'Renewed', dot:'var(--accent)'  },
+  { key:'churned',  label:'Churned', dot:'var(--text-4)'  },
 ];
 function renderRenewal(){
   const withRen = accts().filter(a => a.ren);
   const daysChip = (renKey) => {
-    const map = { active:'ok', upcoming:'info', out30:'warn', overdue:'bad', renewed:'lime', churned:'neutral' };
+    const map = { d90:'ok', d60:'info', d30:'warn', overdue:'bad', renewed:'lime', churned:'neutral' };
     return chip(map[renKey] || 'neutral');
   };
   const columns = REN_COLS.map(col => {
@@ -3933,9 +3933,9 @@ function mapAcctFromSupabase(a, idx){
       if (act === 'Expired' || cycle?.status === 'churned') ren = 'churned';
       else if (cycle?.status === 'renewed') ren = 'renewed';
       else if (days < 0) ren = 'overdue';
-      else if (days <= 30) ren = 'out30';
-      else if (days <= 60) ren = 'active';
-      else ren = 'upcoming';
+      else if (days <= 30) ren = 'd30';
+      else if (days <= 60) ren = 'd60';
+      else ren = 'd90';
     }
   }
   // Owner resolution priority:
