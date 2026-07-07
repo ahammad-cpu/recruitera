@@ -2697,13 +2697,8 @@ function renderDetail(){
                 + actionBtn('var(--cg-900)','#fff','var(--cg-900)','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>','Proposal',"toast('Proposal builder — coming Phase 2')")
               + '</div>'
             + '</div>'
-            // chips
-            + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;">'
-              + '<span style="'+chipStyle(st.v)+'">'+st.label+'</span>'
-              + '<span style="'+chipStyle(PAID[a.paid]||'neutral')+'">● '+esc(a.paid)+'</span>'
-              + '<span style="'+chipStyle('neutral')+'">📍 '+esc(a.region)+'</span>'
-              + '<span style="'+chipStyle('neutral')+'">🏭 '+esc(a.industry)+'</span>'
-            + '</div>'
+            // chips (removed — stage lives in the stat band, paid/region/industry are already elsewhere)
+            + ''
             // loss reason
             + (isLost ? '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bad-bg);border:1px solid var(--bad);border-radius:8px;margin-bottom:12px;">'
                 + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
