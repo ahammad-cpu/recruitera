@@ -3123,8 +3123,151 @@ function renderAmperf(){
     + subtabs + filters + amperfTabBody(tabKey, { kpiCards, table, rows, acts, roster })
   + '</div>';
 }
-function setAmperfTab(k){ setState({ amperfTab: k }); }
-Object.assign(window, { setAmperfTab });
+function setAmperfTab(k){ setState({ amperfTab: k }); if (k === 'targets' && state.targets == null) loadTargetsLive(); }
+function setTargetsPeriodKind(kind){
+  // Snap the period_start to a sensible boundary for the chosen kind.
+  const now = new Date();
+  let start;
+  if (kind === 'month') start = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (kind === 'quarter') start = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1);
+  else start = new Date(now.getFullYear(), 0, 1);
+  setState({ targetsPeriodKind: kind, targetsPeriodStart: start.toISOString().slice(0,10) });
+  loadTargetsLive();
+}
+function setTargetsPeriodStart(iso){ setState({ targetsPeriodStart: iso }); loadTargetsLive(); }
+function _periodEndOf(kind, start){
+  const d = new Date(start);
+  if (kind === 'month')    { d.setMonth(d.getMonth()+1); d.setDate(0); }
+  else if (kind === 'quarter'){ d.setMonth(d.getMonth()+3); d.setDate(0); }
+  else                    { d.setFullYear(d.getFullYear()+1); d.setDate(0); }
+  return d.toISOString().slice(0,10);
+}
+async function loadTargetsLive(){
+  const token = getAccessToken(); if (!token) return;
+  const kind = state.targetsPeriodKind || 'month';
+  const now = new Date();
+  const startDefault = kind === 'month'   ? new Date(now.getFullYear(), now.getMonth(), 1)
+                    : kind === 'quarter' ? new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1)
+                    :                       new Date(now.getFullYear(), 0, 1);
+  const start = state.targetsPeriodStart || startDefault.toISOString().slice(0,10);
+  const url = SB_URL + '/rest/v1/targets?select=*&owner_kind=eq.profile&period_kind=eq.'+encodeURIComponent(kind)+'&period_start=eq.'+encodeURIComponent(start);
+  try {
+    const rows = await fetch(url, { headers:{ apikey: SB_KEY, Authorization:'Bearer '+token } }).then(r => r.ok ? r.json() : []);
+    state.targets = rows;
+    state.targetsPeriodKind = kind;
+    state.targetsPeriodStart = start;
+    render();
+  } catch(e){ console.warn('[CRM v2] targets fetch failed:', e.message); state.targets = []; render(); }
+}
+async function setTargetForOwner(ownerId, amountEgp){
+  const token = getAccessToken(); if (!token) { toast('Login required'); return; }
+  const kind = state.targetsPeriodKind || 'month';
+  const start = state.targetsPeriodStart;
+  const end = _periodEndOf(kind, start);
+  const existing = (state.targets || []).find(t => t.owner_id === ownerId);
+  const payload = { owner_kind:'profile', owner_id:ownerId, category:'collected', period_kind:kind, period_start:start, period_end:end, amount_egp:Math.round(amountEgp), is_override:false };
+  const headers = { apikey: SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json', Prefer:'return=representation' };
+  try {
+    let res;
+    if (existing) res = await fetch(SB_URL + '/rest/v1/targets?id=eq.' + encodeURIComponent(existing.id), { method:'PATCH', headers, body: JSON.stringify({ amount_egp: payload.amount_egp }) });
+    else          res = await fetch(SB_URL + '/rest/v1/targets', { method:'POST', headers, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Save '+res.status);
+    const row = (await res.json())[0] || Object.assign({}, existing || payload, { amount_egp: payload.amount_egp });
+    state.targets = existing
+      ? (state.targets || []).map(t => t.id === row.id ? row : t)
+      : [...(state.targets || []), row];
+    render();
+    toast('Target saved');
+  } catch(e){ toast('Failed: '+(e.message||e)); }
+}
+function setTargetPrompt(ownerId, currentAmount){
+  const raw = prompt('Target amount in EGP', currentAmount ? String(currentAmount) : '');
+  if (raw == null) return;
+  const n = Number(String(raw).replace(/[^\d.]/g,''));
+  if (!isFinite(n) || n < 0) { toast('Enter a number'); return; }
+  setTargetForOwner(ownerId, n);
+}
+function bulkSetTargets(){
+  const raw = prompt('Bulk target — same amount for every AM (EGP)', '250000');
+  if (raw == null) return;
+  const n = Number(String(raw).replace(/[^\d.]/g,''));
+  if (!isFinite(n) || n < 0) { toast('Enter a number'); return; }
+  const roster = (LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : []);
+  if (!roster.length) { toast('No AMs'); return; }
+  Promise.all(roster.map(am => setTargetForOwner(am.id, n))).then(() => toast(roster.length + ' targets set'));
+}
+function renderTargetsTab(roster, acts){
+  const kind  = state.targetsPeriodKind || 'month';
+  const start = state.targetsPeriodStart || (function(){ const n=new Date(); const s = kind==='month'?new Date(n.getFullYear(),n.getMonth(),1):kind==='quarter'?new Date(n.getFullYear(),Math.floor(n.getMonth()/3)*3,1):new Date(n.getFullYear(),0,1); return s.toISOString().slice(0,10); })();
+  const end   = _periodEndOf(kind, start);
+  const targets = state.targets || [];
+  const targetsById = new Map(targets.map(t => [t.owner_id, t]));
+
+  // Actual = collected revenue for accounts owned by this AM whose bubble_created_at (proxy for close) falls in the period. As a fallback we sum all paid-stage accounts if no date filter matches.
+  const startT = Date.parse(start), endT = Date.parse(end);
+  const rows = roster.map(am => {
+    const owned = acts.filter(a => a.am === am.id);
+    const paid  = owned.filter(a => a.stage === 'paid');
+    const inPeriod = paid.filter(a => { const t = a._sinceRaw ? Date.parse(a._sinceRaw) : NaN; return !isNaN(t) && t >= startT && t <= endT + 86400000; });
+    const actualVal = (inPeriod.length ? inPeriod : paid).reduce((s,a)=>s+(a.value||0),0);
+    const target   = targetsById.get(am.id);
+    const targetVal = target ? target.amount_egp : 0;
+    const pct = targetVal > 0 ? Math.min(999, Math.round(actualVal / targetVal * 100)) : 0;
+    return { am, targetVal, actualVal, pct, hasTarget: !!target };
+  });
+  const teamTarget = rows.reduce((s,r)=>s+(r.targetVal||0),0);
+  const teamActual = rows.reduce((s,r)=>s+(r.actualVal||0),0);
+  const teamPct    = teamTarget > 0 ? Math.round(teamActual / teamTarget * 100) : 0;
+  const teamStatus = teamPct >= 100 ? 'Achieved' : teamPct >= 70 ? 'On track' : teamPct >= 40 ? 'At risk' : 'Behind';
+  const teamColor  = teamPct >= 100 ? 'var(--ok)' : teamPct >= 70 ? 'var(--warn)' : teamPct >= 40 ? '#e07d1d' : 'var(--bad)';
+
+  const filter = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;box-shadow:var(--sh1);display:flex;flex-wrap:wrap;align-items:center;gap:12px;">'
+    + '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Period</span>'
+    + '<div style="display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px;">'
+      + ['month','quarter','year'].map(k => '<button onclick="setTargetsPeriodKind(\''+k+'\')" style="height:30px;padding:0 14px;border-radius:6px;background:'+(kind===k?'var(--cg-900)':'transparent')+';color:'+(kind===k?'#fff':'var(--text-2)')+';font-size:12px;font-weight:'+(kind===k?800:600)+';cursor:pointer;">'+(k[0].toUpperCase()+k.slice(1)+'ly')+'</button>').join('')
+    + '</div>'
+    + '<input type="date" value="'+esc(start)+'" onchange="setTargetsPeriodStart(this.value)" style="height:34px;padding:0 10px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;color:var(--text);outline:0;">'
+    + '<div style="flex:1;"></div>'
+    + '<button onclick="bulkSetTargets()" style="height:36px;padding:0 14px;border-radius:8px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:700;cursor:pointer;">Bulk set</button>'
+  + '</div>';
+
+  const kpi = (label, value, sub, bar, color) => '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);"><div style="height:3px;background:'+color+';"></div><div style="padding:16px 18px;">'
+    + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+esc(label)+'</div>'
+    + '<div class="tnum" style="font-size:24px;font-weight:800;letter-spacing:-.025em;margin-top:4px;">'+esc(value)+'</div>'
+    + '<div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:2px;">'+esc(sub||'')+'</div>'
+    + (bar != null ? '<div style="margin-top:10px;height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.min(100,bar)+'%;background:'+color+';"></div></div>' : '')
+  + '</div></div>';
+  const kpiRow = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">'
+    + kpi('Team total target', egp(teamTarget), rows.filter(r=>r.hasTarget).length + ' of ' + rows.length + ' AMs have targets', null, 'var(--accent)')
+    + kpi('Team total actual', egp(teamActual), 'From accounts closed in period', null, 'var(--info)')
+    + kpi('Team achievement', teamPct + '%', teamStatus, teamPct, teamColor)
+  + '</div>';
+
+  const head = '<div style="display:grid;grid-template-columns:2fr 130px 130px 90px 1.4fr 130px 70px;gap:12px;padding:12px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'
+    + ['Account Manager','Target','Actual','%','Progress','Status','Action'].map(l => '<span>'+l+'</span>').join('')
+  + '</div>';
+  const body = rows.map(r => {
+    const pctColor = r.targetVal ? (r.pct >= 100 ? 'var(--ok)' : r.pct >= 70 ? 'var(--warn)' : r.pct >= 40 ? '#e07d1d' : 'var(--bad)') : 'var(--text-4)';
+    const status = !r.hasTarget ? { l:'No target', c:'var(--text-4)' }
+                 : r.pct >= 100 ? { l:'Achieved', c:'var(--ok)' }
+                 : r.pct >= 70  ? { l:'On track', c:'var(--info)' }
+                 : r.pct >= 40  ? { l:'At risk',  c:'var(--warn)' }
+                 :                { l:'Behind',   c:'var(--bad)' };
+    return '<div class="row-h" style="display:grid;grid-template-columns:2fr 130px 130px 90px 1.4fr 130px 70px;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+      + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(r.am.initials,30,r.am.id||r.am.initials)+'">'+esc(r.am.initials)+'</div><div><div style="font-size:13px;font-weight:700;">'+esc(r.am.name)+'</div><div style="font-size:11px;color:var(--text-3);">'+esc(r.am.email||'')+'</div></div></div>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;">'+(r.hasTarget?egp(r.targetVal):'—')+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;">'+egp(r.actualVal)+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:800;color:'+pctColor+';">'+(r.hasTarget?r.pct+'%':'—')+'</span>'
+      + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+(r.hasTarget?Math.min(100,r.pct):0)+'%;background:'+pctColor+';"></div></div>'
+      + '<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:var(--surface-2);color:'+status.c+';border:1px solid var(--border);">'+esc(status.l)+'</span>'
+      + '<button onclick="setTargetPrompt('+jsArg(r.am.id)+', '+(r.targetVal||0)+')" title="Set target" style="width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);cursor:pointer;font-size:13px;">✎</button>'
+    + '</div>';
+  }).join('');
+  const table = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'+head+body+'</div>';
+
+  return filter + kpiRow + table;
+}
+Object.assign(window, { setAmperfTab, setTargetsPeriodKind, setTargetsPeriodStart, setTargetPrompt, bulkSetTargets, setTargetForOwner, loadTargetsLive });
 function amperfTabBody(key, ctx){
   const { kpiCards, table, rows, acts, roster } = ctx;
   const rowLine = (label, value, sub, accent) =>
@@ -3162,23 +3305,7 @@ function amperfTabBody(key, ctx){
     return card('Recent activity · last '+logs.length, items);
   }
 
-  if (key === 'targets') {
-    const body = roster.filter(am => acts.some(a => a.am === am.id)).map(am => {
-      const owned = acts.filter(a => a.am === am.id);
-      const paidVal = owned.filter(a => a.stage === 'paid').reduce((s,a)=>s+(a.value||0),0);
-      const openVal = owned.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
-      const target  = Math.max(paidVal * 1.2, openVal, 250000);
-      const pct = Math.min(100, Math.round((paidVal / target) * 100));
-      return '<div style="padding:14px 18px;border-bottom:1px solid var(--border);">'
-        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
-          + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(am.initials,28,am.id||am.initials)+'">'+esc(am.initials)+'</div><span style="font-size:13px;font-weight:700;">'+esc(am.name)+'</span></div>'
-          + '<div class="tnum" style="font-size:12px;color:var(--text-3);">'+egp(paidVal)+' / '+egp(target)+'</div>'
-        + '</div>'
-        + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:'+(pct>=70?'var(--ok)':pct>=40?'var(--warn)':'var(--bad)')+';"></div></div>'
-      + '</div>';
-    }).join('');
-    return card('Collections vs implied target', body || '<div style="padding:36px 20px;text-align:center;color:var(--text-3);font-size:13px;">No AMs with a book yet.</div>');
-  }
+  if (key === 'targets') { return renderTargetsTab(roster, acts); }
 
   if (key === 'leaderboard') {
     const podium = ['🥇','🥈','🥉'];
