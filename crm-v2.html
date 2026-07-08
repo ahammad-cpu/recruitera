@@ -221,11 +221,30 @@ function amById(id){
   return AMS.find(a => a.id === id) || { name:'—', initials:'—' };
 }
 
+function getUserIdFromToken(){
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const session = parsed?.currentSession || parsed;
+    const token = session?.access_token;
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1] || ''));
+    return payload?.sub || null;
+  } catch { return null; }
+}
 function me(){
-  const r = state.role;
-  if (r === 'rc')    return { id:'ym',    name:'Yara Mostafa', initials:'YM', roleLabel:'Recruitment Consultant', roleShort:'RC' };
-  if (r === 'admin') return { id:'admin', name:'Amr Hammad',   initials:'AH', roleLabel:'Sales Admin',            roleShort:'Admin' };
-  return { id:'na', name:'Nour Adel', initials:'NA', roleLabel:'Account Manager', roleShort:'AM' };
+  // Live authed profile — falls back to a neutral placeholder while LIVE_AMS
+  // hasn't loaded yet or when the token's user isn't in the profiles roster.
+  const uid = getUserIdFromToken();
+  if (LIVE_AMS && uid) {
+    const p = LIVE_AMS.find(x => x.id === uid);
+    if (p) {
+      const roleLabel = p.role_label || p.role || 'Account Manager';
+      return { id: p.id, name: p.name || p.email || 'User', initials: p.initials || initialsOf(p.name || p.email || 'U'), roleLabel, roleShort: (p.role || 'AM').toString().toUpperCase().slice(0,5), email: p.email };
+    }
+  }
+  return { id: uid || 'me', name: '…', initials: '·', roleLabel: 'Signed in', roleShort: '·' };
 }
 
 function photoUrl(key){ const n = PHOTOS[key]; return n ? 'https://i.pravatar.cc/160?img=' + n : null; }
@@ -2267,29 +2286,30 @@ function renderNotifications(){
 // =========================================================================
 function renderReports(){
   const acts = accts();
-  const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+a.value,0);
-  const paidVal = acts.filter(a => a.stage === 'paid').reduce((s,a)=>s+a.value,0);
+  const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+  const paidVal     = acts.filter(a => a.stage === 'paid').reduce((s,a)=>s+(a.value||0),0);
+  const wonVal      = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+(a.value||0),0);
+  const wonCount    = acts.filter(a => a.stage === 'won').length;
+  const trialTotal  = acts.filter(a => a.paid === 'Free Trial').length;
+  const trialConv   = acts.filter(a => a.paid === 'Free Trial' && ['won','paid'].includes(a.stage)).length;
   // Collection rate = collected ÷ (collected + invoiced) — % of closed deals that actually paid
   const collectRate = Math.round(acts.filter(a=>a.stage==='paid').length / Math.max(acts.filter(a=>['won','paid'].includes(a.stage)).length, 1) * 100);
-  const paidCount = acts.filter(a=>a.paid==='Paid').length;
+  const paidCount   = acts.filter(a=>a.paid==='Paid').length;
 
   const km = [
-    { l:'Total revenue',  v: egp(paidVal),        sub:'Closed-won this period', delta:'+22%', good:true,  accent:true },
-    { l:'Open pipeline',  v: egp(pipelineVal),   sub:'New business',            delta:'+14%', good:true },
-    { l:'Collect rate',   v: collectRate + '%',  sub:'Collected ÷ invoiced',      delta:'+4pp', good:true },
-    { l:'Active customers', v: '' + paidCount,   sub:'Paying employers',        delta:'+3',   good:true },
-    { l:'Avg deal size',  v: egp(Math.round(wonVal / Math.max(acts.filter(a=>a.stage==='won').length, 1))), sub:'Won deals',      delta:'+8%',  good:true },
-    { l:'Sales cycle',    v: '32d',              sub:'MQL → Won avg',           delta:'-4d',  good:true },
-    { l:'Trial → paid',   v: '48%',              sub:'Conversion rate',         delta:'+6pp', good:true },
-    { l:'Net revenue',    v: egp(Math.round(wonVal*0.85)),sub:'After discounts',delta:'+18%', good:true },
+    { l:'Total revenue',    v: egp(paidVal),                                          sub:'stage = paid',          accent:true },
+    { l:'Open pipeline',    v: egp(pipelineVal),                                       sub:'MQL → Proposal' },
+    { l:'Collect rate',     v: collectRate + '%',                                     sub:'Collected ÷ invoiced' },
+    { l:'Active customers', v: '' + paidCount,                                        sub:'paid_status = Paid' },
+    { l:'Avg deal size',    v: egp(wonCount ? Math.round(wonVal / wonCount) : 0),     sub:'won deals' },
+    { l:'Won deals',        v: '' + wonCount,                                         sub:'invoiced (not collected)' },
+    { l:'Trial → paid',     v: (trialTotal ? Math.round(trialConv / trialTotal * 100) : 0) + '%', sub:'conversion rate' },
+    { l:'Book size',        v: '' + acts.length,                                      sub:'accounts in scope' },
   ];
   const kmCards = km.map(k => '<div style="position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);">'
     + (k.accent ? '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);"></div>' : '')
     + '<div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+k.l+'</div>'
-    + '<div style="display:flex;align-items:baseline;gap:8px;margin-top:8px;flex-wrap:wrap;">'
-      + '<span class="tnum" style="font-size:24px;font-weight:800;letter-spacing:-.025em;line-height:1.05;">'+k.v+'</span>'
-      + '<span class="tnum" style="font-size:12px;font-weight:700;color:'+(k.good?'var(--ok)':'var(--bad)')+';">'+k.delta+'</span>'
-    + '</div>'
+    + '<div style="margin-top:8px;"><span class="tnum" style="font-size:24px;font-weight:800;letter-spacing:-.025em;line-height:1.05;">'+k.v+'</span></div>'
     + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:3px;">'+k.sub+'</div>'
   + '</div>').join('');
 
@@ -2449,9 +2469,14 @@ function setUsersTab(t){ setState({ usersTab: t }); }
 Object.assign(window, { setUsersTab });
 function renderUsers(){
   const tab = state.usersTab || 'members';
-  const members = AMS.map(a => ({
-    initials: a.initials, name: a.name, email: (a.name.split(' ')[0].toLowerCase())+'@recruitera.ai',
-    role: a.role,
+  // Live team from profiles table. Falls back to empty during initial load.
+  const roster = (LIVE_AMS && LIVE_AMS.length) ? LIVE_AMS : [];
+  const members = roster.map(a => ({
+    id: a.id,
+    initials: a.initials,
+    name: a.name,
+    email: a.email || '—',
+    role: a.role || 'AM',
   }));
   const tabBtn = (k, label) => {
     const active = tab === k;
@@ -2645,14 +2670,18 @@ function renderUtm(){
 // =========================================================================
 function renderAmperf(){
   const acts = accts();
-  const totalCalls = 128, totalEmails = 214, totalWa = 87, totalDeals = 42, totalInvoices = 18, totalGaps = 6;
+  // Live counts derived from the account book. Communications channels
+  // (calls / emails / whatsapp) aren't tracked as first-class entities yet, so
+  // those cells show '—' until we wire the activities-by-type breakdown.
+  const totalDeals = acts.filter(a => ['proposal','won','paid'].includes(a.stage)).length;
+  const totalInvoices = acts.filter(a => a.stage === 'paid').length;
   const kpis = [
-    { l:'Calls',     v: '' + totalCalls,   sub:'total this week', icon:'📞', v2:'info',  accent:true },
-    { l:'Emails',    v: '' + totalEmails,  sub:'sent + replied',  icon:'✉',  v2:'brand' },
-    { l:'WhatsApps', v: '' + totalWa,      sub:'threads active',  icon:'💬', v2:'ok' },
-    { l:'Deals moved', v: '' + totalDeals, sub:'stage transitions',icon:'⇄', v2:'warn' },
-    { l:'Collections',v:'' + totalInvoices, sub:'collected this week', icon:'💰', v2:'lime' },
-    { l:'Gaps',      v: '' + totalGaps,     sub:'silent > 4d',    icon:'⚠', v2:'bad' },
+    { l:'Calls',       v: '—',                     sub:'no source yet',       icon:'📞', v2:'info', accent:true },
+    { l:'Emails',      v: '—',                     sub:'no source yet',       icon:'✉',  v2:'brand' },
+    { l:'WhatsApps',   v: '—',                     sub:'no source yet',       icon:'💬', v2:'ok' },
+    { l:'Deals moved', v: '' + totalDeals,         sub:'proposal + won + paid', icon:'⇄', v2:'warn' },
+    { l:'Collections', v: '' + totalInvoices,      sub:'stage = paid',         icon:'💰', v2:'lime' },
+    { l:'Accounts',    v: '' + acts.length,        sub:'in book',              icon:'🏢', v2:'bad' },
   ];
   const kpiIcon = (v) => 'width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;'+CHIP[v];
   const kpiCards = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;">'
@@ -2664,21 +2693,27 @@ function renderAmperf(){
       + '</div>').join('')
   + '</div>';
 
-  // AM rows synthesized from AMS + owned accounts
-  const rows = AMS.map(am => {
-    const owned = acts.filter(a => a.am === am.id);
-    const calls = 4 + Math.round(am.weight * 0.6);
-    const emails = 6 + Math.round(am.weight * 0.9);
-    const wa = 2 + Math.round(am.weight * 0.4);
-    const deals = owned.filter(a => ['proposal','won'].includes(a.stage)).length;
-    // Phase D: AM target is now collections (stage='paid'), not just Paid billing status
-    const invoices = owned.filter(a => a.stage === 'paid').length;
-    const invoiced_not_collected = owned.filter(a => a.stage === 'won').length;
-    const gaps = owned.filter(a => a.last && a.last.includes('d ago') && parseInt(a.last) >= 4).length;
-    const score = Math.min(100, Math.round(am.cap * 100));
-    const status = score >= 70 ? { label:'Top Performer', v:'ok' } : score >= 40 ? { label:'Average', v:'warn' } : { label:'Needs Attention', v:'bad' };
-    return { am, calls, emails, wa, deals, invoices, gaps, score, status, owned: owned.length };
-  }).sort((a,b) => b.score - a.score);
+  // Live AM rows — one per profile that actually owns something. Score is
+  // collection rate on their book (stage=paid / total). Comms columns are '—'
+  // until we wire activities by type.
+  const roster = (LIVE_AMS && LIVE_AMS.length) ? LIVE_AMS : [];
+  const rows = roster
+    .map(am => {
+      const owned = acts.filter(a => a.am === am.id);
+      const deals = owned.filter(a => ['proposal','won','paid'].includes(a.stage)).length;
+      const invoices = owned.filter(a => a.stage === 'paid').length;
+      const invoiced_not_collected = owned.filter(a => a.stage === 'won').length;
+      const closableBook = owned.filter(a => ['won','paid','lost'].includes(a.stage)).length;
+      const winRate = closableBook > 0 ? (owned.filter(a => ['won','paid'].includes(a.stage)).length / closableBook) : 0;
+      const score = Math.round(winRate * 100);
+      const status = closableBook === 0 ? { label:'No closes yet', v:'neutral' }
+                    : score >= 70 ? { label:'Top Performer', v:'ok' }
+                    : score >= 40 ? { label:'Average', v:'warn' }
+                    :               { label:'Needs Attention', v:'bad' };
+      return { am, calls:'—', emails:'—', wa:'—', deals, invoices, invoiced_not_collected, gaps:invoiced_not_collected, score, status, owned: owned.length };
+    })
+    .filter(r => r.owned > 0)
+    .sort((a,b) => b.score - a.score);
 
   const cellStyle = (v, warn) => 'display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:24px;padding:0 8px;border-radius:6px;background:'+(v===0?'var(--surface-2)':warn?'var(--warn-bg)':'var(--surface-2)')+';color:'+(v===0?'var(--text-4)':warn?'var(--warn)':'var(--text)')+';font-size:12.5px;font-weight:700;border:1px solid var(--border);';
 
