@@ -3129,34 +3129,53 @@ function renderAmperf(){
   + '</div>';
 
   const tabKey = state.amperfTab || 'team';
+  // Live counts for each sub-tab — mirrors /crm's chip badges.
+  const openStages = ['mql','sql','demo','proposal','won'];
+  const gapDays = (a) => { const m = /^([0-9]+)d ago$/.exec(a.last || ''); return m ? parseInt(m[1],10) : (a.last === '—' ? 999 : 0); };
+  const tabCounts = {
+    team:        rows.length,
+    activities:  (typeof LIVE_LOGS !== 'undefined' && LIVE_LOGS) ? LIVE_LOGS.length : 0,
+    targets:     rows.length,
+    leaderboard: rows.length,
+    gaps:        acts.filter(a => openStages.includes(a.stage) && gapDays(a) >= 4).length,
+  };
   const TAB_DEFS = [
     { k:'team',       l:'Team Performance' },
     { k:'activities', l:'All Activities' },
     { k:'targets',    l:'Targets' },
     { k:'leaderboard',l:'Leaderboard' },
-    { k:'gaps',       l:'Gaps' },
+    { k:'gaps',       l:'Gaps',       tone:'bad' },
   ];
+  const badge = (n, tone) => '<span class="tnum" style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:'+(tone==='bad'?'var(--bad-bg)':'var(--surface-2)')+';color:'+(tone==='bad'?'var(--bad)':'var(--text-3)')+';font-size:11px;font-weight:800;">'+n+'</span>';
   const subtabs = '<div style="display:flex;gap:0;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;">'
     + TAB_DEFS.map(t => {
         const active = tabKey === t.k;
-        return '<div onclick="setAmperfTab(\''+t.k+'\')" style="display:inline-flex;align-items:center;gap:8px;padding:12px 20px;font-size:13px;font-weight:'+(active?800:600)+';color:'+(active?'var(--text)':'var(--text-3)')+';margin-bottom:-1px;border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';cursor:pointer;">'+t.l+'</div>';
+        const n = tabCounts[t.k];
+        return '<div onclick="setAmperfTab(\''+t.k+'\')" style="display:inline-flex;align-items:center;gap:8px;padding:12px 20px;font-size:13px;font-weight:'+(active?800:600)+';color:'+(active?'var(--text)':'var(--text-3)')+';margin-bottom:-1px;border-bottom:2px solid '+(active?'var(--cg-900)':'transparent')+';cursor:pointer;">'+t.l+(n!=null?badge(n, t.tone):'')+'</div>';
       }).join('')
   + '</div>';
 
-  const filters = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">'
-    + '<span style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Filter</span>'
-    + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All AMs</option>'+((LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : []).map(a=>'<option>'+esc(a.name)+'</option>').join(''))+'</select>'
-    + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>This Week</option><option>Today</option><option>This Month</option></select>'
-    + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All status</option><option>Top Performer</option><option>Average</option><option>Needs Attention</option></select>'
-    + '<div style="flex:1;"></div><span class="tnum" style="font-size:13px;color:var(--text-3);font-weight:700;">'+rows.length+' AMs shown</span>'
-  + '</div>';
+  // Filter bar is only meaningful on Team Performance / Leaderboard — the
+  // Targets tab has its own period selector, Activities streams the feed,
+  // and Gaps is a raw silent-account list.
+  const filters = (tabKey === 'team' || tabKey === 'leaderboard')
+    ? '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">'
+      + '<span style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Filter</span>'
+      + '<select style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All AMs</option>'+((LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : []).map(a=>'<option>'+esc(a.name)+'</option>').join(''))+'</select>'
+      + '<div style="flex:1;"></div><span class="tnum" style="font-size:13px;color:var(--text-3);font-weight:700;">'+rows.length+' AMs shown</span>'
+    + '</div>'
+    : '';
+
+  const actions = tabKey === 'targets'
+    ? '<button onclick="openTargetModal((LIVE_AMS&&LIVE_AMS[0]&&LIVE_AMS[0].id)||null, 0)" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:800;cursor:pointer;border:1px solid var(--accent-strong);">+ Set targets</button>'
+    : '<button onclick="toast(\'Export CSV — coming Phase 5\')" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">↓ Export CSV</button>';
 
   return '<div class="sc" style="padding:20px 28px 56px;display:flex;flex-direction:column;gap:18px;">'
     + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
       + '<div><h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">AM Performance</h1>'
         + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Team activity, scoring &amp; daily drill-down.</div>'
       + '</div><div style="flex:1;"></div>'
-      + '<button onclick="toast(\'Export CSV — coming Phase 5\')" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">↓ Export CSV</button>'
+      + actions
     + '</div>'
     + subtabs + filters + amperfTabBody(tabKey, { kpiCards, table, rows, acts, roster })
   + '</div>';
