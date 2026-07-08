@@ -2663,6 +2663,9 @@ function applyPreset(source, medium){ setState({ utmSource: source, utmMedium: m
 Object.assign(window, { setUtmField, copyUtm, applyPreset });
 
 function renderUtm(){
+  // Warm the link + group cache on first view so the History / Link Groups
+  // tab counts populate without a click.
+  if (state.utmLinks == null && !state._utmLoading) { state._utmLoading = true; loadUtmLive(); }
   // ensure defaults
   if (state.utmBase == null) state.utmBase = 'https://recruitera.ai/';
   if (state.utmSource == null) state.utmSource = '';
@@ -2759,17 +2762,127 @@ function renderUtm(){
       + '</div>'
     + '</div>';
 
+  const utmTab = state.utmTab || 'generator';
+  const links  = state.utmLinks  || [];
+  const groups = state.utmGroups || [];
+  const tabPill = (k, label, count) => {
+    const active = utmTab === k;
+    return '<button onclick="setUtmTab(\''+k+'\')" style="display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;border-radius:9px;background:'+(active?'var(--cg-900)':'transparent')+';color:'+(active?'#fff':'var(--text-2)')+';border:0;font-family:inherit;font-size:13px;font-weight:'+(active?800:600)+';cursor:pointer;">'+esc(label)
+      + (count != null ? '<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:'+(active?'rgba(255,255,255,.18)':'var(--surface-2)')+';color:'+(active?'#fff':'var(--text-3)')+';font-size:11px;font-weight:800;">'+count+'</span>' : '')
+    + '</button>';
+  };
+  const tabsBar = '<div style="display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;box-shadow:var(--sh1);">'
+    + tabPill('generator',  'Generator', null)
+    + tabPill('history',    'History',   links.length)
+    + tabPill('groups',     'Link Groups', groups.length)
+    + tabPill('bulk',       'Bulk',      null)
+  + '</div>';
+
+  let body;
+  if (utmTab === 'generator') {
+    body = '<div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;">'
+      + '<div style="display:flex;flex-direction:column;gap:16px;">' + inputCard + presetsCard + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:14px;">' + outputCard + '</div>'
+    + '</div>';
+  } else if (utmTab === 'history') {
+    body = renderUtmHistory(links);
+  } else if (utmTab === 'groups') {
+    body = renderUtmGroups(groups, links);
+  } else if (utmTab === 'bulk') {
+    body = renderUtmBulk();
+  } else {
+    body = '';
+  }
+
   return '<div class="sc" style="padding:24px 28px 56px;display:flex;flex-direction:column;gap:18px;max-width:1400px;">'
     + '<div style="display:flex;align-items:center;gap:12px;">'
       + '<h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em;">UTM Link Generator</h1>'
       + '<span style="font-size:12px;color:var(--text-3);font-weight:500;">Track every campaign, every channel</span>'
     + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;">'
-      + '<div style="display:flex;flex-direction:column;gap:16px;">' + inputCard + presetsCard + '</div>'
-      + '<div style="display:flex;flex-direction:column;gap:14px;">' + outputCard + '</div>'
-    + '</div>'
+    + tabsBar
+    + body
   + '</div>';
 }
+function setUtmTab(t){ setState({ utmTab: t }); if ((t==='history' || t==='groups') && !state.utmLinks) loadUtmLive(); }
+Object.assign(window, { setUtmTab });
+async function loadUtmLive(){
+  const token = getAccessToken(); if (!token) return;
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  try {
+    const [links, groups] = await Promise.all([
+      fetch(SB_URL + '/rest/v1/utm_links?select=*&order=created_at.desc&limit=200', { headers }).then(r => r.ok ? r.json() : []),
+      fetch(SB_URL + '/rest/v1/utm_link_groups?select=*&order=created_at.desc', { headers }).then(r => r.ok ? r.json() : []),
+    ]);
+    state.utmLinks = links;
+    state.utmGroups = groups;
+    render();
+  } catch (e) { console.warn('[CRM v2] utm fetch failed:', e.message); }
+}
+function renderUtmHistory(links){
+  if (!links.length) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 24px;text-align:center;color:var(--text-3);font-size:13px;box-shadow:var(--sh1);">'
+      + (state.utmLinks == null ? 'Loading link history…' : 'No links saved yet. Generate one and hit Save.')
+    + '</div>';
+  }
+  const groupsById = new Map((state.utmGroups || []).map(g => [g.id, g]));
+  const head = '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.4fr 130px 100px;gap:12px;padding:12px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'
+    + ['URL','Source','Medium','Campaign','Group','Created'].map(l => '<span>'+l+'</span>').join('')
+  + '</div>';
+  const timeShort = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}); };
+  const rows = links.map(l => {
+    const g = l.group_id ? groupsById.get(l.group_id) : null;
+    return '<div class="row-h" style="display:grid;grid-template-columns:2fr 1fr 1fr 1.4fr 130px 100px;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+      + '<a href="'+esc(l.full_url||l.base_url||'#')+'" target="_blank" rel="noopener" style="font-size:12.5px;color:var(--accent-ink);text-decoration:none;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(l.full_url||l.base_url||'—')+'</a>'
+      + '<span style="font-size:12.5px;color:var(--text-2);font-weight:600;">'+esc(l.utm_source||'—')+'</span>'
+      + '<span style="font-size:12.5px;color:var(--text-2);font-weight:600;">'+esc(l.utm_medium||'—')+'</span>'
+      + '<span style="font-size:12.5px;color:var(--text);font-weight:700;">'+esc(l.utm_campaign||'—')+'</span>'
+      + (g ? '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(g.color||'#6b7280')+';"></span>'+esc(g.name)+'</span>' : '<span style="font-size:12px;color:var(--text-4);">—</span>')
+      + '<span class="tnum" style="font-size:11.5px;color:var(--text-3);">'+timeShort(l.created_at)+'</span>'
+    + '</div>';
+  }).join('');
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'+head+rows+'</div>';
+}
+function renderUtmGroups(groups, links){
+  if (!groups.length) {
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:56px 24px;text-align:center;color:var(--text-3);font-size:13px;box-shadow:var(--sh1);">'
+      + (state.utmGroups == null ? 'Loading groups…' : 'No link groups yet. Create one to bucket related links.')
+    + '</div>';
+  }
+  const cards = groups.map(g => {
+    const inGroup = (links || []).filter(l => l.group_id === g.id).length;
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--sh1);">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><span style="width:10px;height:10px;border-radius:50%;background:'+esc(g.color||'#6b7280')+';"></span><span style="font-size:14px;font-weight:800;color:var(--text);">'+esc(g.name)+'</span></div>'
+      + '<div class="tnum" style="font-size:11.5px;color:var(--text-3);font-weight:600;">'+inGroup+' link'+(inGroup===1?'':'s')+'</div>'
+    + '</div>';
+  }).join('');
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">'+cards+'</div>';
+}
+function renderUtmBulk(){
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:var(--sh1);">'
+    + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px;">Bulk generate</div>'
+    + '<div style="font-size:12px;color:var(--text-3);margin-bottom:12px;">Paste one campaign or content variant per line. Uses the base URL, source, and medium from the Generator tab. Click Generate to build a URL per line — copy the full list at the end.</div>'
+    + '<textarea id="utm-bulk-input" rows="8" placeholder="q3-launch-a&#10;q3-launch-b&#10;post-hero-v1&#10;post-hero-v2" style="width:100%;padding:12px;border:1px solid var(--border-2);border-radius:8px;font-family:monospace;font-size:12.5px;background:var(--surface-2);color:var(--text);outline:0;resize:vertical;line-height:1.5;box-sizing:border-box;"></textarea>'
+    + '<div style="display:flex;justify-content:flex-end;margin-top:10px;"><button onclick="utmBulkGenerate()" style="height:36px;padding:0 18px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">Generate</button></div>'
+    + '<div id="utm-bulk-output" style="margin-top:14px;"></div>'
+  + '</div>';
+}
+function utmBulkGenerate(){
+  const raw = (document.getElementById('utm-bulk-input')?.value || '').trim();
+  const out = document.getElementById('utm-bulk-output');
+  if (!raw) { if (out) out.innerHTML = '<div style="padding:14px;border:1px dashed var(--border-2);border-radius:8px;color:var(--text-3);font-size:12px;">Add at least one line above.</div>'; return; }
+  const base = state.utmBase || '';
+  const src  = state.utmSource ? '&utm_source='+encodeURIComponent(state.utmSource) : '';
+  const med  = state.utmMedium ? '&utm_medium='+encodeURIComponent(state.utmMedium) : '';
+  const lines = raw.split(/\n+/).map(x => x.trim()).filter(Boolean);
+  const urls = lines.map(name => {
+    const sep = base.includes('?') ? '&' : '?';
+    return base + sep + 'utm_campaign=' + encodeURIComponent(name) + src + med;
+  });
+  const rows = urls.map(u => '<div style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;font-family:monospace;font-size:12px;color:var(--accent-ink);word-break:break-all;margin-bottom:6px;">'+esc(u)+'</div>').join('');
+  if (out) out.innerHTML = '<div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:8px;">'+urls.length+' URL'+(urls.length===1?'':'s')+'</div>'+rows
+    + '<button onclick="navigator.clipboard.writeText('+jsArg(urls.join('\\n'))+');toast(\'Copied all URLs\')" style="margin-top:8px;height:32px;padding:0 14px;border-radius:8px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:12.5px;font-weight:700;cursor:pointer;">Copy all</button>';
+}
+Object.assign(window, { utmBulkGenerate });
 
 // =========================================================================
 //   RENDER: AM PERFORMANCE
