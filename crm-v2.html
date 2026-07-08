@@ -2756,10 +2756,17 @@ function renderUtm(){
       + '</div>'
       + '<div style="font-family:monospace;font-size:12.5px;color:var(--accent-ink);word-break:break-all;padding:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;line-height:1.5;">'+esc(url)+'</div>'
       + chipsHtml
-      + '<div style="display:flex;gap:8px;margin-top:14px;">'
-        + '<button onclick="copyUtm()" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">📋 Copy URL</button>'
-        + '<button onclick="toast(\'Saved to link history — coming Phase 4\')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:600;cursor:pointer;">💾 Save</button>'
+      + '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-top:14px;">'
+        + '<button onclick="copyUtm()" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">Copy URL</button>'
+        + '<button onclick="saveUtmLink()" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:600;cursor:pointer;">Save</button>'
+        + '<button onclick="resetUtm()" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:600;cursor:pointer;">Reset</button>'
       + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+        + '<button onclick="shortenUtm()" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:600;cursor:pointer;">Shorten URL</button>'
+        + '<button onclick="showUtmQr()" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;border-radius:9px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:13px;font-weight:600;cursor:pointer;">Show QR Code</button>'
+      + '</div>'
+      + (state.utmShort ? '<div style="margin-top:12px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:8px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Short</span><a href="'+esc(state.utmShort)+'" target="_blank" rel="noopener" style="font-family:monospace;font-size:12.5px;color:var(--accent-ink);text-decoration:none;flex:1;word-break:break-all;">'+esc(state.utmShort)+'</a><button title="Copy" onclick="navigator.clipboard.writeText('+jsArg(state.utmShort)+');toast(\'Short URL copied\')" style="font-size:11px;font-weight:700;color:var(--text-3);cursor:pointer;padding:2px 6px;border-radius:5px;background:var(--surface);border:1px solid var(--border-2);">Copy</button></div>' : '')
+      + (state.utmQr ? '<div style="margin-top:12px;padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;"><img src="'+esc(state.utmQr)+'" width="200" height="200" alt="QR code" style="border-radius:6px;background:#fff;padding:8px;"><button onclick="setState({utmQr:null})" style="font-size:11.5px;font-weight:700;color:var(--text-3);cursor:pointer;padding:4px 10px;border-radius:6px;background:var(--surface);border:1px solid var(--border-2);">Hide QR</button></div>' : '')
     + '</div>';
 
   const utmTab = state.utmTab || 'generator';
@@ -2883,6 +2890,61 @@ function utmBulkGenerate(){
     + '<button onclick="navigator.clipboard.writeText('+jsArg(urls.join('\\n'))+');toast(\'Copied all URLs\')" style="margin-top:8px;height:32px;padding:0 14px;border-radius:8px;background:var(--surface);color:var(--text-2);border:1px solid var(--border-2);font-size:12.5px;font-weight:700;cursor:pointer;">Copy all</button>';
 }
 Object.assign(window, { utmBulkGenerate });
+
+function resetUtm(){
+  setState({ utmSource:'', utmMedium:'', utmCampaign:'', utmContent:'', utmShort:null, utmQr:null });
+  toast('Cleared');
+}
+async function saveUtmLink(){
+  const url = buildUtm();
+  if (!state.utmBase || !state.utmSource) { toast('Base URL and Source required'); return; }
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/utm_links', {
+      method:'POST',
+      headers:{ apikey: SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json', Prefer:'return=representation' },
+      body: JSON.stringify({
+        base_url: state.utmBase,
+        utm_source: state.utmSource,
+        utm_medium: state.utmMedium || null,
+        utm_campaign: state.utmCampaign || null,
+        utm_content: state.utmContent || null,
+        full_url: url,
+        short_url: state.utmShort || null,
+      }),
+    });
+    if (!res.ok) throw new Error('Save '+res.status);
+    const row = (await res.json())[0];
+    state.utmLinks = [row, ...(state.utmLinks || [])];
+    render();
+    toast('Saved to history');
+  } catch(e){ toast('Save failed: '+(e.message||e)); }
+}
+async function shortenUtm(){
+  const url = buildUtm();
+  if (!state.utmBase || !state.utmSource) { toast('Fill in the URL first'); return; }
+  toast('Shortening…');
+  // TinyURL free endpoint — no auth, returns plain-text short URL. If it's
+  // blocked or errors, surface it so the user knows to try again later.
+  try {
+    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(url));
+    if (!res.ok) throw new Error('shortener '+res.status);
+    const short = (await res.text()).trim();
+    if (!/^https?:\/\//i.test(short)) throw new Error('bad response');
+    setState({ utmShort: short });
+    try { await navigator.clipboard.writeText(short); toast('Short URL copied'); }
+    catch { toast('Shortened'); }
+  } catch(e){ toast('Shortener unavailable: '+(e.message||e)); }
+}
+function showUtmQr(){
+  const url = buildUtm();
+  if (!state.utmBase || !state.utmSource) { toast('Fill in the URL first'); return; }
+  // Free QR image service — no auth. Rendered inline via <img src>.
+  const src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=' + encodeURIComponent(url);
+  setState({ utmQr: src });
+}
+Object.assign(window, { resetUtm, saveUtmLink, shortenUtm, showUtmQr });
 
 // =========================================================================
 //   RENDER: AM PERFORMANCE
