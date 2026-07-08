@@ -329,12 +329,14 @@ function toast(msg){
 function setRole(r){ setState({ role: r }); }
 
 // ---------- CYCLE EDITOR MODAL ----------
-function openCycleModal(accountId, existingCycle){
+function openCycleModal(accountId, existingCycle, opts){
   const cy = existingCycle || {};
+  const stageAfter = opts && opts.stageAfter ? opts.stageAfter : null;
   setState({
     cycleModalOpen: true,
     cycleModalAccountId: accountId,
     cycleModalMode: existingCycle ? 'edit' : 'add',
+    cycleModalStageAfter: stageAfter,
     cycleModalStatus: 'idle',
     cycleModalError: null,
     cycleForm: {
@@ -349,10 +351,11 @@ function openCycleModal(accountId, existingCycle){
       auto_renew:   cy.auto_renew === true,
       payment_type: cy.payment_type || '',
       notes:        cy.notes        || '',
+      deal_value_egp: '',
     },
   });
 }
-function closeCycleModal(){ setState({ cycleModalOpen: false, cycleModalStatus: 'idle', cycleModalError: null }); }
+function closeCycleModal(){ setState({ cycleModalOpen: false, cycleModalStatus: 'idle', cycleModalError: null, cycleModalStageAfter: null }); }
 function setCycleField(k, v){ state.cycleForm = Object.assign({}, state.cycleForm, { [k]: v }); render(); }
 async function submitCycle(){
   const s = state;
@@ -402,15 +405,30 @@ async function submitCycle(){
       const t = await res.text();
       throw new Error('Supabase ' + res.status + ': ' + t.slice(0, 180));
     }
+    // If this modal was opened by a stage → won intercept, patch the account
+    // stage + deal_value in the same round-trip so the pipeline reflects it.
+    if (s.cycleModalStageAfter) {
+      const dv = f.deal_value_egp ? Number(f.deal_value_egp) : (payload.value ? toEgp(payload.value, payload.currency) : null);
+      const body = { stage: s.cycleModalStageAfter };
+      if (dv != null && !isNaN(dv)) body.deal_value = dv;
+      const patchRes = await fetch(SB_URL + '/rest/v1/accounts?id=eq.' + encodeURIComponent(s.cycleModalAccountId), {
+        method: 'PATCH',
+        headers: Object.assign({}, headers, { Prefer:'return=minimal' }),
+        body: JSON.stringify(body),
+      });
+      if (!patchRes.ok) throw new Error('Stage/deal-value save ' + patchRes.status);
+    }
     // Refresh cycles for this account so the tab reflects the write
     LIVE_DETAILS_BY_ACCT.delete(s.cycleModalAccountId);
     LIVE_CYCLES_BY_ACCT?.delete?.(s.cycleModalAccountId);
     await loadDetailsForAccount(s.cycleModalAccountId);
     await refreshAccountRow(s.cycleModalAccountId);
+    const wasWonFlow = s.cycleModalStageAfter === 'won';
     state.cycleModalOpen = false;
+    state.cycleModalStageAfter = null;
     state.cycleModalStatus = 'done';
     render();
-    toast(s.cycleModalMode === 'edit' ? 'Cycle updated' : 'Cycle added');
+    toast(wasWonFlow ? 'Deal won · cycle added' : (s.cycleModalMode === 'edit' ? 'Cycle updated' : 'Cycle added'));
   } catch (e) {
     console.error('[CRM v2] cycle save failed:', e);
     state.cycleModalStatus = 'error';
@@ -551,6 +569,7 @@ async function changeAccountStage(accountId, newStage){
   const acct = (state.accounts || []).find(x => x.id === accountId);
   if (!acct || acct.stage === newStage) return;
   if (newStage === 'lost') { openLostModal(accountId); return; }
+  if (newStage === 'won') { openCycleModal(accountId, null, { stageAfter: 'won' }); return; }
   return _writeStage(accountId, newStage);
 }
 function openLostModal(accountId){
@@ -3737,8 +3756,16 @@ function renderCycleModal(){
 
   const field = (label, control) => '<div><div style="'+labelStyle+'">'+label+'</div>'+control+'</div>';
 
+  const dealBlock = state.cycleModalStageAfter === 'won'
+    ? '<div style="margin-bottom:16px;padding:14px 16px;border:1px solid var(--accent-strong);background:var(--accent-soft);border-radius:10px;">'
+        + '<div style="'+labelStyle+';color:var(--accent-ink);">Deal value (EGP) *</div>'
+        + '<input type="number" min="0" step="1" value="'+esc(f.deal_value_egp||'')+'" oninput="setCycleField(\'deal_value_egp\', this.value)" placeholder="e.g. 120000" style="'+fieldStyle+'">'
+        + '<div style="font-size:11px;color:var(--text-3);margin-top:6px;">Saved to <code style="font-family:monospace;background:var(--surface);padding:1px 5px;border-radius:4px;">accounts.deal_value</code>. Leave blank to auto-fill from the cycle amount below (USD/EUR converted via FX table).</div>'
+      + '</div>'
+    : '';
   const body =
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+    dealBlock
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
       + field('Plan tier *',   select('plan_tier', planOpts))
       + field('Status',        select('status', statusOpts))
       + field('Term start *',  input('started_at', 'date'))
@@ -3757,8 +3784,8 @@ function renderCycleModal(){
       // header
       + '<div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">'
         + '<div>'
-          + '<h2 style="margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em;">'+(isEdit?'Edit cycle':'Add new cycle')+'</h2>'
-          + '<div style="font-size:12px;color:var(--text-3);margin-top:3px;">Writes to <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">contract_cycles</code> table</div>'
+          + '<h2 style="margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em;">'+(state.cycleModalStageAfter==='won'?'Mark as Deal Won':(isEdit?'Edit cycle':'Add new cycle'))+'</h2>'
+          + '<div style="font-size:12px;color:var(--text-3);margin-top:3px;">'+(state.cycleModalStageAfter==='won'?'Sets the deal value and creates the first contract cycle.':'Writes to <code style="font-family:monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px;">contract_cycles</code> table')+'</div>'
         + '</div>'
         + '<button onclick="closeCycleModal()" style="width:32px;height:32px;border-radius:8px;color:var(--text-3);cursor:pointer;font-size:20px;">×</button>'
       + '</div>'
@@ -3771,7 +3798,7 @@ function renderCycleModal(){
       + '<div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface-2);">'
         + '<div style="font-size:12px;color:var(--text-3);font-weight:500;flex:1;">'+(isEdit?'Changes apply immediately on save.':'A new cycle_number will be assigned automatically.')+'</div>'
         + '<button onclick="closeCycleModal()" '+(busy?'disabled':'')+' style="height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface);font-size:13px;font-weight:600;color:var(--text-2);cursor:'+(busy?'not-allowed':'pointer')+';">Cancel</button>'
-        + '<button onclick="submitCycle()" '+(busy?'disabled':'')+' style="height:36px;padding:0 18px;border-radius:8px;border:1px solid var(--accent-strong);background:'+(busy?'var(--surface-2)':'var(--accent)')+';font-size:13px;font-weight:700;color:'+(busy?'var(--text-3)':'var(--on-accent)')+';cursor:'+(busy?'wait':'pointer')+';">'+(busy?'Saving…':(isEdit?'Save changes':'Add cycle'))+'</button>'
+        + '<button onclick="submitCycle()" '+(busy?'disabled':'')+' style="height:36px;padding:0 18px;border-radius:8px;border:1px solid var(--accent-strong);background:'+(busy?'var(--surface-2)':'var(--accent)')+';font-size:13px;font-weight:700;color:'+(busy?'var(--text-3)':'var(--on-accent)')+';cursor:'+(busy?'wait':'pointer')+';">'+(busy?'Saving…':(state.cycleModalStageAfter==='won'?'Mark Won':(isEdit?'Save changes':'Add cycle')))+'</button>'
       + '</div>'
     + '</div>'
   + '</div>';
