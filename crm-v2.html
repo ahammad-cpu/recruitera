@@ -1184,7 +1184,11 @@ function renderSidebar(){
   const counts = {
     accounts:      num(activeAccts.length),
     openLeads:     num(activeAccts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length),
-    renewals:      num(activeAccts.filter(a => a.end && !['lost'].includes(a.stage)).length),
+    // Only count what the Renewal Pipeline actually renders — accounts with a
+    // real contract cycle that lands in a bucket (90/60/30/overdue/renewed/
+    // churned). Was previously counting any row with any end date, which
+    // included lost sales-side deals and inflated the badge by 20-30×.
+    renewals:      num(activeAccts.filter(a => a.ren).length),
     tasksDueToday: num(tasksList().filter(t => t.due === 'Today' && !t.done).length),
     unreadNotifs:  num((state.notifications || []).filter(n => !n.read_at).length),
   };
