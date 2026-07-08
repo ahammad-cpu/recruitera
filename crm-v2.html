@@ -109,6 +109,7 @@ const state = {
   accounts: null,
   tasks: null,
   approvals: null,
+  notifications: null,
 };
 
 // ---------- SEED DATA (from design script, lines 3481-3541) ----------
@@ -207,9 +208,11 @@ const CHIP = {
 function chip(v){ return 'display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;' + (CHIP[v] || CHIP.neutral); }
 
 // ---------- HELPERS ----------
-function accts(){ return state.accounts || (state.accounts = seedAccounts()); }
-function tasksList(){ return state.tasks || (state.tasks = seedTasks()); }
-function approvalsList(){ return state.approvals || (state.approvals = seedApprovals()); }
+function accts(){ return state.accounts || []; }
+// Tasks are live-only now — no mock fallback. If Supabase hasn't returned yet,
+// state.tasks is null; we render as an empty list until fetchTasksLive resolves.
+function tasksList(){ return state.tasks || []; }
+function approvalsList(){ return state.approvals || []; }
 function amById(id){
   if (LIVE_AMS){
     const live = LIVE_AMS.find(a => a.id === id);
@@ -1183,7 +1186,7 @@ function renderSidebar(){
     openLeads:     num(activeAccts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length),
     renewals:      num(activeAccts.filter(a => a.end && !['lost'].includes(a.stage)).length),
     tasksDueToday: num(tasksList().filter(t => t.due === 'Today' && !t.done).length),
-    unreadNotifs:  num(7),
+    unreadNotifs:  num((state.notifications || []).filter(n => !n.read_at).length),
   };
   const badBadge = 'margin-left:auto;background:var(--bad);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;';
   const meObj = me();
@@ -2095,13 +2098,16 @@ function renderRenewal(){
 // =========================================================================
 function renderTasks(){
   const tasks = tasksList();
-  const urgent = tasks.filter(t => t.due === 'Today' && !t.done);
-  const group = [
-    { text:'WhatsApp re: plan expiry & renewal options', acct:'Edita',         am:'Karim Fawzy' },
-    { text:'Credit top-up nudge — 64% consumed',         acct:'Talabat Egypt', am:'Nour Adel' },
-    { text:'Quarterly business review scheduling',       acct:'Juhayna',       am:'Yara Mostafa' },
-    { text:'Renewal health check — pull usage report',   acct:'Vodafone Egypt',am:'Karim Fawzy' },
-  ];
+  const urgent = tasks.filter(t => (t.due === 'Today' || t.due === 'Overdue') && !t.done);
+  // Team backlog = every other open task (not urgent, not done). Read straight
+  // from the live tasks pull — no hardcoded team-task fillers.
+  const group = tasks.filter(t => !t.done && t.due !== 'Today' && t.due !== 'Overdue')
+    .slice(0, 8)
+    .map(t => {
+      const a = (state.accounts || []).find(x => x.id === t.acctId);
+      const am = amById(t.am);
+      return { text: t.title, acct: a ? a.name : '—', am: am.name || t.am };
+    });
   const th = 'padding:10px 14px;text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap;';
   const td = 'padding:11px 14px;height:52px;border-bottom:1px solid var(--border);vertical-align:middle;';
 
@@ -2200,16 +2206,33 @@ function renderTasks(){
 //   RENDER: NOTIFICATIONS
 // =========================================================================
 function renderNotifications(){
-  const items = [
-    { title:'Task overdue · Call back Fawry procurement', sub:'Due today · owner Salma Hassan', tag:'Overdue task', time:'10m ago', unread:true, icon:'⏰', v:'bad',    acctId:3  },
-    { title:'MaxAB plan expired — renewal overdue',       sub:'Growth · EGP 130k · act now',    tag:'Deal expiring',time:'25m ago', unread:true, icon:'⚡', v:'warn',   acctId:7  },
-    { title:'You reached 80% of your June target',        sub:'EGP 224k of EGP 280k invoiced',  tag:'Target alert', time:'1h ago',  unread:true, icon:'🎯', v:'ok',     acctId:null },
-    { title:'Edita expires in 24 days',                   sub:'Growth plan · EGP 120k renewal', tag:'Deal expiring',time:'2h ago',  unread:true, icon:'⚡', v:'warn',   acctId:12 },
-    { title:'Reminder · send proposal to Halan',          sub:'You set this reminder for today', tag:'Reminder',    time:'3h ago',  unread:true, icon:'🔔', v:'lime',   acctId:8  },
-    { title:'Task overdue · WhatsApp Edita re: plan expiry', sub:'Due today · owner Karim Fawzy', tag:'Overdue task', time:'4h ago', unread:true, icon:'⏰', v:'bad',   acctId:12 },
-    { title:'Karim Fawzy is falling behind target (52%)', sub:'June · EGP 114k of EGP 220k',    tag:'Target alert', time:'6h ago',  unread:true, icon:'📊', v:'info',   acctId:null },
-    { title:'Breadfast signed Enterprise plan',           sub:'EGP 240k · 1 year · closed by Nour Adel', tag:'Deal won', time:'1d ago', unread:false, icon:'🏆', v:'ok',  acctId:6  },
-  ];
+  const acctById = new Map((state.accounts || []).map(a => [a.id, a]));
+  const rows = state.notifications || [];
+  const KIND_ICON = { mention:'💬', task_assigned:'📌', task_due:'⏰', task_overdue:'⏰', renewal_due:'📅', renewal_overdue:'⚡', deal_won:'🏆', deal_lost:'✗', system:'ℹ️' };
+  const KIND_V    = { mention:'info', task_assigned:'info', task_due:'warn', task_overdue:'bad', renewal_due:'warn', renewal_overdue:'bad', deal_won:'ok', deal_lost:'neutral', system:'neutral' };
+  const timeAgo = (iso) => {
+    if (!iso) return '';
+    const t = Date.parse(iso); if (isNaN(t)) return '';
+    const s = (Date.now() - t) / 1000;
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.round(s/60) + 'm ago';
+    if (s < 86400) return Math.round(s/3600) + 'h ago';
+    if (s < 86400*7) return Math.round(s/86400) + 'd ago';
+    return new Date(t).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  };
+  const items = rows.map(n => {
+    const a = n.account_id ? acctById.get(n.account_id) : null;
+    return {
+      title: n.title || (n.kind ? n.kind.replace(/_/g,' ') : 'Notification'),
+      sub: n.body || (a ? a.name : ''),
+      tag: (n.kind || 'system').replace(/_/g,' '),
+      time: timeAgo(n.created_at),
+      unread: !n.read_at,
+      icon: KIND_ICON[n.kind] || '🔔',
+      v: KIND_V[n.kind] || 'neutral',
+      acctId: n.account_id,
+    };
+  });
   const unreadCount = items.filter(n => n.unread).length;
   const iconWrap = (v) => 'width:36px;height:36px;border-radius:10px;background:'+({bad:'var(--bad-bg)',warn:'var(--warn-bg)',ok:'var(--ok-bg)',info:'var(--info-bg)',lime:'var(--accent-soft)'}[v]||'var(--surface-2)')+';display:grid;place-items:center;font-size:16px;flex-shrink:0;';
   const list = items.map(n =>
@@ -2229,7 +2252,9 @@ function renderNotifications(){
       + '<div style="flex:1;"></div>'
       + '<button onclick="toast(\'All notifications marked as read\')" style="display:inline-flex;align-items:center;height:34px;padding:0 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text-2);">Mark all read</button>'
     + '</div>'
-    + '<div style="display:flex;flex-direction:column;gap:2px;">' + list + '</div>'
+    + (items.length
+        ? '<div style="display:flex;flex-direction:column;gap:2px;">' + list + '</div>'
+        : '<div style="padding:48px 20px;text-align:center;border:1.5px dashed var(--border-2);border-radius:14px;color:var(--text-3);font-size:13px;">No notifications yet.</div>')
   + '</div>';
 }
 
@@ -4341,6 +4366,13 @@ async function fetchLogsFeedLive(token){
   LIVE_LOGS = await res.json();
 }
 
+async function fetchNotificationsLive(token){
+  const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
+  const url = SB_URL + '/rest/v1/notifications?select=id,kind,account_id,activity_id,title,body,read_at,created_at&order=created_at.desc&limit=100';
+  const res = await fetch(url, { headers });
+  if (!res.ok) return [];
+  return res.json();
+}
 async function fetchTasksLive(token){
   const headers = { apikey: SB_KEY, Authorization: 'Bearer ' + token };
   // activities table: type='task', not archived, task_done=false, limit 100
@@ -4380,9 +4412,9 @@ async function fetchTasksLive(token){
 async function bootLiveData(){
   const token = getAccessToken();
   if (!token) {
-    state.dataSource = 'mock';
-    state.dataStatus = 'idle';
-    console.log('[CRM v2] no auth token → running in preview mode with mock data');
+    // No mock preview — CRM must be logged in against Supabase.
+    console.log('[CRM v2] no auth token → redirecting to /login');
+    location.replace('/login');
     return;
   }
   state.dataStatus = 'loading';
@@ -4404,19 +4436,18 @@ async function bootLiveData(){
     ]);
     // Map the raw account rows now that the joins are populated
     const accounts = accountRawRows.map(mapAcctFromSupabase);
-    if (accounts.length === 0) {
-      state.dataStatus = 'ready';
-      console.log('[CRM v2] Supabase returned 0 accounts — keeping mock preview data');
-      render();
-      return;
-    }
+    // Always take the live result — even if empty. Mock data has been retired.
     state.accounts = accounts;
     state.dataSource = 'live';
+    if (accounts.length === 0) console.log('[CRM v2] Supabase returned 0 accounts — showing empty state');
     // Tasks + global activity feed for Logs page (both non-blocking)
     try {
       const tasks = await fetchTasksLive(token);
-      if (tasks.length) state.tasks = tasks;
-    } catch(e){ console.warn('[CRM v2] tasks fetch failed:', e); }
+      state.tasks = tasks;
+    } catch(e){ console.warn('[CRM v2] tasks fetch failed:', e); state.tasks = []; }
+    try {
+      state.notifications = await fetchNotificationsLive(token);
+    } catch(e){ console.warn('[CRM v2] notifications fetch failed:', e); state.notifications = []; }
     fetchLogsFeedLive(token).then(() => { if (state.page === 'logs') render(); }).catch(e => console.warn('[CRM v2] logs fetch failed:', e.message));
     state.dataStatus = 'ready';
     console.log('[CRM v2] live · ' + accounts.length + ' accounts · '
@@ -4434,9 +4465,16 @@ async function bootLiveData(){
 }
 
 // ---------- BOOT ----------
-render();
-bootLiveData();
-console.log('[CRM v2] mounted · role='+state.role+' · page='+state.page);
+// Gate everything on auth. If there's no valid session, bootLiveData()
+// redirects to /login and we never paint the shell.
+if (!getAccessToken()) {
+  document.body.innerHTML = '<div style="height:100vh;display:grid;place-items:center;font-family:inherit;color:#667;font-size:14px;">Redirecting to login…</div>';
+  location.replace('/login');
+} else {
+  render();
+  bootLiveData();
+  console.log('[CRM v2] mounted · role='+state.role+' · page='+state.page);
+}
 </script>
 </body>
 </html>
