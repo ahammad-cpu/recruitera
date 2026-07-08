@@ -1233,7 +1233,8 @@ async function submitMerge(){
 Object.assign(window, { openMergeModal, closeMergeModal, setMergeKeeper, submitMerge });
 
 // expose to inline handlers
-Object.assign(window, { go, toggleSidebar, openDetail, openDetailInNewTab, openDetailFromEvent, closeDetail, toggleTask, setRange, setCallsTab, toast, setRole });
+function setDashboardOwner(id){ setState({ dashboardOwnerId: id }); }
+Object.assign(window, { go, toggleSidebar, openDetail, openDetailInNewTab, openDetailFromEvent, closeDetail, toggleTask, setRange, setCallsTab, toast, setRole, setDashboardOwner });
 
 // ---------- SPARKLINE ----------
 function sparkBars(seed, useAccent){
@@ -1402,71 +1403,117 @@ function renderTopbar(){
 function renderDashboard(){
   const acts = accts();
   const meObj = me();
-  const role = state.role;
-  const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a) => s+a.value, 0);
-  const paidVal = acts.filter(a => a.stage === 'paid').reduce((s,a) => s+a.value, 0);
-  const paidCount = acts.filter(a => a.paid === 'Paid').length;
+  // Owner filter. Defaults to the signed-in user. Admins can switch to any
+  // roster member or the whole team via the picker.
+  if (state.dashboardOwnerId === undefined) state.dashboardOwnerId = meObj.id;
+  // Warm the current-month targets cache so the banner has data to display.
+  if (state.targets == null && !state._targetsLoading) { state._targetsLoading = true; loadTargetsLive(); }
+  const ownerId = state.dashboardOwnerId;
+  const scoped = ownerId === 'all' ? acts : acts.filter(a => a.am === ownerId);
 
-  // MY TARGET banner data
-  const target = { target: egp(280000), invoiced: egp(224000), remaining: egp(56000), attainPct: '80%' };
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  const monthEndT = monthEnd.getTime();
+  const daysLeft = Math.max(0, Math.ceil((monthEndT - now.getTime()) / 86400000));
+  const monthLabel = now.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+
+  // Won-this-month = accounts owned by owner whose _sinceRaw (paid_since /
+  // created_at proxy) falls in the calendar month AND stage is won or paid.
+  const wonThisMonth = scoped.filter(a => {
+    if (!['won','paid'].includes(a.stage)) return false;
+    const t = a._sinceRaw ? Date.parse(a._sinceRaw) : NaN;
+    return !isNaN(t) && t >= monthStart.getTime() && t <= monthEndT + 86400000;
+  }).reduce((s,a) => s + (a.value || 0), 0);
+
+  const pipelineVal = scoped.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a) => s+(a.value||0), 0);
+  const paidVal = scoped.filter(a => a.stage === 'paid').reduce((s,a) => s+(a.value||0), 0);
+  const paidCount = scoped.filter(a => a.paid === 'Paid').length;
+  const propCount = scoped.filter(a => a.stage === 'proposal').length;
+  const renewalsAtRisk = scoped.filter(a => a.ren === 'd30' || a.ren === 'overdue').length;
+  const renewalsAtRiskVal = scoped.filter(a => a.ren === 'd30' || a.ren === 'overdue').reduce((s,a) => s+(a.value||0), 0);
+  const closesBook = scoped.filter(a => ['won','paid','lost'].includes(a.stage)).length;
+  const winRate = closesBook > 0 ? Math.round(scoped.filter(a => ['won','paid'].includes(a.stage)).length / closesBook * 100) : 0;
+
+  // Look up the target for the current owner + current month from state.targets
+  // (populated by loadTargetsLive). If no row exists yet, target is 0 — the
+  // banner surfaces that as 'No target set' instead of faking a number.
+  const targetRow = (state.targets || []).find(t =>
+    t.owner_id === ownerId && t.period_kind === 'month' && t.period_start === monthStart.toISOString().slice(0,10)
+  );
+  const targetAmount   = ownerId === 'all'
+    ? (state.targets || []).filter(t => t.period_kind === 'month' && t.period_start === monthStart.toISOString().slice(0,10)).reduce((s,t) => s + (t.amount_egp || 0), 0)
+    : (targetRow ? targetRow.amount_egp : 0);
+  const wonAmount = ownerId === 'all'
+    ? acts.filter(a => ['won','paid'].includes(a.stage)).filter(a => {
+        const t = a._sinceRaw ? Date.parse(a._sinceRaw) : NaN;
+        return !isNaN(t) && t >= monthStart.getTime() && t <= monthEndT + 86400000;
+      }).reduce((s,a) => s + (a.value || 0), 0)
+    : wonThisMonth;
+  const remaining = Math.max(0, targetAmount - wonAmount);
+  const attainPctNum = targetAmount > 0 ? Math.round(wonAmount / targetAmount * 100) : 0;
+  const target = {
+    target: targetAmount ? egp(targetAmount) : '—',
+    invoiced: egp(wonAmount),
+    remaining: targetAmount ? egp(remaining) : '—',
+    attainPct: targetAmount ? attainPctNum + '%' : 'No target',
+  };
+
+  // Owner picker — shown on the right side of the target banner.
+  const roster = (LIVE_AMS && LIVE_AMS.length) ? LIVE_AMS : [];
+  const displayOwner = ownerId === 'all' ? { name:'Whole team', initials:'ALL', email:'' } : (roster.find(x => x.id === ownerId) || meObj);
+  const ownerPicker = '<select onchange="setDashboardOwner(this.value)" title="Filter dashboard by owner" style="height:32px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface);font-family:inherit;font-size:12.5px;font-weight:700;color:var(--text);outline:0;cursor:pointer;">'
+    + '<option value="all"'+(ownerId==='all'?' selected':'')+'>Whole team</option>'
+    + roster.map(p => '<option value="'+esc(p.id)+'"'+(p.id===ownerId?' selected':'')+'>'+esc(p.name||p.email||'')+'</option>').join('')
+  + '</select>';
+  const barPct = Math.min(100, attainPctNum);
+  const barColor = attainPctNum >= 100 ? '#22C55E' : attainPctNum >= 70 ? '#22C55E' : attainPctNum >= 40 ? 'var(--warn)' : 'var(--bad)';
   const targetBanner =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px 28px;box-shadow:var(--sh1);margin-bottom:20px;position:relative;overflow:hidden;">'
     + '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#22C55E 0%,#A8D800 100%);"></div>'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">'
-      + '<span style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);">MY TARGET</span>'
-      + '<span style="font-size:12px;color:var(--text-3);font-weight:500;">· June 2026 · '+meObj.name+'</span>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap;">'
+      + '<span style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);">'+(ownerId==='all'?'TEAM TARGET':'MY TARGET')+'</span>'
+      + '<span style="font-size:12px;color:var(--text-3);font-weight:500;">· '+esc(monthLabel)+' · '+esc(displayOwner.name||'')+'</span>'
       + '<div style="flex:1;"></div>'
-      + '<span class="tnum" style="'+chip('ok')+'">'+target.attainPct+' attained</span>'
+      + ownerPicker
+      + '<span class="tnum" style="'+chip(targetAmount?(attainPctNum>=70?'ok':attainPctNum>=40?'warn':'bad'):'neutral')+'">'+target.attainPct+(targetAmount?' attained':'')+'</span>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:28px;align-items:center;">'
       + '<div>'
         + '<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Target</div>'
         + '<div class="tnum" style="font-size:30px;font-weight:900;letter-spacing:-.03em;color:var(--text);">'+target.target+'</div>'
-        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">June 2026</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">'+esc(monthLabel)+'</div>'
       + '</div>'
       + '<div>'
         + '<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Won</div>'
         + '<div class="tnum" style="font-size:30px;font-weight:900;letter-spacing:-.03em;color:#22C55E;">'+target.invoiced+'</div>'
-        + '<div style="display:flex;align-items:center;gap:5px;margin-top:4px;">'
-          + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>'
-          + '<span style="font-size:11.5px;color:#22C55E;font-weight:700;">+11% vs last month</span>'
-        + '</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">'+(ownerId==='all'?'team':'own book')+' · this month</div>'
       + '</div>'
       + '<div>'
         + '<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Remaining</div>'
         + '<div class="tnum" style="font-size:30px;font-weight:900;letter-spacing:-.03em;color:var(--text-2);">'+target.remaining+'</div>'
-        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">7 days left</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-top:4px;">'+daysLeft+' day'+(daysLeft===1?'':'s')+' left</div>'
       + '</div>'
       + '<div>'
         + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
           + '<div style="flex:1;height:14px;border-radius:999px;background:var(--surface-2);overflow:hidden;position:relative;display:flex;">'
-            + '<div style="height:100%;width:80%;background:#22C55E;"></div>'
-            + '<div style="height:100%;width:20%;background:transparent;"></div>'
+            + '<div style="height:100%;width:'+barPct+'%;background:'+barColor+';"></div>'
           + '</div>'
-          + '<span class="tnum" style="font-size:16px;font-weight:800;color:#22C55E;">80%</span>'
+          + '<span class="tnum" style="font-size:16px;font-weight:800;color:'+barColor+';">'+(targetAmount?attainPctNum+'%':'—')+'</span>'
         + '</div>'
         + '<div style="display:flex;gap:16px;">'
-          + '<div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:3px;background:#22C55E;"></div><span style="font-size:11.5px;color:var(--text-2);font-weight:600;">Won '+target.invoiced+'</span></div>'
+          + '<div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:3px;background:'+barColor+';"></div><span style="font-size:11.5px;color:var(--text-2);font-weight:600;">Won '+target.invoiced+'</span></div>'
           + '<div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:3px;background:var(--surface-2);border:1px solid var(--border-2);"></div><span style="font-size:11.5px;color:var(--text-3);font-weight:600;">Remaining '+target.remaining+'</span></div>'
-        + '</div>'
-        + '<div style="display:flex;align-items:flex-end;gap:4px;margin-top:14px;height:36px;">'
-          + ['Jan','Feb','Mar','Apr','May','Jun'].map((m,i) => {
-              const h = [40,55,45,70,62,80][i];
-              const cur = i === 5;
-              return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">'
-                + '<div style="width:100%;height:'+h+'%;border-radius:2px;background:'+(cur?'#22C55E':'var(--surface-2)')+';border:1px solid '+(cur?'#22C55E':'var(--border)')+';"></div>'
-                + '<span style="font-size:9px;color:var(--text-4);font-weight:600;">'+m+'</span>'
-              + '</div>';
-            }).join('')
         + '</div>'
       + '</div>'
     + '</div>'
   + '</div>';
 
-  // My companies
-  const myCos = acts.filter(a => a.am === meObj.id || meObj.id === 'admin').slice(0, 4);
-  const myCoOpen = acts.filter(a => a.am === meObj.id && ['mql','sql','demo','proposal'].includes(a.stage)).length;
-  const myCoCount = acts.filter(a => a.am === meObj.id).length;
+  // My companies — mirrors the top-of-page owner filter. Whole-team view
+  // shows the newest rows in the book so admins get a live pulse.
+  const myCos = scoped.slice(0, 4);
+  const myCoOpen = scoped.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length;
+  const myCoCount = scoped.length;
   const myCoBlock =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh1);overflow:hidden;">'
     + '<div style="display:flex;align-items:center;gap:10px;padding:18px 20px 14px;">'
@@ -1567,14 +1614,14 @@ function renderDashboard(){
     + '</div>'
   + '</div>';
 
-  // KPI strip
-  const delta = (txt, good) => '<span style="font-size:12px;font-weight:600;color:'+(good?'var(--ok)':'var(--bad)')+';">'+txt+'</span>';
+  // KPI strip — every value comes from the scoped account book. Deltas were
+  // hardcoded lies (▲ 14% / ▲ 22% / ▲ 3 / ▲ 4%) with no source, so they're gone.
   const kpis = [
-    { label:'Pipeline value',   value: egp(pipelineVal),                 sub:'open · new business', delta: delta('▲ 14%',true), accent:true },
-    { label:'Collected (QTD)',        value: egp(paidVal),                      sub:'closed revenue',      delta: delta('▲ 22%',true) },
-    { label:'Active customers', value: '' + paidCount,                   sub:'paying employers',    delta: delta('▲ 3',  true) },
-    { label:'Renewals 30d',     value: '2',                              sub:'EGP 250k at risk',    delta: delta('▼ risk',false) },
-    { label:'Win rate',         value: '61%',                            sub:'last 90 days',        delta: delta('▲ 4%', true) },
+    { label:'Pipeline value',   value: egp(pipelineVal),                             sub: 'open · new business',                       delta:'', accent:true },
+    { label:'Collected',        value: egp(paidVal),                                 sub: 'stage = paid',                              delta:'' },
+    { label:'Active customers', value: '' + paidCount,                               sub: 'paying employers',                          delta:'' },
+    { label:'Renewals 30d',     value: '' + renewalsAtRisk,                          sub: renewalsAtRisk ? egp(renewalsAtRiskVal)+' at risk' : 'no risk', delta:'' },
+    { label:'Win rate',         value: closesBook ? winRate + '%' : '—',             sub: closesBook ? closesBook + ' closes'         : 'no closes yet', delta:'' },
   ];
   const kpiStrip =
     '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">'
