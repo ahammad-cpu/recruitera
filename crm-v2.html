@@ -2588,7 +2588,32 @@ async function createRolePrompt(){
     toast('Role created');
   } catch(e){ toast('Failed: ' + (e.message||e)); }
 }
-Object.assign(window, { setUsersTab, setRoleSel, createRolePrompt, loadRolesLive });
+async function toggleRoleModule(roleId, key){
+  const role = (state.roles || []).find(r => r.id === roleId);
+  if (!role) return;
+  const token = getAccessToken();
+  if (!token) { toast('Login required'); return; }
+  const cur = (role.module_access && role.module_access[key]);
+  const isOn = cur === true || cur === 'full' || cur === 'view' || cur === 'edit';
+  const next = Object.assign({}, role.module_access || {}, { [key]: !isOn });
+  // Optimistic update — roll back on failure.
+  role.module_access = next;
+  render();
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/roles?id=eq.' + encodeURIComponent(roleId), {
+      method: 'PATCH',
+      headers: { apikey: SB_KEY, Authorization:'Bearer '+token, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify({ module_access: next }),
+    });
+    if (!res.ok) throw new Error('Save ' + res.status);
+    toast((isOn ? 'Disabled ' : 'Enabled ') + key.replace(/_/g,' '));
+  } catch (e) {
+    role.module_access = Object.assign({}, next, { [key]: isOn });
+    render();
+    toast('Toggle failed: ' + (e.message || e));
+  }
+}
+Object.assign(window, { setUsersTab, setRoleSel, createRolePrompt, loadRolesLive, toggleRoleModule });
 function renderUsers(){
   if (state.usersTab === 'roles' && state.roles == null && !state._rolesLoading) { state._rolesLoading = true; loadRolesLive(); }
   const tab = state.usersTab || 'members';
@@ -2658,18 +2683,25 @@ function renderUsers(){
       + '</div>'
       + (selRole ? (function(){
           const ma = selRole.module_access || {};
+          // Module keys mirror /crm.html's MODULE_CATALOG — same table, same JSONB shape.
           const modules = [
-            ['companies','Companies'], ['pipeline','Pipeline'], ['renewals','Renewals'],
-            ['reports','Reports'], ['am_performance','AM Performance'], ['logs','Logs'],
-            ['users','Users & Roles'], ['utm','UTM Generator'], ['tasks','Tasks'],
-            ['notifications','Notifications'], ['settings','Settings'],
+            ['dashboard',      '🏠 Dashboard'],
+            ['team_targeting', '🎯 Team Targeting'],
+            ['reports',        '📊 Reports'],
+            ['accounts',       '👥 Accounts'],
+            ['sales_pipeline', '📋 Sales Pipeline'],
+            ['renewal',        '🔄 Renewal'],
+            ['logs',           '📄 Logs'],
+            ['settings',       '⚙️ Settings'],
+            ['utm_generator',  '🔗 UTM Generator'],
+            ['all_accounts',   '🌐 See all accounts'],
           ];
           const modBits = modules.map(([k,label]) => {
             const v = ma[k];
             const isOn = v === true || v === 'full' || v === 'view' || v === 'edit';
-            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;">'
+            return '<div onclick="toggleRoleModule('+jsArg(selRole.id)+', '+jsArg(k)+')" title="Click to '+(isOn?'disable':'enable')+'" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;">'
               + '<span style="font-size:12.5px;font-weight:600;color:var(--text);">'+label+'</span>'
-              + '<div style="width:32px;height:18px;border-radius:999px;background:'+(isOn?'var(--accent)':'var(--border-2)')+';position:relative;"><div style="position:absolute;width:14px;height:14px;border-radius:999px;background:#fff;top:2px;'+(isOn?'right:2px;':'left:2px;')+'"></div></div>'
+              + '<div style="width:32px;height:18px;border-radius:999px;background:'+(isOn?'var(--accent)':'var(--border-2)')+';position:relative;transition:background .12s;"><div style="position:absolute;width:14px;height:14px;border-radius:999px;background:#fff;top:2px;'+(isOn?'right:2px;':'left:2px;')+'transition:all .12s;"></div></div>'
             + '</div>';
           }).join('');
           return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;box-shadow:var(--sh1);">'
@@ -2677,7 +2709,7 @@ function renderUsers(){
               + (selRole.is_system ? '<span style="display:inline-flex;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:800;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border);">SYSTEM ROLE</span>' : '')
               + '<span class="tnum" style="font-size:11px;color:var(--text-3);font-weight:700;margin-left:auto;">'+(selRole.member_count||0)+' member'+((selRole.member_count||0)===1?'':'s')+'</span>'
             + '</div>'
-            + '<div style="font-size:13px;color:var(--text-2);font-weight:500;line-height:1.55;margin-bottom:20px;">'+esc(selRole.description||'No description.')+(selRole.is_system?' System roles cannot be edited — clone to create a custom role with fine-grained toggles.':'')+'</div>'
+            + '<div style="font-size:13px;color:var(--text-2);font-weight:500;line-height:1.55;margin-bottom:20px;">'+esc(selRole.description||'No description.')+'</div>'
             + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:10px;">Module access</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+ modBits +'</div>'
           + '</div>';
