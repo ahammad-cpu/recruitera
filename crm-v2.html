@@ -58,6 +58,18 @@
 // ---------- SUPABASE CONFIG (same as crm.html) ----------
 const SB_URL = 'https://rtdrlpnfqjtwtsrwnifn.supabase.co';
 const SB_KEY = 'sb_publishable_jqOHcIOvPYsEWnSKQjjEWQ_vWsxCVwr';
+
+// FX rates to EGP. Update the USD row when the CBE rate moves — everything else
+// (Deal value in header, kanban ACV totals, dashboard KPIs) recomputes from
+// contract_cycles.value × this table when the cycle is priced in a non-EGP
+// currency. Missing currencies fall through to 1.0 (treated as EGP).
+const FX_TO_EGP = { EGP: 1, USD: 49.43, EUR: 53.0, SAR: 13.15 };
+function toEgp(value, currency){
+  const n = Number(value) || 0;
+  if (!n) return 0;
+  const rate = FX_TO_EGP[(currency || 'EGP').toUpperCase()] || 1;
+  return n * rate;
+}
 const SB_AUTH_KEY = 'sb-rtdrlpnfqjtwtsrwnifn-auth-token';
 
 function getAccessToken(){
@@ -864,7 +876,7 @@ async function refreshAccountRow(accountId){
     if (LIVE_CYCLES_BY_ACCT) {
       LIVE_CYCLES_BY_ACCT.delete(accountId);
       const top = cycArr && cycArr[0];
-      if (top) LIVE_CYCLES_BY_ACCT.set(accountId, { plan: top.plan_tier, value: top.value, ends_at: top.ends_at, status: top.status });
+      if (top) LIVE_CYCLES_BY_ACCT.set(accountId, { plan: top.plan_tier, value: top.value, currency: top.currency || 'EGP', ends_at: top.ends_at, status: top.status });
     }
     if (rawArr && rawArr[0]) {
       const list = state.accounts || [];
@@ -4000,10 +4012,13 @@ function mapAcctFromSupabase(a, idx){
   const source = a.source || rd.Source || '';
   const region = a.region || rd.region || a.location || '';
   const industry = a.industry || rd.industry || '';
-  // deal_value wins; then proposal_amount; then the active contract cycle's amount.
+  // deal_value wins; then proposal_amount; then the active contract cycle's amount
+  // (converted to EGP if the cycle is priced in USD/EUR/SAR — see FX_TO_EGP).
   // Swedish Group EG had a 72k cycle but no accounts.deal_value → header showed
   // '—'. Cycle fallback keeps the stat band honest.
-  const value = Number(a.deal_value || a.proposal_amount || LIVE_CYCLES_BY_ACCT?.get(a.id)?.value || 0) || 0;
+  const cycValRaw = LIVE_CYCLES_BY_ACCT?.get(a.id);
+  const cycValEgp = cycValRaw ? toEgp(cycValRaw.value, cycValRaw.currency) : 0;
+  const value = Number(a.deal_value || a.proposal_amount || cycValEgp || 0) || 0;
   const score = Number(a.recruitera_score || 0);
   const tier  = (a.recruitera_tier || '').toLowerCase() || (score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cool');
   // Plan shows for anyone who's actually paying (or was paying) — Won,
