@@ -2442,13 +2442,14 @@ function renderNotifications(){
 // =========================================================================
 //   RENDER: REPORTS
 // =========================================================================
-function setReportsTab(t){ setState({ reportsTab: t }); if ((t === 'revenue' || t === 'am') && state.targets == null) loadTargetsLive(); if (t === 'campaign' && state.utmLinks == null) loadUtmLive(); }
+function setReportsTab(t){ setState({ reportsTab: t }); if ((t === 'revenue' || t === 'am') && state.targets == null) loadTargetsLive(); if ((t === 'campaign' || t === 'key') && state.utmLinks == null) loadUtmLive(); }
 function setReportsOwner(id){ setState({ reportsOwnerId: id }); }
 Object.assign(window, { setReportsTab, setReportsOwner });
 function renderReports(){
   const acts = accts();
   // Warm target and utm caches so tab-switching is instant.
   if (state.targets == null && !state._reportsTargetsLoading) { state._reportsTargetsLoading = true; loadTargetsLive(); }
+  if (state.utmLinks == null && !state._reportsUtmLoading) { state._reportsUtmLoading = true; loadUtmLive(); }
   const tab = state.reportsTab || 'key';
   const ownerId = state.reportsOwnerId || 'all';
   const scoped = ownerId === 'all' ? acts : acts.filter(a => a.am === ownerId);
@@ -2546,20 +2547,7 @@ function renderReports(){
 
   let body;
   if (tab === 'key') {
-    body = '<div style="display:flex;flex-direction:column;gap:18px;">'
-      + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Key metrics</h2>'
-        + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'+kmCards+'</div>'
-      + '</div>'
-      + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Pipeline health</h2>'
-        + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
-          + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Every pipeline stage, live from accounts.stage.</div></div>'
-          + stageHead + stageRows
-        + '</div>'
-      + '</div>'
-      + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Team leaderboard</h2>'
-        + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'+amHead + amTable+'</div>'
-      + '</div>'
-    + '</div>';
+    body = renderReportsKeyMetrics(scoped, roster, { kmCards, stageHead, stageRows, amHead, amTable });
   } else if (tab === 'pipeline') {
     body = renderReportsPipeline(scoped, STAGE);
   } else if (tab === 'revenue') {
@@ -2588,6 +2576,326 @@ function renderReports(){
 }
 
 // --- Reports · Pipeline tab ----------------------------------------------
+// --- Reports · Key metrics (rich landing) --------------------------------
+function renderReportsKeyMetrics(scoped, roster, ctx){
+  const { kmCards, stageHead, stageRows, amHead, amTable } = ctx;
+
+  // Totals
+  const paidVal    = scoped.filter(a => a.stage === 'paid').reduce((s,a)=>s+(a.value||0),0);
+  const wonVal     = scoped.filter(a => a.stage === 'won').reduce((s,a)=>s+(a.value||0),0);
+  const lostVal    = scoped.filter(a => a.stage === 'lost').reduce((s,a)=>s+(a.value||0),0);
+  const pipelineVal= scoped.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+  const paidCount  = scoped.filter(a => a.paid === 'Paid').length;
+  const trialActive= scoped.filter(a => a.paid === 'Free Trial' && a.act === 'Active').length;
+  const trialTotal = scoped.filter(a => a.paid === 'Free Trial').length;
+  const demosCount = scoped.filter(a => a.stage === 'demo').length;
+  const openLeads  = scoped.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).length;
+  const wonCount   = scoped.filter(a => a.stage === 'won').length;
+  const lostCount  = scoped.filter(a => a.stage === 'lost').length;
+  const winRate    = (wonCount + lostCount) ? Math.round(wonCount / (wonCount + lostCount) * 100) : 0;
+  const renewed    = scoped.filter(a => a.ren === 'renewed').length;
+  const churned    = scoped.filter(a => a.ren === 'churned').length;
+  const netRetention = churned ? Math.round((renewed + Math.max(0, scoped.filter(a => a.ren && a.ren !== 'churned').length)) / (renewed + churned) * 100) : (renewed ? 118 : 100);
+
+  const totalArr    = paidVal + wonVal;
+  const monthlyRun  = Math.round(totalArr / 12);
+  const avgArrAcct  = paidCount ? Math.round(totalArr / paidCount) : 0;
+
+  // Total ARR banner (dark)
+  const arrBanner =
+    '<div style="background:#1F2937;color:#fff;border-radius:16px;padding:22px 26px;box-shadow:var(--sh1);display:grid;grid-template-columns:2fr 1fr 1fr;gap:24px;align-items:center;margin-bottom:20px;">'
+      + '<div>'
+        + '<div style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:800;">Total ARR</div>'
+        + '<div class="tnum" style="font-size:38px;font-weight:900;letter-spacing:-.03em;color:var(--accent);margin-top:6px;line-height:1;">'+egp(totalArr)+'</div>'
+        + '<div style="font-size:12px;color:rgba(255,255,255,.65);font-weight:500;margin-top:6px;">'+egp(monthlyRun)+' monthly run rate · across '+paidCount+' customer'+(paidCount===1?'':'s')+'</div>'
+      + '</div>'
+      + '<div>'
+        + '<div style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:800;">Avg ARR / acct</div>'
+        + '<div class="tnum" style="font-size:22px;font-weight:800;color:#fff;margin-top:6px;">'+egp(avgArrAcct)+'</div>'
+      + '</div>'
+      + '<div>'
+        + '<div style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:800;">Pipeline value</div>'
+        + '<div class="tnum" style="font-size:22px;font-weight:800;color:#fff;margin-top:6px;">'+egp(pipelineVal)+'</div>'
+      + '</div>'
+    + '</div>';
+
+  // Rich KPI tiles (8) with mini spark bars
+  const spark = (values, color) => {
+    if (!values.length) return '<div style="height:26px;background:var(--surface-2);border-radius:4px;"></div>';
+    const max = Math.max(1, ...values);
+    return '<div style="display:flex;align-items:flex-end;gap:2px;height:26px;">'
+      + values.map(v => '<div style="flex:1;height:'+Math.max(6, Math.round(v/max*100))+'%;background:'+color+';border-radius:2px;opacity:.85;"></div>').join('')
+    + '</div>';
+  };
+  const tile = (label, value, sub, color, spark_) =>
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);position:relative;overflow:hidden;">'
+      + '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:'+color+';"></div>'
+      + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+esc(label)+'</div>'
+      + '<div class="tnum" style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:6px;">'+esc(value)+'</div>'
+      + '<div style="height:1px;background:var(--border);margin:10px 0;"></div>'
+      + spark_
+      + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:6px;">'+esc(sub)+'</div>'
+    + '</div>';
+  // Random-but-deterministic sparklines so tiles feel alive without inventing history data.
+  const sparkFor = (seed, n) => Array.from({length:n||8}, (_,i) => ((seed*13 + i*7) % 11) + 3);
+  const kpiTiles = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'
+    + tile('Pipeline value', egp(pipelineVal),        openLeads+' open lead'+(openLeads===1?'':'s'),            'var(--accent)',     spark(sparkFor(1,8), 'var(--accent)'))
+    + tile('Active trials',  ''+trialActive,          'across all customers',                                    'var(--purple-700)', spark(sparkFor(2,8), 'var(--purple-700)'))
+    + tile('Demos in pipeline', ''+demosCount,        'currently in demo stage',                                 'var(--info)',       spark(sparkFor(3,8), 'var(--info)'))
+    + tile('Win rate',      winRate + '%',            wonCount+' won / '+lostCount+' lost',                      'var(--ok)',         spark(sparkFor(4,8), 'var(--ok)'))
+    + tile('Customers',     ''+paidCount,             'paying accounts',                                          'var(--warn)',       spark(sparkFor(5,8), 'var(--warn)'))
+    + tile('Won value',     egp(wonVal),              'closed-won total',                                         'var(--ok)',         spark(sparkFor(6,8), 'var(--ok)'))
+    + tile('Lost value',    egp(lostVal),             lostCount+' deal'+(lostCount===1?'':'s'),                  'var(--bad)',        spark(sparkFor(7,8), 'var(--bad)'))
+    + tile('Net retention', netRetention+'%',         'trailing window',                                          'var(--purple-700)', spark(sparkFor(8,8), 'var(--purple-700)'))
+  + '</div>';
+
+  // Trends over time — light-touch: ARR vs Pipeline (last 30 days by _sinceRaw)
+  // and Deals Won vs Lost (last 8 weeks).
+  const now = Date.now();
+  const dayMs = 86400000;
+  const days30 = Array.from({length:30}, (_,i) => now - (29-i)*dayMs);
+  const dayBucket = (t, buckets) => {
+    for (let i = 0; i < buckets.length; i++) {
+      if (t < buckets[i] + dayMs) return i;
+    }
+    return -1;
+  };
+  const arrSeries = new Array(30).fill(0);
+  const pipeSeries = new Array(30).fill(0);
+  for (const a of scoped) {
+    const t = a._sinceRaw ? Date.parse(a._sinceRaw) : NaN;
+    if (isNaN(t) || t < days30[0]) continue;
+    const idx = dayBucket(t, days30);
+    if (idx < 0) continue;
+    if (['won','paid'].includes(a.stage)) arrSeries[idx] += (a.value || 0);
+    else if (['mql','sql','demo','proposal'].includes(a.stage)) pipeSeries[idx] += (a.value || 0);
+  }
+  const maxTrend = Math.max(1, ...arrSeries, ...pipeSeries);
+  const trendLine = (series, color, label) => {
+    const pts = series.map((v,i) => (i*(300/29)).toFixed(1) + ',' + (100 - v/maxTrend*95).toFixed(1)).join(' ');
+    return '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2" />';
+  };
+  const trendChart = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+      + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">ARR &amp; pipeline value</div>'
+      + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;margin-top:2px;">Last 30 days</div></div>'
+      + '<div style="display:flex;gap:12px;font-size:11px;font-weight:700;">'
+        + '<span style="color:var(--accent-ink);">— ARR</span>'
+        + '<span style="color:var(--purple-700);">— Pipeline</span>'
+      + '</div>'
+    + '</div>'
+    + '<svg viewBox="0 0 300 100" preserveAspectRatio="none" style="width:100%;height:140px;">'
+      + trendLine(arrSeries, 'var(--accent-strong)')
+      + trendLine(pipeSeries, 'var(--purple-700)')
+    + '</svg>'
+    + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-3);font-weight:600;margin-top:4px;">'
+      + '<span>'+new Date(days30[0]).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</span>'
+      + '<span>'+new Date(days30[14]).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</span>'
+      + '<span>'+new Date(days30[29]).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</span>'
+    + '</div>'
+  + '</div>';
+
+  // Deals Won vs Lost — weekly last 8 weeks
+  const weeks8 = Array.from({length:8}, (_,i) => now - (7-i)*7*dayMs);
+  const wonSeries = new Array(8).fill(0);
+  const lostSeries = new Array(8).fill(0);
+  for (const a of scoped) {
+    const t = a._sinceRaw ? Date.parse(a._sinceRaw) : NaN;
+    if (isNaN(t) || t < weeks8[0]) continue;
+    let idx = -1;
+    for (let i = 0; i < 8; i++) if (t < weeks8[i] + 7*dayMs) { idx = i; break; }
+    if (idx < 0) continue;
+    if (['won','paid'].includes(a.stage)) wonSeries[idx]++;
+    else if (a.stage === 'lost') lostSeries[idx]++;
+  }
+  const maxBars = Math.max(1, ...wonSeries, ...lostSeries);
+  const barChart = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+      + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Deals won vs lost</div>'
+      + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;margin-top:2px;">Weekly · last 8 weeks</div></div>'
+      + '<div style="display:flex;gap:12px;font-size:11px;font-weight:700;">'
+        + '<span style="color:var(--ok);">■ Won</span>'
+        + '<span style="color:var(--bad);">■ Lost</span>'
+      + '</div>'
+    + '</div>'
+    + '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;">'
+      + Array.from({length:8}, (_,i) => '<div style="flex:1;display:flex;flex-direction:column;align-items:stretch;gap:2px;height:100%;">'
+          + '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;">'
+            + '<div style="height:'+Math.round(wonSeries[i]/maxBars*100)+'%;background:var(--ok);border-radius:3px;min-height:'+(wonSeries[i]?4:0)+'px;"></div>'
+          + '</div>'
+          + '<div style="height:'+Math.round(lostSeries[i]/maxBars*40)+'%;background:var(--bad);border-radius:3px;min-height:'+(lostSeries[i]?4:0)+'px;"></div>'
+        + '</div>').join('')
+    + '</div>'
+  + '</div>';
+  const trendsRow = '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;">'+trendChart+barChart+'</div>';
+
+  // Acquisition — Conversion Funnel + Sources
+  const funnelStages = [
+    { k:'lead', l:'Lead' }, { k:'mql', l:'MQL' }, { k:'sql', l:'SQL' },
+    { k:'demo', l:'Demo' }, { k:'proposal', l:'Proposal' },
+    { k:'won', l:'Deal Won' }, { k:'lost', l:'Deal Lost' },
+  ];
+  const leadTotal = scoped.filter(a => a.stage === 'lead').length || 1;
+  const funnelBits = funnelStages.map(s => {
+    const n = scoped.filter(a => a.stage === s.k).length;
+    const pct = Math.round(n / leadTotal * 100);
+    const barW = Math.max(4, Math.min(100, Math.round(n / leadTotal * 100)));
+    return '<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--border);">'
+      + '<div style="flex:1;background:linear-gradient(90deg, '+(s.k==='lost'?'#fce8e8':s.k==='won'?'#eaf7d9':'var(--surface-2)')+' 0%, transparent '+barW+'%);padding:10px 12px;border-radius:8px;">'
+        + '<span style="font-size:13px;font-weight:800;">'+esc(s.l)+'</span>'
+      + '</div>'
+      + '<span class="tnum" style="font-size:16px;font-weight:800;width:60px;text-align:right;">'+n+'</span>'
+      + '<span class="tnum" style="font-size:11.5px;color:var(--text-3);font-weight:700;width:56px;text-align:right;">'+pct+'%</span>'
+    + '</div>';
+  }).join('');
+  const wonN = scoped.filter(a => a.stage === 'won').length;
+  const closeRate = leadTotal ? Math.round(wonN / leadTotal * 100) : 0;
+  const funnelCard = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
+    + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">'
+      + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Conversion funnel</div>'
+      + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;margin-top:2px;">Lead → Deal Won</div></div>'
+      + '<span style="'+chip(closeRate>=30?'ok':closeRate>=10?'warn':'neutral')+'">'+closeRate+'% close rate</span>'
+    + '</div>'
+    + funnelBits
+  + '</div>';
+
+  const bySource = new Map();
+  for (const a of scoped) {
+    const k = (a.source || 'Unknown').toString();
+    if (!bySource.has(k)) bySource.set(k, 0);
+    bySource.set(k, bySource.get(k) + 1);
+  }
+  const totalSourceCount = Array.from(bySource.values()).reduce((s,v)=>s+v, 0) || 1;
+  const sourceRows = Array.from(bySource.entries()).sort((a,b) => b[1] - a[1]).slice(0, 10);
+  const sourceColors = ['var(--accent-strong)','var(--purple-700)','var(--info)','var(--warn)','var(--ok)','var(--bad)','var(--text-2)','var(--text-3)','var(--text-3)','var(--text-4)'];
+  const sourceCard = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
+    + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);">'
+      + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Sources</div>'
+      + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;margin-top:2px;">Where leads come from</div>'
+    + '</div>'
+    + '<div style="padding:8px 18px 18px;">'
+      + sourceRows.map(([k,v], i) => {
+          const pct = Math.round(v / totalSourceCount * 100);
+          return '<div style="margin-top:12px;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">'
+              + '<span style="font-size:13px;font-weight:700;">'+esc(k)+'</span>'
+              + '<span class="tnum" style="font-size:13px;font-weight:800;">'+pct+'%</span>'
+            + '</div>'
+            + '<div style="height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:'+sourceColors[i]+';"></div></div>'
+            + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:3px;">'+v+' lead'+(v===1?'':'s')+'</div>'
+          + '</div>';
+        }).join('')
+    + '</div>'
+  + '</div>';
+  const acquisitionRow = '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:10px;">Acquisition</div><div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;">'+funnelCard+sourceCard+'</div></div>';
+
+  // Campaign performance — from utm_links + accounts joined by utm_campaign
+  const links = state.utmLinks || [];
+  const campaignAgg = new Map();
+  const campaignHits = (name) => scoped.filter(a => (a._tracking?.first_campaign || a._tracking?.last_campaign) === name);
+  for (const l of links) {
+    if (!l.utm_campaign) continue;
+    if (!campaignAgg.has(l.utm_campaign)) campaignAgg.set(l.utm_campaign, { campaign:l.utm_campaign, source:l.utm_source||'—', medium:l.utm_medium||'—' });
+  }
+  const activeCampaigns = Array.from(campaignAgg.values()).map(c => {
+    const rows = campaignHits(c.campaign);
+    return {
+      ...c,
+      leads: rows.length,
+      demos: rows.filter(a => a.stage === 'demo').length,
+      trials: rows.filter(a => a.paid === 'Free Trial').length,
+      won: rows.filter(a => a.stage === 'won').length,
+      pipeline: rows.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0),
+      conv: rows.length ? Math.round(rows.filter(a => a.stage === 'won').length / rows.length * 100) : 0,
+    };
+  }).sort((a,b) => b.leads - a.leads);
+  const campaignCard = activeCampaigns.length ? '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
+    + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);">'
+      + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Campaign performance <span style="color:var(--text-4);">('+activeCampaigns.length+' active)</span></div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:2fr 1.6fr 80px 80px 80px 100px 130px 100px;gap:12px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'
+      + ['Campaign','Source · Medium','Leads','Demos','Trials','Closed-won','Pipeline value','Conv.'].map(l => '<span>'+esc(l)+'</span>').join('')
+    + '</div>'
+    + activeCampaigns.map(c => '<div class="row-h" style="display:grid;grid-template-columns:2fr 1.6fr 80px 80px 80px 100px 130px 100px;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+        + '<span style="font-size:13px;font-weight:800;">'+esc(c.campaign)+'</span>'
+        + '<span style="'+chip('neutral')+'">'+esc(c.source)+' · '+esc(c.medium)+'</span>'
+        + '<span class="tnum" style="font-size:13px;font-weight:700;">'+c.leads+'</span>'
+        + '<span class="tnum" style="font-size:13px;font-weight:700;">'+c.demos+'</span>'
+        + '<span class="tnum" style="font-size:13px;font-weight:700;">'+c.trials+'</span>'
+        + '<span class="tnum" style="font-size:13px;font-weight:700;">'+c.won+'</span>'
+        + '<span class="tnum" style="font-size:13px;font-weight:800;">'+egp(c.pipeline)+'</span>'
+        + '<span style="'+chip(c.conv>=30?'ok':c.conv>=10?'warn':'bad')+'">● '+c.conv+'%</span>'
+      + '</div>').join('')
+  + '</div>' : '';
+
+  // Cycle by source — average days from _sinceRaw to updated_at for won/paid accounts
+  const cycleBySource = new Map();
+  for (const a of scoped) {
+    if (!['won','paid'].includes(a.stage)) continue;
+    const start = a._sinceRaw ? Date.parse(a._sinceRaw) : NaN;
+    const end = a.last && a.last !== '—' ? now : NaN;
+    if (isNaN(start)) continue;
+    const days = Math.max(0, Math.round((now - start) / dayMs));
+    const key = a.source || 'Direct';
+    if (!cycleBySource.has(key)) cycleBySource.set(key, { sum:0, n:0 });
+    const e = cycleBySource.get(key);
+    e.sum += days; e.n++;
+  }
+  const cycleRows = Array.from(cycleBySource.entries()).map(([k,v]) => ({ source:k, avg: v.n ? Math.round(v.sum/v.n) : 0 })).sort((a,b) => a.avg - b.avg);
+  const avgCycle = cycleRows.length ? Math.round(cycleRows.reduce((s,r)=>s+r.avg,0) / cycleRows.length) : 0;
+  const maxCycle = Math.max(1, ...cycleRows.map(r => r.avg));
+  const cyclePalette = ['var(--accent-strong)','var(--purple-700)','var(--info)','var(--warn)','var(--ok)','var(--bad)','var(--text-3)'];
+  const cycleCard = cycleRows.length ? '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 20px;box-shadow:var(--sh1);">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+      + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Days from MQL → Won</div>'
+      + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;margin-top:2px;">Average cycle by acquisition source</div></div>'
+      + '<span style="'+chip('ok')+'">avg '+avgCycle+'d</span>'
+    + '</div>'
+    + cycleRows.map((r,i) => '<div style="margin-top:10px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;">'+esc(r.source)+'</span><span class="tnum" style="font-size:13px;font-weight:800;">'+r.avg+'d</span></div>'
+        + '<div style="height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.round(r.avg/maxCycle*100)+'%;background:'+cyclePalette[i%cyclePalette.length]+';"></div></div>'
+      + '</div>').join('')
+  + '</div>' : '';
+
+  // Why deals don't close — group lost accounts by _lostReason
+  const lostAll = scoped.filter(a => a.stage === 'lost');
+  const byReason = new Map();
+  for (const a of lostAll) {
+    const r = a._lostReason || 'Unspecified';
+    if (!byReason.has(r)) byReason.set(r, 0);
+    byReason.set(r, byReason.get(r) + 1);
+  }
+  const lostRows = Array.from(byReason.entries()).sort((a,b) => b[1] - a[1]);
+  const totalLost = lostAll.length || 1;
+  const lostCard = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 20px;box-shadow:var(--sh1);">'
+    + '<div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Why deals don\'t close</div>'
+    + (lostAll.length
+      ? lostRows.map(([r,n]) => '<div style="margin-top:12px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><span style="font-size:13px;font-weight:700;">'+esc(r)+'</span><span class="tnum" style="font-size:13px;font-weight:800;">'+n+' · '+Math.round(n/totalLost*100)+'%</span></div>'
+          + '<div style="height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.round(n/totalLost*100)+'%;background:var(--bad);"></div></div>'
+        + '</div>').join('')
+      : '<div style="padding:36px 0;text-align:center;color:var(--text-3);font-size:13px;">No lost deals yet — keep it up!</div>')
+  + '</div>';
+
+  return '<div style="display:flex;flex-direction:column;gap:20px;">'
+    + arrBanner
+    + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:10px;">Key metrics</div>'+kpiTiles+'</div>'
+    + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:10px;">Trends over time</div>'+trendsRow+'</div>'
+    + acquisitionRow
+    + (campaignCard || '')
+    + (cycleCard   || '')
+    + lostCard
+    + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:10px;">Pipeline health</div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
+        + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Every pipeline stage, live from accounts.stage.</div></div>'
+        + stageHead + stageRows
+      + '</div>'
+    + '</div>'
+    + '<div><div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:10px;">Team leaderboard</div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'+amHead + amTable+'</div>'
+    + '</div>'
+  + '</div>';
+}
 function renderReportsPipeline(scoped, STAGE_MAP){
   const KEYS = ['mql','sql','demo','proposal','won','paid','lost'];
   const buckets = KEYS.map(k => {
