@@ -2442,17 +2442,26 @@ function renderNotifications(){
 // =========================================================================
 //   RENDER: REPORTS
 // =========================================================================
+function setReportsTab(t){ setState({ reportsTab: t }); if ((t === 'revenue' || t === 'am') && state.targets == null) loadTargetsLive(); if (t === 'campaign' && state.utmLinks == null) loadUtmLive(); }
+function setReportsOwner(id){ setState({ reportsOwnerId: id }); }
+Object.assign(window, { setReportsTab, setReportsOwner });
 function renderReports(){
   const acts = accts();
-  const pipelineVal = acts.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
-  const paidVal     = acts.filter(a => a.stage === 'paid').reduce((s,a)=>s+(a.value||0),0);
-  const wonVal      = acts.filter(a => a.stage === 'won').reduce((s,a)=>s+(a.value||0),0);
-  const wonCount    = acts.filter(a => a.stage === 'won').length;
-  const trialTotal  = acts.filter(a => a.paid === 'Free Trial').length;
-  const trialConv   = acts.filter(a => a.paid === 'Free Trial' && ['won','paid'].includes(a.stage)).length;
-  // Collection rate = collected ÷ (collected + invoiced) — % of closed deals that actually paid
-  const collectRate = Math.round(acts.filter(a=>a.stage==='paid').length / Math.max(acts.filter(a=>['won','paid'].includes(a.stage)).length, 1) * 100);
-  const paidCount   = acts.filter(a=>a.paid==='Paid').length;
+  // Warm target and utm caches so tab-switching is instant.
+  if (state.targets == null && !state._reportsTargetsLoading) { state._reportsTargetsLoading = true; loadTargetsLive(); }
+  const tab = state.reportsTab || 'key';
+  const ownerId = state.reportsOwnerId || 'all';
+  const scoped = ownerId === 'all' ? acts : acts.filter(a => a.am === ownerId);
+  const roster = (LIVE_AMS && LIVE_AMS.length) ? LIVE_AMS : [];
+
+  const pipelineVal = scoped.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+  const paidVal     = scoped.filter(a => a.stage === 'paid').reduce((s,a)=>s+(a.value||0),0);
+  const wonVal      = scoped.filter(a => a.stage === 'won').reduce((s,a)=>s+(a.value||0),0);
+  const wonCount    = scoped.filter(a => a.stage === 'won').length;
+  const trialTotal  = scoped.filter(a => a.paid === 'Free Trial').length;
+  const trialConv   = scoped.filter(a => a.paid === 'Free Trial' && ['won','paid'].includes(a.stage)).length;
+  const collectRate = Math.round(scoped.filter(a=>a.stage==='paid').length / Math.max(scoped.filter(a=>['won','paid'].includes(a.stage)).length, 1) * 100);
+  const paidCount   = scoped.filter(a=>a.paid==='Paid').length;
 
   const km = [
     { l:'Total revenue',    v: egp(paidVal),                                          sub:'stage = paid',          accent:true },
@@ -2492,9 +2501,7 @@ function renderReports(){
   + '</div>';
 
   // Team leaderboard — every LIVE_AMS profile that owns at least one account,
-  // sorted by won revenue. No hardcoded target attainment (no target source
-  // yet); win-rate substitutes.
-  const roster = (LIVE_AMS && LIVE_AMS.length) ? LIVE_AMS : [];
+  // sorted by won revenue. Reuses the roster declared at the top of this fn.
   const amRows = roster.map(am => {
     const owned = acts.filter(a => a.am === am.id);
     if (!owned.length) return null;
@@ -2516,25 +2523,237 @@ function renderReports(){
     + ['Account manager','Accounts','Won revenue','Win rate'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
   + '</div>';
 
+  // Owner picker + tab pills
+  const ownerPicker = '<select onchange="setReportsOwner(this.value)" style="height:36px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:700;color:var(--text);outline:0;cursor:pointer;">'
+    + '<option value="all"'+(ownerId==='all'?' selected':'')+'>All AMs</option>'
+    + roster.map(p => '<option value="'+esc(p.id)+'"'+(p.id===ownerId?' selected':'')+'>'+esc(p.name||p.email||'')+'</option>').join('')
+  + '</select>';
+  const TAB_DEFS = [
+    { k:'key',       l:'Key metrics' },
+    { k:'pipeline',  l:'Pipeline' },
+    { k:'revenue',   l:'Revenue vs target' },
+    { k:'acq',       l:'Acquisition' },
+    { k:'renewal',   l:'Renewal & churn' },
+    { k:'am',        l:'AM performance' },
+    { k:'campaign',  l:'Campaign' },
+  ];
+  const tabsBar = '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+    + TAB_DEFS.map(t => {
+        const active = tab === t.k;
+        return '<button onclick="setReportsTab(\''+t.k+'\')" style="display:inline-flex;align-items:center;height:36px;padding:0 16px;border-radius:9px;background:'+(active?'var(--accent-soft)':'var(--surface)')+';color:'+(active?'var(--accent-ink)':'var(--text-2)')+';border:1px solid '+(active?'var(--accent-strong)':'var(--border)')+';font-family:inherit;font-size:13px;font-weight:'+(active?800:600)+';cursor:pointer;">'+t.l+'</button>';
+      }).join('')
+  + '</div>';
+
+  let body;
+  if (tab === 'key') {
+    body = '<div style="display:flex;flex-direction:column;gap:18px;">'
+      + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Key metrics</h2>'
+        + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'+kmCards+'</div>'
+      + '</div>'
+      + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Pipeline health</h2>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
+          + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Every pipeline stage, live from accounts.stage.</div></div>'
+          + stageHead + stageRows
+        + '</div>'
+      + '</div>'
+      + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Team leaderboard</h2>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'+amHead + amTable+'</div>'
+      + '</div>'
+    + '</div>';
+  } else if (tab === 'pipeline') {
+    body = renderReportsPipeline(scoped, STAGE);
+  } else if (tab === 'revenue') {
+    body = renderReportsRevenue(scoped, roster);
+  } else if (tab === 'acq') {
+    body = renderReportsAcquisition(scoped);
+  } else if (tab === 'renewal') {
+    body = renderReportsRenewal(scoped);
+  } else if (tab === 'am') {
+    body = renderReportsAM(acts, roster);
+  } else if (tab === 'campaign') {
+    body = renderReportsCampaign();
+  }
+
   return '<div class="sc" style="padding:20px 28px 80px;display:flex;flex-direction:column;gap:18px;">'
     + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
       + '<div><h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-.025em;">Reports</h1>'
-        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Snapshot of the entire book — no date filter, no mock rows.</div>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Cross-team performance — pipeline, revenue, acquisition, retention, AM activity.</div>'
       + '</div><div style="flex:1;"></div>'
+      + ownerPicker
+      + '<button onclick="toast(\'Export PDF — coming soon\')" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">📄 Export PDF</button>'
     + '</div>'
-    + '<div><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><h2 style="margin:0;font-size:17px;font-weight:800;letter-spacing:-.015em;">Key metrics</h2></div>'
-      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'+kmCards+'</div>'
-    + '</div>'
-    + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Pipeline health</h2>'
-      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
-        + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Every pipeline stage, live from accounts.stage.</div></div>'
-        + stageHead + stageRows
-      + '</div>'
-    + '</div>'
-    + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Team leaderboard</h2>'
-      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'+amHead + amTable+'</div>'
-    + '</div>'
+    + tabsBar
+    + body
   + '</div>';
+}
+
+// --- Reports · Pipeline tab ----------------------------------------------
+function renderReportsPipeline(scoped, STAGE_MAP){
+  const KEYS = ['mql','sql','demo','proposal','won','paid','lost'];
+  const buckets = KEYS.map(k => {
+    const rows = scoped.filter(a => a.stage === k);
+    return { key:k, label: STAGE_MAP[k]?.label || k, tone: STAGE_MAP[k]?.v || 'neutral', count: rows.length, value: rows.reduce((s,a)=>s+(a.value||0),0) };
+  });
+  const totalActive = buckets.filter(b => b.key !== 'lost').reduce((s,b) => s+b.count, 0) || 1;
+  const funnel = buckets.map(b => {
+    const pct = Math.round(b.count / totalActive * 100);
+    return '<div style="display:grid;grid-template-columns:1.2fr 60px 1fr 130px 120px;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);">'
+      + '<span style="'+chip(b.tone)+'">'+esc(b.label)+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;text-align:right;">'+b.count+'</span>'
+      + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.min(100,pct)+'%;background:var(--accent);"></div></div>'
+      + '<span class="tnum" style="font-size:13px;font-weight:800;text-align:right;">'+egp(b.value)+'</span>'
+      + '<span class="tnum" style="font-size:11.5px;color:var(--text-3);text-align:right;">'+pct+'% of active</span>'
+    + '</div>';
+  }).join('');
+  const head = '<div style="display:grid;grid-template-columns:1.2fr 60px 1fr 130px 120px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'
+    + ['Stage','Count','Share of active','Value','%'].map(l => '<span>'+esc(l)+'</span>').join('')
+  + '</div>';
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);"><div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Pipeline funnel</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Bucket count and value per stage. Lost is included but not part of Share-of-active.</div></div>'+head+funnel+'</div>';
+}
+
+// --- Reports · Revenue vs target -----------------------------------------
+function renderReportsRevenue(scoped, roster){
+  const targets = state.targets || [];
+  const totalTarget = targets.reduce((s,t) => s + (t.amount_egp || 0), 0);
+  const totalActual = scoped.filter(a => ['won','paid'].includes(a.stage)).reduce((s,a) => s + (a.value || 0), 0);
+  const attain = totalTarget ? Math.round(totalActual / totalTarget * 100) : 0;
+  const kpi = (l, v, sub) => '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);"><div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+esc(l)+'</div><div class="tnum" style="font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:6px;">'+esc(v)+'</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:3px;">'+esc(sub)+'</div></div>';
+  const kpis = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">'
+    + kpi('Team target', totalTarget ? egp(totalTarget) : '—', targets.length + ' targets set')
+    + kpi('Won so far',  egp(totalActual), 'Won + Collected')
+    + kpi('Attainment',  totalTarget ? attain + '%' : '—', totalTarget ? (attain>=100?'Achieved':attain>=70?'On track':attain>=40?'At risk':'Behind') : 'no target')
+  + '</div>';
+  const rows = roster.map(am => {
+    const owned = scoped.filter(a => a.am === am.id);
+    const wonSum = owned.filter(a => ['won','paid'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+    const target = targets.find(t => t.owner_id === am.id);
+    const t = target ? target.amount_egp : 0;
+    const pct = t ? Math.round(wonSum / t * 100) : 0;
+    if (!owned.length && !t) return null;
+    return { am, target:t, won:wonSum, pct };
+  }).filter(Boolean).sort((a,b) => (b.pct||0) - (a.pct||0));
+  if (!rows.length) return kpis + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:36px 24px;text-align:center;color:var(--text-3);font-size:13px;box-shadow:var(--sh1);margin-top:16px;">No targets set yet. Head to AM Performance → Targets.</div>';
+  const head = '<div style="display:grid;grid-template-columns:2fr 130px 130px 90px 1fr;gap:12px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+['AM','Target','Won','%','Progress'].map(l => '<span>'+esc(l)+'</span>').join('')+'</div>';
+  const body = rows.map(r => '<div style="display:grid;grid-template-columns:2fr 130px 130px 90px 1fr;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+    + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(r.am.initials,28,r.am.id||r.am.initials)+'">'+esc(r.am.initials)+'</div><span style="font-size:13px;font-weight:700;">'+esc(r.am.name)+'</span></div>'
+    + '<span class="tnum" style="font-size:13px;font-weight:700;">'+(r.target?egp(r.target):'—')+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:700;color:var(--ok);">'+egp(r.won)+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:800;color:'+(r.pct>=100?'var(--ok)':r.pct>=70?'var(--warn)':r.pct>=40?'#e07d1d':'var(--bad)')+';">'+(r.target?r.pct+'%':'—')+'</span>'
+    + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.min(100,r.pct)+'%;background:'+(r.pct>=100?'var(--ok)':r.pct>=70?'var(--warn)':r.pct>=40?'#e07d1d':'var(--bad)')+';"></div></div>'
+  + '</div>').join('');
+  return kpis + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);margin-top:16px;">'+head+body+'</div>';
+}
+
+// --- Reports · Acquisition -----------------------------------------------
+function renderReportsAcquisition(scoped){
+  const bySource = new Map();
+  for (const a of scoped) {
+    const key = (a.source || '(direct)').toString().toLowerCase();
+    if (!bySource.has(key)) bySource.set(key, { key, count:0, paid:0, value:0 });
+    const b = bySource.get(key);
+    b.count++;
+    if (['won','paid'].includes(a.stage)) { b.paid++; b.value += a.value || 0; }
+  }
+  const rows = Array.from(bySource.values()).sort((a,b) => b.count - a.count);
+  if (!rows.length) return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:36px 24px;text-align:center;color:var(--text-3);font-size:13px;box-shadow:var(--sh1);">No account sources in scope.</div>';
+  const total = rows.reduce((s,r) => s+r.count, 0);
+  const head = '<div style="display:grid;grid-template-columns:1.6fr 90px 100px 1fr 130px 90px;gap:12px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+['Source','Accounts','Won','Share','Won value','Win %'].map(l => '<span>'+esc(l)+'</span>').join('')+'</div>';
+  const body = rows.map(r => {
+    const share = Math.round(r.count / total * 100);
+    const winPct = r.count ? Math.round(r.paid / r.count * 100) : 0;
+    return '<div style="display:grid;grid-template-columns:1.6fr 90px 100px 1fr 130px 90px;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+      + '<span style="font-size:13px;font-weight:700;">'+esc(r.key)+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;">'+r.count+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;color:var(--ok);">'+r.paid+'</span>'
+      + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+share+'%;background:var(--accent);"></div></div>'
+      + '<span class="tnum" style="font-size:13px;font-weight:700;">'+egp(r.value)+'</span>'
+      + '<span class="tnum" style="font-size:13px;font-weight:800;color:'+(winPct>=30?'var(--ok)':winPct>=10?'var(--warn)':'var(--text-3)')+';">'+winPct+'%</span>'
+    + '</div>';
+  }).join('');
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);"><div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Sources</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Break-down of the book by accounts.source.</div></div>'+head+body+'</div>';
+}
+
+// --- Reports · Renewal & churn -------------------------------------------
+function renderReportsRenewal(scoped){
+  const buckets = [
+    { key:'d90',      label:'90 days',  tone:'ok'      },
+    { key:'d60',      label:'60 days',  tone:'info'    },
+    { key:'d30',      label:'30 days',  tone:'warn'    },
+    { key:'overdue',  label:'Overdue',  tone:'bad'     },
+    { key:'renewed',  label:'Renewed',  tone:'lime'    },
+    { key:'churned',  label:'Churned',  tone:'neutral' },
+  ];
+  const rows = buckets.map(b => {
+    const list = scoped.filter(a => a.ren === b.key);
+    return { ...b, count: list.length, value: list.reduce((s,a)=>s+(a.value||0),0) };
+  });
+  const activeCustomers = scoped.filter(a => a.ren).length;
+  const churnCount = rows.find(r => r.key === 'churned')?.count || 0;
+  const churnRate = activeCustomers ? Math.round(churnCount / activeCustomers * 100) : 0;
+  const kpi = (l, v, sub) => '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px 18px;box-shadow:var(--sh1);"><div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+esc(l)+'</div><div class="tnum" style="font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:6px;">'+esc(v)+'</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:3px;">'+esc(sub)+'</div></div>';
+  const kpis = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">'
+    + kpi('Customers in cycles', ''+activeCustomers, 'with any contract cycle')
+    + kpi('Churn rate', churnRate + '%', churnCount + ' churned')
+    + kpi('At risk', ''+rows.filter(r => ['d30','overdue'].includes(r.key)).reduce((s,r)=>s+r.count,0), egp(rows.filter(r => ['d30','overdue'].includes(r.key)).reduce((s,r)=>s+r.value,0)) + ' value')
+  + '</div>';
+  const head = '<div style="display:grid;grid-template-columns:1.4fr 100px 160px 1fr;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+['Bucket','Count','Value','Share'].map(l => '<span>'+esc(l)+'</span>').join('')+'</div>';
+  const max = Math.max(1, ...rows.map(r => r.count));
+  const body = rows.map(r => '<div style="display:grid;grid-template-columns:1.4fr 100px 160px 1fr;gap:14px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+    + '<span style="'+chip(r.tone)+'">'+esc(r.label)+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:700;">'+r.count+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:800;">'+egp(r.value)+'</span>'
+    + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+Math.round(r.count/max*100)+'%;background:var(--accent);"></div></div>'
+  + '</div>').join('');
+  return kpis + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);margin-top:16px;">'+head+body+'</div>';
+}
+
+// --- Reports · AM performance --------------------------------------------
+function renderReportsAM(acts, roster){
+  const rows = roster.map(am => {
+    const owned = acts.filter(a => a.am === am.id);
+    if (!owned.length) return null;
+    const wonSum = owned.filter(a => ['won','paid'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+    const openSum = owned.filter(a => ['mql','sql','demo','proposal'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+    const closes = owned.filter(a => ['won','paid','lost'].includes(a.stage)).length;
+    const winRate = closes ? Math.round(owned.filter(a => ['won','paid'].includes(a.stage)).length / closes * 100) : 0;
+    return { id: am.id, name: am.name, initials: am.initials, book: owned.length, open: openSum, won: wonSum, winRate };
+  }).filter(Boolean).sort((a,b) => b.won - a.won);
+  if (!rows.length) return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:36px 24px;text-align:center;color:var(--text-3);font-size:13px;box-shadow:var(--sh1);">No AMs with a book yet.</div>';
+  const head = '<div style="display:grid;grid-template-columns:2fr 80px 140px 140px 100px 1fr;gap:12px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+['Account manager','Book','Open value','Won value','Win %','Win rate'].map(l => '<span>'+esc(l)+'</span>').join('')+'</div>';
+  const body = rows.map(r => '<div style="display:grid;grid-template-columns:2fr 80px 140px 140px 100px 1fr;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+    + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(r.initials,28,r.id||r.initials)+'">'+esc(r.initials)+'</div><span style="font-size:13px;font-weight:700;">'+esc(r.name)+'</span></div>'
+    + '<span class="tnum" style="font-size:13px;font-weight:700;">'+r.book+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:700;">'+egp(r.open)+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:800;color:var(--ok);">'+egp(r.won)+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:800;color:'+(r.winRate>=70?'var(--ok)':r.winRate>=40?'var(--warn)':'var(--bad)')+';">'+r.winRate+'%</span>'
+    + '<div style="height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;"><div style="height:100%;width:'+r.winRate+'%;background:'+(r.winRate>=70?'var(--ok)':r.winRate>=40?'var(--warn)':'var(--bad)')+';"></div></div>'
+  + '</div>').join('');
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);"><div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">AM performance</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Book size, open value, won value and win rate per AM.</div></div>'+head+body+'</div>';
+}
+
+// --- Reports · Campaign --------------------------------------------------
+function renderReportsCampaign(){
+  const links = state.utmLinks || [];
+  if (!links.length) return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:36px 24px;text-align:center;color:var(--text-3);font-size:13px;box-shadow:var(--sh1);">'+(state.utmLinks == null ? 'Loading campaigns…' : 'No UTM campaigns tracked yet.')+'</div>';
+  const byCampaign = new Map();
+  for (const l of links) {
+    const key = (l.utm_campaign || '(none)') + '::' + (l.utm_source || '') + '::' + (l.utm_medium || '');
+    if (!byCampaign.has(key)) byCampaign.set(key, { campaign:l.utm_campaign||'(none)', source:l.utm_source||'—', medium:l.utm_medium||'—', links:0, last:null });
+    const b = byCampaign.get(key);
+    b.links++;
+    if (!b.last || Date.parse(l.created_at||0) > Date.parse(b.last)) b.last = l.created_at;
+  }
+  const rows = Array.from(byCampaign.values()).sort((a,b) => b.links - a.links);
+  const head = '<div style="display:grid;grid-template-columns:2fr 1.2fr 1fr 90px 140px;gap:12px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">'+['Campaign','Source','Medium','Links','Last used'].map(l => '<span>'+esc(l)+'</span>').join('')+'</div>';
+  const fmt = (iso) => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}); };
+  const body = rows.map(r => '<div style="display:grid;grid-template-columns:2fr 1.2fr 1fr 90px 140px;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);align-items:center;">'
+    + '<span style="font-size:13px;font-weight:800;">'+esc(r.campaign)+'</span>'
+    + '<span style="font-size:12.5px;color:var(--text-2);font-weight:600;">'+esc(r.source)+'</span>'
+    + '<span style="font-size:12.5px;color:var(--text-2);font-weight:600;">'+esc(r.medium)+'</span>'
+    + '<span class="tnum" style="font-size:13px;font-weight:700;">'+r.links+'</span>'
+    + '<span class="tnum" style="font-size:12.5px;color:var(--text-3);">'+esc(fmt(r.last))+'</span>'
+  + '</div>').join('');
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);"><div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Campaigns</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Aggregated from utm_links · '+links.length+' links saved.</div></div>'+head+body+'</div>';
 }
 
 // =========================================================================
