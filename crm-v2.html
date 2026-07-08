@@ -1862,12 +1862,13 @@ function renderCompanies(){
     const st = STAGE[a.stage] || STAGE.lead;
     const c  = synthContact(a);
     const scoreColor = a.score >= 80 ? 'var(--ok)' : a.score >= 60 ? 'var(--warn)' : 'var(--text-3)';
-    return '<tr class="row-h" onclick="openDetailFromEvent(event, '+jsArg(a.id)+')" onauxclick="if(event.button===1)openDetailInNewTab('+jsArg(a.id)+')" title="Click to open · ⌘/Ctrl-click for new tab" style="cursor:pointer;">'
+    const deepUrl = location.pathname + '?detail=' + encodeURIComponent(a.id);
+    return '<tr class="row-h" onclick="openDetailFromEvent(event, '+jsArg(a.id)+')" onauxclick="if(event.button===1)openDetailInNewTab('+jsArg(a.id)+')" title="Click to open · ⌘/Ctrl-click for new tab · right-click for menu" style="cursor:pointer;">'
       + '<td style="'+td+'padding-left:16px;">'
         + '<div style="display:flex;align-items:center;gap:10px;">'
           + logoBadge(a.name, a.domain, 34, a.logo_url)
           + '<div style="min-width:0;">'
-            + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;color:var(--text);">'+esc(a.name)+'</span>'
+            + '<div style="display:flex;align-items:center;gap:6px;"><a href="'+esc(deepUrl)+'" onclick="if(!(event.metaKey||event.ctrlKey||event.shiftKey||event.button===1)){event.preventDefault();openDetail('+jsArg(a.id)+');}" style="font-size:13px;font-weight:600;color:var(--text);text-decoration:none;">'+esc(a.name)+'</a>'
               + ((() => {
                   const entry = dupeMap.get(a.id);
                   if (!entry) return '';
