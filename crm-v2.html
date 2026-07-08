@@ -345,6 +345,17 @@ function jsArg(v){ return JSON.stringify(v).replace(/"/g, '&quot;'); }
 function setState(patch){ Object.assign(state, patch); render(); }
 function go(page){ setState({ page, detailId: null }); }
 function toggleSidebar(){ setState({ sidebarCollapsed: !state.sidebarCollapsed }); }
+// Router-style handler for row clicks: cmd/ctrl/middle-click opens the profile
+// in a new tab via ?detail=<id>, plain click opens in the current view.
+function openDetailFromEvent(e, id){
+  const newTab = e && (e.metaKey || e.ctrlKey || e.button === 1 || e.shiftKey);
+  if (newTab) { openDetailInNewTab(id); e.preventDefault?.(); return; }
+  openDetail(id);
+}
+function openDetailInNewTab(id){
+  const url = location.pathname + '?detail=' + encodeURIComponent(id);
+  window.open(url, '_blank', 'noopener');
+}
 function openDetail(id){
   setState({ detailId: id, detailTab: 'overview' });
   // Lazy fetch activities + per-account details (cycles / all contacts / files)
@@ -1165,7 +1176,7 @@ async function submitMerge(){
 Object.assign(window, { openMergeModal, closeMergeModal, setMergeKeeper, submitMerge });
 
 // expose to inline handlers
-Object.assign(window, { go, toggleSidebar, openDetail, closeDetail, toggleTask, setRange, setCallsTab, toast, setRole });
+Object.assign(window, { go, toggleSidebar, openDetail, openDetailInNewTab, openDetailFromEvent, closeDetail, toggleTask, setRange, setCallsTab, toast, setRole });
 
 // ---------- SPARKLINE ----------
 function sparkBars(seed, useAccent){
@@ -1829,7 +1840,7 @@ function renderCompanies(){
     const st = STAGE[a.stage] || STAGE.lead;
     const c  = synthContact(a);
     const scoreColor = a.score >= 80 ? 'var(--ok)' : a.score >= 60 ? 'var(--warn)' : 'var(--text-3)';
-    return '<tr class="row-h" onclick="openDetail('+jsArg(a.id)+')" style="cursor:pointer;">'
+    return '<tr class="row-h" onclick="openDetailFromEvent(event, '+jsArg(a.id)+')" onauxclick="if(event.button===1)openDetailInNewTab('+jsArg(a.id)+')" title="Click to open · ⌘/Ctrl-click for new tab" style="cursor:pointer;">'
       + '<td style="'+td+'padding-left:16px;">'
         + '<div style="display:flex;align-items:center;gap:10px;">'
           + logoBadge(a.name, a.domain, 34, a.logo_url)
@@ -1853,7 +1864,14 @@ function renderCompanies(){
       + '<td style="'+td+'"><span style="font-size:12.5px;font-weight:600;color:var(--text-2);">'+esc(a.plan)+'</span></td>'
       + '<td style="'+tdC+'"><span class="tnum" style="font-size:12.5px;font-weight:700;color:'+scoreColor+';">'+a.score+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:12.5px;font-weight:700;color:var(--text);">'+esc(a.source)+'</span></td>'
-      + '<td style="'+tdR+'"><span class="tnum" style="font-size:12px;color:var(--text-2);">'+esc(a.since)+'</span></td>'
+      + '<td style="'+tdR+'">'
+        + '<div style="display:inline-flex;align-items:center;gap:8px;justify-content:flex-end;">'
+          + '<span class="tnum" style="font-size:12px;color:var(--text-2);">'+esc(a.since)+'</span>'
+          + '<span title="Open in new tab" onclick="event.stopPropagation();openDetailInNewTab('+jsArg(a.id)+')" style="display:inline-grid;place-items:center;width:26px;height:26px;border-radius:6px;color:var(--text-3);cursor:pointer;">'
+            + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+          + '</span>'
+        + '</div>'
+      + '</td>'
     + '</tr>';
   }).join('');
 
@@ -2628,8 +2646,28 @@ function renderUtm(){
   if (state.utmContent == null) state.utmContent = '';
 
   const url = buildUtm();
-  const sources = ['linkedin','facebook','instagram','tiktok','twitter','youtube','google','bing','newsletter','partner','referral'];
-  const mediums = ['paid-social','organic-social','cpc','email','affiliate','display','video','referral'];
+  // Pull unique values from live marketing_tracking + accounts.source so the
+  // dropdowns match what's actually captured in the CRM. Merge with a small
+  // baseline preset list to cover channels we might not have data for yet.
+  const liveSources = new Set(), liveMediums = new Set(), liveCampaigns = new Set();
+  if (typeof LIVE_TRACKING_BY_ACCT !== 'undefined' && LIVE_TRACKING_BY_ACCT) {
+    for (const t of LIVE_TRACKING_BY_ACCT.values()) {
+      if (t.first_source)   liveSources.add(String(t.first_source));
+      if (t.last_source)    liveSources.add(String(t.last_source));
+      if (t.first_medium)   liveMediums.add(String(t.first_medium));
+      if (t.last_medium)    liveMediums.add(String(t.last_medium));
+      if (t.first_campaign) liveCampaigns.add(String(t.first_campaign));
+      if (t.last_campaign)  liveCampaigns.add(String(t.last_campaign));
+    }
+  }
+  for (const a of (state.accounts || [])) if (a.source) liveSources.add(String(a.source).toLowerCase());
+  const dropJunk = (set) => Array.from(set).filter(v => v && v !== '(direct)' && v !== '(none)' && v !== '(not set)');
+  const baseSources = ['linkedin','facebook','instagram','tiktok','twitter','youtube','google','bing','newsletter','partner','referral','whatsapp','meta'];
+  const baseMediums = ['paid-social','organic-social','cpc','email','affiliate','display','video','referral','organic','paid'];
+  const uniqSort = (arr) => Array.from(new Set(arr.map(v => v.toLowerCase()))).sort();
+  const sources   = uniqSort([...baseSources, ...dropJunk(liveSources)]);
+  const mediums   = uniqSort([...baseMediums, ...dropJunk(liveMediums)]);
+  const campaigns = Array.from(liveCampaigns).sort();
   const input = (k, ph) => '<input value="'+esc(state[k])+'" oninput="setUtmField(\''+k+'\', this.value)" placeholder="'+esc(ph)+'" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface-2);color:var(--text);outline:0;box-sizing:border-box;">';
   const sel = (k, opts) => '<select onchange="setUtmField(\''+k+'\', this.value)" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface-2);color:var(--text);outline:0;">'
     + '<option value="">— '+k.replace('utm','').toLowerCase()+' —</option>'
@@ -2658,7 +2696,11 @@ function renderUtm(){
           + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Source</div>'+ sel('utmSource', sources) +'</div>'
           + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Medium</div>'+ sel('utmMedium', mediums) +'</div>'
         + '</div>'
-        + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Campaign name</div>' + input('utmCampaign','e.g. ats-launch-q2') + '</div>'
+        + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Campaign name</div>'
+          + '<input list="utm-campaign-list" value="'+esc(state.utmCampaign)+'" oninput="setUtmField(\'utmCampaign\', this.value)" placeholder="pick one from the CRM or type a new name" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--border-2);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface-2);color:var(--text);outline:0;box-sizing:border-box;">'
+          + '<datalist id="utm-campaign-list">'+ campaigns.map(c => '<option value="'+esc(c)+'"></option>').join('') +'</datalist>'
+          + '<div style="font-size:11px;color:var(--text-3);margin-top:4px;">'+campaigns.length+' campaign'+(campaigns.length===1?'':'s')+' already tracked in the CRM.</div>'
+        + '</div>'
         + '<div><div style="font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;">Content <span style="font-weight:400;color:var(--text-3);">(optional)</span></div>' + input('utmContent','e.g. post-v1 / ad-v1') + '</div>'
       + '</div>'
     + '</div>';
@@ -4646,6 +4688,14 @@ if (!getAccessToken()) {
   document.body.innerHTML = '<div style="height:100vh;display:grid;place-items:center;font-family:inherit;color:#667;font-size:14px;">Redirecting to login…</div>';
   location.replace('/login');
 } else {
+  // Deep-link support: /crm-v2?detail=<uuid> or /crm-v2#detail=<uuid> opens
+  // that account's profile directly. Lets us open companies in new tabs.
+  try {
+    const qs = new URLSearchParams(location.search);
+    const hs = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+    const deep = qs.get('detail') || hs.get('detail');
+    if (deep) { state.detailId = deep; state.page = 'accounts'; }
+  } catch {}
   render();
   bootLiveData();
   console.log('[CRM v2] mounted · role='+state.role+' · page='+state.page);
