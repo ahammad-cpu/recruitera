@@ -1897,7 +1897,7 @@ function renderCompanies(){
   const table =
     '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">'
       + '<div class="sc" style="overflow-x:auto;">'
-        + '<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:1080px;">'
+        + '<table style="width:100%;border-collapse:separate;border-spacing:0;min-width:960px;">'
           + '<thead><tr>'
             + sortHead('name',    'Company',   th, 'padding-left:16px;')
             + sortHead('owner',   'Owner',     th)
@@ -3423,7 +3423,23 @@ function renderDocumentsTab(a){
 function renderDetail(){
   const list = accts();
   const a = list.find(x => x.id === state.detailId);
-  if (!a) { state.detailId = null; return renderDashboard(); }
+  if (!a) {
+    // Deep-link race: URL had ?detail=<uuid> but accounts haven't loaded yet.
+    // Keep state.detailId set — the accounts fetch is in flight, and the
+    // eventual re-render will find the row.
+    if (state.dataStatus !== 'ready') {
+      return '<div style="padding:80px 40px;text-align:center;color:var(--text-3);font-size:14px;">'
+        + '<div style="width:36px;height:36px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:fade 1s ease infinite;margin:0 auto 16px;"></div>'
+        + 'Loading company…'
+      + '</div>';
+    }
+    // Accounts are loaded and the id still isn't there — either it was
+    // deleted, RLS hid it from this user, or the link is stale. Clear it out
+    // and drop the user back at the companies list.
+    state.detailId = null;
+    replaceDetailUrl(null);
+    return renderCompanies();
+  }
   const am = amById(a.am);
   const st = STAGE[a.stage] || STAGE.lead;
   const c = synthContact(a);
