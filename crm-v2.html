@@ -248,9 +248,22 @@ function me(){
 }
 
 function photoUrl(key){ const n = PHOTOS[key]; return n ? 'https://i.pravatar.cc/160?img=' + n : null; }
+// Live photo lookup: LIVE_AMS profiles carry avatar_url from Supabase Storage.
+// Wins over the pravatar dev placeholder when we have it.
+function liveAvatarUrl(person){
+  if (!person) return null;
+  if (typeof person === 'string') {
+    if (LIVE_AMS) {
+      const p = LIVE_AMS.find(x => x.id === person || x.initials === person);
+      if (p?.avatar_url) return p.avatar_url;
+    }
+    return null;
+  }
+  return person.avatar_url || null;
+}
 function avatar(initials, size, key){
   const s = size || 30;
-  const url = photoUrl(key || initials);
+  const url = liveAvatarUrl(key) || photoUrl(typeof key === 'string' ? key : initials);
   if (url) return 'width:'+s+'px;height:'+s+'px;border-radius:999px;background-image:url(\''+url+'\');background-size:cover;background-position:center;background-color:var(--purple-700);color:transparent;display:grid;place-items:center;font-weight:800;font-size:'+Math.round(s*0.36)+'px;flex-shrink:0;box-shadow:0 0 0 1px var(--border);';
   return 'width:'+s+'px;height:'+s+'px;border-radius:999px;background:linear-gradient(135deg,var(--purple-700),#6C56D9);color:#fff;display:grid;place-items:center;font-weight:700;font-size:'+Math.round(s*0.38)+'px;flex-shrink:0;';
 }
@@ -1240,7 +1253,7 @@ function renderSidebar(){
     + nav('utm',     'utm',     'UTM Generator')
     // profile / collapse
     + '<div style="margin-top:auto;padding:12px 8px 4px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;">'
-      + '<div style="'+avatar(meObj.initials, 30)+'">'+meObj.initials+'</div>'
+      + '<div style="'+avatar(meObj.initials, 30, meObj.id)+'">'+meObj.initials+'</div>'
       + (col ? '' :
           '<div style="min-width:0;flex:1;">'
           + '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+meObj.name+'</div>'
@@ -1808,7 +1821,7 @@ function renderCompanies(){
           + '</div>'
         + '</div>'
       + '</td>'
-      + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:8px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12px;font-weight:600;color:var(--text-2);">'+esc(am.name)+'</span></div></td>'
+      + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:8px;"><div style="'+avatar(am.initials,26,am.id||am.initials)+'">'+am.initials+'</div><span style="font-size:12px;font-weight:600;color:var(--text-2);">'+esc(am.name)+'</span></div></td>'
       + '<td style="'+td+'"><div style="font-size:12.5px;font-weight:600;color:var(--text);">'+esc(c.email)+'</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px;" class="tnum">'+esc(c.phone)+'</div></td>'
       + '<td style="'+td+'"><span style="'+chip(st.v)+'">'+st.label+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:12.5px;font-weight:600;color:var(--text-2);">'+esc(a.plan)+'</span></td>'
@@ -1987,7 +2000,7 @@ function renderPipeline(){
           + '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-4);font-weight:700;width:52px;">'+(a.stage==='won'?'Closed':'Close')+'</span><span style="font-weight:600;color:var(--text-2);">'+esc(a.end||'—')+'</span></div>'
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:7px;">'
-          + '<div style="'+avatar(am.initials,24,am.initials)+'">'+am.initials+'</div>'
+          + '<div style="'+avatar(am.initials,24,am.id||am.initials)+'">'+am.initials+'</div>'
           + '<span style="font-size:11.5px;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(am.name)+'</span>'
         + '</div>'
       + '</div>';
@@ -2151,7 +2164,7 @@ function renderTasks(){
               + '<div style="font-size:13.5px;font-weight:700;">'+esc(t.title)+'</div>'
               + '<div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">'+esc(t.account)+' · '+esc(t.type)+'</div>'
             + '</div>'
-            + '<div style="'+avatar(am.initials,28,am.initials)+'">'+am.initials+'</div>'
+            + '<div style="'+avatar(am.initials,28,am.id||am.initials)+'">'+am.initials+'</div>'
           + '</div>';
         }).join('')
       + (urgent.length === 0 ? '<div style="padding:24px 0;text-align:center;color:var(--text-4);font-size:12.5px;font-weight:600;">No urgent tasks 🎉</div>' : '')
@@ -2184,7 +2197,7 @@ function renderTasks(){
       + '<td style="'+td+'"><span style="font-size:13px;font-weight:700;color:var(--accent-ink);cursor:pointer;" onclick="openDetail('+jsArg(t.acctId)+')">'+esc(t.account)+'</span></td>'
       + '<td style="'+td+'"><span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);">'+esc(t.type)+'</span></td>'
       + '<td style="'+td+'"><span style="font-size:13px;color:var(--text);">'+esc(t.title)+'</span></td>'
-      + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:7px;"><div style="'+avatar(am.initials,26,am.initials)+'">'+am.initials+'</div><span style="font-size:12.5px;font-weight:600;">'+esc(am.name)+'</span></div></td>'
+      + '<td style="'+td+'"><div style="display:flex;align-items:center;gap:7px;"><div style="'+avatar(am.initials,26,am.id||am.initials)+'">'+am.initials+'</div><span style="font-size:12.5px;font-weight:600;">'+esc(am.name)+'</span></div></td>'
       + '<td style="'+td+'"><span style="font-size:12.5px;color:var(--text-2);">'+esc(am.name)+'</span></td>'
     + '</tr>';
   }).join('');
@@ -2490,7 +2503,7 @@ function renderUsers(){
     + ['Name','Email Address','Role','Options'].map((l,i) => '<span style="font-size:13px;font-weight:800;'+(i===3?'text-align:right;':'')+'">'+l+'</span>').join('')
   + '</div>';
   const memberRows = members.map(u => '<div class="row-h" style="display:grid;grid-template-columns:2fr 2.4fr 1fr 80px;gap:18px;align-items:center;padding:18px 28px;border-bottom:1px solid var(--border);">'
-    + '<div style="display:flex;align-items:center;gap:14px;min-width:0;"><div style="'+avatar(u.initials,36,u.initials)+'">'+u.initials+'</div><span style="font-size:14.5px;font-weight:700;">'+esc(u.name)+'</span></div>'
+    + '<div style="display:flex;align-items:center;gap:14px;min-width:0;"><div style="'+avatar(u.initials,36,u.id)+'">'+u.initials+'</div><span style="font-size:14.5px;font-weight:700;">'+esc(u.name)+'</span></div>'
     + '<span style="font-size:14px;color:var(--text-2);font-weight:500;">'+esc(u.email)+'</span>'
     + '<span style="font-size:14px;color:var(--text-2);font-weight:600;">'+esc(u.role)+'</span>'
     + '<div style="display:flex;justify-content:flex-end;"><button onclick="toast(\'Menu — coming Phase 4\')" style="width:36px;height:36px;display:grid;place-items:center;border-radius:8px;color:var(--text-3);cursor:pointer;">⋮</button></div>'
@@ -2729,7 +2742,7 @@ function renderAmperf(){
     const barColor = r.score >= 70 ? 'var(--ok)' : r.score >= 40 ? 'var(--warn)' : 'var(--bad)';
     return '<div class="row-h" style="display:grid;grid-template-columns:2.2fr 80px 90px 100px 110px 100px 90px 180px 130px 110px;gap:10px;align-items:center;padding:14px 18px;min-width:1280px;border-bottom:1px solid var(--border);cursor:pointer;">'
       + '<div style="display:flex;align-items:center;gap:12px;min-width:0;">'
-        + '<div style="'+avatar(r.am.initials,34,r.am.initials)+'">'+r.am.initials+'</div>'
+        + '<div style="'+avatar(r.am.initials,34,r.am.id||r.am.initials)+'">'+r.am.initials+'</div>'
         + '<div style="min-width:0;">'
           + '<div style="font-size:14px;font-weight:800;letter-spacing:-.01em;">'+esc(r.am.name)+'</div>'
           + '<div class="tnum" style="font-size:11.5px;color:var(--text-3);font-weight:600;">'+r.owned+' owned</div>'
@@ -3396,6 +3409,7 @@ function renderDetail(){
   // Account team = the account's actual Owner (am_mail) and RC (rc_mail).
   // No Admin row — that's global, not account-scoped.
   const owners = [{
+    id: am.id,
     name: am.name,
     role: 'AC',
     ring: 'var(--accent-strong)',
@@ -3407,11 +3421,8 @@ function renderDetail(){
   if (rcMail && LIVE_AMS) {
     const rc = LIVE_AMS.find(p => (p.email||'').toLowerCase() === rcMail);
     if (rc && rc.id !== am.id) {
-      owners.push({ name: rc.name, role: 'CS', ring: 'var(--info)', email: rc.email, initials: rc.initials });
+      owners.push({ id: rc.id, name: rc.name, role: 'CS', ring: 'var(--info)', email: rc.email, initials: rc.initials });
     }
-  } else if (!LIVE_AMS) {
-    // Mock fallback — the seed data doesn't carry rc_mail, so show Yara
-    owners.push({ name:'Yara Mostafa', role:'RC', ring:'var(--info)', email:'yara@recruitera.ai', initials:'YM' });
   }
   // Tasks: derive open tasks for this account from the lazy-loaded activities
   // stream. Falls back to a hardcoded sample only in mock preview mode.
@@ -3574,7 +3585,7 @@ function renderDetail(){
             }
             return '<div style="display:flex;align-items:center;gap:11px;">'
               + '<div style="position:relative;'+(isOwner?'cursor:pointer;':'')+'" title="'+(isOwner?'Click to change owner':'')+'">'
-                + '<div style="'+avatar(o.initials,32,o.initials)+'">'+o.initials+'</div>'
+                + '<div style="'+avatar(o.initials,32,o.id||o.initials)+'">'+o.initials+'</div>'
                 + ownerPicker
               + '</div>'
               + '<div style="flex:1;min-width:0;">'
@@ -4252,13 +4263,14 @@ async function fetchAllPages(token, path, opts){
 }
 
 async function fetchProfilesLive(token){
-  const rows = await fetchAllPages(token, '/rest/v1/profiles?select=id,email,full_name,role,active&active=is.true&order=full_name.asc');
+  const rows = await fetchAllPages(token, '/rest/v1/profiles?select=id,email,full_name,role,active,avatar_url&active=is.true&order=full_name.asc');
   LIVE_AMS = rows.map(p => ({
     id: p.id,
     email: p.email,
     name: p.full_name || (p.email || '').split('@')[0],
     initials: initialsOf(p.full_name || (p.email || '?').split('@')[0]),
     role: p.role || 'AM',
+    avatar_url: p.avatar_url || null,
   }));
 }
 
