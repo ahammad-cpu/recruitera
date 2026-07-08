@@ -2370,63 +2370,69 @@ function renderReports(){
     + '<div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:3px;">'+k.sub+'</div>'
   + '</div>').join('');
 
-  // Stage summary table
-  const stageTable = ['mql','demo','proposal','won','lost'].map(sk => {
+  // Stage summary — every pipeline stage the CRM tracks, in funnel order.
+  // Was hardcoded to mql/demo/proposal/won/lost and skipped SQL + Paid;
+  // time-in-stage was fake numbers so that column is gone.
+  const STAGE_KEYS = ['mql','sql','demo','proposal','won','paid','lost'];
+  const stageRows = STAGE_KEYS.map(sk => {
     const rows = acts.filter(a => a.stage === sk);
     const st = STAGE[sk];
-    const sum = rows.reduce((s,a)=>s+a.value,0);
+    const sum = rows.reduce((s,a)=>s+(a.value||0),0);
     const avg = rows.length ? Math.round(sum/rows.length) : 0;
-    return '<div style="display:grid;grid-template-columns:1.4fr 80px 140px 140px 140px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);">'
+    return '<div style="display:grid;grid-template-columns:1.6fr 80px 160px 160px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);">'
       + '<span style="'+chip(st.v)+'">'+st.label+'</span>'
       + '<span class="tnum" style="font-size:13px;font-weight:700;text-align:right;">'+rows.length+'</span>'
       + '<span class="tnum" style="font-size:13px;font-weight:700;text-align:right;color:var(--text);">'+egp(sum)+'</span>'
       + '<span class="tnum" style="font-size:12px;text-align:right;color:var(--text-2);">'+egp(avg)+'</span>'
-      + '<span class="tnum" style="font-size:12px;text-align:right;color:var(--text-3);">~' + ({mql:5,demo:9,proposal:14,won:0,lost:0}[sk]) + 'd</span>'
     + '</div>';
   }).join('');
-  const stageHead = '<div style="display:grid;grid-template-columns:1.4fr 80px 140px 140px 140px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
-    + ['Stage','Count','Value','Avg deal','Avg time in stage'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
+  const stageHead = '<div style="display:grid;grid-template-columns:1.6fr 80px 160px 160px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
+    + ['Stage','Count','Value','Avg deal'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
   + '</div>';
 
-  // AM leaderboard mini
-  const amRows = AMS.slice(0,6).map(am => {
+  // Team leaderboard — every LIVE_AMS profile that owns at least one account,
+  // sorted by won revenue. No hardcoded target attainment (no target source
+  // yet); win-rate substitutes.
+  const roster = (LIVE_AMS && LIVE_AMS.length) ? LIVE_AMS : [];
+  const amRows = roster.map(am => {
     const owned = acts.filter(a => a.am === am.id);
-    const won = owned.filter(a => a.stage === 'won').reduce((s,a)=>s+a.value,0);
-    const cap = Math.round(am.cap*100);
-    return { name: am.name, initials: am.initials, owned: owned.length, won, cap };
-  }).sort((a,b) => b.won - a.won);
-  const amTable = amRows.map(r => '<div style="display:grid;grid-template-columns:2fr 60px 120px 140px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);">'
-    + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(r.initials,28,r.initials)+'">'+r.initials+'</div><span style="font-size:13px;font-weight:600;">'+esc(r.name)+'</span></div>'
-    + '<span class="tnum" style="font-size:12.5px;text-align:right;font-weight:700;">'+r.owned+'</span>'
-    + '<span class="tnum" style="font-size:12.5px;text-align:right;font-weight:700;color:var(--ok);">'+egp(r.won)+'</span>'
-    + '<div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;"><div style="height:100%;width:'+r.cap+'%;background:'+(r.cap>=70?'var(--ok)':r.cap>=40?'var(--warn)':'var(--bad)')+';"></div></div><span class="tnum" style="font-size:11px;font-weight:700;color:var(--text-3);">'+r.cap+'%</span></div>'
-  + '</div>').join('');
-  const amHead = '<div style="display:grid;grid-template-columns:2fr 60px 120px 140px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
-    + ['Account manager','Accounts','Won (period)','Target attainment'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
+    if (!owned.length) return null;
+    const wonSum = owned.filter(a => ['won','paid'].includes(a.stage)).reduce((s,a)=>s+(a.value||0),0);
+    const closes = owned.filter(a => ['won','paid','lost'].includes(a.stage)).length;
+    const wins   = owned.filter(a => ['won','paid'].includes(a.stage)).length;
+    const winRate = closes ? Math.round(wins/closes*100) : 0;
+    return { id: am.id, name: am.name, initials: am.initials, owned: owned.length, wonSum, winRate };
+  }).filter(Boolean).sort((a,b) => b.wonSum - a.wonSum);
+  const amTable = amRows.length
+    ? amRows.map(r => '<div style="display:grid;grid-template-columns:2fr 80px 160px 140px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);">'
+        + '<div style="display:flex;align-items:center;gap:10px;"><div style="'+avatar(r.initials,28,r.id||r.initials)+'">'+r.initials+'</div><span style="font-size:13px;font-weight:600;">'+esc(r.name)+'</span></div>'
+        + '<span class="tnum" style="font-size:12.5px;text-align:right;font-weight:700;">'+r.owned+'</span>'
+        + '<span class="tnum" style="font-size:12.5px;text-align:right;font-weight:700;color:var(--ok);">'+egp(r.wonSum)+'</span>'
+        + '<div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;"><div style="height:100%;width:'+r.winRate+'%;background:'+(r.winRate>=70?'var(--ok)':r.winRate>=40?'var(--warn)':'var(--bad)')+';"></div></div><span class="tnum" style="font-size:11px;font-weight:700;color:var(--text-3);">'+r.winRate+'%</span></div>'
+      + '</div>').join('')
+    : '<div style="padding:36px 20px;text-align:center;color:var(--text-3);font-size:13px;">No AMs with a book yet.</div>';
+  const amHead = '<div style="display:grid;grid-template-columns:2fr 80px 160px 140px;gap:14px;padding:11px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);">'
+    + ['Account manager','Accounts','Won revenue','Win rate'].map((l,i) => '<span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);font-weight:800;'+(i>0?'text-align:right;':'')+'">'+l+'</span>').join('')
   + '</div>';
 
   return '<div class="sc" style="padding:20px 28px 80px;display:flex;flex-direction:column;gap:18px;">'
     + '<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
       + '<div><h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-.025em;">Reports</h1>'
-        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Cross-team performance — pipeline health, revenue, retention.</div>'
+        + '<div style="font-size:13px;color:var(--text-3);font-weight:500;margin-top:4px;">Snapshot of the entire book — no date filter, no mock rows.</div>'
       + '</div><div style="flex:1;"></div>'
-      + '<select style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>This Month</option><option>This Quarter</option><option>This Year</option></select>'
-      + '<select style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:13px;font-weight:600;color:var(--text);"><option>All AMs</option>'+((LIVE_AMS && LIVE_AMS.length ? LIVE_AMS : []).map(a=>'<option>'+esc(a.name)+'</option>').join(''))+'</select>'
-      + '<button onclick="toast(\'Export PDF — coming Phase 5\')" style="display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 16px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">📄 Export PDF</button>'
     + '</div>'
-    + '<div><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><h2 style="margin:0;font-size:17px;font-weight:800;letter-spacing:-.015em;">Key metrics</h2><span style="font-size:11.5px;color:var(--text-3);font-weight:600;">Last 30 days</span></div>'
+    + '<div><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><h2 style="margin:0;font-size:17px;font-weight:800;letter-spacing:-.015em;">Key metrics</h2></div>'
       + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">'+kmCards+'</div>'
     + '</div>'
     + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Pipeline health</h2>'
       + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'
-        + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Counts, value and time-in-stage.</div></div>'
-        + stageHead + stageTable
+        + '<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);"><div style="font-size:13px;font-weight:800;">Stage summary</div><div style="font-size:11.5px;color:var(--text-3);font-weight:600;">Every pipeline stage, live from accounts.stage.</div></div>'
+        + stageHead + stageRows
       + '</div>'
     + '</div>'
     + '<div><h2 style="margin:0 0 12px;font-size:17px;font-weight:800;letter-spacing:-.015em;">Team leaderboard</h2>'
       + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;overflow:hidden;box-shadow:var(--sh1);">'+amHead + amTable+'</div>'
     + '</div>'
-    + '<div style="padding:20px 24px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;font-size:13px;color:var(--accent-ink);font-weight:600;">📊 Revenue-over-time chart, retention cohort table, funnel drop-off, and full CSV export land in a future phase.</div>'
   + '</div>';
 }
 
