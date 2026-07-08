@@ -343,11 +343,28 @@ function jsArg(v){ return JSON.stringify(v).replace(/"/g, '&quot;'); }
 
 // ---------- ACTIONS ----------
 function setState(patch){ Object.assign(state, patch); render(); }
+// Every top-level page has a slug used in the URL as ?view=<slug>. Same
+// pattern as /crm (crm?view=forecast). Keeps back/forward working and
+// makes every tab shareable.
+const PAGE_TO_VIEW = {
+  home:'dashboard', accounts:'companies', pipeline:'pipeline', renewal:'renewal',
+  notifications:'notifications', tasks:'tasks', amperf:'amperf', reports:'reports',
+  logs:'logs', users:'users', utm:'utm',
+};
+const VIEW_TO_PAGE = Object.fromEntries(Object.entries(PAGE_TO_VIEW).map(([k,v]) => [v,k]));
+function pushPageUrl(page){
+  try {
+    const url = new URL(location.href);
+    // Nav also drops ?detail= — you're leaving the profile.
+    url.searchParams.delete('detail');
+    const view = PAGE_TO_VIEW[page];
+    if (view) url.searchParams.set('view', view);
+    else url.searchParams.delete('view');
+    history.pushState({ page, detailId: null }, '', url.pathname + (url.search ? url.search : ''));
+  } catch {}
+}
 function go(page){
-  // Nav should also drop the ?detail=<uuid> deep-link if one is lingering
-  // from an earlier openDetail — otherwise the URL keeps pointing at a
-  // company profile even though the user is looking at a list.
-  if (state.detailId) replaceDetailUrl(null);
+  pushPageUrl(page);
   setState({ page, detailId: null });
 }
 function toggleSidebar(){ setState({ sidebarCollapsed: !state.sidebarCollapsed }); }
@@ -378,10 +395,22 @@ function replaceDetailUrl(id){
     history.replaceState({ detailId: id || null }, '', url.pathname + (url.search ? url.search : ''));
   } catch {}
 }
-window.addEventListener('popstate', (e) => {
-  const id = e.state?.detailId || null;
-  if (id) { setState({ detailId: id, detailTab: 'overview' }); if (state.dataSource === 'live') { loadActivitiesForAccount(id); loadDetailsForAccount(id); } }
-  else { setState({ detailId: null }); }
+window.addEventListener('popstate', () => {
+  // Rebuild state from whatever the URL currently says. History entries can be
+  // stale (missing state, mid-migration), so ?view= and ?detail= win.
+  try {
+    const qs = new URLSearchParams(location.search);
+    const view = qs.get('view');
+    const id = qs.get('detail');
+    const page = view && VIEW_TO_PAGE[view] ? VIEW_TO_PAGE[view] : (id ? 'accounts' : state.page);
+    if (id) {
+      state.page = page;
+      setState({ detailId: id, detailTab: 'overview' });
+      if (state.dataSource === 'live') { loadActivitiesForAccount(id); loadDetailsForAccount(id); }
+    } else {
+      setState({ page, detailId: null });
+    }
+  } catch {}
 });
 function openDetail(id){
   pushDetailUrl(id);
@@ -5263,11 +5292,14 @@ if (!getAccessToken()) {
   document.body.innerHTML = '<div style="height:100vh;display:grid;place-items:center;font-family:inherit;color:#667;font-size:14px;">Redirecting to login…</div>';
   location.replace('/login');
 } else {
-  // Deep-link support: /crm-v2?detail=<uuid> or /crm-v2#detail=<uuid> opens
-  // that account's profile directly. Lets us open companies in new tabs.
+  // Deep-link support: /crm-v2?view=<slug> jumps to that page,
+  // /crm-v2?detail=<uuid> jumps to that account profile. Both survive
+  // reload / share / new-tab, matching how /crm works.
   try {
     const qs = new URLSearchParams(location.search);
     const hs = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+    const view = qs.get('view') || hs.get('view');
+    if (view && VIEW_TO_PAGE[view]) state.page = VIEW_TO_PAGE[view];
     const deep = qs.get('detail') || hs.get('detail');
     if (deep) { state.detailId = deep; state.page = 'accounts'; }
   } catch {}
