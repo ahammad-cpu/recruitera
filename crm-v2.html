@@ -4420,42 +4420,36 @@ async function bootLiveData(){
   state.dataStatus = 'loading';
   render();
   try {
-    // Fetch accounts + profiles first — profiles is independent, accounts
-    // gives us the ID list needed to fetch contacts/cycles/tracking via
-    // filtered IN queries (RLS shape only returns rows for filtered reads).
-    const [accountRawRows] = await Promise.all([
-      fetchAccountsRawLive(token),
-      fetchProfilesLive(token).catch(e => console.warn('[CRM v2] profiles:', e.message)),
-    ]);
-    const accountIds = accountRawRows.map(r => r.id);
-    // Now the ID-scoped fetches, in parallel. Each swallows errors independently.
-    await Promise.all([
-      fetchContactsLive(token, accountIds).catch(e => console.warn('[CRM v2] contacts:', e.message)),
-      fetchCyclesLive(token, accountIds).catch(e => console.warn('[CRM v2] cycles:', e.message)),
-      fetchTrackingLive(token).catch(e => console.warn('[CRM v2] tracking:', e.message)),
-    ]);
-    // Map the raw account rows now that the joins are populated
-    const accounts = accountRawRows.map(mapAcctFromSupabase);
-    // Always take the live result — even if empty. Mock data has been retired.
-    state.accounts = accounts;
+    // Kick off every independent fetch immediately so nothing waits for anything
+    // it doesn't structurally depend on. Only cycles/contacts/tracking need the
+    // account id list, so those start after accounts resolve.
+    const profilesP = fetchProfilesLive(token).catch(e => console.warn('[CRM v2] profiles:', e.message));
+    const tasksP    = fetchTasksLive(token).then(t => { state.tasks = t; if (state.dataStatus === 'ready') render(); }).catch(e => { console.warn('[CRM v2] tasks:', e.message); state.tasks = []; });
+    const notifP    = fetchNotificationsLive(token).then(n => { state.notifications = n; if (state.dataStatus === 'ready') render(); }).catch(e => { console.warn('[CRM v2] notifications:', e.message); state.notifications = []; });
+    const logsP     = fetchLogsFeedLive(token).then(() => { if (state.page === 'logs') render(); }).catch(e => console.warn('[CRM v2] logs:', e.message));
+
+    const accountRawRows = await fetchAccountsRawLive(token);
+    // Show the dashboard as soon as we have raw accounts — joins can trickle in.
+    state.accounts = accountRawRows.map(mapAcctFromSupabase);
     state.dataSource = 'live';
-    if (accounts.length === 0) console.log('[CRM v2] Supabase returned 0 accounts — showing empty state');
-    // Tasks + global activity feed for Logs page (both non-blocking)
-    try {
-      const tasks = await fetchTasksLive(token);
-      state.tasks = tasks;
-    } catch(e){ console.warn('[CRM v2] tasks fetch failed:', e); state.tasks = []; }
-    try {
-      state.notifications = await fetchNotificationsLive(token);
-    } catch(e){ console.warn('[CRM v2] notifications fetch failed:', e); state.notifications = []; }
-    fetchLogsFeedLive(token).then(() => { if (state.page === 'logs') render(); }).catch(e => console.warn('[CRM v2] logs fetch failed:', e.message));
     state.dataStatus = 'ready';
-    console.log('[CRM v2] live · ' + accounts.length + ' accounts · '
+    render();
+
+    // Now fire the ID-scoped join fetches in parallel. Each re-maps accounts
+    // + re-renders when it lands so the UI progressively hydrates.
+    const accountIds = accountRawRows.map(r => r.id);
+    const remap = () => { state.accounts = accountRawRows.map(mapAcctFromSupabase); render(); };
+    await Promise.all([
+      fetchContactsLive(token, accountIds).then(remap).catch(e => console.warn('[CRM v2] contacts:', e.message)),
+      fetchCyclesLive(token, accountIds).then(remap).catch(e => console.warn('[CRM v2] cycles:', e.message)),
+      fetchTrackingLive(token).then(remap).catch(e => console.warn('[CRM v2] tracking:', e.message)),
+      profilesP, tasksP, notifP,
+    ]);
+    console.log('[CRM v2] live · ' + state.accounts.length + ' accounts · '
       + (LIVE_CONTACTS_BY_ACCT?.size||0) + ' contacts · '
       + (LIVE_CYCLES_BY_ACCT?.size||0) + ' cycles · '
       + (LIVE_TRACKING_BY_ACCT?.size||0) + ' tracking · '
       + (LIVE_AMS?.length||0) + ' profiles');
-    render();
   } catch(e) {
     console.error('[CRM v2] live fetch failed:', e);
     state.dataStatus = 'error';
