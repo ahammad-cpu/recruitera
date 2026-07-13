@@ -6,18 +6,17 @@
     { "source": "/crm-preview", "destination": "/crm-preview.html" },
     { "source": "/crm-v2", "destination": "/crm-v2.html" },
     { "source": "/migrate", "destination": "/migrate.html" },
-    { "source": "/sync-admin", "destination": "/sync-admin.html" },
-    { "source": "/settings", "destination": "/settings.html" }
+    { "source": "/sync-admin", "destination": "/sync-admin.html" }
   ],
   "headers": [
     {
-      "source": "/(crm|crm-v2|login|migrate|sync-admin|settings)",
+      "source": "/(crm|crm-v2|login|migrate|sync-admin)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=0, must-revalidate" }
       ]
     },
     {
-      "source": "/(crm|crm-v2|login|migrate|sync-admin|settings).html",
+      "source": "/(crm|crm-v2|login|migrate|sync-admin).html",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=0, must-revalidate" }
       ]

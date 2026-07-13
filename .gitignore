@@ -16,6 +16,3 @@ Thumbs.db
 .env
 .env.*
 *.pem
-
-# recruitera-v2 is its own git repo (separate remote) — never nest it here
-/recruitera-v2/
