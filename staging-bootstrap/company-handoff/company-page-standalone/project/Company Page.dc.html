@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cg-900:#2D3844;
+    --purple-700:#392396;--purple-100:#E8E4F8;
+    --ok:#2F8F5C;--ok-bg:#E5F4EC;--warn:#B8761A;--warn-bg:#FBF1DE;--bad:#B83A3A;--bad-bg:#F7E3E3;--info:#2C5BA8;--info-bg:#E3ECF7;
+    --bg:#F5F6F8;--surface:#FFFFFF;--surface-2:#F0F1F4;--border:#E2E5EA;--border-2:#CDD2DA;
+    --text:#1A1D21;--text-2:#3A4049;--text-3:#6C7580;--text-4:#A0A8B0;
+    --accent:#C5E638;--accent-strong:#A8C220;--accent-soft:#F2F9D0;--accent-ink:#2D3844;--on-accent:#2D3844;--accent-ring:rgba(197,230,56,.18);
+    --sh1:0 1px 0 rgba(45,56,68,.04);--sh2:0 1px 2px rgba(45,56,68,.06),0 4px 12px rgba(45,56,68,.04);--sh3:0 8px 24px rgba(45,56,68,.10),0 2px 6px rgba(45,56,68,.06);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:"Montserrat",system-ui,sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;font-size:13px;}
+  .tnum{font-variant-numeric:tabular-nums;}
+  .sc{scrollbar-width:thin;scrollbar-color:var(--border-2) transparent;}
+  .sc::-webkit-scrollbar{width:5px;height:5px;}
+  .sc::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:999px;}
+  @keyframes fade{from{opacity:0;}}
+  @keyframes pop{from{opacity:0;transform:scale(.97) translateY(6px);}}
+  @keyframes toastIn{from{opacity:0;transform:translateY(16px);}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--bg);">
+
+  <!-- TOP NAV -->
+  <div style="height:52px;background:var(--cg-900);display:flex;align-items:center;gap:0;padding:0 20px;position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,.18);">
+    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+      <img src="./icon-44.png" style="width:28px;height:28px;border-radius:7px;flex-shrink:0;" alt="Recruitera">
+      <span style="font-size:14px;font-weight:800;color:#fff;letter-spacing:.01em;margin-right:12px;">Recruitera</span>
+      <span style="font-size:12.5px;color:rgba(255,255,255,.45);font-weight:500;">Home</span>
+      <span style="color:rgba(255,255,255,.25);font-size:11px;">  /  </span>
+      <span style="font-size:12.5px;color:rgba(255,255,255,.45);font-weight:500;">Accounts</span>
+      <span style="color:rgba(255,255,255,.25);font-size:11px;">  /  </span>
+      <span style="font-size:12.5px;color:#fff;font-weight:700;">{{ a.name }}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0;">
+      <sc-for list="{{ navTabs }}" as="t" hint-placeholder-count="3">
+        <div onclick="{{ t.click }}" style="{{ t.style }}">{{ t.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- PAGE BODY -->
+  <div style="max-width:1380px;margin:0 auto;padding:22px 24px 80px;">
+
+    <!-- HEADER CARD -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:16px;box-shadow:var(--sh1);overflow:hidden;">
+      <div style="padding:22px 24px 20px;">
+        <div style="display:flex;align-items:flex-start;gap:18px;">
+          <!-- logo -->
+          <div style="{{ a.logoStyle }}">{{ a.logoInitials }}</div>
+          <div style="flex:1;min-width:0;">
+            <!-- name + actions -->
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
+              <div>
+                <h1 style="margin:0 0 8px;font-size:26px;font-weight:800;letter-spacing:-.025em;line-height:1.15;">{{ a.name }}</h1>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <sc-for list="{{ tags }}" as="tag" hint-placeholder-count="2">
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--surface-2);border:1px solid var(--border-2);color:var(--text-2);">{{ tag.label }}<span onclick="{{ tag.remove }}" style="cursor:pointer;color:var(--text-4);font-size:12px;line-height:1;margin-left:2px;" style-hover="color:var(--bad);">✕</span></span>
+                  </sc-for>
+                  <span onclick="{{ addTag }}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;border:1.5px dashed var(--border-2);color:var(--text-3);cursor:pointer;background:transparent;" style-hover="border-color:var(--accent-strong);color:var(--accent-ink);">+ Add tag</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <div onclick="{{ doWhatsApp }}" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:9px;background:var(--surface);border:1px solid var(--border-2);color:#25D366;font-size:14px;font-weight:700;cursor:pointer;" style-hover="background:var(--surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.4A10 10 0 1 0 12 2zm4.4 12.4c-.2.6-1.1 1-1.6 1.1-.4 0-.9.1-1.5-.1-.4-.1-.9-.3-1.5-.5a8.6 8.6 0 0 1-3.4-3c-.3-.4-.7-1-.7-1.9s.5-1.3.6-1.5.4-.3.6-.3h.5c.1 0 .3 0 .5.4l.6 1.5c.1.1.1.3 0 .4l-.3.4-.3.3c-.1.1-.2.2-.1.4a6 6 0 0 0 2.7 2.4c.3.1.4.1.6-.1l.6-.7c.2-.2.3-.2.5-.1l1.5.7c.2.1.4.2.4.3.1.1.1.5 0 .9z"></path></svg>WhatsApp</div>
+                <div onclick="{{ doEmail }}" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:9px;background:var(--surface);border:1px solid var(--border-2);color:var(--text-2);font-size:14px;font-weight:600;cursor:pointer;" style-hover="background:var(--surface-2);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 5L2 7"></path></svg>Email</div>
+                <div onclick="{{ doProposal }}" style="display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 18px;border-radius:9px;background:var(--cg-900);color:#fff;font-size:14px;font-weight:700;cursor:pointer;" style-hover="background:#1a232e;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>Proposal</div>
+              </div>
+            </div>
+            <!-- chips -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+              <span style="{{ a.stageChip }}">{{ a.stageLabel }}</span>
+              <span style="{{ a.paidChip }}">{{ a.paid }}</span>
+              <span style="{{ a.regionChip }}">{{ a.region }}</span>
+              <span style="{{ a.industryChip }}">{{ a.industry }}</span>
+            </div>
+            <!-- meta row -->
+            <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:14px;">
+
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>{{ a.domain }}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>Customer since {{ a.since }}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10z"></path><circle cx="7" cy="7" r="1"></circle></svg>{{ a.source }} · {{ a.amName }}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 11.2 19a19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.1 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6A2 2 0 0 1 22 16.9z"></path></svg>+20 2 250 35101</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--text-3);font-weight:500;white-space:nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 5L2 7"></path></svg>hr@{{ a.domain }}</span>
+            </div>
+            <!-- plan -->
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid var(--border-2);border-radius:8px;background:var(--surface-2);font-size:13px;font-weight:700;color:var(--text-2);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path></svg>{{ a.planSummary }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- stats band -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border);">
+        <sc-for list="{{ statRow }}" as="s" hint-placeholder-count="7">
+          <div style="{{ s.wrap }}">
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:800;">{{ s.label }}</div>
+            <div style="font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:7px;color:var(--text);" class="tnum">{{ s.value }}</div>
+            <div style="font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;">{{ s.sub }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- TAB BAR -->
+    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;gap:0;" class="sc">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="7">
+        <button onclick="{{ t.click }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+
+    <!-- OVERVIEW -->
+    <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start;">
+      <!-- left -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <!-- contact person -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--sh1);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Contact person</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+            <div style="padding:7px 12px 7px 0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);">
+              <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Name</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);">Mohamed</div>
+            </div>
+            <div style="padding:7px 0 7px 12px;border-bottom:1px solid var(--border);">
+              <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Title</div>
+              <div style="font-size:12px;color:var(--text-3);font-style:italic;">HR Director, TA Manager…</div>
+            </div>
+            <div style="padding:7px 12px 7px 0;border-right:1px solid var(--border);">
+              <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Email</div>
+              <a href="mailto:soyime2752@ocuser.com" style="font-size:12px;font-weight:600;color:var(--accent-ink);text-decoration:underline;word-break:break-all;">soyime2752@ocuser.com</a>
+            </div>
+            <div style="padding:7px 0 7px 12px;">
+              <div style="font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Phone</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">+201017553507</div>
+            </div>
+          </div>
+        </div>
+        <!-- meetings -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--sh1);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+              <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">Meetings</span>
+            </div>
+            <div onclick="{{ openMeetingModal }}" style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 12px;border-radius:7px;background:var(--accent);color:var(--on-accent);font-size:11.5px;font-weight:700;cursor:pointer;" style-hover="background:var(--accent-strong);">+ Book</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ meetings }}" as="m" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);" style-hover="background:var(--surface-2);">
+                <div style="{{ m.dateBg }}border-radius:8px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:52px;">
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);">{{ m.date }}</div>
+                  <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:1px;">{{ m.time }}</div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:12.5px;font-weight:700;{{ m.statusStyle }}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ m.typeIcon }} {{ m.title }}</div>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:2px;">with {{ m.with }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- notes -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><div><div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;">NOTES</div><h2 style="margin:4px 0 0;font-size:16px;font-weight:800;letter-spacing:-.02em;">Internal notes</h2></div></div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px;margin-bottom:14px;"><textarea placeholder="What happened? Use @ to mention or @name/task to assign…" style="width:100%;min-height:72px;border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;color:var(--text);resize:vertical;line-height:1.5;"></textarea><div style="display:flex;align-items:center;justify-content:flex-end;margin-top:8px;padding-top:10px;border-top:1px solid var(--border);"><div onclick="{{ addNote }}" style="display:inline-flex;align-items:center;height:30px;padding:0 16px;border-radius:7px;font-size:12.5px;font-weight:700;background:var(--accent);color:var(--on-accent);cursor:pointer;border:1px solid var(--accent-strong);">Add note</div></div></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <sc-for list="{{ notes }}" as="n" hint-placeholder-count="3">
+              <div style="display:flex;gap:12px;padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px;">
+                <div style="{{ n.av }}">{{ n.initials }}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;"><span style="font-size:13.5px;font-weight:800;color:var(--text);">{{ n.actor }}</span><span style="display:inline-flex;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:800;background:var(--accent-soft);color:var(--accent-ink);">{{ n.type }}</span><span style="font-size:11.5px;color:var(--text-3);font-weight:600;">{{ n.ago }}</span></div>
+                  <div style="font-size:13px;color:var(--text);line-height:1.55;font-weight:500;white-space:pre-wrap;word-break:break-word;">{{ n.text }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <!-- right -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <!-- account team -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:14px;">Account team</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <sc-for list="{{ owners }}" as="o" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:11px;">
+                <div style="{{ o.av }}">{{ o.tag }}</div>
+                <div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:600;">{{ o.name }}</span><span style="font-size:9px;font-weight:800;color:{{ o.ring }};border:1px solid {{ o.ring }};padding:0 5px;border-radius:5px;">{{ o.role }}</span></div><div style="font-size:11px;color:var(--text-3);">{{ o.email }}</div></div>
+                <sc-if value="{{ o.showReassign }}" hint-placeholder-val="{{ false }}"><div onclick="{{ reassign }}" style="font-size:11px;color:var(--accent-ink);font-weight:700;cursor:pointer;" style-hover="text-decoration:underline;">Reassign</div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <!-- tasks -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;margin-bottom:14px;">Tasks · {{ taskCount }} open</div>
+          <div style="display:flex;flex-direction:column;gap:7px;max-height:260px;overflow-y:auto;" class="sc">
+            <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex;align-items:flex-start;gap:9px;padding:9px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;">
+                <div onclick="{{ t.toggle }}" style="{{ t.check }}"></div>
+                <div style="flex:1;min-width:0;"><div style="{{ t.titleStyle }}">{{ t.text }}</div><div style="display:flex;align-items:center;gap:6px;margin-top:4px;"><span style="{{ t.dueStyle }}">{{ t.due }}</span><span style="font-size:11px;color:var(--text-3);font-weight:600;">{{ t.amName }}</span></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <!-- attribution -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:16px;">Attribution</div>
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <!-- first touch -->
+            <div style="padding:9px 0;border-bottom:1px solid var(--border);">
+              <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:5px;">First touch</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:12px;font-weight:700;color:var(--text);">linkedin</span>
+                <span style="font-size:11px;color:var(--text-3);">·</span>
+                <span style="font-size:12px;color:var(--text-2);font-weight:500;">organic-social</span>
+                <span style="font-size:11px;color:var(--text-3);">·</span>
+                <span style="font-size:11.5px;color:var(--text-3);font-family:monospace;">May 21, 2026</span>
+              </div>
+            </div>
+            <!-- last touch -->
+            <div style="padding:9px 0;border-bottom:1px solid var(--border);">
+              <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:5px;">Last touch</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-size:12px;font-weight:700;color:var(--text);">linkedin</span>
+                <span style="font-size:11px;color:var(--text-3);">·</span>
+                <span style="font-size:12px;color:var(--text-2);font-weight:500;">organic · WhatsApp</span>
+                <span style="font-size:11px;color:var(--text-3);">·</span>
+                <span style="font-size:11.5px;color:var(--text-3);font-family:monospace;">Jun 2, 2026</span>
+              </div>
+            </div>
+            <!-- metrics -->
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Days to convert</span><span style="font-size:13px;font-weight:700;color:var(--text);">11</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Device</span><span style="font-size:13px;font-weight:700;color:var(--text);">desktop</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Lang</span><span style="font-size:13px;font-weight:700;color:var(--text);">en-US</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;">CTA</span><span style="font-size:13px;font-weight:700;color:var(--text);">cta</span></div>
+            <div style="padding:8px 0;">
+              <div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:4px;">First landing page</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;word-break:break-all;">/job/recruitment-consultant-basharsoft-cairo-egypt-4450</div>
+            </div>
+          </div>
+        </div>
+        <!-- recruitera score -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:var(--sh1);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:7px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="12" width="4" height="10" fill="#E6534A" rx="1"></rect><rect x="9" y="7" width="4" height="15" fill="#C5E638" rx="1"></rect><rect x="16" y="2" width="4" height="20" fill="#2F8F5C" rx="1"></rect></svg>
+              <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);font-weight:800;">Recruitera score</span>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:999px;background:var(--ok-bg);color:var(--ok);font-size:12px;font-weight:700;">🔥 Hot</span>
+          </div>
+          <!-- big score -->
+          <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
+            <span style="font-size:52px;font-weight:900;color:var(--ok);letter-spacing:-.04em;line-height:1;">90</span>
+            <span style="font-size:16px;color:var(--text-3);font-weight:500;">/ 100</span>
+          </div>
+          <div style="font-size:13px;color:var(--text-2);font-weight:500;margin-bottom:10px;">Strong fit — promote to MQL</div>
+          <div style="height:7px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-bottom:18px;">
+            <div style="height:100%;width:90%;background:var(--ok);border-radius:999px;"></div>
+          </div>
+          <!-- factors -->
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <!-- title -->
+            <div style="padding:11px 0;border-top:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+                <div><span style="font-size:13px;font-weight:700;color:var(--text);">Title</span><span style="font-size:11.5px;color:var(--text-3);font-weight:500;margin-left:5px;">tier B</span></div>
+                <span style="font-size:12px;font-weight:800;color:var(--warn);">30 / 35</span>
+              </div>
+              <div style="height:5px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:86%;background:var(--warn);border-radius:999px;"></div></div>
+              <div style="font-size:11.5px;color:var(--text-3);">VP / Director / Head of People</div>
+            </div>
+            <!-- email -->
+            <div style="padding:11px 0;border-top:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+                <span style="font-size:13px;font-weight:700;color:var(--text);">Email</span>
+                <span style="font-size:12px;font-weight:800;color:var(--ok);">25 / 25</span>
+              </div>
+              <div style="height:5px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:100%;background:var(--ok);border-radius:999px;"></div></div>
+              <div style="font-size:11.5px;color:var(--text-3);">Business email (saudiacatering.com)</div>
+            </div>
+            <!-- hiring volume -->
+            <div style="padding:11px 0;border-top:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+                <span style="font-size:13px;font-weight:700;color:var(--text);">Hiring volume</span>
+                <span style="font-size:12px;font-weight:800;color:var(--warn);">25 / 30</span>
+              </div>
+              <div style="height:5px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:83%;background:var(--warn);border-radius:999px;"></div></div>
+              <div style="font-size:11.5px;color:var(--text-3);">50 /yr — strong fit</div>
+            </div>
+            <!-- company name -->
+            <div style="padding:11px 0;border-top:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+                <span style="font-size:13px;font-weight:700;color:var(--text);">Company name</span>
+                <span style="font-size:12px;font-weight:800;color:var(--ok);">10 / 10</span>
+              </div>
+              <div style="height:5px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:100%;background:var(--ok);border-radius:999px;"></div></div>
+              <div style="font-size:11.5px;color:var(--text-3);">Valid</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ACTIVITY -->
+    <sc-if value="{{ isActivity }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">
+      <div style="display:grid;grid-template-columns:180px 1fr 1fr;padding:12px 20px;background:var(--surface-2);border-bottom:1px solid var(--border);">
+        <span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Admin</span>
+        <span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Activity</span>
+        <span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:800;">Date &amp; time</span>
+      </div>
+      <sc-for list="{{ activityLog }}" as="al" hint-placeholder-count="8">
+        <div style="display:grid;grid-template-columns:180px 1fr 1fr;padding:14px 20px;border-bottom:1px solid var(--border);align-items:center;" style-hover="background:var(--surface-2);">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;"><div style="{{ al.av }}">{{ al.initials }}</div><span style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ al.admin }}</span></div>
+          <div><span style="{{ al.chip }}">{{ al.activity }}</span></div>
+          <span style="font-size:12.5px;font-family:monospace;color:var(--text-3);">{{ al.date }}</span>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- JOBS & USAGE -->
+    <sc-if value="{{ isJobs }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">
+      <div style="overflow-x:auto;" class="sc">
+        <table style="width:100%;border-collapse:separate;border-spacing:0;min-width:1020px;">
+          <thead><tr style="background:var(--surface-2);">
+            <th style="{{ th }}">Job title</th>
+            <th style="{{ th }}">Salary</th>
+            <th style="{{ th }}">Created</th>
+            <th style="{{ th }}">Status</th>
+            <th style="{{ th }}">Expires</th>
+            <th style="{{ thR }}">Applications</th>
+            <th style="{{ thR }}">Clicked</th>
+            <th style="{{ thR }}">Views</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ jobs }}" as="j" hint-placeholder-count="6">
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="{{ td }}"><span style="font-size:13px;font-weight:600;color:var(--accent-ink);cursor:pointer;">{{ j.title }}</span></td>
+                <td style="{{ td }}"><span style="font-size:12px;color:var(--text-2);font-weight:600;">{{ j.salary }}</span></td>
+                <td style="{{ td }}"><span style="font-size:12px;color:var(--text-2);font-family:monospace;">{{ j.created }}</span></td>
+                <td style="{{ td }}"><span style="{{ j.statusChip }}">{{ j.status }}</span></td>
+                <td style="{{ td }}"><span style="font-size:12px;color:var(--text-2);">{{ j.expires }}</span></td>
+                <td style="{{ tdR }}" class="tnum">{{ j.applies }}</td>
+                <td style="{{ tdR }}" class="tnum">{{ j.clicked }}</td>
+                <td style="{{ tdR }}" class="tnum">{{ j.views }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- PLANS & CREDITS -->
+    <sc-if value="{{ isPlans }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;"><div style="font-size:14px;font-weight:700;">Renewal cycles</div><div onclick="{{ openCycleModal }}" style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:7px;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700;cursor:pointer;" style-hover="background:var(--accent-strong);">+ Add cycle</div></div>
+        <sc-for list="{{ cycles }}" as="cy" hint-placeholder-count="2">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="{{ cy.chip }}">{{ cy.status }}</span><span style="font-size:12px;font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:2px 9px;border-radius:999px;">{{ cy.term }}</span></div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+              <div><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Term start</div><div style="font-size:13px;font-weight:600;margin-top:4px;">{{ cy.start }}</div></div>
+              <div><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Term end</div><div style="font-size:13px;font-weight:600;margin-top:4px;">{{ cy.end }}</div></div>
+              <div><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Length</div><div style="font-size:13px;font-weight:600;margin-top:4px;">{{ cy.len }}</div></div>
+              <div><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;">Amount</div><div style="font-size:13px;font-weight:600;margin-top:4px;">{{ cy.amount }}</div></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- INVOICES -->
+    <sc-if value="{{ isInvoices }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">
+      <div style="overflow-x:auto;" class="sc">
+        <table style="width:100%;border-collapse:separate;border-spacing:0;min-width:1300px;">
+          <thead><tr style="background:var(--surface-2);">
+            <th style="{{ th }}">INV #</th><th style="{{ th }}">Date</th><th style="{{ th }}">Name</th>
+            <th style="{{ thR }}">Price</th><th style="{{ thR }}">Paid</th>
+            <th style="{{ th }}">Sold By</th><th style="{{ th }}">RC</th><th style="{{ th }}">Paid date</th>
+            <th style="{{ th }}">PDF</th><th style="{{ th }}">Send</th><th style="{{ th }}">Method</th>
+            <th style="{{ th }}">Internal notes</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ invoices }}" as="inv" hint-placeholder-count="4">
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="{{ td }}"><span style="font-size:12px;font-weight:700;color:var(--accent-ink);cursor:pointer;">{{ inv.inv }}</span></td>
+                <td style="{{ td }}"><span style="font-size:12px;color:var(--text-2);">{{ inv.date }}</span></td>
+                <td style="{{ td }}"><span style="font-size:12.5px;font-weight:600;">{{ inv.name }}</span></td>
+                <td style="{{ tdR }}" class="tnum">{{ inv.price }}</td>
+                <td style="{{ tdR }}" class="tnum"><span style="font-weight:800;color:var(--ok);">{{ inv.paid }}</span></td>
+                <td style="{{ td }}">{{ inv.soldBy }}</td>
+                <td style="{{ td }}">{{ inv.rc }}</td>
+                <td style="{{ td }}"><span style="{{ inv.paidDateStyle }}">{{ inv.paidDate }}</span></td>
+                <td style="{{ td }}"><span style="font-size:12px;color:var(--accent-ink);font-weight:700;cursor:pointer;">PDF</span></td>
+                <td style="{{ td }}"><div style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border-2);font-size:11.5px;font-weight:600;cursor:pointer;">Send</div></td>
+                <td style="{{ td }}">{{ inv.method }}</td>
+                <td style="{{ td }}"><span style="font-size:12px;color:var(--text-3);">{{ inv.notes }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- TEAM & USERS -->
+    <sc-if value="{{ isContacts }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <sc-for list="{{ contacts }}" as="c" hint-placeholder-count="3">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh1);">
+            <div style="{{ c.av }}">{{ c.initials }}</div>
+            <div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:7px;"><span style="font-size:13.5px;font-weight:600;">{{ c.name }}</span></div><div style="font-size:11px;color:var(--text-3);margin-top:1px;">{{ c.role }} · {{ c.email }}</div></div>
+            <span style="font-size:12px;color:var(--text-3);font-weight:600;">{{ c.phone }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--sh1);">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;">Users usage</div>
+        <table style="width:100%;border-collapse:separate;border-spacing:0;">
+          <thead><tr style="background:var(--accent-soft);"><th style="{{ th }}">Name</th><th style="{{ th }}">Last Login</th><th style="{{ thR }}">Active Days</th><th style="{{ thR }}">Unlocks</th><th style="{{ thR }}">Searches</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ users }}" as="u" hint-placeholder-count="3">
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="{{ td }}"><span style="font-size:13px;font-weight:600;color:var(--accent-ink);">{{ u.name }}</span></td>
+                <td style="{{ td }}">{{ u.lastLogin }}</td>
+                <td style="{{ tdR }}" class="tnum">{{ u.activeDays }}</td>
+                <td style="{{ tdR }}" class="tnum">{{ u.unlocks }}</td>
+                <td style="{{ tdR }}" class="tnum">{{ u.searches }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- DOCUMENTS -->
+    <sc-if value="{{ isDocuments }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;max-width:900px;box-shadow:var(--sh1);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;"><div style="font-size:16px;font-weight:700;">Documents</div><div onclick="{{ addDoc }}" style="display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--accent-strong);">Add document</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <sc-for list="{{ docs }}" as="d" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;">
+            <div style="width:34px;height:34px;border-radius:8px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg></div>
+            <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:700;color:var(--accent-ink);cursor:pointer;">{{ d.name }}</div><div style="font-size:11px;color:var(--text-3);margin-top:2px;">Uploaded by {{ d.user }} · {{ d.date }}</div></div>
+            <div style="font-size:12px;color:var(--text-3);font-weight:600;cursor:pointer;" style-hover="color:var(--accent-ink);">Download</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+  </div>
+
+  <!-- BOOK MEETING MODAL -->
+  <sc-if value="{{ showMeetingModal }}" hint-placeholder-val="{{ false }}">
+  <div onclick="{{ closeMeetingModal }}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ stopProp }}" style="background:#fff;border-radius:16px;width:460px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);background:var(--cg-900);border-radius:16px 16px 0 0;">
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#fff;">Book a Meeting</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:2px;">Talabat Egypt</div>
+        </div>
+        <div onclick="{{ closeMeetingModal }}" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.12);display:grid;place-items:center;cursor:pointer;color:#fff;font-size:16px;" style-hover="background:rgba(255,255,255,.2);">✕</div>
+      </div>
+      <div style="padding:22px;display:flex;flex-direction:column;gap:16px;">
+        <div>
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Meeting title</div>
+          <input type="text" placeholder="e.g. Q3 Renewal Discussion" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 12px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Date</div>
+            <input type="date" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Time</div>
+            <input type="time" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Type</div>
+            <select style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;"><option>Call</option><option>Video</option><option>In-person</option></select>
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Contact</div>
+            <select style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;"><option>Mohamed</option><option>Sara Khalil</option><option>Ahmed Ramzy</option></select>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Notes</div>
+          <textarea placeholder="Agenda, topics to cover…" style="width:100%;min-height:72px;border:1px solid var(--border-2);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;resize:vertical;line-height:1.5;"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border);">
+        <div onclick="{{ closeMeetingModal }}" style="height:38px;padding:0 20px;border-radius:9px;border:1px solid var(--border-2);background:var(--surface);font-size:14px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;" style-hover="background:var(--surface-2);">Cancel</div>
+        <div onclick="{{ saveMeeting }}" style="height:38px;padding:0 22px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;border:1px solid var(--accent-strong);" style-hover="background:var(--accent-strong);">Book meeting</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- CONTRACT CYCLE MODAL -->
+  <sc-if value="{{ showCycleModal }}" hint-placeholder-val="{{ false }}">
+  <div onclick="{{ closeCycleModal }}" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ stopProp }}" style="background:#fff;border-radius:16px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2);">
+      <!-- header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);background:var(--cg-900);border-radius:16px 16px 0 0;">
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#fff;">New Contract Cycle</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:2px;">Talabat Egypt</div>
+        </div>
+        <div onclick="{{ closeCycleModal }}" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.12);display:grid;place-items:center;cursor:pointer;color:#fff;font-size:16px;" style-hover="background:rgba(255,255,255,.2);">✕</div>
+      </div>
+      <!-- body -->
+      <div style="padding:22px;display:flex;flex-direction:column;gap:16px;">
+        <!-- row 1: start + end date -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Start date</div>
+            <input type="date" defaultValue="2026-06-20" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">End date</div>
+            <input type="date" defaultValue="2027-06-20" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+        </div>
+        <!-- row 2: value + currency -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Value</div>
+            <input type="number" placeholder="0" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Currency</div>
+            <select style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;"><option>EGP</option><option>USD</option><option>SAR</option></select>
+          </div>
+        </div>
+        <!-- row 3: plan tier + status -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Plan tier</div>
+            <select style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;"><option value="">— Select —</option><option>Starter</option><option>Growth</option><option>Enterprise</option></select>
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Status</div>
+            <select style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;"><option>Active</option><option>Expired</option><option>Pending</option></select>
+          </div>
+        </div>
+        <!-- row 4: offer sent + renewal due (optional) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Offer sent date</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <input type="date" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Renewal due date</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <input type="date" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+        </div>
+        <!-- row 5: old fees + new offer (optional) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Old fees amount</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <input type="number" placeholder="0" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">New offer amount</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <input type="number" placeholder="0" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+        </div>
+        <!-- row 6: original price + discount + payment type (optional) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Original price</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <input type="number" placeholder="0" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Discount given</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <input type="number" placeholder="0" style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;">
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:2px;">Payment type</div>
+            <div style="font-size:10px;color:var(--text-4);margin-bottom:5px;">(optional)</div>
+            <select style="width:100%;height:38px;border:1px solid var(--border-2);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;"><option value="">— Select —</option><option>Bank transfer</option><option>Fawry</option><option>Credit card</option><option>Cash</option></select>
+          </div>
+        </div>
+        <!-- auto-renew -->
+        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-2);">
+          <input type="checkbox" style="width:16px;height:16px;accent-color:var(--cg-900);cursor:pointer;">
+          Auto-renew at end of term
+        </label>
+        <!-- notes -->
+        <div>
+          <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:700;margin-bottom:6px;">Notes</div>
+          <textarea placeholder="Optional context — discount applied, custom terms, etc." style="width:100%;min-height:80px;border:1px solid var(--border-2);border-radius:8px;padding:10px;font-family:inherit;font-size:13px;color:var(--text);background:var(--surface);outline:none;resize:vertical;line-height:1.5;"></textarea>
+        </div>
+      </div>
+      <!-- footer -->
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border);">
+        <div onclick="{{ closeCycleModal }}" style="height:38px;padding:0 20px;border-radius:9px;border:1px solid var(--border-2);background:var(--surface);font-size:14px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;" style-hover="background:var(--surface-2);">Cancel</div>
+        <div onclick="{{ saveCycle }}" style="height:38px;padding:0 22px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;border:1px solid var(--accent-strong);" style-hover="background:var(--accent-strong);">Save cycle</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- TOAST -->
+  <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--cg-900);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:var(--sh3);z-index:999;animation:toastIn .18s ease;white-space:nowrap;">{{ toastMsg }}</div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  state = { tab: 'overview', tasks: null, toastMsg: '', toastVisible: false, showCycleModal: false, tags: ['Key account', 'Food tech', 'Cairo'], showMeetingModal: false, meetings: [
+    { id: 1, title: 'Q3 Renewal Discussion', date: 'Jun 24, 2026', time: '10:00 AM', type: 'Call', with: 'Mohamed', status: 'upcoming' },
+    { id: 2, title: 'Platform Demo — Alexandria branch', date: 'Jun 28, 2026', time: '2:00 PM', type: 'Video', with: 'Sara Khalil', status: 'upcoming' },
+    { id: 3, title: 'Onboarding check-in', date: 'Jun 10, 2026', time: '11:00 AM', type: 'Call', with: 'Mohamed', status: 'done' },
+  ] };
+
+  chip(v) {
+    const CHIP = {
+      neutral: 'background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);',
+      ok: 'background:var(--ok-bg);color:var(--ok);', warn: 'background:var(--warn-bg);color:var(--warn);',
+      bad: 'background:var(--bad-bg);color:var(--bad);', info: 'background:var(--info-bg);color:var(--info);',
+      brand: 'background:var(--accent-soft);color:var(--accent-ink);',
+    };
+    return 'display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;' + (CHIP[v] || CHIP.neutral);
+  }
+  avatar(initials, size) {
+    const s = size || 30;
+    return `width:${s}px;height:${s}px;border-radius:999px;background:linear-gradient(135deg,var(--cg-900),#4a5a6a);color:#fff;display:grid;place-items:center;font-weight:700;font-size:${Math.round(s * 0.35)}px;flex-shrink:0;`;
+  }
+  logo(name, size) {
+    const s = size || 34;
+    return `width:${s}px;height:${s}px;border-radius:9px;background:var(--cg-900);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:${Math.round(s * 0.36)}px;flex-shrink:0;`;
+  }
+  initials(n) { return n.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); }
+  short(n) { if (!n) return '0'; if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'k'; return '' + n; }
+
+  toast(msg) {
+    this.setState({ toastMsg: msg, toastVisible: true });
+    clearTimeout(this._tTimer);
+    this._tTimer = setTimeout(() => this.setState({ toastVisible: false }), 2800);
+  }
+
+  company() {
+    return {
+      name: 'Talabat Egypt', domain: 'talabat.com', uid: 'c6c0bffd-9373-11ea-add1-062a4819e77',
+      plan: 'Enterprise', paid: 'Paid', stage: 'won', region: 'Cairo', industry: 'Food & Delivery',
+      source: 'Referral', since: 'Mar 2023', end: 'Nov 20, 2026',
+      score: 92, used: 320, total: 500, jobs: 28, views: 14200, applies: 1900,
+    };
+  }
+
+  seedTasks() {
+    return [
+      { id: 1, text: 'Confirm renewal terms for Nov 2026 — 12% growth deal', due: 'Today', amName: 'Nour Adel', done: false },
+      { id: 2, text: 'Send Q3 engagement report to HR team', due: 'Tomorrow', amName: 'Nour Adel', done: false },
+      { id: 3, text: 'Follow up on sub-user seat expansion request', due: 'Jun 24', amName: 'Nour Adel', done: true },
+      { id: 4, text: 'Review invoice INV-118242 with finance', due: 'Jun 22', amName: 'Nour Adel', done: false },
+    ];
+  }
+
+  getTasks() { return this.state.tasks || (this.state.tasks = this.seedTasks()); }
+
+  renderVals() {
+    const st = this.state;
+    const c = this.company();
+    const pct = c.total ? Math.round((c.used / c.total) * 100) : 0;
+    const tab = st.tab || 'overview';
+
+    const tabList = [
+      { key: 'overview', label: 'Overview' },
+      { key: 'activity', label: 'Activity' },
+
+      { key: 'plans', label: 'Plans & credits' },
+
+      { key: 'contacts', label: 'Team & users' },
+      { key: 'documents', label: 'Documents' },
+    ];
+
+    const tabStyle = (k) => `height:40px;padding:0 16px;border:0;background:transparent;border-bottom:2.5px solid ${tab === k ? 'var(--cg-900)' : 'transparent'};color:${tab === k ? 'var(--text)' : 'var(--text-3)'};font-weight:${tab === k ? 700 : 600};font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit;`;
+    const tabs = tabList.map(t => ({ ...t, style: tabStyle(t.key), click: () => this.setState({ tab: t.key }) }));
+
+    const navTabs = ['Talabat Egypt', 'Vodafone Egypt', 'Halan'].map((n, i) => ({
+      label: n,
+      style: `padding:0 12px;height:52px;font-size:12px;font-weight:${i === 0 ? 700 : 500};color:${i === 0 ? '#fff' : 'rgba(255,255,255,.45)'};cursor:pointer;border-bottom:2px solid ${i === 0 ? 'var(--accent)' : 'transparent'};background:transparent;border-top:0;border-left:0;border-right:0;font-family:inherit;`,
+      click: i === 0 ? () => {} : () => this.toast('Switching to ' + n),
+    }));
+
+    const CHIP = { won: 'ok', lead: 'neutral', mql: 'info', sql: 'info', demo: 'brand', proposal: 'warn', lost: 'bad' };
+    const a = {
+      ...c,
+      logoInitials: this.initials(c.name),
+      logoStyle: this.logo(c.name, 54),
+      stageLabel: 'Won', stageChip: this.chip(CHIP[c.stage] || 'neutral'),
+      paidChip: this.chip('ok'),
+      regionChip: this.chip('neutral'),
+      industryChip: this.chip('neutral'),
+      creditPct: pct, creditBar: `height:100%;width:${pct}%;background:${pct > 85 ? 'var(--bad)' : pct > 65 ? 'var(--warn)' : 'var(--accent)'};border-radius:999px;`,
+      jobsPct: Math.round(c.jobs * 2) + '%',
+      viewsFmt: this.short(c.views), appliesFmt: this.short(c.applies),
+      scoreChip: this.chip(c.score >= 80 ? 'ok' : c.score >= 60 ? 'warn' : 'bad'),
+      amName: 'Nour Adel',
+      approvedChip: 'display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;background:var(--ok-bg);color:var(--ok);font-size:13px;font-weight:700;border:1px solid var(--ok);',
+      approvedLabel: '● Approved',
+      planSummary: c.plan + ' · 1 Year Access · expires ' + c.end,
+      uid: c.uid,
+    };
+
+    const statRow = [
+      { label: 'Credits', value: pct + '%', sub: c.used + ' / ' + c.total + ' used' },
+      { label: 'Plan', value: c.plan, sub: c.paid },
+      { label: 'Deal value', value: 'EGP 240k', sub: 'Enterprise' },
+      { label: 'Close date', value: 'Nov 20', sub: '2026' },
+      { label: 'Stage', value: 'Won', sub: 'Closed' },
+      { label: 'ICP score', value: c.score, sub: 'of 100' },
+      { label: 'Renews', value: 'Nov 20,\n2026', sub: 'Active' },
+    ].map((s, i) => ({ ...s, wrap: `padding:16px ${i === 6 ? 16 : 14}px 16px ${i === 0 ? 20 : 14}px;${i ? 'border-left:1px solid var(--border);' : ''}overflow:hidden;` }));
+
+    const pts = [10, 28, 18, 50, 38, 72, 55, 88, 62, 95, 75, 100];
+    const netPts = pts.map(v => Math.round(v * 0.74));
+    const w = 720, h = 100;
+    const chartGross = 'M' + pts.map((v, i) => `${Math.round(i * w / (pts.length - 1))},${h - Math.round(v * h / 110)}`).join(' L');
+    const chartNet = 'M' + netPts.map((v, i) => `${Math.round(i * w / (netPts.length - 1))},${h - Math.round(v * h / 110)}`).join(' L');
+
+    const owners = [
+      { role: 'AM', tag: 'NA', name: 'Nour Adel', email: 'na@recruitera.ai', av: this.avatar('NA', 40), ring: 'var(--accent-ink)', showReassign: true },
+      { role: 'CS', tag: 'NI', name: 'Nirvana Akram', email: 'nirvana@recruitera.ai', av: this.avatar('NI', 40), ring: 'var(--cg-900)', showReassign: false },
+    ];
+
+    const notes = [
+      { actor: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 32), type: 'Call', ago: '22 min ago', text: 'Spoke with HR Manager Ahmed about Q3 expansion. They want to add 3 new sub-users for the new Alexandria branch. Renewal confirmed for Nov 2026 — asked for 12% growth pricing.' },
+      { actor: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 32), type: 'Email', ago: '48 min ago', text: 'Sent renewal proposal with Q4 package options. Waiting on procurement approval.' },
+      { actor: 'Nirvana Akram', initials: 'NI', av: this.avatar('NI', 32), type: 'WhatsApp', ago: '1h 12m ago', text: 'Replied on WP: "Will forward to CEO for sign-off. Expect confirmation Sunday."' },
+    ];
+
+    const rawTasks = this.getTasks();
+    const tasks = rawTasks.map(t => ({
+      ...t,
+      check: `width:16px;height:16px;border-radius:4px;cursor:pointer;display:grid;place-items:center;border:1.5px solid ${t.done ? 'var(--accent-strong)' : 'var(--border-2)'};background:${t.done ? 'var(--accent)' : 'var(--surface)'};flex-shrink:0;margin-top:2px;`,
+      titleStyle: `font-size:12px;color:${t.done ? 'var(--text-3)' : 'var(--text)'};text-decoration:${t.done ? 'line-through' : 'none'};line-height:1.45;`,
+      dueStyle: this.chip(t.due === 'Today' ? 'bad' : 'neutral'),
+      toggle: () => {
+        const ts = this.getTasks().slice();
+        const x = ts.find(i => i.id === t.id);
+        if (x) x.done = !x.done;
+        this.setState({ tasks: ts });
+      },
+    }));
+
+    const activityLog = [
+      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Stage moved Won', chip: this.chip('ok'), date: 'Jun 14, 2026 · 10:22 AM' },
+      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Proposal sent', chip: this.chip('info'), date: 'Jun 13, 2026 · 3:48 PM' },
+      { admin: 'Nirvana Akram', initials: 'NI', av: this.avatar('NI', 30), activity: 'Jobs reviewed', chip: this.chip('neutral'), date: 'Jun 12, 2026 · 11:05 AM' },
+      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Impersonated', chip: this.chip('warn'), date: 'Jun 10, 2026 · 2:30 PM' },
+      { admin: 'Ahmed Hassan', initials: 'AH', av: this.avatar('AH', 30), activity: 'Invoice created', chip: this.chip('brand'), date: 'Jun 09, 2026 · 9:14 AM' },
+      { admin: 'Nour Adel', initials: 'NA', av: this.avatar('NA', 30), activity: 'Note added', chip: this.chip('neutral'), date: 'Jun 08, 2026 · 4:55 PM' },
+      { admin: 'Nirvana Akram', initials: 'NI', av: this.avatar('NI', 30), activity: 'Credit top-up', chip: this.chip('ok'), date: 'Jun 07, 2026 · 10:02 AM' },
+    ];
+
+    const jobTitles = ['Senior Software Engineer', 'Product Manager', 'UX Designer', 'Data Analyst', 'Marketing Manager', 'Operations Lead'];
+    const jobs = jobTitles.map((title, i) => ({
+      title, salary: (12 + i * 3) + '–' + (20 + i * 4) + 'k EGP',
+      created: (i * 4 + 3) + 'd ago', status: i < 5 ? 'Live' : 'Paused',
+      statusChip: this.chip(i < 5 ? 'ok' : 'neutral'),
+      expires: 'Aug ' + (10 + i) + ', 2026',
+      applies: 180 + i * 42, clicked: 80 + i * 20, views: 1200 + i * 350,
+    }));
+
+    const cycles = [
+      { status: 'Active', chip: this.chip('ok'), term: '1 Year', start: 'Nov 20, 2025', end: 'Nov 20, 2026', len: '12 months', amount: 'EGP 240,000' },
+      { status: 'Expired', chip: this.chip('neutral'), term: '1 Year', start: 'Nov 20, 2024', end: 'Nov 20, 2025', len: '12 months', amount: 'EGP 200,000' },
+    ];
+
+    const invoices = [
+      { inv: 'INV-118242', date: 'Jun 14, 2026', name: 'Enterprise Annual 2026', price: 'EGP 240,000', paid: 'EGP 240,000', soldBy: 'Nour Adel', rc: 'Nirvana', paidDate: 'Jun 14, 2026', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Bank transfer', notes: 'Q3 renewal — approved by CEO' },
+      { inv: 'INV-201187', date: 'Nov 22, 2025', name: 'Enterprise Annual 2025', price: 'EGP 200,000', paid: 'EGP 200,000', soldBy: 'Nour Adel', rc: 'Nirvana', paidDate: 'Dec 02, 2025', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Bank transfer', notes: '' },
+      { inv: 'INV-188411', date: 'Jun 10, 2025', name: 'CV Unlock top-up ×100', price: 'EGP 18,000', paid: 'EGP 18,000', soldBy: 'Karim Fawzy', rc: 'Nirvana', paidDate: 'Jun 12, 2025', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Fawry', notes: 'Urgent top-up for hiring surge' },
+      { inv: 'INV-174009', date: 'Mar 14, 2025', name: 'Boost pack ×5 jobs', price: 'EGP 8,500', paid: 'EGP 8,500', soldBy: 'Nour Adel', rc: 'Nirvana', paidDate: 'Mar 16, 2025', paidDateStyle: 'font-size:12px;color:var(--ok);font-weight:700;', method: 'Bank transfer', notes: '' },
+    ];
+
+    const contacts = [
+      { name: 'Ahmed Ramzy', initials: 'AR', av: this.avatar('AR', 40), role: 'HR Director', email: 'a.ramzy@talabat.com', phone: '+20 10 0112 3456' },
+      { name: 'Sara Khalil', initials: 'SK', av: this.avatar('SK', 40), role: 'Talent Acquisition Lead', email: 's.khalil@talabat.com', phone: '+20 10 0223 4567' },
+    ];
+    const users = [
+      { name: 'Ahmed Ramzy', lastLogin: 'Jun 14, 2026 · 09:44', activeDays: 42, unlocks: 180, searches: 312 },
+      { name: 'Sara Khalil', lastLogin: 'Jun 13, 2026 · 14:22', activeDays: 38, unlocks: 140, searches: 228 },
+    ];
+    const docs = [
+      { name: 'Enterprise_Contract_2026.pdf', user: 'Nour Adel', date: 'Jun 14, 2026' },
+      { name: 'Tax_Card_Talabat.pdf', user: 'Ahmed Hassan', date: 'Nov 20, 2025' },
+      { name: 'NDA_Signed_2023.pdf', user: 'Karim Fawzy', date: 'Mar 2023' },
+    ];
+
+    const th = 'text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap;';
+    const thR = th + 'text-align:right;';
+    const td = 'padding:11px 14px;font-size:13px;color:var(--text-2);font-weight:500;vertical-align:middle;';
+    const tdR = td + 'text-align:right;';
+
+    return {
+      a, statRow, tabs, navTabs,
+      chartGross, chartNet,
+      owners, notes, tasks, taskCount: rawTasks.filter(t => !t.done).length,
+      activityLog, jobs, cycles, invoices, contacts, users, docs,
+      isOverview: tab === 'overview',
+      isActivity: tab === 'activity',
+      isJobs: tab === 'jobs',
+      isPlans: tab === 'plans',
+      isInvoices: tab === 'invoices',
+      isContacts: tab === 'contacts',
+      isDocuments: tab === 'documents',
+      th, thR, td, tdR,
+      toastMsg: st.toastMsg, toastVisible: st.toastVisible,
+      doImpersonate: () => this.toast('Opening impersonation session for Talabat Egypt · logged to audit'),
+      doJsView: () => this.toast('Opening job-seeker view for talabat.com'),
+      doWhatsApp: () => this.toast('Opening WhatsApp chat with HR Manager'),
+      doEmail: () => this.toast('Opening email composer'),
+      doProposal: () => this.toast('Opening proposal builder for Talabat Egypt'),
+      reassign: () => this.toast('Opening reassign modal'),
+      addNote: () => this.toast('Note added'),
+      addDoc: () => this.toast('Upload dialog opening'),
+      meetings: st.meetings.map(m => ({
+        ...m,
+        typeIcon: m.type === 'Call' ? '📞' : m.type === 'Video' ? '🎥' : '📅',
+        statusStyle: m.status === 'done' ? 'color:var(--text-3);text-decoration:line-through;' : 'color:var(--text);',
+        dateBg: m.status === 'done' ? 'background:var(--surface-2);' : 'background:var(--accent-soft);border:1px solid var(--accent);',
+      })),
+      showMeetingModal: st.showMeetingModal,
+      openMeetingModal: () => this.setState({ showMeetingModal: true }),
+      closeMeetingModal: () => this.setState({ showMeetingModal: false }),
+      saveMeeting: () => { this.setState({ showMeetingModal: false }); this.toast('Meeting booked'); },
+      showCycleModal: st.showCycleModal,
+      tags: st.tags.map(tag => ({ label: tag, remove: () => this.setState({ tags: st.tags.filter(t => t !== tag) }) })),
+      addTag: () => {
+        const val = prompt('Add tag:');
+        if (val && val.trim()) this.setState({ tags: [...st.tags, val.trim()] });
+      },
+      openCycleModal: () => this.setState({ showCycleModal: true }),
+      stopProp: (e) => e.stopPropagation(),
+      closeCycleModal: () => this.setState({ showCycleModal: false }),
+      saveCycle: () => { this.setState({ showCycleModal: false }); this.toast('Contract cycle saved'); },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

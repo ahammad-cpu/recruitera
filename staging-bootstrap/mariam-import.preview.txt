@@ -1,0 +1,33 @@
+=== Parsed 94 records ===
+
+Stage distribution after mapping:
+  mql                  46
+  lost (disq)          34
+  won                  10
+  mql (disq)           4
+
+Rows missing contact_name: 9
+Rows missing phone:        9
+Rows with both:            85
+
+=== First 10 normalized records ===
+ 1. 'Aman Holding'                      | contact='yasmin'           phone='+201092010040' stage='lost'   disq=True  source=None
+     notes: '-They require more than 80 users.\n \n-They need the Blue Collar module.\n\n-They need the MPP module.  Ahmed Hamdy'
+ 2. 'AAIB'                              | contact='nader basha'      phone='+201220673708' stage='mql'    disq=False source='Hub Spot — Old Data'
+     notes: 'We have a meeting next Sunday, and we expect to receive the approval within three weeks.'
+ 3. 'Illa'                              | contact='fatma'            phone='+201127978902' stage='lost'   disq=True  source=None
+     notes: 'They are currently using Zoho at a lower price (20.000)and are not willing to pay more at this time'
+ 4. 'Cairo 3A'                          | contact='mohamed khalifa'  phone='+201225513552' stage='lost'   disq=True  source='BD iCareer'
+     notes: 'unreachable'
+ 5. 'Zahran Markets'                    | contact='ayman'            phone='+201212223183' stage='lost'   disq=True  source='Hub Spot — Old Data'
+     notes: 'unreachable'
+ 6. '2B'                                | contact='peter'            phone='+201021053844' stage='lost'   disq=True  source='LinkedIn'
+     notes: 'They have changed their mind and decided not to proceed with paying for the ATS.'
+ 7. 'Moneyfellows'                      | contact='Yasmin algazar'   phone='+201120797999' stage='lost'   disq=True  source='Hub Spot — Old Data'
+     notes: 'Most likely, they have renewed with Workable'
+ 8. 'Komandas HUB'                      | contact='yosra'            phone='+201202228157' stage='lost'   disq=True  source='Hub Spot — Old Data'
+ 9. 'Monglish'                          | contact='mahmoud'          phone='+201011575726' stage='mql'    disq=True  source='Hub Spot — Old Data'
+10. 'Kandil Glass'                      | contact='hend sayed'       phone='+201070900854' stage='mql'    disq=False source='LinkedIn'
+     notes: 'she is waiting for management approval'
+
+Normalized JSON written to: staging-bootstrap/mariam-normalized.json

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  .rrd-menu{position:fixed;background:#fff;border:1px solid #e6e9e1;border-radius:12px;box-shadow:0 12px 36px rgba(0,20,18,0.18);z-index:500;overflow:hidden;display:none}
+  .rrd-opt{display:flex;align-items:center;gap:11px;padding:11px 15px;font-size:13.5px;color:#1a2b28;cursor:pointer;text-decoration:none}
+  .rrd-opt:hover{background:#f4f7ec}
+</style>
+</helmet>
+
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;font-family:inherit">
+  <!-- select checkbox -->
+  <div style="position:relative;display:inline-flex;align-items:center;background:#fff;border:1px solid #dfe3db;border-radius:9px;overflow:visible">
+    <span class="all-cb-wrap" style="display:inline-flex;align-items:center;padding:7px 10px;cursor:pointer" style-hover="background:#f4f7ef;border-radius:9px 0 0 9px">
+      <span class="all-cb" style="width:18px;height:18px;border:1.6px solid #c8cfc6;border-radius:5px;cursor:pointer;box-sizing:border-box"></span>
+    </span>
+    <span class="all-cb-caret" style="display:inline-flex;align-items:center;padding:7px 8px;cursor:pointer;border-left:1px solid #dfe3db" style-hover="background:#f4f7ef;border-radius:0 9px 9px 0">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7a74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+    </span>
+    <div class="all-cb-drop" style="display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:120px;background:#fff;border:1px solid #e6e9e1;border-radius:10px;box-shadow:0 8px 28px rgba(0,20,18,0.16);z-index:300;overflow:hidden">
+      <a href="#" class="cb-drop-all" style="display:block;padding:11px 16px;font-size:14px;color:#1a2b28;text-decoration:none;font-weight:500" style-hover="background:#f4f7ec">All</a>
+      <a href="#" class="cb-drop-none" style="display:block;padding:11px 16px;font-size:14px;color:#1a2b28;text-decoration:none;font-weight:500;border-top:1px solid #f0f3eb" style-hover="background:#f4f7ec">None</a>
+    </div>
+  </div>
+
+  <!-- count -->
+  <span class="count-text" style="font-size:13.5px;color:#8a978f;white-space:nowrap">1–30 of 30 candidates</span>
+  <span style="flex:1"></span>
+
+  <!-- add candidates -->
+  <button class="add-btn" style="display:inline-flex;align-items:center;gap:8px;font-family:inherit;font-weight:700;font-size:14px;background:#002427;color:#fff;border:1px solid #002427;border-radius:10px;height:36px;padding:0 18px;white-space:nowrap;cursor:pointer" style-hover="filter:brightness(1.5)">+ Add candidates</button>
+
+  <!-- sort by job -->
+  <div style="position:relative;display:inline-flex">
+    <button class="job-btn" style="display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-weight:600;font-size:13.5px;color:#1a2b28;background:#fff;border:1px solid #dfe3db;border-radius:10px;height:36px;padding:0 13px;cursor:pointer;white-space:nowrap" style-hover="background:#f4f7ef">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M7 12h10M11 18h2"></path></svg>
+      <span class="job-label">Job</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+    </button>
+    <div class="job-menu rrd-menu" style="min-width:220px;max-height:340px;overflow-y:auto">
+      <div style="padding:10px 14px 6px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#8a978f">Sort by</div>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Relevance">Relevance</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Name">Name</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Average evaluation score">Average evaluation score</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Job">Job</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Pipeline stage">Pipeline stage</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Evaluation score">Evaluation score</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Screening score">Screening score</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Talent pool">Talent pool</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Date created">Date created</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Last activity">Last activity</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Disqualified by">Disqualified by</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Disqualify date">Disqualify date</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Hire date">Hire date</a>
+      <a href="#" class="sort-opt rrd-opt" data-sort="Start date">Start date</a>
+    </div>
+  </div>
+
+  <!-- columns -->
+  <div style="position:relative;display:inline-flex">
+    <button class="col-btn" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1px solid #dfe3db;border-radius:10px;cursor:pointer" style-hover="background:#f4f7ef" title="Adjust columns">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"></rect><rect x="14" y="3" width="7" height="18" rx="1.5"></rect></svg>
+    </button>
+    <div class="col-menu rrd-menu" style="min-width:230px;right:0;left:auto">
+      <div style="padding:12px 14px 8px;font-size:13.5px;font-weight:700;color:#1a2b28;border-bottom:1px solid #eef1ea">Adjust columns</div>
+      <div style="max-height:280px;overflow-y:auto;padding:6px 0">
+        <div class="col-opt rrd-opt"><span style="flex:1">Name</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Job</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Date created</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Talent pool</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Pipeline stage</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Source</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Tag</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Evaluation score</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Screening score</span></div>
+        <div class="col-opt rrd-opt"><span style="flex:1">Last activity</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- more -->
+  <div style="position:relative;display:inline-flex">
+    <span class="more-btn" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1px solid #dfe3db;border-radius:10px;cursor:pointer" style-hover="background:#f4f7ef">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="19" cy="12" r="1.2"></circle></svg>
+    </span>
+    <div class="more-menu rrd-menu" style="min-width:200px;right:0;left:auto">
+      <a href="#" class="rrd-opt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export to CSV</a>
+      <a href="#" class="rrd-opt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>Share</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: {&quot;width&quot;: 800, &quot;height&quot;: 60},
+  &quot;count&quot;: {&quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;1–30 of 30 candidates&quot;, &quot;section&quot;: &quot;Data&quot;}
+}">
+class Component extends DCLogic {
+  componentDidMount() {
+    const s = this.wrap?.current || document;
+    const toggle = (btn, menu) => {
+      btn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = menu.style.display === 'block';
+        document.querySelectorAll('.rrd-menu').forEach(m => m.style.display = 'none');
+        if (!open) {
+          menu.style.display = 'block';
+          const r = btn.getBoundingClientRect();
+          menu.style.top = (r.bottom + 6) + 'px';
+          if (menu.style.right === '0px' || menu.classList.contains('right')) {
+            menu.style.left = (r.right - menu.offsetWidth) + 'px';
+          } else {
+            menu.style.left = r.left + 'px';
+          }
+          setTimeout(() => document.addEventListener('click', close, {once:true}), 0);
+        }
+      });
+    };
+    const close = () => document.querySelectorAll('.rrd-menu').forEach(m => m.style.display = 'none');
+    toggle(s.querySelector('.job-btn'), s.querySelector('.job-menu'));
+    toggle(s.querySelector('.col-btn'), s.querySelector('.col-menu'));
+    toggle(s.querySelector('.more-btn'), s.querySelector('.more-menu'));
+    // sort selection
+    s.querySelectorAll('.sort-opt').forEach(o => o.addEventListener('click', (e) => {
+      e.preventDefault(); close();
+      s.querySelectorAll('.sort-opt').forEach(x => { x.style.background = ''; x.style.fontWeight = ''; });
+      o.style.background = '#f4f7ec'; o.style.fontWeight = '700';
+      const lbl = s.querySelector('.job-label'); if (lbl) lbl.textContent = o.dataset.sort;
+    }));
+    // caret dropdown
+    const caret = s.querySelector('.all-cb-caret');
+    const drop = s.querySelector('.all-cb-drop');
+    if (caret && drop) {
+      caret.addEventListener('click', (e) => {
+        e.stopPropagation();
+        drop.style.display = drop.style.display === 'block' ? 'none' : 'block';
+        setTimeout(() => document.addEventListener('click', () => { drop.style.display = 'none'; }, {once:true}), 0);
+      });
+    }
+  }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
