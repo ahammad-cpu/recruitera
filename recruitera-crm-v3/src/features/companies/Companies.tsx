@@ -234,16 +234,20 @@ export default function Companies() {
       </div>
 
       {/* TABLE */}
-      <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
+      <div className="rounded-[14px] border border-border overflow-x-auto shadow-[0_1px_2px_rgba(0,20,18,0.04)] bg-surface">
         <div className="overflow-x-auto sc">
-          <table className="text-[13px]" style={{ width: totalWidth, tableLayout: 'fixed' }}>
+          <table className="text-[13px] border-collapse w-auto min-w-full" style={{ width: totalWidth, tableLayout: 'fixed' }}>
             <colgroup>
+              <col style={{ width: 40 }} />
               {(Object.keys(COL_DEFAULTS) as ColKey[]).map((k) => (
                 <col key={k} style={{ width: widths[k] }} />
               ))}
             </colgroup>
-            <thead className="bg-surface-2 text-text-3 text-[11px] uppercase tracking-wider">
-              <tr>
+            <thead className="sticky top-0 z-10 bg-surface-2 text-text-2 text-[11.5px] uppercase tracking-wider">
+              <tr className="border-b border-border">
+                <th className="h-10 px-2 text-left align-middle w-10">
+                  <span className="inline-block w-[18px] h-[18px] rounded-[5px] border-[1.6px] border-border-2 bg-surface" aria-label="Select all" />
+                </th>
                 <ThSortable onClick={() => toggleSort('name')} active={sort.key === 'name'} dir={sort.dir} onResize={(e) => startResize('company', e)}>Company</ThSortable>
                 <Th onResize={(e) => startResize('contact', e)}>Contact</Th>
                 <ThSortable onClick={() => toggleSort('stage')} active={sort.key === 'stage'} dir={sort.dir} onResize={(e) => startResize('stage', e)}>Stage</ThSortable>
@@ -255,17 +259,23 @@ export default function Companies() {
             </thead>
             <tbody>
               {isLoading && [...Array(8)].map((_, i) => (
-                <tr key={i} className="border-t border-border"><td className="px-4 py-3" colSpan={7}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
+                <tr key={i} className="border-b border-border/50"><td className="px-4 py-3" colSpan={8}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
               ))}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
               )}
-              {!isLoading && filtered.slice(0, 300).map((a) => {
+              {!isLoading && filtered.slice(0, 300).map((a, idx) => {
                 const dupe = dupeMap.get(a.id);
                 const primary = (contactsMap.get(a.id) ?? [])[0];
                 return (
-                  <tr key={a.id} className="border-t border-border hover:bg-surface-2 transition-colors">
-                    <td className="px-4 py-2.5 overflow-hidden">
+                  <tr key={a.id} className={cn(
+                    'border-b border-border/50 hover:bg-accent-soft/40 transition-colors',
+                    idx % 2 === 1 && 'bg-surface-2/40',
+                  )}>
+                    <td className="px-2 py-3 align-middle">
+                      <span className="inline-block w-[18px] h-[18px] rounded-[5px] border-[1.6px] border-border-2 bg-surface" />
+                    </td>
+                    <td className="px-4 py-2.5 overflow-hidden border-r border-border/40">
                       <Link to={`/companies/${a.id}`} className="flex items-center gap-2.5 group min-w-0" title={a.name || a.domain || ''}>
                         <div className="w-7 h-7 rounded-lg bg-cg-800 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                           {initials(a.name || a.domain)}
@@ -290,7 +300,7 @@ export default function Companies() {
                         </div>
                       </Link>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 border-r border-border/40">
                       {primary ? (
                         <div className="min-w-0">
                           <div className="text-[12px] text-text truncate max-w-[220px]">{primary.email || primary.full_name || '—'}</div>
@@ -298,8 +308,8 @@ export default function Companies() {
                         </div>
                       ) : <span className="text-text-4 text-[12px]">—</span>}
                     </td>
-                    <td className="px-4 py-2.5"><StagePill stage={a.stage} /></td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 border-r border-border/40"><StagePill stage={a.stage} /></td>
+                    <td className="px-4 py-2.5 border-r border-border/40">
                       <OwnerCell
                         account={a}
                         profileByEmail={profileByEmail as never}
@@ -313,8 +323,8 @@ export default function Companies() {
                         })}
                       />
                     </td>
-                    <td className="px-4 py-2.5 text-text-2 text-[12px]">{a.source || '—'}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 text-text-2 text-[12px] border-r border-border/40">{a.source || '—'}</td>
+                    <td className="px-4 py-2.5 border-r border-border/40">
                       {a.has_trial ? (
                         <span className={cn(
                           'inline-flex h-5 px-2 rounded-full text-[10.5px] font-bold items-center',
@@ -328,7 +338,7 @@ export default function Companies() {
                         <span className="inline-flex h-5 px-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-bold items-center">Paid</span>
                       ) : <span className="text-text-4">—</span>)}
                     </td>
-                    <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap">{fmtDate(a.created_at)}</td>
+                    <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap">{fmtDate(a.created_at)}</td>{/* last col — no border-r */}
                   </tr>
                 );
               })}
@@ -347,7 +357,7 @@ export default function Companies() {
 
 function Th({ children, onResize }: { children: React.ReactNode; onResize?: (e: React.MouseEvent) => void }) {
   return (
-    <th className="relative text-left font-bold px-4 py-2.5 truncate">
+    <th className="relative text-left font-bold px-4 py-2.5 truncate border-r border-border/40 last:border-r-0">
       {children}
       {onResize && <ResizeHandle onMouseDown={onResize} />}
     </th>
@@ -363,7 +373,7 @@ function ThSortable({
   onResize?: (e: React.MouseEvent) => void;
 }) {
   return (
-    <th className="relative text-left font-bold px-4 py-2.5">
+    <th className="relative text-left font-bold px-4 py-2.5 border-r border-border/40 last:border-r-0">
       <button onClick={onClick} className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-text max-w-full">
         <span className="truncate">{children}</span>
         <ArrowUpDown size={11} className={active ? 'text-text' : 'text-text-4'} />
