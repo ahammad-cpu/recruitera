@@ -5,14 +5,16 @@ import { useUtmLinks, useUtmCampaigns, useSaveUtmLink } from '@/hooks/useUtmData
 import { fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
-const SOURCES = ['google', 'facebook', 'linkedin', 'twitter', 'email', 'newsletter', 'direct'];
-const MEDIUMS = ['cpc', 'social', 'email', 'referral', 'display', 'organic', 'affiliate'];
-
 export default function Utm() {
   const [tab, setTab] = useState<'build' | 'saved'>('build');
   const { data: links } = useUtmLinks();
   const { data: campaigns } = useUtmCampaigns();
   const save = useSaveUtmLink();
+
+  // Auto-complete suggestions derived from every source/medium already
+  // used in saved utm_links — no hardcoded provider list.
+  const sources = Array.from(new Set((links ?? []).map((l) => l.utm_source).filter(Boolean) as string[])).sort();
+  const mediums = Array.from(new Set((links ?? []).map((l) => l.utm_medium).filter(Boolean) as string[])).sort();
 
   const [state, setState] = useState({
     base_url: 'https://recruitera.com',
@@ -68,8 +70,8 @@ export default function Utm() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1 space-y-3">
             <Field label="Base URL" value={state.base_url} onChange={(v) => setState((s) => ({ ...s, base_url: v }))} />
-            <Field label="Source" value={state.utm_source} onChange={(v) => setState((s) => ({ ...s, utm_source: v }))} list={SOURCES} />
-            <Field label="Medium" value={state.utm_medium} onChange={(v) => setState((s) => ({ ...s, utm_medium: v }))} list={MEDIUMS} />
+            <Field label="Source" value={state.utm_source} onChange={(v) => setState((s) => ({ ...s, utm_source: v }))} list={sources} />
+            <Field label="Medium" value={state.utm_medium} onChange={(v) => setState((s) => ({ ...s, utm_medium: v }))} list={mediums} />
             <Field label="Campaign" value={state.utm_campaign} onChange={(v) => setState((s) => ({ ...s, utm_campaign: v }))} list={campaigns?.map((c) => c.name)} />
             <Field label="Content" value={state.utm_content} onChange={(v) => setState((s) => ({ ...s, utm_content: v }))} placeholder="hero-cta / footer-link / …" />
           </div>

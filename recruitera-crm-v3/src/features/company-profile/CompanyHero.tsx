@@ -3,16 +3,16 @@ import { Globe, Pencil, Check, X } from 'lucide-react';
 import type { Account } from '@/hooks/useAccounts';
 import { isPaid } from '@/hooks/useAccounts';
 import { useRenameAccount, useChangeStage } from '@/hooks/useAccountMutations';
+import { useEnum } from '@/hooks/useEnum';
 import { StagePill } from '@/components/shared/StagePill';
 import { fmtDate, initials } from '@/lib/format';
-
-const STAGES = ['lead', 'mql', 'sql', 'demo', 'proposal', 'won', 'paid', 'lost'];
 
 export function CompanyHero({ lead }: { lead: Account }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(lead.name || '');
   const rename = useRenameAccount();
   const changeStage = useChangeStage();
+  const stagesEnum = useEnum('pipeline_stage');
   const paid = isPaid(lead);
   const name = lead.name || lead.domain || '—';
 
@@ -66,7 +66,7 @@ export function CompanyHero({ lead }: { lead: Account }) {
               className="h-6 pl-2 pr-6 rounded-full text-[11px] font-bold border border-border bg-surface text-text-2 outline-none focus:border-accent-strong"
               title="Change stage"
             >
-              {STAGES.map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+              {(stagesEnum.data ?? []).map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
             </select>
             {paid && (
               <span className="inline-flex h-5 items-center px-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-bold">● Paid</span>

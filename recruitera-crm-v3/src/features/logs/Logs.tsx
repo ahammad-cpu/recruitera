@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useRecentActivities } from '@/hooks/useRecentActivities';
+import { useEnum } from '@/hooks/useEnum';
 import { fmtDate } from '@/lib/format';
-
-const KINDS = ['all', 'note', 'call', 'email', 'meeting', 'task', 'stage_change', 'qualification'];
 
 export default function Logs() {
   const { data, isLoading, error } = useRecentActivities(300);
+  const activityTypes = useEnum('activity_type');
   const [kind, setKind] = useState('all');
+
+  // Union of enum values and whatever kinds actually appear in fetched rows,
+  // so we never miss a kind if the DB adds one before the enum is repolled.
+  const kinds = useMemo(() => {
+    const set = new Set<string>(activityTypes.data ?? []);
+    (data ?? []).forEach((a) => set.add(a.type));
+    return ['all', ...Array.from(set).sort()];
+  }, [activityTypes.data, data]);
 
   if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
 
@@ -23,7 +31,7 @@ export default function Logs() {
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">
-        {KINDS.map((k) => (
+        {kinds.map((k) => (
           <button
             key={k}
             onClick={() => setKind(k)}

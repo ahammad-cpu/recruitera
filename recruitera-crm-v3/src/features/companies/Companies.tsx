@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
+import { useEnum } from '@/hooks/useEnum';
 import { useAllContacts } from '@/hooks/useAllContacts';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -49,6 +50,7 @@ export default function Companies() {
   const cycles = useContractCycles();
   const profiles = useProfiles();
   const me = useMe();
+  const stagesEnum = useEnum('pipeline_stage');
 
   // Plan per account = plan_tier of the latest cycle (by started_at desc).
   // useContractCycles already orders desc, so first hit per account wins.
@@ -210,7 +212,7 @@ export default function Companies() {
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={stage} onChange={setStage} label="Stage">
           <option value="all">All stages</option>
-          {['lead', 'mql', 'sql', 'demo', 'proposal', 'won', 'paid', 'lost'].map((s) => (
+          {(stagesEnum.data ?? []).map((s) => (
             <option key={s} value={s}>{s.toUpperCase()}</option>
           ))}
         </Select>
