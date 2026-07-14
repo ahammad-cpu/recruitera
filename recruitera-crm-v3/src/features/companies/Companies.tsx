@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useAllContacts } from '@/hooks/useAllContacts';
+import { useContractCycles } from '@/hooks/useContractCycles';
 import { useProfiles } from '@/hooks/useUsersData';
 import { useMe } from '@/hooks/useMe';
 import { useChangeOwner } from '@/hooks/useAccountMutations';
@@ -35,6 +36,7 @@ const COL_DEFAULTS = {
   contact: 240,
   stage: 110,
   owner: 240,
+  plan: 130,
   source: 150,
   trial: 100,
   created: 120,
@@ -44,8 +46,21 @@ type ColKey = keyof typeof COL_DEFAULTS;
 export default function Companies() {
   const { data, isLoading, error } = useAccounts();
   const contacts = useAllContacts();
+  const cycles = useContractCycles();
   const profiles = useProfiles();
   const me = useMe();
+
+  // Plan per account = plan_tier of the latest cycle (by started_at desc).
+  // useContractCycles already orders desc, so first hit per account wins.
+  const planByAcct = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cycles.data ?? []) {
+      if (c.account_id && c.plan_tier && !m.has(c.account_id)) {
+        m.set(c.account_id, c.plan_tier);
+      }
+    }
+    return m;
+  }, [cycles.data]);
   const changeOwner = useChangeOwner();
   const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
   const profileByEmail = useMemo(() => {
@@ -252,6 +267,7 @@ export default function Companies() {
                 <Th onResize={(e) => startResize('contact', e)}>Contact</Th>
                 <ThSortable onClick={() => toggleSort('stage')} active={sort.key === 'stage'} dir={sort.dir} onResize={(e) => startResize('stage', e)}>Stage</ThSortable>
                 <ThSortable onClick={() => toggleSort('owner')} active={sort.key === 'owner'} dir={sort.dir} onResize={(e) => startResize('owner', e)}>Owner</ThSortable>
+                <Th onResize={(e) => startResize('plan', e)}>Plan</Th>
                 <ThSortable onClick={() => toggleSort('source')} active={sort.key === 'source'} dir={sort.dir} onResize={(e) => startResize('source', e)}>Source</ThSortable>
                 <Th onResize={(e) => startResize('trial', e)}>Trial</Th>
                 <ThSortable onClick={() => toggleSort('created')} active={sort.key === 'created'} dir={sort.dir} onResize={(e) => startResize('created', e)}>Created</ThSortable>
@@ -259,10 +275,10 @@ export default function Companies() {
             </thead>
             <tbody>
               {isLoading && [...Array(8)].map((_, i) => (
-                <tr key={i} className="border-b border-border/50"><td className="px-4 py-3" colSpan={8}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
+                <tr key={i} className="border-b border-border/50"><td className="px-4 py-3" colSpan={9}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
               ))}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
               )}
               {!isLoading && filtered.slice(0, 300).map((a, idx) => {
                 const dupe = dupeMap.get(a.id);
@@ -322,6 +338,11 @@ export default function Companies() {
                           am_mail: prof?.email ?? null,
                         })}
                       />
+                    </td>
+                    <td className="px-4 py-2.5 border-r border-border/40">
+                      {planByAcct.get(a.id)
+                        ? <span className="inline-flex items-center h-5 px-2 rounded-full bg-accent-soft text-accent-ink text-[10.5px] font-bold uppercase tracking-wider">{planByAcct.get(a.id)}</span>
+                        : <span className="text-text-4 text-[12px]">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-text-2 text-[12px] border-r border-border/40">{a.source || '—'}</td>
                     <td className="px-4 py-2.5 border-r border-border/40">

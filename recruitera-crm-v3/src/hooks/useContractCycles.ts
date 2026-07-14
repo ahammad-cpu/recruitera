@@ -12,6 +12,7 @@ export type Cycle = {
   currency: string | null;
   renewal_due_date: string | null;
   auto_renew: boolean | null;
+  plan_tier: string | null;
 };
 
 export function useContractCycles() {
