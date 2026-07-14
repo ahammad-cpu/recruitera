@@ -88,8 +88,18 @@ export default function Dashboard() {
 
   const myCompanies = myAccts.slice(0, 5);
   const myCoOpen = myAccts.filter((a) => OPEN.has((a.stage || '').toLowerCase())).length;
-  const openTasksAll = (tasks.data ?? []).filter((t) => !t.task_done);
+  const scopedAcctIds = new Set(myAccts.map((a) => a.id));
+  const openTasksAll = (tasks.data ?? []).filter((t) => {
+    if (t.task_done) return false;
+    if (isTeam) return true;
+    // Task is in scope if assigned to the picked owner OR the task's account
+    // belongs to the picked owner.
+    if (t.assigned_to && t.assigned_to === scopeId) return true;
+    if (t.account_id && scopedAcctIds.has(t.account_id)) return true;
+    return false;
+  });
   const myOpenTasks = openTasksAll.slice(0, 5);
+  const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
   const currentOwner = isTeam
     ? { full_name: 'Whole team', id: 'all' }
     : (profiles.data ?? []).find((p) => p.id === scopeId) ?? me.data;
@@ -105,17 +115,19 @@ export default function Dashboard() {
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{bannerLabel}</span>
           <span className="text-[12px] text-text-3 font-medium">· {monthLabel} · {displayName}</span>
           <div className="flex-1" />
-          <select
-            value={scopeId ?? ''}
-            onChange={(e) => setOwnerId(e.target.value)}
-            className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
-            title="Filter dashboard by owner"
-          >
-            <option value="all">Whole team</option>
-            {(profiles.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-            ))}
-          </select>
+          {isAdmin && (
+            <select
+              value={scopeId ?? ''}
+              onChange={(e) => setOwnerId(e.target.value)}
+              className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
+              title="Filter dashboard by owner (admin)"
+            >
+              <option value="all">Whole team</option>
+              {(profiles.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+              ))}
+            </select>
+          )}
           <span
             className="inline-flex items-center h-6 px-2.5 rounded-full text-[10.5px] font-bold"
             style={{
