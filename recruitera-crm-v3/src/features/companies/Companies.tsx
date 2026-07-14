@@ -31,13 +31,13 @@ type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';
 type SortDir = 'asc' | 'desc';
 
 const COL_DEFAULTS = {
-  company: 280,
-  contact: 220,
-  stage: 100,
-  owner: 220,
-  source: 140,
-  trial: 90,
-  created: 110,
+  company: 340,
+  contact: 240,
+  stage: 110,
+  owner: 240,
+  source: 150,
+  trial: 100,
+  created: 120,
 } as const;
 type ColKey = keyof typeof COL_DEFAULTS;
 
@@ -68,7 +68,7 @@ export default function Companies() {
   const [owner, setOwner] = useState('all');
   const [trialF, setTrialF] = useState<'all' | 'on' | 'expired'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
-  const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths', COL_DEFAULTS);
+  const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths.v2', COL_DEFAULTS);
   const totalWidth = (Object.keys(COL_DEFAULTS) as ColKey[]).reduce((s, k) => s + (widths[k] ?? COL_DEFAULTS[k]), 0);
 
   const contactsMap = contacts.data ?? new Map();

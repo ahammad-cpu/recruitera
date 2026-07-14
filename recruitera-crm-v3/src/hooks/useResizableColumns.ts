@@ -31,7 +31,7 @@ export function useResizableColumns(storageKey: string, defaults: Record<string,
     const onMove = (ev: MouseEvent) => {
       if (!active.current) return;
       const dx = ev.clientX - active.current.startX;
-      const next = Math.max(60, active.current.startW + dx);
+      const next = Math.max(90, active.current.startW + dx);
       setWidths((w) => ({ ...w, [active.current!.id]: next }));
     };
     const onUp = () => {
