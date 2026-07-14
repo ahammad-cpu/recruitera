@@ -21,6 +21,10 @@ import RevenueReport from '@/features/reports/tabs/RevenueReport';
 import RenewalReport from '@/features/reports/tabs/RenewalReport';
 import CampaignReport from '@/features/reports/tabs/CampaignReport';
 
+// Vite's BASE_URL matches the deploy path (/crm-v3/ on Vercel, / in dev).
+// Strip trailing slash so React Router accepts it as basename.
+const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
+
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -57,4 +61,4 @@ export const router = createBrowserRouter([
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-]);
+], { basename });
