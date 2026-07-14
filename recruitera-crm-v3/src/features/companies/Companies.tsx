@@ -8,6 +8,7 @@ import { useMe } from '@/hooks/useMe';
 import { useChangeOwner } from '@/hooks/useAccountMutations';
 import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
+import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { fmtInt, fmtDate, initials } from '@/lib/format';
 import { isJunkAccount, buildDupeMap, type DupeEntry } from '@/lib/dedupe';
 import { cn } from '@/lib/cn';
@@ -358,33 +359,39 @@ function OwnerCell({
   editable: boolean;
   onChange: (profile: import('@/hooks/useUsersData').Profile | null) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const current = (account.owner_id && profileById.get(account.owner_id))
     || (account.am_mail && profileByEmail.get(account.am_mail))
     || null;
   const label = current?.full_name || account.am_mail || 'Unassigned';
 
   return (
-    <div className="flex items-center gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
-      <OwnerAvatar profile={current} size={26} fallback={account.am_mail} />
-      <div className="min-w-0 flex-1">
-        <div className="text-[12.5px] font-semibold text-text truncate">{label}</div>
-        {current?.email && <div className="text-[10.5px] text-text-3 truncate">{current.email}</div>}
-      </div>
-      {editable && (
-        <select
-          value={current?.id ?? ''}
-          onChange={(e) => {
-            const next = profiles.find((p) => p.id === e.target.value) ?? null;
-            onChange(next);
-          }}
-          className="h-6 pl-1.5 pr-6 border border-border rounded-md bg-surface text-[10.5px] font-bold text-text-2 outline-none cursor-pointer"
-          title="Change owner"
-        >
-          <option value="">Unassigned</option>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-          ))}
-        </select>
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => editable && setOpen((v) => !v)}
+        disabled={!editable}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={editable ? 'Click to change owner' : label}
+        className={cn(
+          'flex items-center gap-2 min-w-0 text-left rounded-md p-1 -m-1',
+          editable && 'hover:bg-surface-2 cursor-pointer',
+        )}
+      >
+        <OwnerAvatar profile={current} size={30} fallback={account.am_mail} />
+        <div className="min-w-0">
+          <div className="text-[12.5px] font-bold text-text truncate">{label}</div>
+          {current?.email && <div className="text-[10.5px] text-text-3 truncate">{current.email}</div>}
+        </div>
+      </button>
+      {open && (
+        <OwnerPickerPopover
+          profiles={profiles}
+          currentId={current?.id ?? null}
+          onSelect={onChange}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   );
