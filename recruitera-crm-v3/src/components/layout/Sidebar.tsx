@@ -24,7 +24,9 @@ export function Sidebar() {
   const notifs = useNotifications();
   const tasks = useTasks();
 
-  const acts = accounts.data ?? [];
+  // Exclude merged-loser rows everywhere — they folded into another account
+  // and are no longer standalone. Matches Companies page count.
+  const acts = (accounts.data ?? []).filter((a) => !a.merged_into);
   const activeAccts = acts.length;
   const openLeads = acts.filter((a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase())).length;
   const renewalCount = acts.filter(isPaid).length;

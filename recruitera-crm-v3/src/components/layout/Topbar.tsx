@@ -21,7 +21,8 @@ export function Topbar() {
   const { pathname } = useLocation();
   const title = TITLES[pathname] ?? 'Recruitera';
   const { data, isLoading } = useAccounts();
-  const count = data?.length ?? 0;
+  // Exclude merged-loser rows so LIVE count matches Companies page (521, not 610).
+  const count = (data ?? []).filter((a) => !a.merged_into).length;
 
   return (
     <div className="h-[60px] flex-shrink-0 bg-surface border-b border-border flex items-center px-6 gap-4">
