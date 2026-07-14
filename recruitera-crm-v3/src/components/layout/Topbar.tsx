@@ -1,5 +1,7 @@
 import { useLocation, Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
+import { useAccounts } from '@/hooks/useAccounts';
+import { fmtInt } from '@/lib/format';
 
 const TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -18,6 +20,8 @@ const TITLES: Record<string, string> = {
 export function Topbar() {
   const { pathname } = useLocation();
   const title = TITLES[pathname] ?? 'Recruitera';
+  const { data, isLoading } = useAccounts();
+  const count = data?.length ?? 0;
 
   return (
     <div className="h-[60px] flex-shrink-0 bg-surface border-b border-border flex items-center px-6 gap-4">
@@ -29,16 +33,22 @@ export function Topbar() {
 
       <span className="ml-3 inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-ok-bg text-ok text-[11px] font-bold">
         <span className="w-1.5 h-1.5 rounded-full bg-ok" />
-        LIVE
+        LIVE · {isLoading ? '…' : fmtInt(count)}
       </span>
 
-      <div className="ml-auto flex items-center gap-2 bg-surface-2 border border-border rounded-lg px-3 py-1.5 w-[300px]">
+      <div className="ml-auto flex items-center gap-2 bg-surface-2 border border-border rounded-lg px-3 py-1.5 w-[340px]">
         <Search size={14} className="text-text-3" />
         <input
           placeholder="Search companies, contacts, tasks…"
           className="bg-transparent border-0 outline-none text-[13px] text-text w-full"
         />
+        <span className="text-[10px] font-bold text-text-3 bg-surface border border-border rounded px-1.5 py-0.5 tracking-wider">⌘K</span>
       </div>
+
+      <button className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-cg-900 text-white text-[12.5px] font-bold hover:bg-cg-800">
+        <Plus size={14} />
+        New employer
+      </button>
     </div>
   );
 }
