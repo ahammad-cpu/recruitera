@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
@@ -6,6 +6,7 @@ import { useTargets } from '@/hooks/useTargets';
 import { useTasks } from '@/hooks/useTasks';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { useMe } from '@/hooks/useMe';
+import { useProfiles } from '@/hooks/useUsersData';
 import { fmtEgp, fmtInt, toEgp, initials, fmtDate } from '@/lib/format';
 import { StagePill } from '@/components/shared/StagePill';
 import { Sparkline } from '@/components/shared/Sparkline';
@@ -18,6 +19,13 @@ export default function Dashboard() {
   const tasks = useTasks();
   const cycles = useContractCycles();
   const me = useMe();
+  const profiles = useProfiles();
+  const [ownerId, setOwnerId] = useState<string>('');
+
+  // default owner = signed-in user, once me loads
+  useEffect(() => {
+    if (!ownerId && me.data?.id) setOwnerId(me.data.id);
+  }, [me.data?.id, ownerId]);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -27,9 +35,11 @@ export default function Dashboard() {
   const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const monthStartISO = monthStart.toISOString().slice(0, 10);
   const meId = me.data?.id;
+  const scopeId = ownerId || meId;
+  const isTeam = scopeId === 'all';
 
   const rows: Account[] = accounts ?? [];
-  const myAccts = meId ? rows.filter((a) => a.owner_id === meId) : rows;
+  const myAccts = isTeam ? rows : scopeId ? rows.filter((a) => a.owner_id === scopeId) : rows;
 
   const pipelineVal = myAccts
     .filter((a) => OPEN.has((a.stage || '').toLowerCase()))
@@ -54,12 +64,18 @@ export default function Dashboard() {
   const renewals30Val = renewals30.reduce((s, c) => s + toEgp(c.value ?? 0, c.currency), 0);
 
   const myTarget = useMemo(() => {
-    if (!meId) return 0;
-    const row = (targets.data ?? []).find(
-      (t) => t.owner_kind === 'user' && t.owner_id === meId && t.period_kind === 'month' && t.period_start === monthStartISO,
+    const list = targets.data ?? [];
+    if (isTeam) {
+      return list
+        .filter((t) => t.period_kind === 'month' && t.period_start === monthStartISO)
+        .reduce((s, t) => s + (t.amount_egp || 0), 0);
+    }
+    if (!scopeId) return 0;
+    const row = list.find(
+      (t) => t.owner_kind === 'user' && t.owner_id === scopeId && t.period_kind === 'month' && t.period_start === monthStartISO,
     );
     return row?.amount_egp ?? 0;
-  }, [targets.data, meId, monthStartISO]);
+  }, [targets.data, scopeId, isTeam, monthStartISO]);
 
   const wonThisMonth = (cycles.data ?? [])
     .filter((c) => c.started_at && c.started_at >= monthStartISO && c.started_at <= monthEnd.toISOString().slice(0, 10))
@@ -74,7 +90,11 @@ export default function Dashboard() {
   const myCoOpen = myAccts.filter((a) => OPEN.has((a.stage || '').toLowerCase())).length;
   const openTasksAll = (tasks.data ?? []).filter((t) => !t.task_done);
   const myOpenTasks = openTasksAll.slice(0, 5);
-  const displayName = me.data?.full_name || 'You';
+  const currentOwner = isTeam
+    ? { full_name: 'Whole team', id: 'all' }
+    : (profiles.data ?? []).find((p) => p.id === scopeId) ?? me.data;
+  const displayName = currentOwner?.full_name || 'You';
+  const bannerLabel = isTeam ? 'Team target' : 'My target';
 
   return (
     <div className="px-7 pt-6 pb-14 max-w-[1400px] space-y-5">
@@ -82,9 +102,20 @@ export default function Dashboard() {
       <div className="relative overflow-hidden bg-surface border border-border rounded-2xl shadow-sh1 p-6">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#22C55E] to-[#A8D800]" />
         <div className="flex items-center gap-2 flex-wrap mb-5">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">My target</span>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{bannerLabel}</span>
           <span className="text-[12px] text-text-3 font-medium">· {monthLabel} · {displayName}</span>
           <div className="flex-1" />
+          <select
+            value={scopeId ?? ''}
+            onChange={(e) => setOwnerId(e.target.value)}
+            className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
+            title="Filter dashboard by owner"
+          >
+            <option value="all">Whole team</option>
+            {(profiles.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+            ))}
+          </select>
           <span
             className="inline-flex items-center h-6 px-2.5 rounded-full text-[10.5px] font-bold"
             style={{
