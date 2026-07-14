@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Copy, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUtmLinks, useUtmCampaigns, useSaveUtmLink } from '@/hooks/useUtmData';
+import { useUtmSources, useUtmMediums, useCreateUtmSource, useCreateUtmMedium } from '@/hooks/useUtmOptions';
+import { CreatableSelect } from '@/components/shared/CreatableSelect';
 import { fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -10,11 +12,22 @@ export default function Utm() {
   const { data: links } = useUtmLinks();
   const { data: campaigns } = useUtmCampaigns();
   const save = useSaveUtmLink();
+  const utmSources = useUtmSources();
+  const utmMediums = useUtmMediums();
+  const createSource = useCreateUtmSource();
+  const createMedium = useCreateUtmMedium();
 
-  // Auto-complete suggestions derived from every source/medium already
-  // used in saved utm_links — no hardcoded provider list.
-  const sources = Array.from(new Set((links ?? []).map((l) => l.utm_source).filter(Boolean) as string[])).sort();
-  const mediums = Array.from(new Set((links ?? []).map((l) => l.utm_medium).filter(Boolean) as string[])).sort();
+  // Source lists come from public.utm_sources / utm_mediums (created via
+  // the CreatableSelect below). Merge in anything that shows up on existing
+  // saved links so historic values still surface.
+  const sources = Array.from(new Set([
+    ...(utmSources.data ?? []).map((s) => s.name),
+    ...((links ?? []).map((l) => l.utm_source).filter(Boolean) as string[]),
+  ])).sort();
+  const mediums = Array.from(new Set([
+    ...(utmMediums.data ?? []).map((m) => m.name),
+    ...((links ?? []).map((l) => l.utm_medium).filter(Boolean) as string[]),
+  ])).sort();
 
   const [state, setState] = useState({
     base_url: 'https://recruitera.com',
@@ -70,8 +83,24 @@ export default function Utm() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1 space-y-3">
             <Field label="Base URL" value={state.base_url} onChange={(v) => setState((s) => ({ ...s, base_url: v }))} />
-            <Field label="Source" value={state.utm_source} onChange={(v) => setState((s) => ({ ...s, utm_source: v }))} list={sources} />
-            <Field label="Medium" value={state.utm_medium} onChange={(v) => setState((s) => ({ ...s, utm_medium: v }))} list={mediums} />
+            <CreatableSelect
+              label="Source"
+              value={state.utm_source}
+              options={sources}
+              onChange={(v) => setState((s) => ({ ...s, utm_source: v }))}
+              onCreate={async (v) => { await createSource.mutateAsync(v); }}
+              creating={createSource.isPending}
+              placeholder="Select or add a source…"
+            />
+            <CreatableSelect
+              label="Medium"
+              value={state.utm_medium}
+              options={mediums}
+              onChange={(v) => setState((s) => ({ ...s, utm_medium: v }))}
+              onCreate={async (v) => { await createMedium.mutateAsync(v); }}
+              creating={createMedium.isPending}
+              placeholder="Select or add a medium…"
+            />
             <Field label="Campaign" value={state.utm_campaign} onChange={(v) => setState((s) => ({ ...s, utm_campaign: v }))} list={campaigns?.map((c) => c.name)} />
             <Field label="Content" value={state.utm_content} onChange={(v) => setState((s) => ({ ...s, utm_content: v }))} placeholder="hero-cta / footer-link / …" />
           </div>
