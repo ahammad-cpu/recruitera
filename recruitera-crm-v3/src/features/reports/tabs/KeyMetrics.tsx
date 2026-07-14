@@ -9,7 +9,7 @@ export default function KeyMetrics() {
 
   const kpi = useMemo(() => {
     const paid = rows.filter(isPaid);
-    const arr = paid.reduce((sum, a) => sum + toEgp(a.deal_value ?? 0, a.currency), 0);
+    const arr = paid.reduce((sum, a) => sum + toEgp(a.deal_value ?? 0, a.deal_currency), 0);
     const open = rows.filter((a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase())).length;
     const won = rows.filter((a) => a.stage === 'won').length;
     const lost = rows.filter((a) => a.stage === 'lost').length;

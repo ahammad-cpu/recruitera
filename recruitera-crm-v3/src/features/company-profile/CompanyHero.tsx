@@ -85,7 +85,7 @@ export function CompanyHero({ lead }: { lead: Account }) {
       </div>
 
       <div className="mt-5 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <Stat label="Deal value" value={lead.deal_value != null ? `${lead.deal_value} ${lead.currency ?? 'EGP'}` : '—'} />
+        <Stat label="Deal value" value={lead.deal_value != null ? `${lead.deal_value} ${lead.deal_currency ?? 'EGP'}` : '—'} />
         <Stat label="Source" value={lead.source || '—'} />
         <Stat label="Owner" value={lead.am_mail || '—'} truncate />
         <Stat label="Paid status" value={lead.paid_status || '—'} />
