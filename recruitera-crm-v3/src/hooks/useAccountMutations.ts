@@ -26,6 +26,29 @@ export function useRenameAccount() {
   });
 }
 
+export function useChangeOwner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, owner_id, am_mail }: { id: string; owner_id: string | null; am_mail: string | null }) => {
+      const { error } = await supabase.from('accounts').update({ owner_id, am_mail }).eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async ({ id, owner_id, am_mail }) => {
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      const prev = qc.getQueryData<Account[]>(['accounts']);
+      qc.setQueryData<Account[]>(['accounts'], (old) =>
+        old?.map((a) => (a.id === id ? { ...a, owner_id, am_mail } : a)) ?? old,
+      );
+      return { prev };
+    },
+    onError: (err, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
+      toast.error(`Owner change failed: ${String(err)}`);
+    },
+    onSuccess: (_d, v) => toast.success(`Owner set to ${v.am_mail || 'unassigned'}`),
+  });
+}
+
 export function useChangeStage() {
   const qc = useQueryClient();
   return useMutation({

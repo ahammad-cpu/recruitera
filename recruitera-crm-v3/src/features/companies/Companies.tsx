@@ -4,7 +4,10 @@ import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useAllContacts } from '@/hooks/useAllContacts';
 import { useProfiles } from '@/hooks/useUsersData';
+import { useMe } from '@/hooks/useMe';
+import { useChangeOwner } from '@/hooks/useAccountMutations';
 import { StagePill } from '@/components/shared/StagePill';
+import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, fmtDate, initials } from '@/lib/format';
 import { isJunkAccount, buildDupeMap, type DupeEntry } from '@/lib/dedupe';
 import { cn } from '@/lib/cn';
@@ -28,6 +31,19 @@ export default function Companies() {
   const { data, isLoading, error } = useAccounts();
   const contacts = useAllContacts();
   const profiles = useProfiles();
+  const me = useMe();
+  const changeOwner = useChangeOwner();
+  const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
+  const profileByEmail = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof useProfiles>['data'] extends Array<infer T> | undefined ? T : never>();
+    (profiles.data ?? []).forEach((p) => { if (p.email) m.set(p.email, p as never); });
+    return m;
+  }, [profiles.data]);
+  const profileById = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof useProfiles>['data'] extends Array<infer T> | undefined ? T : never>();
+    (profiles.data ?? []).forEach((p) => m.set(p.id, p as never));
+    return m;
+  }, [profiles.data]);
 
   const [tab, setTab] = useState<TabKey>('all');
   const [q, setQ] = useState('');
@@ -219,7 +235,6 @@ export default function Companies() {
               {!isLoading && filtered.slice(0, 300).map((a) => {
                 const dupe = dupeMap.get(a.id);
                 const primary = (contactsMap.get(a.id) ?? [])[0];
-                const ownerName = (profiles.data ?? []).find((p) => p.email === a.am_mail);
                 return (
                   <tr key={a.id} className="border-t border-border hover:bg-surface-2 transition-colors">
                     <td className="px-4 py-2.5">
@@ -256,8 +271,19 @@ export default function Companies() {
                       ) : <span className="text-text-4 text-[12px]">—</span>}
                     </td>
                     <td className="px-4 py-2.5"><StagePill stage={a.stage} /></td>
-                    <td className="px-4 py-2.5 text-text-2 text-[12px] truncate max-w-[160px]" title={a.am_mail || ''}>
-                      {ownerName?.full_name || a.am_mail || '—'}
+                    <td className="px-4 py-2.5">
+                      <OwnerCell
+                        account={a}
+                        profileByEmail={profileByEmail as never}
+                        profileById={profileById as never}
+                        profiles={profiles.data ?? []}
+                        editable={isAdmin}
+                        onChange={(prof) => changeOwner.mutate({
+                          id: a.id,
+                          owner_id: prof?.id ?? null,
+                          am_mail: prof?.email ?? null,
+                        })}
+                      />
                     </td>
                     <td className="px-4 py-2.5 text-text-2 text-[12px]">{a.source || '—'}</td>
                     <td className="px-4 py-2.5">
@@ -319,6 +345,48 @@ function Select({ value, onChange, label, children }: { value: string; onChange:
         {children}
       </select>
     </label>
+  );
+}
+
+function OwnerCell({
+  account, profileByEmail, profileById, profiles, editable, onChange,
+}: {
+  account: Account;
+  profileByEmail: Map<string, import('@/hooks/useUsersData').Profile>;
+  profileById: Map<string, import('@/hooks/useUsersData').Profile>;
+  profiles: import('@/hooks/useUsersData').Profile[];
+  editable: boolean;
+  onChange: (profile: import('@/hooks/useUsersData').Profile | null) => void;
+}) {
+  const current = (account.owner_id && profileById.get(account.owner_id))
+    || (account.am_mail && profileByEmail.get(account.am_mail))
+    || null;
+  const label = current?.full_name || account.am_mail || 'Unassigned';
+
+  return (
+    <div className="flex items-center gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
+      <OwnerAvatar profile={current} size={26} fallback={account.am_mail} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[12.5px] font-semibold text-text truncate">{label}</div>
+        {current?.email && <div className="text-[10.5px] text-text-3 truncate">{current.email}</div>}
+      </div>
+      {editable && (
+        <select
+          value={current?.id ?? ''}
+          onChange={(e) => {
+            const next = profiles.find((p) => p.id === e.target.value) ?? null;
+            onChange(next);
+          }}
+          className="h-6 pl-1.5 pr-6 border border-border rounded-md bg-surface text-[10.5px] font-bold text-text-2 outline-none cursor-pointer"
+          title="Change owner"
+        >
+          <option value="">Unassigned</option>
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+          ))}
+        </select>
+      )}
+    </div>
   );
 }
 
