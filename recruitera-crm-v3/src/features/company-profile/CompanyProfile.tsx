@@ -16,6 +16,9 @@ import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { StagePill } from '@/components/shared/StagePill';
 import { fmtDate, fmtEgp, initials, toEgp } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { PlansTab } from './PlansTab';
+import { TeamTab } from './TeamTab';
+import { DocumentsTab } from './DocumentsTab';
 
 type Tab = 'overview' | 'activity' | 'plans' | 'team' | 'documents';
 
@@ -190,13 +193,9 @@ export default function CompanyProfile() {
       )}
 
       {tab === 'activity' && <ActivityFeed activities={activities ?? []} loading={loadingActs} />}
-      {tab !== 'overview' && tab !== 'activity' && (
-        <div className="bg-surface border border-border rounded-2xl p-10 text-center text-[13px] text-text-3">
-          {tab === 'plans' && 'Plans & credits tab lands with contract-cycles integration in Phase 3.'}
-          {tab === 'team' && 'Team & users — needs multi-owner data model.'}
-          {tab === 'documents' && 'Documents — hooks up to account_documents next.'}
-        </div>
-      )}
+      {tab === 'plans' && <PlansTab accountId={lead.id} />}
+      {tab === 'team' && <TeamTab accountId={lead.id} />}
+      {tab === 'documents' && <DocumentsTab accountId={lead.id} />}
     </div>
   );
 }
