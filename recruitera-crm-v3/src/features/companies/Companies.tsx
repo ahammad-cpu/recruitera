@@ -9,6 +9,8 @@ import { useChangeOwner } from '@/hooks/useAccountMutations';
 import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
+import { ResizeHandle } from '@/components/shared/ResizeHandle';
+import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { fmtInt, fmtDate, initials } from '@/lib/format';
 import { isJunkAccount, buildDupeMap, type DupeEntry } from '@/lib/dedupe';
 import { cn } from '@/lib/cn';
@@ -27,6 +29,17 @@ const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }>
 
 type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';
 type SortDir = 'asc' | 'desc';
+
+const COL_DEFAULTS = {
+  company: 280,
+  contact: 220,
+  stage: 100,
+  owner: 220,
+  source: 140,
+  trial: 90,
+  created: 110,
+} as const;
+type ColKey = keyof typeof COL_DEFAULTS;
 
 export default function Companies() {
   const { data, isLoading, error } = useAccounts();
@@ -55,6 +68,8 @@ export default function Companies() {
   const [owner, setOwner] = useState('all');
   const [trialF, setTrialF] = useState<'all' | 'on' | 'expired'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
+  const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths', COL_DEFAULTS);
+  const totalWidth = (Object.keys(COL_DEFAULTS) as ColKey[]).reduce((s, k) => s + (widths[k] ?? COL_DEFAULTS[k]), 0);
 
   const contactsMap = contacts.data ?? new Map();
   const rowsBase = (data ?? []).filter((a) => !a.merged_into);
@@ -209,21 +224,33 @@ export default function Companies() {
         <Toggle active={showJunk} onClick={() => setShowJunk((v) => !v)}>
           {showJunk ? 'Hide junk' : `Show junk (${fmtInt(junkCount)})`}
         </Toggle>
+        <button
+          onClick={resetWidths}
+          className="h-8 px-2.5 rounded-lg text-[11.5px] font-bold border border-border bg-surface text-text-3 hover:bg-surface-2"
+          title="Reset column widths"
+        >
+          ⇥ Reset widths
+        </button>
       </div>
 
       {/* TABLE */}
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
         <div className="overflow-x-auto sc">
-          <table className="w-full text-[13px]" style={{ minWidth: 1180 }}>
+          <table className="text-[13px]" style={{ width: totalWidth, tableLayout: 'fixed' }}>
+            <colgroup>
+              {(Object.keys(COL_DEFAULTS) as ColKey[]).map((k) => (
+                <col key={k} style={{ width: widths[k] }} />
+              ))}
+            </colgroup>
             <thead className="bg-surface-2 text-text-3 text-[11px] uppercase tracking-wider">
               <tr>
-                <ThSortable onClick={() => toggleSort('name')} active={sort.key === 'name'} dir={sort.dir}>Company</ThSortable>
-                <Th>Contact</Th>
-                <ThSortable onClick={() => toggleSort('stage')} active={sort.key === 'stage'} dir={sort.dir}>Stage</ThSortable>
-                <ThSortable onClick={() => toggleSort('owner')} active={sort.key === 'owner'} dir={sort.dir}>Owner</ThSortable>
-                <ThSortable onClick={() => toggleSort('source')} active={sort.key === 'source'} dir={sort.dir}>Source</ThSortable>
-                <Th>Trial</Th>
-                <ThSortable onClick={() => toggleSort('created')} active={sort.key === 'created'} dir={sort.dir}>Created</ThSortable>
+                <ThSortable onClick={() => toggleSort('name')} active={sort.key === 'name'} dir={sort.dir} onResize={(e) => startResize('company', e)}>Company</ThSortable>
+                <Th onResize={(e) => startResize('contact', e)}>Contact</Th>
+                <ThSortable onClick={() => toggleSort('stage')} active={sort.key === 'stage'} dir={sort.dir} onResize={(e) => startResize('stage', e)}>Stage</ThSortable>
+                <ThSortable onClick={() => toggleSort('owner')} active={sort.key === 'owner'} dir={sort.dir} onResize={(e) => startResize('owner', e)}>Owner</ThSortable>
+                <ThSortable onClick={() => toggleSort('source')} active={sort.key === 'source'} dir={sort.dir} onResize={(e) => startResize('source', e)}>Source</ThSortable>
+                <Th onResize={(e) => startResize('trial', e)}>Trial</Th>
+                <ThSortable onClick={() => toggleSort('created')} active={sort.key === 'created'} dir={sort.dir} onResize={(e) => startResize('created', e)}>Created</ThSortable>
               </tr>
             </thead>
             <tbody>
@@ -318,17 +345,31 @@ export default function Companies() {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="text-left font-bold px-4 py-2.5">{children}</th>;
-}
-function ThSortable({ onClick, active, dir, children }: { onClick: () => void; active: boolean; dir: SortDir; children: React.ReactNode }) {
+function Th({ children, onResize }: { children: React.ReactNode; onResize?: (e: React.MouseEvent) => void }) {
   return (
-    <th className="text-left font-bold px-4 py-2.5">
-      <button onClick={onClick} className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-text">
-        {children}
+    <th className="relative text-left font-bold px-4 py-2.5 truncate">
+      {children}
+      {onResize && <ResizeHandle onMouseDown={onResize} />}
+    </th>
+  );
+}
+function ThSortable({
+  onClick, active, dir, children, onResize,
+}: {
+  onClick: () => void;
+  active: boolean;
+  dir: SortDir;
+  children: React.ReactNode;
+  onResize?: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <th className="relative text-left font-bold px-4 py-2.5">
+      <button onClick={onClick} className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-text max-w-full">
+        <span className="truncate">{children}</span>
         <ArrowUpDown size={11} className={active ? 'text-text' : 'text-text-4'} />
         {active && <span className="text-[9px] text-text-3">{dir === 'asc' ? '▲' : '▼'}</span>}
       </button>
+      {onResize && <ResizeHandle onMouseDown={onResize} />}
     </th>
   );
 }
