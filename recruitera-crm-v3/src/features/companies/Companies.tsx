@@ -265,26 +265,26 @@ export default function Companies() {
                 const primary = (contactsMap.get(a.id) ?? [])[0];
                 return (
                   <tr key={a.id} className="border-t border-border hover:bg-surface-2 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <Link to={`/companies/${a.id}`} className="flex items-center gap-2.5 group">
+                    <td className="px-4 py-2.5 overflow-hidden">
+                      <Link to={`/companies/${a.id}`} className="flex items-center gap-2.5 group min-w-0" title={a.name || a.domain || ''}>
                         <div className="w-7 h-7 rounded-lg bg-cg-800 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                           {initials(a.name || a.domain)}
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-text truncate flex items-center gap-1.5">
-                            {a.name || a.domain || '—'}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-semibold text-text truncate min-w-0">{a.name || a.domain || '—'}</span>
                             {dupe && (
                               <span
-                                className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-bad-bg text-bad text-[10px] font-bold border border-bad/20"
+                                className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-bad-bg text-bad text-[10px] font-bold border border-bad/20 flex-shrink-0"
                                 title={`Duplicate — shares ${Array.from(dupe.reasons).join(', ')} with ${dupe.partners.size} other row(s)`}
                               >
                                 dupe ×{dupe.partners.size + 1}
                               </span>
                             )}
                             {isJunkAccount(a) && (
-                              <span className="inline-flex h-[18px] items-center px-1.5 rounded-full bg-surface-2 text-text-3 text-[10px] font-bold border border-border">junk</span>
+                              <span className="inline-flex h-[18px] items-center px-1.5 rounded-full bg-surface-2 text-text-3 text-[10px] font-bold border border-border flex-shrink-0">junk</span>
                             )}
-                            <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-text-3" />
+                            <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-text-3 flex-shrink-0" />
                           </div>
                           <div className="text-[11px] text-text-3 truncate">{a.domain || '—'}</div>
                         </div>
