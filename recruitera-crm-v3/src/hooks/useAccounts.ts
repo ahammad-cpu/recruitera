@@ -17,6 +17,7 @@ export type Account = {
   owner_id: string | null;
   disq_stage: string | null;
   merged_into: string | null;
+  funnel_score: number | null;
   created_at: string;
   bubble_created_at: string | null;
 };
@@ -32,7 +33,7 @@ export function useAccounts() {
       while (true) {
         const { data, error } = await supabase
           .from('accounts')
-          .select('id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,deal_value,deal_currency,owner_id,disq_stage,merged_into,created_at,bubble_created_at')
+          .select('id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,deal_value,deal_currency,owner_id,disq_stage,merged_into,funnel_score,created_at,bubble_created_at')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;

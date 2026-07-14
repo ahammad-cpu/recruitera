@@ -11,6 +11,7 @@ import { useChangeOwner } from '@/hooks/useAccountMutations';
 import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
+import { MergeConfirmation } from './MergeConfirmation';
 import { ResizeHandle } from '@/components/shared/ResizeHandle';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { fmtInt, fmtDate, initials } from '@/lib/format';
@@ -85,6 +86,7 @@ export default function Companies() {
   const [owner, setOwner] = useState('all');
   const [trialF, setTrialF] = useState<'all' | 'on' | 'expired'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
+  const [mergePair, setMergePair] = useState<{ a: Account; b: Account; reasons: Set<'name' | 'domain' | 'phone' | 'email'> } | null>(null);
   const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths.v2', COL_DEFAULTS);
   const totalWidth = (Object.keys(COL_DEFAULTS) as ColKey[]).reduce((s, k) => s + (widths[k] ?? COL_DEFAULTS[k]), 0);
 
@@ -295,12 +297,20 @@ export default function Companies() {
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="font-semibold text-text truncate min-w-0">{a.name || a.domain || '—'}</span>
                             {dupe && (
-                              <span
-                                className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-bad-bg text-bad text-[10px] font-bold border border-bad/20 flex-shrink-0"
-                                title={`Duplicate — shares ${Array.from(dupe.reasons).join(', ')} with ${dupe.partners.size} other row(s)`}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const partnerId = Array.from(dupe.partners)[0];
+                                  const partner = rowsBase.find((r) => r.id === partnerId);
+                                  if (partner) setMergePair({ a, b: partner, reasons: dupe.reasons });
+                                }}
+                                className="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-bad-bg text-bad text-[10px] font-bold border border-bad/20 flex-shrink-0 hover:bg-bad/10"
+                                title={`Duplicate — shares ${Array.from(dupe.reasons).join(', ')} with ${dupe.partners.size} other row(s). Click to review & merge.`}
                               >
                                 dupe ×{dupe.partners.size + 1}
-                              </span>
+                              </button>
                             )}
                             {isJunkAccount(a) && (
                               <span className="inline-flex h-[18px] items-center px-1.5 rounded-full bg-surface-2 text-text-3 text-[10px] font-bold border border-border flex-shrink-0">junk</span>
@@ -367,6 +377,16 @@ export default function Companies() {
           </div>
         )}
       </div>
+
+      {mergePair && (
+        <MergeConfirmation
+          accountA={mergePair.a}
+          accountB={mergePair.b}
+          reasons={mergePair.reasons}
+          contactsByAcct={contactsMap}
+          onClose={() => setMergePair(null)}
+        />
+      )}
     </div>
   );
 }
