@@ -1,21 +1,30 @@
-import { ScrollText, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { ScrollText, Plus, Trash2 } from 'lucide-react';
 import { useAccountCycles } from '@/hooks/useAccountCycles';
+import { useDeleteCycle } from '@/hooks/useCycleMutations';
 import type { Cycle } from '@/hooks/useContractCycles';
+import { CycleModal } from './CycleModal';
 import { cn } from '@/lib/cn';
 
 export function PlansTab({ accountId }: { accountId: string }) {
   const { data, isLoading } = useAccountCycles(accountId);
+  const del = useDeleteCycle(accountId);
   const cycles = data ?? [];
+  const [modal, setModal] = useState<{ open: boolean; cycle?: Cycle | null }>({ open: false });
 
   if (isLoading) return <EmptyCard>Loading contract cycles…</EmptyCard>;
   if (cycles.length === 0) {
     return (
-      <EmptyCard
-        icon={<ScrollText size={20} />}
-        title="No plans yet"
-        hint="Contract cycles appear here once a plan is set — plan tier, dates, and renewal history."
-        actionLabel="+ Add first cycle"
-      />
+      <>
+        <EmptyCard
+          icon={<ScrollText size={20} />}
+          title="No plans yet"
+          hint="Contract cycles appear here once a plan is set — plan tier, dates, and renewal history."
+          actionLabel="+ Add first cycle"
+          onAction={() => setModal({ open: true, cycle: null })}
+        />
+        {modal.open && <CycleModal accountId={accountId} existing={modal.cycle} onClose={() => setModal({ open: false })} />}
+      </>
     );
   }
 
@@ -28,21 +37,43 @@ export function PlansTab({ accountId }: { accountId: string }) {
             {cycles.length} cycle{cycles.length === 1 ? '' : 's'} on record
           </div>
         </div>
-        <button className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-accent text-cg-900 text-[12.5px] font-bold border border-accent-strong hover:bg-accent-strong">
+        <button
+          onClick={() => setModal({ open: true, cycle: null })}
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-accent text-cg-900 text-[12.5px] font-bold border border-accent-strong hover:bg-accent-strong"
+        >
           <Plus size={13} /> Add cycle
         </button>
       </div>
 
       <div className="flex flex-col gap-3">
-        {cycles.map((c, i) => <CycleCard key={c.id} cycle={c} isCurrent={i === 0} />)}
+        {cycles.map((c, i) => (
+          <CycleCard
+            key={c.id}
+            cycle={c}
+            isCurrent={i === 0}
+            onEdit={() => setModal({ open: true, cycle: c })}
+            onDelete={() => {
+              if (!confirm(`Delete cycle #${c.cycle_number ?? ''}? This is not reversible.`)) return;
+              del.mutate(c.id);
+            }}
+          />
+        ))}
       </div>
 
       <HistoryTable cycles={cycles} />
+
+      {modal.open && (
+        <CycleModal
+          accountId={accountId}
+          existing={modal.cycle ?? null}
+          onClose={() => setModal({ open: false })}
+        />
+      )}
     </div>
   );
 }
 
-function CycleCard({ cycle: c, isCurrent }: { cycle: Cycle; isCurrent: boolean }) {
+function CycleCard({ cycle: c, isCurrent, onEdit, onDelete }: { cycle: Cycle; isCurrent: boolean; onEdit: () => void; onDelete: () => void }) {
   const months = monthsBetween(c.started_at, c.ends_at);
   return (
     <div className={cn(
@@ -56,6 +87,8 @@ function CycleCard({ cycle: c, isCurrent }: { cycle: Cycle; isCurrent: boolean }
         <div className="flex-1" />
         <span className="text-[9px] font-black uppercase tracking-widest text-text-3">Invoice</span>
         {invoiceChip(c.status)}
+        <button onClick={onEdit} className="h-7 px-3 rounded-md border border-border-2 bg-surface text-text-2 text-[11.5px] font-bold hover:bg-surface-2">Edit</button>
+        <button onClick={onDelete} title="Delete cycle" className="h-7 w-7 grid place-items-center rounded-md border border-bad/40 text-bad hover:bg-bad-bg"><Trash2 size={12} /></button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Term start" value={fmtShortDate(c.started_at)} />
@@ -163,7 +196,7 @@ function termLabel(m: string) {
   return m;
 }
 
-function EmptyCard({ icon, title, hint, actionLabel, children }: { icon?: React.ReactNode; title?: string; hint?: string; actionLabel?: string; children?: React.ReactNode }) {
+function EmptyCard({ icon, title, hint, actionLabel, onAction, children }: { icon?: React.ReactNode; title?: string; hint?: string; actionLabel?: string; onAction?: () => void; children?: React.ReactNode }) {
   return (
     <div className="bg-surface border border-border rounded-2xl px-8 py-14 shadow-sh1 text-center">
       {icon && (
@@ -172,7 +205,7 @@ function EmptyCard({ icon, title, hint, actionLabel, children }: { icon?: React.
       {title && <div className="text-[16px] font-extrabold tracking-tight mb-1.5">{title}</div>}
       {hint && <div className="text-[13px] text-text-3 font-medium max-w-md mx-auto mb-4">{hint}</div>}
       {actionLabel && (
-        <button className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-accent text-cg-900 text-[13px] font-bold border border-accent-strong hover:bg-accent-strong">
+        <button onClick={onAction} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-accent text-cg-900 text-[13px] font-bold border border-accent-strong hover:bg-accent-strong">
           {actionLabel}
         </button>
       )}
