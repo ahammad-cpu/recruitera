@@ -8,7 +8,7 @@
     { "source": "/crm-preview", "destination": "/crm-preview.html" },
     { "source": "/crm-v2", "destination": "/crm-v2.html" },
     { "source": "/crm-v3", "destination": "/crm-v3/index.html" },
-    { "source": "/crm-v3/((?!assets/).*)", "destination": "/crm-v3/index.html" },
+    { "source": "/crm-v3/:path*", "destination": "/crm-v3/index.html" },
     { "source": "/migrate", "destination": "/migrate.html" },
     { "source": "/sync-admin", "destination": "/sync-admin.html" }
   ],
