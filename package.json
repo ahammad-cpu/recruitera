@@ -1,0 +1,9 @@
+{
+  "name": "recruitera-crm-static",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Static-site host for /crm (v1) + /crm-v2 (v2). Also builds recruitera-crm-v3 (React SPA) into ./crm-v3/ on Vercel.",
+  "scripts": {
+    "build": "cd recruitera-crm-v3 && npm install --no-audit --no-fund && VITE_BASE=/crm-v3/ npm run build"
+  }
+}

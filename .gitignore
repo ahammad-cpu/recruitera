@@ -16,3 +16,6 @@ Thumbs.db
 .env
 .env.*
 *.pem
+
+# built by Vercel from recruitera-crm-v3/
+/crm-v3/
