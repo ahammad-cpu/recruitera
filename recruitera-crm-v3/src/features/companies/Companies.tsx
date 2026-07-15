@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle, Send, UserCheck, X } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useEnum } from '@/hooks/useEnum';
 import { useAllContacts } from '@/hooks/useAllContacts';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { useProfiles } from '@/hooks/useUsersData';
 import { useMe } from '@/hooks/useMe';
-import { useChangeOwner } from '@/hooks/useAccountMutations';
+import { useChangeOwner, useBulkAssignOwner } from '@/hooks/useAccountMutations';
 import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
@@ -65,7 +65,10 @@ export default function Companies() {
     return m;
   }, [cycles.data]);
   const changeOwner = useChangeOwner();
+  const bulkAssign = useBulkAssignOwner();
   const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPickerOpen, setBulkPickerOpen] = useState(false);
   const profileByEmail = useMemo(() => {
     const m = new Map<string, ReturnType<typeof useProfiles>['data'] extends Array<infer T> | undefined ? T : never>();
     (profiles.data ?? []).forEach((p) => { if (p.email) m.set(p.email, p as never); });
@@ -257,12 +260,22 @@ export default function Companies() {
         <div className="overflow-x-auto sc">
           <table className="text-[13px] border-collapse w-auto min-w-full" style={{ width: totalWidth, tableLayout: 'fixed' }}>
             <colgroup>
+              {isAdmin && <col style={{ width: 40 }} />}
               {(Object.keys(COL_DEFAULTS) as ColKey[]).map((k) => (
                 <col key={k} style={{ width: widths[k] }} />
               ))}
             </colgroup>
             <thead className="sticky top-0 z-10 bg-surface-2 text-text-2 text-[11.5px] uppercase tracking-wider">
               <tr className="border-b border-border">
+                {isAdmin && (
+                  <th className="w-10 px-2 text-left align-middle">
+                    <BulkCheckbox
+                      checked={selected.size > 0 && selected.size === filtered.length}
+                      indeterminate={selected.size > 0 && selected.size < filtered.length}
+                      onChange={(v) => setSelected(v ? new Set(filtered.slice(0, 300).map((a) => a.id)) : new Set())}
+                    />
+                  </th>
+                )}
                 <ThSortable onClick={() => toggleSort('name')} active={sort.key === 'name'} dir={sort.dir} onResize={(e) => startResize('company', e)}>Company</ThSortable>
                 <Th onResize={(e) => startResize('contact', e)}>Contact</Th>
                 <ThSortable onClick={() => toggleSort('stage')} active={sort.key === 'stage'} dir={sort.dir} onResize={(e) => startResize('stage', e)}>Stage</ThSortable>
@@ -287,7 +300,22 @@ export default function Companies() {
                   <tr key={a.id} className={cn(
                     'border-b border-border/50 hover:bg-accent-soft/40 transition-colors',
                     idx % 2 === 1 && 'bg-surface-2/40',
+                    selected.has(a.id) && 'bg-accent-soft/60',
                   )}>
+                    {isAdmin && (
+                      <td className="px-2 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
+                        <BulkCheckbox
+                          checked={selected.has(a.id)}
+                          onChange={(v) => {
+                            setSelected((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(a.id); else next.delete(a.id);
+                              return next;
+                            });
+                          }}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-2.5 overflow-hidden border-r border-border/40">
                       <Link to={`/companies/${a.id}`} className="flex items-center gap-2.5 group min-w-0" title={a.name || a.domain || ''}>
                         <div className="w-7 h-7 rounded-lg bg-cg-800 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
@@ -387,7 +415,65 @@ export default function Companies() {
           onClose={() => setMergePair(null)}
         />
       )}
+
+      {isAdmin && selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-cg-900 text-white rounded-2xl shadow-sh3 px-3 py-2 flex items-center gap-3 border border-cg-800">
+          <span className="text-[13px] font-bold pl-2">{selected.size} account{selected.size === 1 ? '' : 's'} selected</span>
+          <span className="w-px h-6 bg-white/20" />
+          <button
+            onClick={() => {
+              const emails = filtered
+                .filter((a) => selected.has(a.id))
+                .flatMap((a) => (contactsMap.get(a.id) ?? []).map((c: import('@/hooks/useAccountDetail').Contact) => c.email).filter(Boolean));
+              const uniq = Array.from(new Set(emails as string[]));
+              if (!uniq.length) return;
+              window.location.href = `mailto:?bcc=${encodeURIComponent(uniq.join(','))}`;
+            }}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-info text-white text-[12.5px] font-bold hover:opacity-90"
+          >
+            <Send size={13} /> Send bulk email
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setBulkPickerOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-white/10 text-white text-[12.5px] font-bold hover:bg-white/20"
+            >
+              <UserCheck size={13} /> Assign owner
+            </button>
+            {bulkPickerOpen && (
+              <div className="absolute bottom-full mb-2 right-0">
+                <OwnerPickerPopover
+                  profiles={profiles.data ?? []}
+                  currentId={null}
+                  onSelect={(prof) => {
+                    bulkAssign.mutate({ ids: Array.from(selected), owner_id: prof?.id ?? null, am_mail: prof?.email ?? null });
+                    setSelected(new Set());
+                  }}
+                  onClose={() => setBulkPickerOpen(false)}
+                />
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="w-8 h-8 grid place-items-center rounded-lg hover:bg-white/10 text-white/70 hover:text-white"
+            title="Clear selection"
+          ><X size={14} /></button>
+        </div>
+      )}
     </div>
+  );
+}
+
+function BulkCheckbox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      ref={(el) => { if (el) el.indeterminate = !!indeterminate; }}
+      onChange={(e) => onChange(e.target.checked)}
+      className="w-[18px] h-[18px] rounded-[5px] accent-accent-strong cursor-pointer"
+    />
   );
 }
 

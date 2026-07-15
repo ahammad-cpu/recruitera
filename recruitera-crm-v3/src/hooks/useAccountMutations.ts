@@ -49,6 +49,31 @@ export function useChangeOwner() {
   });
 }
 
+export function useBulkAssignOwner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, owner_id, am_mail }: { ids: string[]; owner_id: string | null; am_mail: string | null }) => {
+      if (ids.length === 0) return;
+      const { error } = await supabase.from('accounts').update({ owner_id, am_mail }).in('id', ids);
+      if (error) throw error;
+    },
+    onMutate: async ({ ids, owner_id, am_mail }) => {
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      const prev = qc.getQueryData<Account[]>(['accounts']);
+      const set = new Set(ids);
+      qc.setQueryData<Account[]>(['accounts'], (old) =>
+        old?.map((a) => (set.has(a.id) ? { ...a, owner_id, am_mail } : a)) ?? old,
+      );
+      return { prev };
+    },
+    onError: (err, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
+      toast.error(`Bulk assign failed: ${String(err)}`);
+    },
+    onSuccess: (_d, v) => toast.success(`${v.ids.length} account${v.ids.length === 1 ? '' : 's'} assigned to ${v.am_mail || 'unassigned'}`),
+  });
+}
+
 export function useChangeStage() {
   const qc = useQueryClient();
   return useMutation({
