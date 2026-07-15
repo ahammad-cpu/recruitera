@@ -178,7 +178,7 @@ export default function Companies() {
             {isLoading ? 'Loading…' : `${fmtInt(filtered.length)} of ${fmtInt(rowsBase.length)}`}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-1.5 flex-1 min-w-[280px] max-w-[640px]">
+        <div className="ml-auto flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-2 flex-1 min-w-[320px] max-w-[1100px]">
           <Search size={14} className="text-text-3 flex-shrink-0" />
           <input
             placeholder="Search name, domain, contact, phone…"
