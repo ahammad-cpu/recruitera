@@ -174,14 +174,14 @@ export default function Companies() {
 
   return (
     <div className="p-6 space-y-4 max-w-[1600px]">
-      <div className="flex items-center gap-4 flex-wrap">
-        <div>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
           <h1 className="text-lg font-bold text-text">Companies</h1>
-          <p className="text-[12.5px] text-text-3 mt-0.5">
-            {isLoading ? 'Loading…' : `${fmtInt(filtered.length)} of ${fmtInt(rowsBase.length)}`}
-          </p>
+          <span className="tnum text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
+            {isLoading ? '…' : `${fmtInt(filtered.length)} of ${fmtInt(rowsBase.length)}`}
+          </span>
         </div>
-        <div className="ml-auto flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-2 flex-1 min-w-[320px] max-w-[1100px]">
+        <div className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-2 w-full">
           <Search size={14} className="text-text-3 flex-shrink-0" />
           <input
             placeholder="Search name, domain, contact, phone…"
