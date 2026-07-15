@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle, Send, UserCheck, X } from 'lucide-react';
+import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle, Send, UserCheck, X, Ban, RotateCcw } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useEnum } from '@/hooks/useEnum';
 import { useAllContacts } from '@/hooks/useAllContacts';
@@ -12,6 +12,8 @@ import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { MergeConfirmation } from './MergeConfirmation';
+import { DisqualifyModal } from './DisqualifyModal';
+import { useRequalifyAccount } from '@/hooks/useDisqualify';
 import { ResizeHandle } from '@/components/shared/ResizeHandle';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { fmtInt, fmtDate, initials } from '@/lib/format';
@@ -42,6 +44,7 @@ const COL_DEFAULTS = {
   source: 150,
   trial: 100,
   created: 120,
+  action: 100,
 } as const;
 type ColKey = keyof typeof COL_DEFAULTS;
 
@@ -90,6 +93,8 @@ export default function Companies() {
   const [trialF, setTrialF] = useState<'all' | 'on' | 'expired'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
   const [mergePair, setMergePair] = useState<{ a: Account; b: Account; reasons: Set<'name' | 'domain' | 'phone' | 'email'> } | null>(null);
+  const [disqTarget, setDisqTarget] = useState<Account | null>(null);
+  const requalify = useRequalifyAccount();
   const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths.v2', COL_DEFAULTS);
   const totalWidth = (Object.keys(COL_DEFAULTS) as ColKey[]).reduce((s, k) => s + (widths[k] ?? COL_DEFAULTS[k]), 0);
 
@@ -284,6 +289,7 @@ export default function Companies() {
                 <ThSortable onClick={() => toggleSort('source')} active={sort.key === 'source'} dir={sort.dir} onResize={(e) => startResize('source', e)}>Source</ThSortable>
                 <Th onResize={(e) => startResize('trial', e)}>Trial</Th>
                 <ThSortable onClick={() => toggleSort('created')} active={sort.key === 'created'} dir={sort.dir} onResize={(e) => startResize('created', e)}>Created</ThSortable>
+                <Th>Action</Th>
               </tr>
             </thead>
             <tbody>
@@ -392,7 +398,28 @@ export default function Companies() {
                         <span className="inline-flex h-5 px-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-bold items-center">Paid</span>
                       ) : <span className="text-text-4">—</span>)}
                     </td>
-                    <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap">{fmtDate(a.created_at)}</td>{/* last col — no border-r */}
+                    <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap border-r border-border/40">{fmtDate(a.created_at)}</td>
+                    <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      {a.stage === 'lost' || a.disqualified_reason
+                        ? (
+                          <button
+                            onClick={() => requalify.mutate({ id: a.id, stage: 'lead' })}
+                            title={a.disqualified_reason ? `Disqualified: ${a.disqualified_reason}${a.disqualified_notes ? ' — ' + a.disqualified_notes : ''}. Click to requalify.` : 'Requalify'}
+                            className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-border bg-surface text-text-3 text-[11px] font-bold hover:bg-surface-2"
+                          >
+                            <RotateCcw size={11} /> Requalify
+                          </button>
+                        )
+                        : (
+                          <button
+                            onClick={() => setDisqTarget(a)}
+                            title="Disqualify"
+                            className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-bad/30 bg-bad-bg text-bad text-[11px] font-bold hover:bg-bad/10"
+                          >
+                            <Ban size={11} /> Disqualify
+                          </button>
+                        )}
+                    </td>
                   </tr>
                 );
               })}
@@ -415,6 +442,8 @@ export default function Companies() {
           onClose={() => setMergePair(null)}
         />
       )}
+
+      {disqTarget && <DisqualifyModal account={disqTarget} onClose={() => setDisqTarget(null)} />}
 
       {isAdmin && selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-cg-900 text-white rounded-2xl shadow-sh3 px-3 py-2 flex items-center gap-3 border border-cg-800">
