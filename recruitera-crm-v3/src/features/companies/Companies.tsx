@@ -171,21 +171,21 @@ export default function Companies() {
 
   return (
     <div className="p-6 space-y-4 max-w-[1600px]">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-lg font-bold text-text">Companies</h1>
-          <p className="text-[12.5px] text-text-3 mt-0.5">
-            {isLoading ? 'Loading…' : `${fmtInt(filtered.length)} of ${fmtInt(rowsBase.length)}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-1.5 w-[340px]">
-          <Search size={14} className="text-text-3" />
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-1.5 flex-1 min-w-[280px] max-w-[640px]">
+          <Search size={14} className="text-text-3 flex-shrink-0" />
           <input
             placeholder="Search name, domain, contact, phone…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="bg-transparent border-0 outline-none text-[13px] text-text w-full"
           />
+        </div>
+        <div className="ml-auto text-right">
+          <h1 className="text-lg font-bold text-text">Companies</h1>
+          <p className="text-[12.5px] text-text-3 mt-0.5">
+            {isLoading ? 'Loading…' : `${fmtInt(filtered.length)} of ${fmtInt(rowsBase.length)}`}
+          </p>
         </div>
       </div>
 
