@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { CheckSquare, Square } from 'lucide-react';
 import { useTasks, type Task } from '@/hooks/useTasks';
 import { useAccounts } from '@/hooks/useAccounts';
-import { useProfiles, type Profile } from '@/hooks/useUsersData';
+import { useProfiles, useRoles, type Profile } from '@/hooks/useUsersData';
+import { useMe } from '@/hooks/useMe';
 import { useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { cn } from '@/lib/cn';
@@ -46,6 +47,8 @@ export default function Tasks() {
   const { data, isLoading, error } = useTasks();
   const accounts = useAccounts();
   const profiles = useProfiles();
+  const roles = useRoles();
+  const me = useMe();
   const toggle = useToggleTaskDone();
   const [tab, setTab] = useState<TabKey>('all');
   const [range, setRange] = useState<RangeKey>('all');
@@ -62,7 +65,29 @@ export default function Tasks() {
     return m;
   }, [profiles.data]);
 
-  const rows = data ?? [];
+  // Admins and Team Leads see every task (Team Leads: their own + everyone
+  // who reports to them — team_id isn't populated yet, reports_to is the
+  // real hierarchy signal already used for escalation). Everyone else only
+  // sees tasks they're assigned to or created themselves.
+  const myId = me.data?.id;
+  const myRole = (roles.data ?? []).find((r) => r.id === me.data?.role_id);
+  const isAdmin = myRole?.type === 'admin' || me.data?.role === 'admin';
+  const isTeamLead = myRole?.type === 'team_lead';
+  const teamIds = useMemo(() => {
+    if (!isTeamLead || !myId) return null;
+    const ids = new Set<string>([myId]);
+    (profiles.data ?? []).forEach((p) => { if (p.reports_to === myId) ids.add(p.id); });
+    return ids;
+  }, [isTeamLead, myId, profiles.data]);
+
+  const rows = useMemo(() => {
+    const all = data ?? [];
+    if (isAdmin || !myId) return all;
+    if (isTeamLead && teamIds) {
+      return all.filter((t) => (t.assigned_to && teamIds.has(t.assigned_to)) || (t.author_id && teamIds.has(t.author_id)));
+    }
+    return all.filter((t) => t.assigned_to === myId || t.author_id === myId);
+  }, [data, isAdmin, isTeamLead, teamIds, myId]);
   const now = Date.now();
 
   const byTab = useMemo(() => {
