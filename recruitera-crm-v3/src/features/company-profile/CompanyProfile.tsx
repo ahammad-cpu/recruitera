@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
@@ -314,9 +314,68 @@ function Field({ label, value, onChange, readOnly, type = 'text' }: { label: str
 /* ---------- INTERNAL NOTES ---------- */
 
 function InternalNotesCard({ accountId, activities, loading }: { accountId: string; activities: import('@/hooks/useAccountDetail').Activity[]; loading: boolean }) {
-  const [type, setType] = useState<'call' | 'email' | 'whatsapp' | 'note'>('note');
+  const profiles = useProfiles();
+  const profileList = profiles.data ?? [];
+  const profileById = useMemo(() => {
+    const m = new Map<string, import('@/hooks/useUsersData').Profile>();
+    profileList.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [profileList]);
+
+  const [type, setType] = useState<'call' | 'email' | 'whatsapp' | 'note'>('call');
   const [text, setText] = useState('');
+  const [mention, setMention] = useState<{ query: string; start: number; idx: number } | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
   const log = useLogActivity(accountId);
+
+  const mentionMatches = useMemo(() => {
+    if (!mention) return [];
+    const q = mention.query.toLowerCase();
+    return profileList
+      .filter((p) => (p.full_name || p.email || '').toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [mention, profileList]);
+
+  function onTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const v = e.target.value;
+    setText(v);
+    const caret = e.target.selectionStart ?? v.length;
+    // find `@word` ending at caret with no whitespace between @ and caret
+    const before = v.slice(0, caret);
+    const m = before.match(/(^|\s)@([\p{L}\p{N}._-]*)$/u);
+    if (m) {
+      setMention({ query: m[2], start: caret - m[2].length - 1, idx: 0 });
+    } else {
+      setMention(null);
+    }
+  }
+
+  function insertMention(p: import('@/hooks/useUsersData').Profile) {
+    if (!mention) return;
+    const name = (p.full_name || p.email || '').replace(/\s+/g, ' ');
+    const insert = `@${name} `;
+    const before = text.slice(0, mention.start);
+    const after = text.slice(mention.start + 1 + mention.query.length);
+    const next = before + insert + after;
+    setText(next);
+    setMention(null);
+    // restore caret after the inserted mention
+    requestAnimationFrame(() => {
+      const pos = (before + insert).length;
+      taRef.current?.focus();
+      taRef.current?.setSelectionRange(pos, pos);
+    });
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention && mentionMatches.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMention({ ...mention, idx: (mention.idx + 1) % mentionMatches.length }); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMention({ ...mention, idx: (mention.idx - 1 + mentionMatches.length) % mentionMatches.length }); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionMatches[mention.idx]); return; }
+      if (e.key === 'Escape')    { e.preventDefault(); setMention(null); return; }
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit();
+  }
 
   function submit() {
     const t = text.trim();
@@ -324,44 +383,85 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
     log.mutate({ type, text: t }, { onSuccess: () => setText('') });
   }
 
-  const filtered = activities.filter((a) => ['note', 'call', 'email', 'meeting'].includes(a.type));
+  const filtered = activities.filter((a) => ['note', 'call', 'email', 'whatsapp', 'meeting'].includes(a.type));
+
+  const CHANNELS: { id: 'call' | 'email' | 'whatsapp'; label: string; Icon: React.ComponentType<{ size?: number }> }[] = [
+    { id: 'call',     label: 'Call',     Icon: PhoneIcon },
+    { id: 'email',    label: 'Email',    Icon: Mail },
+    { id: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
+  ];
 
   return (
-    <Panel title="Internal notes">
-      <div className="bg-accent-soft/40 border border-border rounded-xl p-3 space-y-2.5">
-        <div className="flex items-center gap-1.5">
-          {(['call', 'email', 'whatsapp', 'note'] as const).map((t) => {
-            const active = type === t;
-            const Icon = t === 'call' ? PhoneIcon : t === 'email' ? Mail : t === 'whatsapp' ? MessageCircle : Pencil;
+    <div className="bg-surface border border-border rounded-2xl p-6 shadow-sh1">
+      <div className="text-[10px] font-black tracking-[0.14em] uppercase text-text-4 mb-1">Notes</div>
+      <div className="text-[20px] font-black tracking-tight text-text mb-4">Internal notes</div>
+
+      {/* Composer */}
+      <div className="bg-surface-2/60 border border-border rounded-2xl p-4">
+        <div className="flex items-center gap-2">
+          {CHANNELS.map(({ id, label, Icon }) => {
+            const active = type === id;
             return (
-              <button key={t} onClick={() => setType(t)} className={cn(
-                'inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[12px] font-bold border',
-                active ? 'bg-accent-soft text-accent-ink border-accent' : 'bg-surface text-text-2 border-border',
-              )}>
-                <Icon size={12} /> {t.charAt(0).toUpperCase() + t.slice(1)}
+              <button
+                key={id}
+                onClick={() => setType(id)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-bold border transition-colors',
+                  active
+                    ? 'bg-accent-soft text-accent-ink border-accent-strong'
+                    : 'bg-surface text-text-2 border-border hover:border-border-2',
+                )}
+              >
+                <Icon size={13} /> {label}
               </button>
             );
           })}
         </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit(); }}
-          rows={3}
-          placeholder="What happened? Use @ to mention or @name/task to assign…"
-          className="w-full bg-surface border border-border rounded-lg p-2.5 text-[13px] outline-none focus:border-accent-strong resize-vertical"
-        />
-        <div className="flex items-center justify-end">
+
+        <div className="relative mt-3">
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={onTextChange}
+            onKeyDown={onKeyDown}
+            rows={5}
+            placeholder="What happened? Use @ to mention or @name/task to assign…"
+            className="w-full bg-surface border border-border rounded-xl p-4 text-[14px] text-text placeholder:text-text-3 outline-none focus:border-accent-strong resize-vertical min-h-[130px]"
+          />
+          {mention && mentionMatches.length > 0 && (
+            <div className="absolute left-3 top-full mt-1 z-20 bg-surface border border-border rounded-xl shadow-sh3 w-[280px] overflow-hidden">
+              {mentionMatches.map((p, i) => (
+                <button
+                  key={p.id}
+                  onMouseDown={(e) => { e.preventDefault(); insertMention(p); }}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px]',
+                    i === mention.idx ? 'bg-accent-soft' : 'hover:bg-surface-2',
+                  )}
+                >
+                  <OwnerAvatar profile={p} size={26} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-text truncate">{p.full_name || p.email}</div>
+                    {p.full_name && p.email && <div className="text-[11px] text-text-3 truncate">{p.email}</div>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end mt-3">
           <button
             onClick={submit}
             disabled={!text.trim() || log.isPending}
-            className="h-8 px-4 rounded-lg bg-accent text-cg-900 text-[12.5px] font-black hover:bg-accent-strong disabled:opacity-50"
+            className="h-11 px-6 rounded-xl bg-accent text-cg-900 text-[14px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
           >
             {log.isPending ? 'Adding…' : 'Add note'}
           </button>
         </div>
       </div>
 
+      {/* List */}
       {loading && <div className="mt-4 text-[12px] text-text-3">Loading…</div>}
       {!loading && filtered.length === 0 && (
         <div className="mt-4 py-10 text-center text-[12.5px] text-text-3 border border-dashed border-border rounded-xl">
@@ -369,20 +469,94 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
         </div>
       )}
       {filtered.length > 0 && (
-        <ol className="mt-4 space-y-3">
+        <div className="mt-4 space-y-3">
           {filtered.slice(0, 30).map((a) => (
-            <li key={a.id} className="border-l-2 border-accent pl-3 pb-2">
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="font-bold uppercase text-accent-ink bg-accent-soft px-1.5 py-0.5 rounded">{a.type}</span>
-                <span className="ml-auto text-text-4">{fmtDate(a.created_at)}</span>
-              </div>
-              {a.text && <div className="mt-1 text-[12.5px] text-text-2 whitespace-pre-wrap">{a.text}</div>}
-            </li>
+            <NoteItem key={a.id} activity={a} author={a.author_id ? profileById.get(a.author_id) : undefined} profiles={profileList} />
           ))}
-        </ol>
+        </div>
       )}
-    </Panel>
+    </div>
   );
+}
+
+function NoteItem({
+  activity, author, profiles,
+}: {
+  activity: import('@/hooks/useAccountDetail').Activity;
+  author: import('@/hooks/useUsersData').Profile | undefined;
+  profiles: import('@/hooks/useUsersData').Profile[];
+}) {
+  const name = author?.full_name || author?.email || 'Someone';
+  const chip = channelChip(activity.type);
+  return (
+    <div className="border border-border rounded-xl p-4 flex gap-3">
+      <OwnerAvatar profile={author} size={40} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-extrabold text-text text-[14px]">{name}</span>
+          <span className={cn('inline-flex items-center h-[22px] px-2.5 rounded-full text-[11px] font-black uppercase tracking-wider', chip.cls)}>
+            {chip.label}
+          </span>
+          <span className="text-[12px] text-text-3">{fmtRelative(activity.created_at)}</span>
+        </div>
+        {activity.text && (
+          <div className="mt-1.5 text-[13.5px] text-text-2 whitespace-pre-wrap leading-relaxed">
+            {renderWithMentions(activity.text, profiles)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function channelChip(t: string): { label: string; cls: string } {
+  switch (t) {
+    case 'call':     return { label: 'Call',     cls: 'bg-info-bg text-info' };
+    case 'email':    return { label: 'Email',    cls: 'bg-surface-2 text-text-2 border border-border' };
+    case 'whatsapp': return { label: 'WhatsApp', cls: 'bg-ok-bg text-ok' };
+    case 'meeting':  return { label: 'Meeting',  cls: 'bg-warn-bg text-warn' };
+    default:         return { label: 'Note',     cls: 'bg-accent-soft text-accent-ink' };
+  }
+}
+
+function fmtRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.round((now - then) / 1000));
+  if (diffSec < 45) return 'just now';
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const hrs = Math.floor(diffMin / 60);
+  const rem = diffMin % 60;
+  if (hrs < 24) return rem ? `${hrs}h ${rem}m ago` : `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return fmtDate(iso);
+}
+
+function renderWithMentions(text: string, profiles: import('@/hooks/useUsersData').Profile[]): React.ReactNode {
+  // Build a lookup of lowercased names, longest first so "Nour Adel Kamal" wins over "Nour Adel"
+  const names = profiles
+    .map((p) => (p.full_name || p.email || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  if (!names.length) return text;
+  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(`@(${escaped})`, 'gi');
+  const out: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > lastIdx) out.push(text.slice(lastIdx, m.index));
+    out.push(
+      <span key={m.index} className="font-bold text-accent-ink bg-accent-soft px-1 rounded">
+        @{m[1]}
+      </span>,
+    );
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < text.length) out.push(text.slice(lastIdx));
+  return out.length ? out : text;
 }
 
 /* ---------- RIGHT RAIL ---------- */
