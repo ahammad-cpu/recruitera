@@ -101,6 +101,8 @@ export default function Pipeline() {
   const openStages = new Set(['mql', 'sql', 'demo', 'proposal']);
   const openDeals = accounts.filter((a) => openStages.has((a.stage || '').toLowerCase()));
   const openPipeline = openDeals.reduce((s, a) => s + (a.deal_value || 0), 0);
+  // Denominator for per-column % — sum across every column so percentages add to 100.
+  const boardTotal = accounts.reduce((s, a) => s + (a.deal_value || 0), 0);
   const wonQtd = scoped.filter((a) => (a.stage || '').toLowerCase() === 'won').reduce((s, a) => s + (a.deal_value || 0), 0);
   const proposalsLive = accounts.filter((a) => (a.stage || '').toLowerCase() === 'proposal').length;
   const dealsWithValue = openDeals.filter((a) => (a.deal_value || 0) > 0);
@@ -200,6 +202,7 @@ export default function Pipeline() {
                 rows={groups.get(col.key) ?? []}
                 profilesById={profilesById}
                 isLoading={isLoading}
+                boardTotal={boardTotal}
               />
             ))}
           </div>
@@ -228,15 +231,17 @@ function KpiCard({
 }
 
 function Column({
-  col, rows, profilesById, isLoading,
+  col, rows, profilesById, isLoading, boardTotal,
 }: {
   col: ColMeta;
   rows: Account[];
   profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
   isLoading: boolean;
+  boardTotal: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   const total = rows.reduce((s, a) => s + (a.deal_value || 0), 0);
+  const pct = boardTotal > 0 ? Math.round((total / boardTotal) * 100) : 0;
   return (
     <div
       ref={setNodeRef}
@@ -246,7 +251,7 @@ function Column({
         isOver && 'ring-2 ring-accent',
       )}
     >
-      <div className="px-4 pt-4 pb-3 flex items-center gap-2">
+      <div className="px-4 pt-4 pb-2 flex items-center gap-2">
         <span className={cn('w-2 h-2 rounded-full flex-shrink-0', col.dot)} />
         <span className="text-[11px] font-black tracking-widest uppercase text-text">{col.label}</span>
         <span className="tnum text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
@@ -255,6 +260,16 @@ function Column({
         <span className="tnum ml-auto text-[11.5px] font-bold text-text-3">
           {total > 0 ? fmtEgpCompact(total) : '0 EGP'}
         </span>
+      </div>
+
+      <div className="px-4 pb-3 border-b border-border/60 mb-2">
+        <div className="text-[11px] italic text-text-3">
+          Total Stage Amount:{' '}
+          <span className="tnum font-semibold text-text-2 not-italic">
+            {total > 0 ? fmtEgpShort(total) : '0 EGP'}
+          </span>{' '}
+          <span className="tnum">({pct}%)</span>
+        </div>
       </div>
 
       <div className="px-3 pb-3 space-y-2.5 max-h-[calc(100vh-380px)] overflow-y-auto sc">
