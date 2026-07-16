@@ -26,23 +26,12 @@ describe('positionBetween', () => {
 });
 
 describe('guardStagePromotion', () => {
-  it('blocks promotion to demo without ACV', () => {
-    const msg = guardStagePromotion('sql', 'demo', null);
-    expect(msg).toMatch(/ACV/i);
-  });
-  it('blocks promotion to proposal / negotiation / won / collected without ACV', () => {
-    for (const s of ['proposal', 'negotiation', 'won', 'collected'] as const) {
-      expect(guardStagePromotion('sql', s, 0)).not.toBeNull();
-    }
-  });
-  it('allows promotion to sql without ACV (discovery stages)', () => {
+  it('never blocks any transition — ACV is no longer a gate (Won dialog still enforces amount)', () => {
     expect(guardStagePromotion('mql', 'sql', null)).toBeNull();
-  });
-  it('allows promotion once ACV is set', () => {
-    expect(guardStagePromotion('sql', 'proposal', 12000)).toBeNull();
-  });
-  it('allows demotion to mql/sql regardless of ACV', () => {
+    expect(guardStagePromotion('sql', 'demo', 0)).toBeNull();
+    expect(guardStagePromotion('sql', 'proposal', null)).toBeNull();
+    expect(guardStagePromotion('demo', 'won', null)).toBeNull();
+    expect(guardStagePromotion('proposal', 'collected', null)).toBeNull();
     expect(guardStagePromotion('proposal', 'mql', null)).toBeNull();
-    expect(guardStagePromotion('proposal', 'sql', null)).toBeNull();
   });
 });

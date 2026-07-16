@@ -17,12 +17,16 @@ function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['accounts'] });
 }
 
-/** Business rule: a deal without ACV cannot leave the discovery stages. */
-export function guardStagePromotion(prev: DealStage, next: DealStage, amount: number | null | undefined): string | null {
-  const beyondDiscovery = new Set<DealStage>(['demo', 'proposal', 'negotiation', 'won', 'collected']);
-  if (beyondDiscovery.has(next) && !(amount && amount > 0)) {
-    return `Set an ACV before moving past ${prev.toUpperCase()} — deals without a value cannot pass SQL.`;
-  }
+/**
+ * Business rule: no ACV gate on stage promotion. Deals move freely between
+ * stages; entering ACV is encouraged but never blocking. The Won dialog
+ * still enforces a positive amount at the moment a deal is marked Won.
+ */
+export function guardStagePromotion(
+  _prev: DealStage,
+  _next: DealStage,
+  _amount: number | null | undefined,
+): string | null {
   return null;
 }
 
@@ -93,16 +97,9 @@ export function useCreateDeal() {
 export function useMoveDeal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, stage, position, currentAmount }: {
-      id: string; stage: DealStage; position: number; currentAmount: number | null;
+    mutationFn: async ({ id, stage, position }: {
+      id: string; stage: DealStage; position: number; currentAmount?: number | null;
     }) => {
-      // Client-side guard mirrors the message the server will eventually enforce.
-      // (Server-side check is the real gate; we keep this friendly.)
-      const err = guardStagePromotion('sql', stage, currentAmount);
-      // Only block *promotion*; demotion/lateral is fine.
-      if (err && ['demo', 'proposal', 'negotiation', 'won', 'collected'].includes(stage) && !(currentAmount && currentAmount > 0)) {
-        throw new Error(err);
-      }
       const { error } = await supabase
         .from('deals')
         .update({ stage, board_position: position, last_activity_at: new Date().toISOString() })

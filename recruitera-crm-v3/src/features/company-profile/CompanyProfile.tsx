@@ -159,12 +159,16 @@ export default function CompanyProfile() {
               disabled={!(contacts?.[0]?.email)}
               href={contacts?.[0]?.email ? `mailto:${contacts[0].email}` : undefined}
             />
-            {isAdmin && (
+            {/* Disqualify only makes sense while the company is still a LEAD.
+                Once it enters the funnel (MQL+), losing it goes through the
+                deal-Lost flow on the pipeline (drag → LostDialog), not
+                account-level disqualification. */}
+            {isAdmin && (lead.stage || '').toLowerCase() === 'lead' && (
               <button
                 onClick={() => setDisqOpen(true)}
                 className="h-9 w-9 rounded-lg border border-bad/40 bg-bad-bg text-bad hover:bg-bad hover:text-white flex items-center justify-center"
-                title="Disqualify (admin only) — captures reason + notes"
-                aria-label="Disqualify company"
+                title="Disqualify lead (admin only) — captures reason + notes"
+                aria-label="Disqualify lead"
               ><Trash2 size={14} /></button>
             )}
           </div>
@@ -206,10 +210,11 @@ export default function CompanyProfile() {
             </span>
           ))}
 
-          {lead.stage !== 'lost' && (
+          {(lead.stage || '').toLowerCase() === 'lead' && (
             <button
               onClick={() => setDisqOpen(true)}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
+              title="Only available while the company is still a Lead"
             ><X size={12} /> Disqualify</button>
           )}
         </div>

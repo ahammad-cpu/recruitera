@@ -9,7 +9,7 @@ import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
-import { fmtInt, fmtDate } from '@/lib/format';
+import { fmtInt } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { WonDialog } from './WonDialog';
 import { LostDialog } from './LostDialog';
@@ -148,7 +148,7 @@ export default function Pipeline() {
     const targetRows = groups.get(nextStage) ?? [];
     const firstPos = targetRows[0]?.board_position ?? null;
     const position = positionBetween(null, firstPos);
-    moveDeal.mutate({ id, stage: nextStage, position, currentAmount: deal.amount });
+    moveDeal.mutate({ id, stage: nextStage, position });
   }
 
   function exportCsv() {
@@ -378,7 +378,6 @@ function Card({
   const temp = temperature(d);
   const stale = isStale(d);
   const overdue = isOverdue(d);
-  const dealValue = d.amount ?? 0;
   const name = d.company?.name || d.title || '—';
 
   return (
@@ -422,19 +421,8 @@ function Card({
         </div>
       )}
 
-      <div className="mt-3 pt-3 border-t border-border/70 grid grid-cols-[46px_1fr] gap-y-1.5 text-[12px]">
-        <div className="text-text-3 font-bold uppercase tracking-wider text-[10px] leading-[18px]">ACV</div>
-        <div className="tnum font-extrabold text-text">
-          {dealValue > 0 ? fmtEgpShort(dealValue) : <span className="text-text-4 font-bold">0 EGP</span>}
-        </div>
-        <div className="text-text-3 font-bold uppercase tracking-wider text-[10px] leading-[18px]">Close</div>
-        <div className={cn('tnum font-bold', overdue ? 'text-bad' : 'text-text-3')}>
-          {d.expected_close_date
-            ? fmtDate(d.expected_close_date)
-            : d.closed_at ? fmtDate(d.closed_at)
-            : <span className="text-text-4">—</span>}
-        </div>
-      </div>
+      {/* ACV row intentionally removed — reps don't need it visible per card;
+          Won dialog + column totals surface the numbers when they matter. */}
 
       <div className="mt-3 pt-2.5 border-t border-border/70 flex items-center gap-2 min-w-0">
         <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
