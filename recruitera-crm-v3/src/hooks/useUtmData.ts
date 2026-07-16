@@ -16,6 +16,7 @@ export type UtmLink = {
 };
 
 export type UtmCampaign = { id: string; name: string; description: string | null };
+export type UtmLinkGroup = { id: string; name: string; color: string | null; created_at: string };
 
 export function useUtmLinks() {
   return useQuery({
@@ -39,10 +40,34 @@ export function useUtmCampaigns() {
   });
 }
 
+export function useUtmLinkGroups() {
+  return useQuery({
+    queryKey: ['utm_link_groups'],
+    queryFn: async (): Promise<UtmLinkGroup[]> => {
+      const { data, error } = await supabase.from('utm_link_groups').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useCreateUtmLinkGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, color }: { name: string; color: string }) => {
+      const { data: session } = await supabase.auth.getSession();
+      const { error } = await supabase.from('utm_link_groups').insert({ name, color, created_by: session.session?.user?.id ?? null });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success('Group created'); qc.invalidateQueries({ queryKey: ['utm_link_groups'] }); },
+    onError: (e) => toast.error(`Create failed: ${String(e)}`),
+  });
+}
+
 export function useSaveUtmLink() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (link: Omit<UtmLink, 'id' | 'created_at' | 'short_url'>) => {
+    mutationFn: async (link: Omit<UtmLink, 'id' | 'created_at'>) => {
       const { data: session } = await supabase.auth.getSession();
       const { error } = await supabase.from('utm_links').insert({ ...link, created_by: session.session?.user?.id ?? null });
       if (error) throw error;
