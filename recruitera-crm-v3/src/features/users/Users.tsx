@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Search, Plus, MoreVertical } from 'lucide-react';
-import { useProfiles, useRoles, useTeams, type Role } from '@/hooks/useUsersData';
+import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2 } from 'lucide-react';
+import { useProfiles, useRoles, useTeams, type Role, type Profile } from '@/hooks/useUsersData';
 import { useToggleRoleModule, useCreateRole, MODULE_CATALOG } from '@/hooks/useRoleMutations';
+import { useUpdateProfileFields } from '@/hooks/useProfileMutations';
 import { useInviteUser } from '@/hooks/useInviteUser';
 import { initials } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -65,8 +66,24 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 function MembersTab({ onInvite }: { onInvite: () => void }) {
   const { data, isLoading } = useProfiles();
   const { data: roles } = useRoles();
+  const { data: teams } = useTeams();
+  const updateFields = useUpdateProfileFields();
   const [q, setQ] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const roleName = (id: string | null) => roles?.find((r) => r.id === id)?.name ?? '—';
+
+  // Who manages whom — powers the "leads under them" expand + the reports-to
+  // picker (excluding self to avoid a trivial 1-node cycle).
+  const reportsByManager = useMemo(() => {
+    const m = new Map<string, Profile[]>();
+    (data ?? []).forEach((p) => {
+      if (!p.reports_to) return;
+      const arr = m.get(p.reports_to) ?? [];
+      arr.push(p);
+      m.set(p.reports_to, arr);
+    });
+    return m;
+  }, [data]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -74,6 +91,14 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
     return (data ?? []).filter((p) =>
       (p.full_name || '').toLowerCase().includes(term) || (p.email || '').toLowerCase().includes(term));
   }, [data, q]);
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -96,28 +121,94 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
       </div>
 
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
-        <div className="grid grid-cols-[2fr_2.4fr_1fr_80px] gap-4 px-6 py-3.5 border-b border-border text-[13px] font-black text-text">
-          <span>Name</span><span>Email Address</span><span>Role</span><span className="text-right">Options</span>
+        <div className="grid grid-cols-[1.8fr_1.4fr_1fr_1fr_44px] gap-3 px-6 py-3.5 border-b border-border text-[12px] font-black uppercase tracking-wider text-text-3">
+          <span>Name</span><span>Role</span><span>Team</span><span>Reports to</span><span />
         </div>
         {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
         {!isLoading && rows.length === 0 && <div className="p-8 text-center text-[12.5px] text-text-3">No users found.</div>}
-        {rows.map((p) => (
-          <div key={p.id} className="grid grid-cols-[2fr_2.4fr_1fr_80px] gap-4 px-6 py-3.5 border-b border-border last:border-0 items-center hover:bg-surface-2">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-cg-800 text-white text-[12px] font-bold flex items-center justify-center flex-shrink-0">
-                {initials(p.full_name || p.email)}
+        {rows.map((p) => {
+          const reports = reportsByManager.get(p.id) ?? [];
+          const isExpanded = expanded.has(p.id);
+          const isAdmin = p.role === 'admin';
+          return (
+            <div key={p.id} className="border-b border-border last:border-0">
+              <div className="grid grid-cols-[1.8fr_1.4fr_1fr_1fr_44px] gap-3 px-6 py-3 items-center hover:bg-surface-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-cg-800 text-white text-[12px] font-bold flex items-center justify-center flex-shrink-0">
+                    {initials(p.full_name || p.email)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-bold text-text truncate">{p.full_name || '—'}</div>
+                    <div className="text-[11.5px] text-text-3 truncate">{p.email}</div>
+                  </div>
+                </div>
+
+                <select
+                  value={p.role_id || ''}
+                  onChange={(e) => updateFields.mutate({ id: p.id, role_id: e.target.value || null })}
+                  className="h-8 px-2 border border-border rounded-md bg-surface text-[12.5px] font-semibold text-text outline-none focus:border-accent-strong"
+                >
+                  <option value="">No role</option>
+                  {roles?.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+
+                <select
+                  value={p.team_id || ''}
+                  onChange={(e) => updateFields.mutate({ id: p.id, team_id: e.target.value || null })}
+                  className="h-8 px-2 border border-border rounded-md bg-surface text-[12.5px] font-semibold text-text outline-none focus:border-accent-strong"
+                >
+                  <option value="">No team</option>
+                  {teams?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+
+                <select
+                  value={p.reports_to || ''}
+                  onChange={(e) => updateFields.mutate({ id: p.id, reports_to: e.target.value || null })}
+                  disabled={isAdmin}
+                  title={isAdmin ? 'Admins never report to anyone' : undefined}
+                  className="h-8 px-2 border border-border rounded-md bg-surface text-[12.5px] font-semibold text-text outline-none focus:border-accent-strong disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">No lead</option>
+                  {data?.filter((x) => x.id !== p.id).map((x) => <option key={x.id} value={x.id}>{x.full_name || x.email}</option>)}
+                </select>
+
+                <div className="flex justify-end">
+                  {reports.length > 0 ? (
+                    <button
+                      onClick={() => toggleExpand(p.id)}
+                      title={`${reports.length} direct report${reports.length === 1 ? '' : 's'}`}
+                      className="inline-flex items-center gap-1 h-8 px-2 rounded-md text-text-2 hover:bg-surface-2 tnum text-[12px] font-bold"
+                    >
+                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      {reports.length}
+                    </button>
+                  ) : (
+                    <button className="w-8 h-8 grid place-items-center rounded-md text-text-3 hover:bg-surface-2" title="More">
+                      <MoreVertical size={15} />
+                    </button>
+                  )}
+                </div>
               </div>
-              <span className="text-[14.5px] font-bold text-text truncate">{p.full_name || '—'}</span>
+
+              {isExpanded && reports.length > 0 && (
+                <div className="bg-surface-2/60 border-t border-border px-6 py-3 pl-[4.5rem] space-y-2">
+                  <div className="flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-widest text-text-3 mb-1">
+                    <Users2 size={12} /> Reports to {p.full_name || p.email}
+                  </div>
+                  {reports.map((r) => (
+                    <div key={r.id} className="flex items-center gap-3 py-1">
+                      <div className="w-7 h-7 rounded-full bg-cg-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        {initials(r.full_name || r.email)}
+                      </div>
+                      <span className="text-[13px] font-semibold text-text">{r.full_name || r.email}</span>
+                      <span className="text-[11.5px] text-text-3">{roleName(r.role_id)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <span className="text-[14px] text-text-2 font-medium truncate">{p.email || '—'}</span>
-            <span className="text-[14px] text-text-2 font-semibold truncate">{roleName(p.role_id)}</span>
-            <div className="flex justify-end">
-              <button className="w-9 h-9 grid place-items-center rounded-lg text-text-3 hover:bg-surface-2" title="More">
-                <MoreVertical size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

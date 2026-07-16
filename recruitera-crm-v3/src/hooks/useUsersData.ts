@@ -8,6 +8,7 @@ export type Profile = {
   role: string | null;
   role_id: string | null;
   team_id: string | null;
+  reports_to: string | null;
   job_title: string | null;
   active: boolean | null;
   quarterly_target_egp: number | null;
