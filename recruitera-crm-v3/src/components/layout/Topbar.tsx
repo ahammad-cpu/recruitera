@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Search, Plus } from 'lucide-react';
 import { useAccounts } from '@/hooks/useAccounts';
 import { fmtInt } from '@/lib/format';
+import { AddCompanyModal } from '@/features/companies/AddCompanyModal';
 
 const TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -23,6 +25,7 @@ export function Topbar() {
   const { data, isLoading } = useAccounts();
   // Exclude merged-loser rows so LIVE count matches Companies page (521, not 610).
   const count = (data ?? []).filter((a) => !a.merged_into).length;
+  const [addOpen, setAddOpen] = useState(false);
 
   return (
     <div className="h-[60px] flex-shrink-0 bg-surface border-b border-border flex items-center px-6 gap-4">
@@ -46,10 +49,15 @@ export function Topbar() {
         <span className="text-[10px] font-bold text-text-3 bg-surface border border-border rounded px-1.5 py-0.5 tracking-wider">⌘K</span>
       </div>
 
-      <button className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-cg-900 text-white text-[12.5px] font-bold hover:bg-cg-800">
+      <button
+        onClick={() => setAddOpen(true)}
+        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-cg-900 text-white text-[12.5px] font-bold hover:bg-cg-800"
+      >
         <Plus size={14} />
         New employer
       </button>
+
+      {addOpen && <AddCompanyModal onClose={() => setAddOpen(false)} />}
     </div>
   );
 }
