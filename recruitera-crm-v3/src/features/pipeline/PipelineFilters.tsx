@@ -15,6 +15,21 @@ export const EMPTY_FILTERS: PipelineFilterState = {
   owners: [], temps: [], minAcv: '', maxAcv: '', closeFrom: '', closeTo: '',
 };
 
+/** yyyy-mm-dd for the first day of the current calendar quarter (Jan/Apr/Jul/Oct 1). */
+export function quarterStartISO(now: Date = new Date()): string {
+  const q = Math.floor(now.getMonth() / 3) * 3;
+  const d = new Date(now.getFullYear(), q, 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Filters shown on first render — Close-Date From defaults to the start of the quarter. */
+export function defaultFilters(): PipelineFilterState {
+  return { ...EMPTY_FILTERS, closeFrom: quarterStartISO() };
+}
+
 export function filtersActiveCount(f: PipelineFilterState): number {
   let n = 0;
   if (f.owners.length) n++;

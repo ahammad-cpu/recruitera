@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
 import { WonDialog } from './WonDialog';
 import { LostDialog } from './LostDialog';
 import {
-  EMPTY_FILTERS, filtersFromParams, filtersToParams,
+  defaultFilters, filtersFromParams, filtersToParams,
   type PipelineFilterState,
 } from './PipelineFilters';
 import { PipelineFilterBar } from './PipelineFilterBar';
@@ -53,7 +53,13 @@ export default function Pipeline() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = useState<PipelineFilterState>(() => filtersFromParams(searchParams));
+  // Default Close-Date From to the start of the current quarter unless the
+  // URL already specifies a filter (deep link / user reset).
+  const [filters, setFilters] = useState<PipelineFilterState>(() => {
+    const fromUrl = filtersFromParams(searchParams);
+    const anySet = Object.values(fromUrl).some((v) => Array.isArray(v) ? v.length : !!v);
+    return anySet ? fromUrl : defaultFilters();
+  });
   const [pendingWon, setPendingWon] = useState<Deal | null>(null);
   const [pendingLost, setPendingLost] = useState<Deal | null>(null);
 
@@ -458,5 +464,4 @@ function TempPill({ kind }: { kind: 'hot' | 'warm' | 'cold' }) {
   );
 }
 
-// EMPTY_FILTERS export kept for consumers that may want to reset externally.
-export { EMPTY_FILTERS };
+export { EMPTY_FILTERS, defaultFilters } from './PipelineFilters';
