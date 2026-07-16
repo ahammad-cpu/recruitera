@@ -57,7 +57,17 @@ export function Topbar() {
         New employer
       </button>
 
-      {addOpen && <AddCompanyModal onClose={() => setAddOpen(false)} />}
+      {addOpen && (
+        <AddCompanyModal
+          onClose={() => setAddOpen(false)}
+          onBulkUpload={() => {
+            setAddOpen(false);
+            import('sonner').then(({ toast }) =>
+              toast.info('Bulk upload — ping me the xlsx and I\'ll wire the picker next.')
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

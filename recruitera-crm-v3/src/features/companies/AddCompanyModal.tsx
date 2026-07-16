@@ -74,8 +74,8 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
   const mediumOptions = (mediums.data ?? []).map((m) => m.name);
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black/40 flex items-center justify-center p-6 overflow-y-auto" onClick={onClose}>
-      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-3xl overflow-hidden flex flex-col my-8" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[110] bg-black/75 backdrop-blur-sm flex items-center justify-center p-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-xl max-h-[88vh] overflow-hidden flex flex-col my-8" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-3 px-6 py-4 border-b border-border">
           <div className="w-10 h-10 rounded-xl bg-accent grid place-items-center text-cg-900">
             <Plus size={18} strokeWidth={3} />
