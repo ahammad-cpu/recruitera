@@ -1,70 +1,260 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckSquare, Square, Clock } from 'lucide-react';
-import { useTasks } from '@/hooks/useTasks';
+import { CheckSquare, Square } from 'lucide-react';
+import { useTasks, type Task } from '@/hooks/useTasks';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useProfiles, type Profile } from '@/hooks/useUsersData';
 import { useToggleTaskDone } from '@/hooks/useActivityMutations';
-import { fmtDate } from '@/lib/format';
+import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
+import { cn } from '@/lib/cn';
+
+const DAY = 86_400_000;
+
+type TabKey = 'all' | 'overdue' | 'past3';
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'all', label: 'All tasks' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'past3', label: 'Past 3 days' },
+];
+
+type RangeKey = 'all' | 'today' | 'week' | 'nextweek' | 'later' | 'done';
+const RANGES: { key: RangeKey; label: string }[] = [
+  { key: 'all', label: 'All time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This week' },
+  { key: 'nextweek', label: 'Next week' },
+  { key: 'later', label: 'Later' },
+  { key: 'done', label: 'Done' },
+];
+
+function fmtWhen(iso: string | null, now: number): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const dayMs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const todayMs = new Date(new Date(now).getFullYear(), new Date(now).getMonth(), new Date(now).getDate()).getTime();
+  const diffDays = Math.round((dayMs - todayMs) / DAY);
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (diffDays === 0) return `Today · ${time}`;
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+  if (diffDays < 0) return 'Overdue';
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${date} · ${time}`;
+}
 
 export default function Tasks() {
   const { data, isLoading, error } = useTasks();
+  const accounts = useAccounts();
+  const profiles = useProfiles();
   const toggle = useToggleTaskDone();
+  const [tab, setTab] = useState<TabKey>('all');
+  const [range, setRange] = useState<RangeKey>('all');
+
+  const accountNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (accounts.data ?? []).forEach((a) => m.set(a.id, a.name || a.domain || '—'));
+    return m;
+  }, [accounts.data]);
+
+  const profileById = useMemo(() => {
+    const m = new Map<string, Profile>();
+    (profiles.data ?? []).forEach((p) => m.set(p.id, p));
+    return m;
+  }, [profiles.data]);
+
+  const rows = data ?? [];
+  const now = Date.now();
+
+  const byTab = useMemo(() => {
+    if (tab === 'overdue') {
+      return rows.filter((t) => !t.task_done && t.task_due_date && new Date(t.task_due_date).getTime() < now);
+    }
+    if (tab === 'past3') {
+      return rows.filter((t) => {
+        if (!t.task_due_date) return false;
+        const d = new Date(t.task_due_date).getTime();
+        return d < now && d >= now - 3 * DAY;
+      });
+    }
+    return rows;
+  }, [rows, tab, now]);
+
+  const startOfToday = useMemo(() => {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [now]);
+  const endOfToday = startOfToday + DAY;
+  const endOfWeek = startOfToday + 7 * DAY;
+  const endOfNextWeek = startOfToday + 14 * DAY;
+
+  const filtered = useMemo(() => {
+    if (range === 'done') return byTab.filter((t) => t.task_done);
+    const open = byTab.filter((t) => !t.task_done);
+    if (range === 'all') return open;
+    return open.filter((t) => {
+      if (!t.task_due_date) return range === 'later';
+      const d = new Date(t.task_due_date).getTime();
+      if (range === 'today') return d >= startOfToday && d < endOfToday;
+      if (range === 'week') return d >= startOfToday && d < endOfWeek;
+      if (range === 'nextweek') return d >= endOfWeek && d < endOfNextWeek;
+      if (range === 'later') return d >= endOfNextWeek;
+      return true;
+    });
+  }, [byTab, range, startOfToday, endOfToday, endOfWeek, endOfNextWeek]);
+
+  const overdueCount = useMemo(
+    () => rows.filter((t) => !t.task_done && t.task_due_date && new Date(t.task_due_date).getTime() < now).length,
+    [rows, now],
+  );
+  const past3Count = useMemo(
+    () => rows.filter((t) => {
+      if (!t.task_due_date) return false;
+      const d = new Date(t.task_due_date).getTime();
+      return d < now && d >= now - 3 * DAY;
+    }).length,
+    [rows, now],
+  );
 
   if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
 
-  const open = (data ?? []).filter((t) => !t.task_done);
-  const done = (data ?? []).filter((t) => t.task_done);
-
   return (
-    <div className="p-6 space-y-4 max-w-4xl">
+    <div className="p-6 space-y-4">
       <div>
         <h1 className="text-lg font-bold text-text">Tasks</h1>
         <p className="text-[12.5px] text-text-3 mt-0.5">
-          {isLoading ? 'Loading…' : `${open.length} open · ${done.length} done`}
+          {isLoading ? 'Loading…' : `${rows.filter((t) => !t.task_done).length} open · ${rows.filter((t) => t.task_done).length} done`}
         </p>
       </div>
 
-      <Section title="Open" rows={open} loading={isLoading} empty="Nothing on your plate."
-               onToggle={(id, done) => toggle.mutate({ id, done })} />
-      <Section title="Completed" rows={done.slice(0, 30)} loading={false} empty="No completed tasks yet." muted
-               onToggle={(id, done) => toggle.mutate({ id, done })} />
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
+        <div className="flex items-center gap-0 px-5 border-b border-border">
+          {TABS.map((t) => {
+            const count = t.key === 'all' ? rows.length : t.key === 'overdue' ? overdueCount : past3Count;
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  'text-[13px] font-bold py-3.5 mr-5 border-b-2 -mb-px transition-colors',
+                  active ? 'text-text border-cg-900' : 'text-text-3 border-transparent hover:text-text-2',
+                )}
+              >
+                {t.label}{t.key === 'all' && ` ${count}`}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-wrap">
+          {RANGES.map((r) => {
+            const active = range === r.key;
+            return (
+              <button
+                key={r.key}
+                onClick={() => setRange(r.key)}
+                className={cn(
+                  'h-8 px-3.5 rounded-lg text-[13px] font-semibold border transition-colors',
+                  active ? 'bg-cg-900 text-white border-cg-900' : 'bg-surface text-text-2 border-border hover:bg-surface-2',
+                )}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="overflow-x-auto sc">
+          <table className="w-full text-left" style={{ minWidth: 900 }}>
+            <thead>
+              <tr className="bg-surface-2 text-[10.5px] font-bold uppercase tracking-wider text-text-3">
+                <Th>Date / time</Th>
+                <Th>Company</Th>
+                <Th>Type</Th>
+                <Th>Description</Th>
+                <Th>Responsible</Th>
+                <Th>Created by</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && (
+                <tr><td colSpan={6} className="p-4 text-[12.5px] text-text-3">Loading…</td></tr>
+              )}
+              {!isLoading && filtered.length === 0 && (
+                <tr><td colSpan={6} className="p-8 text-center text-[12.5px] text-text-3">No tasks here.</td></tr>
+              )}
+              {!isLoading && filtered.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  now={now}
+                  companyName={t.account_id ? accountNameById.get(t.account_id) : undefined}
+                  responsible={profileById.get(t.assigned_to || t.author_id || '')}
+                  author={profileById.get(t.author_id || '')}
+                  onToggle={(done) => toggle.mutate({ id: t.id, done })}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Section({
-  title, rows, loading, empty, muted, onToggle,
+function Th({ children }: { children: React.ReactNode }) {
+  return <th className="text-left px-4 py-2.5 whitespace-nowrap">{children}</th>;
+}
+
+function TaskRow({
+  task, now, companyName, responsible, author, onToggle,
 }: {
-  title: string;
-  rows: ReturnType<typeof useTasks>['data'];
-  loading: boolean;
-  empty: string;
-  muted?: boolean;
-  onToggle: (id: string, done: boolean) => void;
+  task: Task;
+  now: number;
+  companyName: string | undefined;
+  responsible: Profile | undefined;
+  author: Profile | undefined;
+  onToggle: (done: boolean) => void;
 }) {
   return (
-    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
-      <div className="px-4 py-2.5 bg-surface-2 text-[11px] font-bold uppercase tracking-wider text-text-3">{title}</div>
-      {loading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
-      {!loading && rows && rows.length === 0 && <div className="p-8 text-center text-[12.5px] text-text-3">{empty}</div>}
-      {rows?.map((t) => (
-        <div key={t.id} className={`px-4 py-3 border-t border-border flex items-start gap-3 ${muted ? 'opacity-60' : ''}`}>
+    <tr className={cn('border-t border-border hover:bg-surface-2/60 transition-colors', task.task_done && 'opacity-50')}>
+      <td className="px-4 py-3 align-middle">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => onToggle(t.id, !t.task_done)}
-            className="mt-0.5 hover:opacity-70"
-            title={t.task_done ? 'Mark open' : 'Mark done'}
+            onClick={() => onToggle(!task.task_done)}
+            title={task.task_done ? 'Mark open' : 'Mark done'}
+            className="hover:opacity-70 flex-shrink-0"
           >
-            {t.task_done ? <CheckSquare size={16} className="text-ok" /> : <Square size={16} className="text-text-3" />}
+            {task.task_done ? <CheckSquare size={15} className="text-ok" /> : <Square size={15} className="text-text-3" />}
           </button>
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-text">{t.title || t.text || '(untitled)'}</div>
-            {t.text && t.title && <div className="text-[12px] text-text-2 mt-0.5">{t.text}</div>}
-            <div className="flex items-center gap-3 mt-1 text-[11px] text-text-3">
-              {t.task_due_date && <span className="inline-flex items-center gap-1"><Clock size={11} /> {fmtDate(t.task_due_date)}</span>}
-              {t.priority && <span className="uppercase tracking-wider font-bold text-warn">{t.priority}</span>}
-              {t.account_id && <Link to={`/companies/${t.account_id}`} className="hover:text-accent-ink">Open company →</Link>}
-            </div>
-          </div>
+          <span className="tnum text-[12px] text-text-3 whitespace-nowrap">{fmtWhen(task.task_due_date, now)}</span>
         </div>
-      ))}
-    </div>
+      </td>
+      <td className="px-4 py-3 align-middle">
+        {task.account_id ? (
+          <Link to={`/companies/${task.account_id}`} className="text-[13px] font-bold text-accent-ink hover:underline">
+            {companyName || '—'}
+          </Link>
+        ) : (
+          <span className="text-[13px] text-text-3">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3 align-middle">
+        <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-accent-soft text-accent-ink text-[11px] font-bold">
+          {task.account_id ? 'Employer' : 'General'}
+        </span>
+      </td>
+      <td className="px-4 py-3 align-middle text-[13px] text-text max-w-[320px] truncate" title={task.title || task.text || ''}>
+        {task.title || task.text || '(untitled)'}
+      </td>
+      <td className="px-4 py-3 align-middle">
+        <div className="flex items-center gap-2">
+          <OwnerAvatar profile={responsible} size={24} />
+          <span className="text-[12.5px] font-semibold text-text">{responsible?.full_name || responsible?.email || '—'}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 align-middle text-[12.5px] text-text-2">{author?.full_name || author?.email || '—'}</td>
+    </tr>
   );
 }
