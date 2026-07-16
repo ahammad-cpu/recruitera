@@ -161,12 +161,20 @@ function RenewalCard({
       {isDragging && !isOverlay && (
         <div className="absolute inset-0 rounded-[11px] border-2 border-dashed border-border-2 bg-surface-2/40" />
       )}
-      <Link
-        to={`/companies/${account.id}`}
-        onPointerDown={(e) => e.stopPropagation()}
-        className={cn('block', isDragging && !isOverlay && 'invisible')}
-      >
-        <div className="text-[14.5px] font-black tracking-tight text-text truncate leading-tight">{name}</div>
+      <div className={cn(isDragging && !isOverlay && 'invisible')}>
+        {/* Only the name is a navigation link (stopping propagation so a
+            click doesn't also start a drag) — the rest of the card is free
+            drag surface, same split as the Sales Pipeline cards. Wrapping
+            the WHOLE card in the link (the original bug here) swallows
+            every pointerdown before dnd-kit's listeners on the outer div
+            ever see it, so dragging could never start at all. */}
+        <Link
+          to={`/companies/${account.id}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="block"
+        >
+          <div className="text-[14.5px] font-black tracking-tight text-text truncate leading-tight">{name}</div>
+        </Link>
         <div className="flex items-center justify-between gap-2 mt-2">
           <span className="text-[12px] font-semibold text-text-2">{plan}</span>
           <span className="tnum text-[13px] font-black text-text">EGP {fmtInt(row.value)}</span>
@@ -177,7 +185,7 @@ function RenewalCard({
             {chipLabel}
           </span>
         </div>
-      </Link>
+      </div>
     </div>
   );
 }
