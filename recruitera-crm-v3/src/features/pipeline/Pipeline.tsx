@@ -8,7 +8,6 @@ import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Cloc
 import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
-import { useMe } from '@/hooks/useMe';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, initials, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -33,25 +32,6 @@ const COLUMNS: ColMeta[] = [
   { key: 'lost',        label: 'LOST',        dot: 'bg-bad',           bar: 'border-bad' },
 ];
 
-type RangeKey = 'all' | 'week' | 'month' | 'quarter' | 'year';
-const RANGES: { key: RangeKey; label: string }[] = [
-  { key: 'all',     label: 'All time' },
-  { key: 'week',    label: 'This week' },
-  { key: 'month',   label: 'This month' },
-  { key: 'quarter', label: 'This quarter' },
-  { key: 'year',    label: 'This year' },
-];
-
-function rangeStart(key: RangeKey): Date | null {
-  if (key === 'all') return null;
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  if (key === 'week') { d.setDate(d.getDate() - d.getDay()); return d; }
-  if (key === 'month')   { d.setDate(1); return d; }
-  if (key === 'quarter') { const q = Math.floor(d.getMonth() / 3) * 3; d.setMonth(q, 1); return d; }
-  if (key === 'year')    { d.setMonth(0, 1); return d; }
-  return null;
-}
 
 const EGP_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const fmtEgpShort = (n: number) => `${EGP_FMT.format(Math.round(n))} EGP`;
@@ -66,44 +46,24 @@ function temperature(d: Deal): 'hot' | 'warm' | 'cold' {
   return 'warm'; // default when unset
 }
 
-type Scope = 'mine' | 'all';
-
 export default function Pipeline() {
   const { data, isLoading, error } = useDeals();
   const profilesQ = useProfiles();
-  const me = useMe();
   const moveDeal = useMoveDeal();
   const reopen = useReopenDeal();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [range, setRange] = useState<RangeKey>(() => (searchParams.get('range') as RangeKey) || 'all');
   const [filters, setFilters] = useState<PipelineFilterState>(() => filtersFromParams(searchParams));
   const [pendingWon, setPendingWon] = useState<Deal | null>(null);
   const [pendingLost, setPendingLost] = useState<Deal | null>(null);
 
-  // Role-aware default view: reps see "My deals" first, managers/admins see all.
-  const canSeeAll = me.data?.role === 'admin' || me.data?.role === 'manager' || me.data?.role === 'lead';
-  const [scope, setScope] = useState<Scope>(() => {
-    const p = searchParams.get('scope') as Scope | null;
-    if (p === 'mine' || p === 'all') return p;
-    return canSeeAll ? 'all' : 'mine';
-  });
-  // Bump scope default once me.data resolves (initial render likely had role=undefined).
-  useEffect(() => {
-    if (searchParams.has('scope')) return;
-    if (canSeeAll && scope === 'mine' && me.data) setScope('all');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me.data?.role]);
-
   useEffect(() => {
     const p: Record<string, string> = { ...filtersToParams(filters) };
-    if (range !== 'all') p.range = range;
-    p.scope = scope;
     const next = new URLSearchParams(p);
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, filters, scope]);
+  }, [filters]);
 
   const profilesById = useMemo(() => {
     const m = new Map<string, import('@/hooks/useUsersData').Profile>();
@@ -113,13 +73,7 @@ export default function Pipeline() {
 
   const allDeals = data ?? [];
 
-  // Scope: 'mine' filters to my own deals (owner_id === me).
-  const scoped = useMemo(() => {
-    if (scope === 'all' || !me.data?.id) return allDeals;
-    return allDeals.filter((d) => d.owner_id === me.data!.id);
-  }, [allDeals, scope, me.data?.id]);
-
-  // Apply filter panel.
+  // Apply inline filter bar.
   const deals = useMemo(() => {
     const min = filters.minAcv ? Number(filters.minAcv) : null;
     const max = filters.maxAcv ? Number(filters.maxAcv) : null;
@@ -127,7 +81,7 @@ export default function Pipeline() {
     const to = filters.closeTo ? new Date(filters.closeTo).getTime() + 86_400_000 - 1 : null;
     const ownersSet = new Set(filters.owners);
     const tempsSet = new Set(filters.temps);
-    return scoped.filter((d) => {
+    return allDeals.filter((d) => {
       if (ownersSet.size && !(d.owner_id && ownersSet.has(d.owner_id))) return false;
       if (tempsSet.size && !tempsSet.has(temperature(d))) return false;
       const v = d.amount || 0;
@@ -142,15 +96,7 @@ export default function Pipeline() {
       }
       return true;
     });
-  }, [scoped, filters]);
-
-  // Range-scoped view for KPIs. Filters by created_at.
-  const rangeScoped = useMemo(() => {
-    const start = rangeStart(range);
-    if (!start) return deals;
-    const t = start.getTime();
-    return deals.filter((d) => new Date(d.created_at).getTime() >= t);
-  }, [deals, range]);
+  }, [allDeals, filters]);
 
   const groups = useMemo(() => {
     const m = new Map<DealStage, Deal[]>();
@@ -172,7 +118,7 @@ export default function Pipeline() {
   const openDeals = deals.filter((d) => openStages.has(d.stage));
   const openPipeline = openDeals.reduce((s, d) => s + (d.amount || 0), 0);
   const boardTotal = deals.reduce((s, d) => s + (d.amount || 0), 0);
-  const wonQtd = rangeScoped.filter((d) => d.stage === 'won' || d.stage === 'collected').reduce((s, d) => s + (d.amount || 0), 0);
+  const wonQtd = deals.filter((d) => d.stage === 'won' || d.stage === 'collected').reduce((s, d) => s + (d.amount || 0), 0);
   const proposalsLive = deals.filter((d) => d.stage === 'proposal' || d.stage === 'negotiation').length;
   const dealsWithValue = openDeals.filter((d) => (d.amount || 0) > 0);
   const avgDeal = dealsWithValue.length ? openPipeline / dealsWithValue.length : 0;
@@ -227,21 +173,7 @@ export default function Pipeline() {
           {isLoading ? '…' : `${fmtInt(totalLeads)} leads`}
         </span>
 
-        {/* Scope toggle — reps default to 'mine', managers/admins to 'all'. */}
-        <div className="inline-flex items-center bg-surface-2 border border-border rounded-full p-1 ml-2">
-          <ScopeTab active={scope === 'mine'} onClick={() => setScope('mine')} label="My deals" />
-          <ScopeTab active={scope === 'all'}  onClick={() => setScope('all')}  label={canSeeAll ? 'Team' : 'All'} />
-        </div>
-
         <div className="ml-auto flex items-center gap-2">
-          <select
-            value={range}
-            onChange={(e) => setRange(e.target.value as RangeKey)}
-            className="h-10 pl-3.5 pr-8 border border-border-2 rounded-lg bg-surface text-[13px] font-bold text-text outline-none focus:border-accent-strong appearance-none"
-            aria-label="Time range"
-          >
-            {RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
           <button
             onClick={exportCsv}
             className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-lg border border-border bg-surface text-text text-[13px] font-bold hover:bg-surface-2"
@@ -285,18 +217,6 @@ export default function Pipeline() {
       {pendingWon && <WonDialog deal={pendingWon} onClose={() => setPendingWon(null)} />}
       {pendingLost && <LostDialog deal={pendingLost} onClose={() => setPendingLost(null)} />}
     </div>
-  );
-}
-
-function ScopeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'h-8 px-3.5 rounded-full text-[12.5px] font-bold transition-colors',
-        active ? 'bg-surface text-text shadow-sh1' : 'text-text-3 hover:text-text-2',
-      )}
-    >{label}</button>
   );
 }
 
