@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Search, ArrowUpDown, AlertTriangle, Send, UserCheck, X, Ban, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, Search, Search as SearchIcon, ArrowUpDown, AlertTriangle, Send, UserCheck, X, Ban, RotateCcw } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useEnum } from '@/hooks/useEnum';
 import { useAllContacts } from '@/hooks/useAllContacts';
@@ -300,7 +300,32 @@ export default function Companies() {
                 <tr key={i} className="border-b border-border/50"><td className="px-4 py-3" colSpan={isAdmin ? 10 : 9}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
               ))}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
+                <tr>
+                  <td colSpan={isAdmin ? 10 : 9} className="px-4 py-14 text-center">
+                    <div className="inline-flex flex-col items-center gap-2 text-text-3">
+                      <div className="w-11 h-11 rounded-full bg-surface-2 border border-border grid place-items-center text-text-4">
+                        <SearchIcon size={18} />
+                      </div>
+                      <div className="text-[14px] font-black text-text">No matching companies</div>
+                      <div className="text-[12px] max-w-md">
+                        {q.trim()
+                          ? <>No results for <span className="font-bold text-text-2">&ldquo;{q.trim()}&rdquo;</span>. Try a different name, domain, contact, or phone.</>
+                          : <>Nothing matches the current filters. Adjust the tabs or filters above.</>}
+                      </div>
+                      {(q || tab !== 'all' || stage !== 'all' || source !== 'all' || owner !== 'all' || trialF !== 'all' || dupesOnly) && (
+                        <button
+                          onClick={() => {
+                            setQ(''); setTab('all'); setStage('all'); setSource('all');
+                            setOwner('all'); setTrialF('all'); setDupesOnly(false);
+                          }}
+                          className="mt-1 text-[12px] font-bold text-accent-ink hover:underline"
+                        >
+                          Clear search &amp; filters
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               )}
               {!isLoading && filtered.slice(0, 300).map((a, idx) => {
                 const dupe = dupeMap.get(a.id);
