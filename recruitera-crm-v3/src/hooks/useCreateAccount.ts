@@ -109,24 +109,15 @@ export function useCreateAccount() {
         }
       }
 
-      // A brand-new company always gets a starter deal in MQL so it shows up
-      // on the pipeline board immediately. Later manual deals go through the
-      // duplicate-warning guardrail in DealsSection.
-      const { error: dealErr } = await supabase.from('deals').insert({
-        account_id: acctId,
-        stage: (input.stage ?? 'mql') as 'mql' | 'sql' | 'demo' | 'proposal' | 'negotiation' | 'won' | 'collected' | 'lost',
-        owner_id: input.owner_id ?? userId,
-        source: input.source || null,
-        created_by: userId,
-      });
-      if (dealErr) console.warn('[useCreateAccount] deal insert failed', dealErr);
+      // NOTE: no deal is auto-created here. Per product rule, a company is
+      // just a company until a rep explicitly starts a deal from the profile
+      // or the pipeline. This keeps the board free of "lead" clutter.
 
       return { id: acctId, name };
     },
     onSuccess: (res) => {
       toast.success(`Company "${res.name}" created`);
       qc.invalidateQueries({ queryKey: ['accounts'] });
-      qc.invalidateQueries({ queryKey: ['deals'] });
       qc.invalidateQueries({ queryKey: ['contacts', 'all'] });
       qc.invalidateQueries({ queryKey: ['marketing_tracking'] });
     },
