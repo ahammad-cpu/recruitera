@@ -58,9 +58,11 @@ function fmtEgpCompact(n: number): string {
 }
 
 function temperature(a: Account): 'hot' | 'warm' | 'cold' {
-  const s = a.funnel_score ?? 0;
+  // Missing score → Warm by default (matches v2 behavior).
+  const s = a.funnel_score;
+  if (s == null) return 'warm';
   if (s >= 80) return 'hot';
-  if (s >= 40) return 'warm';
+  if (s >= 30) return 'warm';
   return 'cold';
 }
 
@@ -235,7 +237,7 @@ function KpiCard({
 }
 
 function Column({
-  col, rows, profilesById, isLoading, boardTotal,
+  col, rows, profilesById, isLoading,
 }: {
   col: ColMeta;
   rows: Account[];
@@ -245,17 +247,18 @@ function Column({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   const total = rows.reduce((s, a) => s + (a.deal_value || 0), 0);
-  const pct = boardTotal > 0 ? Math.round((total / boardTotal) * 100) : 0;
+  const withValue = rows.filter((a) => (a.deal_value || 0) > 0);
+  const avg = withValue.length ? Math.round(total / withValue.length) : 0;
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'w-[320px] flex-shrink-0 bg-surface rounded-2xl border-t-[3px] border border-border shadow-sh1 transition-colors',
+        'w-[320px] flex-shrink-0 bg-surface rounded-2xl border-t-[3px] border border-border shadow-sh1 flex flex-col transition-colors',
         col.bar,
         isOver && 'ring-2 ring-accent',
       )}
     >
-      <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+      <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-border/60">
         <span className={cn('w-2 h-2 rounded-full flex-shrink-0', col.dot)} />
         <span className="text-[11px] font-black tracking-widest uppercase text-text">{col.label}</span>
         <span className="tnum text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
@@ -266,17 +269,7 @@ function Column({
         </span>
       </div>
 
-      <div className="px-4 pb-3 border-b border-border/60 mb-2">
-        <div className="text-[11px] italic text-text-3">
-          Total Stage Amount:{' '}
-          <span className="tnum font-semibold text-text-2 not-italic">
-            {total > 0 ? fmtEgpShort(total) : '0 EGP'}
-          </span>{' '}
-          <span className="tnum">({pct}%)</span>
-        </div>
-      </div>
-
-      <div className="px-3 pb-3 space-y-2.5 max-h-[calc(100vh-380px)] overflow-y-auto sc">
+      <div className="p-3 space-y-2.5 max-h-[calc(100vh-410px)] overflow-y-auto sc flex-1">
         {isLoading && [...Array(2)].map((_, i) => (
           <div key={i} className="h-32 bg-surface-2 rounded-xl animate-pulse" />
         ))}
@@ -289,6 +282,22 @@ function Column({
         {rows.length > 60 && (
           <div className="text-[10.5px] text-text-4 text-center py-1">+{rows.length - 60} more</div>
         )}
+      </div>
+
+      {/* TOTAL / AVG footer — matches v2 layout */}
+      <div className="px-4 py-3 border-t border-border bg-surface-2/60 rounded-b-2xl">
+        <div className="flex items-baseline justify-between">
+          <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Total</div>
+          <div className="tnum text-[12.5px] font-black text-text">
+            {total > 0 ? fmtEgpShort(total) : '0 EGP'}
+          </div>
+        </div>
+        <div className="flex items-baseline justify-between mt-1">
+          <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Avg</div>
+          <div className="tnum text-[12.5px] font-bold text-text-2">
+            {avg > 0 ? fmtEgpShort(avg) : '0 EGP'}
+          </div>
+        </div>
       </div>
     </div>
   );
