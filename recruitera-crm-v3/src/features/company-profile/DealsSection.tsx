@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, TrendingUp, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useDealsForCompany, isOpen, isOverdue, isStale, type Deal, type DealStage } from '@/hooks/useDeals';
-import { useCreateDeal, useReopenDeal } from '@/hooks/useDealMutations';
+import { useReopenDeal } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
-import { useMe } from '@/hooks/useMe';
+import { useAccounts } from '@/hooks/useAccounts';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { NewDealModal } from './NewDealModal';
 
 const STAGE_COLORS: Record<DealStage, string> = {
   mql:         'bg-accent-soft text-accent-ink',
@@ -23,23 +24,24 @@ const STAGE_COLORS: Record<DealStage, string> = {
 export function DealsSection({ accountId }: { accountId: string }) {
   const { data: deals, isLoading } = useDealsForCompany(accountId);
   const profilesQ = useProfiles();
-  const me = useMe();
-  const create = useCreateDeal();
+  const accountsQ = useAccounts();
   const reopen = useReopenDeal();
   const [warnDup, setWarnDup] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const list = deals ?? [];
   const openDeals   = list.filter(isOpen);
   const wonDeals    = list.filter((d) => d.stage === 'won' || d.stage === 'collected');
   const lifetimeRev = wonDeals.reduce((s, d) => s + (d.amount || 0), 0);
+  const companyName = accountsQ.data?.find((a) => a.id === accountId)?.name || 'this company';
 
   function requestNew() {
     if (openDeals.length > 0) { setWarnDup(true); return; }
-    doCreate();
+    openModal();
   }
-  function doCreate() {
+  function openModal() {
     setWarnDup(false);
-    create.mutate({ account_id: accountId, stage: 'mql', owner_id: me.data?.id ?? null });
+    setModalOpen(true);
   }
 
   return (
@@ -51,10 +53,9 @@ export function DealsSection({ accountId }: { accountId: string }) {
         </div>
         <button
           onClick={requestNew}
-          disabled={create.isPending}
-          className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-60"
+          className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong"
         >
-          <Plus size={12} /> {create.isPending ? 'Creating…' : 'New deal'}
+          <Plus size={12} /> New deal
         </button>
       </div>
 
@@ -86,7 +87,7 @@ export function DealsSection({ accountId }: { accountId: string }) {
                   className="h-8 px-3 rounded-md border border-border bg-surface text-text-2 text-[12px] font-bold"
                 >Cancel</button>
                 <button
-                  onClick={doCreate}
+                  onClick={openModal}
                   className="h-8 px-3 rounded-md bg-accent text-cg-900 text-[12px] font-black border border-accent-strong"
                 >Create anyway</button>
               </div>
@@ -119,6 +120,14 @@ export function DealsSection({ accountId }: { accountId: string }) {
             />
           ))}
         </div>
+      )}
+
+      {modalOpen && (
+        <NewDealModal
+          accountId={accountId}
+          companyName={companyName}
+          onClose={() => setModalOpen(false)}
+        />
       )}
     </div>
   );

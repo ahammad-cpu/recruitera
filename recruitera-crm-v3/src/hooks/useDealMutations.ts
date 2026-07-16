@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Deal, DealStage } from './useDeals';
+import type { BantAnswer, Deal, DealStage, DealType } from './useDeals';
 import { OPEN_STAGES } from './useDeals';
 
 const STEP = 1024;
@@ -26,27 +26,41 @@ export function guardStagePromotion(prev: DealStage, next: DealStage, amount: nu
   return null;
 }
 
+export type NewDealInput = {
+  account_id: string;
+  stage?: DealStage;
+  deal_type?: DealType | null;
+  amount?: number | null;
+  currency?: string;
+  owner_id?: string | null;
+  title?: string | null;
+  source?: string | null;
+  expected_close_date?: string | null;
+  temperature?: 'hot' | 'warm' | 'cold' | null;
+  bant_budget?: BantAnswer | null;
+  bant_authority?: BantAnswer | null;
+  bant_need?: BantAnswer | null;
+  bant_timing?: BantAnswer | null;
+  bant_budget_note?: string | null;
+  bant_authority_note?: string | null;
+  bant_need_note?: string | null;
+  bant_timing_note?: string | null;
+};
+
 export function useCreateDeal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      account_id: string;
-      stage?: DealStage;
-      amount?: number | null;
-      currency?: string;
-      owner_id?: string | null;
-      title?: string | null;
-      source?: string | null;
-      expected_close_date?: string | null;
-      temperature?: 'hot' | 'warm' | 'cold' | null;
-    }): Promise<Deal> => {
+    mutationFn: async (input: NewDealInput): Promise<Deal> => {
       const { data: sess } = await supabase.auth.getSession();
       const created_by = sess.session?.user?.id ?? null;
+      const bantTouched =
+        input.bant_budget || input.bant_authority || input.bant_need || input.bant_timing;
       const { data, error } = await supabase
         .from('deals')
         .insert({
           account_id: input.account_id,
           stage: input.stage ?? 'mql',
+          deal_type: input.deal_type ?? null,
           amount: input.amount ?? null,
           currency: input.currency ?? 'EGP',
           owner_id: input.owner_id ?? created_by,
@@ -54,6 +68,16 @@ export function useCreateDeal() {
           source: input.source ?? null,
           expected_close_date: input.expected_close_date ?? null,
           temperature: input.temperature ?? null,
+          bant_budget:    input.bant_budget    ?? null,
+          bant_authority: input.bant_authority ?? null,
+          bant_need:      input.bant_need      ?? null,
+          bant_timing:    input.bant_timing    ?? null,
+          bant_budget_note:    input.bant_budget_note    ?? null,
+          bant_authority_note: input.bant_authority_note ?? null,
+          bant_need_note:      input.bant_need_note      ?? null,
+          bant_timing_note:    input.bant_timing_note    ?? null,
+          bant_filled_at: bantTouched ? new Date().toISOString() : null,
+          bant_filled_by: bantTouched ? created_by : null,
           created_by,
         })
         .select('*')

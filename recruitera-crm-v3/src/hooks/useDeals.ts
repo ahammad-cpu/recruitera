@@ -9,11 +9,34 @@ export type DealStage =
 export const OPEN_STAGES: DealStage[] = ['mql', 'sql', 'demo', 'proposal'];
 export const CLOSED_STAGES: DealStage[] = ['won', 'collected', 'lost'];
 
+export type DealType =
+  | 'active_account_renewal' | 'expired_account_renewal'
+  | 'new_active_trial' | 'new_expired_trial'
+  | 'invitation' | 'lead';
+
+export const DEAL_TYPES: { key: DealType; label: string }[] = [
+  { key: 'active_account_renewal',  label: 'Active Account Renewal' },
+  { key: 'expired_account_renewal', label: 'Expired Account Renewal' },
+  { key: 'new_active_trial',        label: 'New — Active Trial' },
+  { key: 'new_expired_trial',       label: 'New — Expired Trial' },
+  { key: 'invitation',              label: 'Invitation' },
+  { key: 'lead',                    label: 'Lead' },
+];
+
+export type BantAnswer = 'yes' | 'no' | 'unknown';
+export const BANT_PILLARS = [
+  { key: 'budget',    label: 'Budget',    q: 'Can they afford / willing to pay?', ph: 'e.g. $50k/year confirmed by CFO' },
+  { key: 'authority', label: 'Authority', q: 'Is our contact the decision maker?', ph: 'e.g. CEO signs off, HR Director uses daily' },
+  { key: 'need',      label: 'Need',      q: 'Is there a real, urgent pain we solve?', ph: 'e.g. losing 30% of candidates mid-funnel' },
+  { key: 'timing',    label: 'Timing',    q: 'Looking to buy in < 3 months?', ph: 'e.g. Q3 rollout planned' },
+] as const;
+
 export type Deal = {
   id: string;
   account_id: string;
   title: string | null;
   stage: DealStage;
+  deal_type: DealType | null;
   amount: number | null;
   currency: string | null;
   owner_id: string | null;
@@ -33,6 +56,14 @@ export type Deal = {
   created_at: string;
   created_by: string | null;
   updated_at: string;
+  bant_budget: BantAnswer | null;
+  bant_authority: BantAnswer | null;
+  bant_need: BantAnswer | null;
+  bant_timing: BantAnswer | null;
+  bant_budget_note: string | null;
+  bant_authority_note: string | null;
+  bant_need_note: string | null;
+  bant_timing_note: string | null;
   // Joined company (from accounts) — reads live so renames propagate.
   company: {
     id: string;
@@ -44,9 +75,11 @@ export type Deal = {
 };
 
 const DEAL_SELECT =
-  'id,account_id,title,stage,amount,currency,owner_id,temperature,source,expected_close_date,closed_at,' +
+  'id,account_id,title,stage,deal_type,amount,currency,owner_id,temperature,source,expected_close_date,closed_at,' +
   'disqualified_reason,disqualified_notes,disqualified_by,reopened_at,reopened_by,board_position,is_archived,' +
   'last_activity_at,version,created_at,created_by,updated_at,' +
+  'bant_budget,bant_authority,bant_need,bant_timing,' +
+  'bant_budget_note,bant_authority_note,bant_need_note,bant_timing_note,' +
   'company:accounts!deals_account_id_fkey(id,name,domain,industry,am_mail)';
 
 export function useDeals() {
