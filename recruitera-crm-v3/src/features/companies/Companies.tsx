@@ -13,6 +13,7 @@ import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { MergeConfirmation } from './MergeConfirmation';
 import { DisqualifyModal } from './DisqualifyModal';
+import { BulkEmailModal } from './BulkEmailModal';
 import { useRequalifyAccount } from '@/hooks/useDisqualify';
 import { ResizeHandle } from '@/components/shared/ResizeHandle';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
@@ -94,6 +95,7 @@ export default function Companies() {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
   const [mergePair, setMergePair] = useState<{ a: Account; b: Account; reasons: Set<'name' | 'domain' | 'phone' | 'email'> } | null>(null);
   const [disqTarget, setDisqTarget] = useState<Account | null>(null);
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
   const requalify = useRequalifyAccount();
   const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths.v2', COL_DEFAULTS);
   const totalWidth = (Object.keys(COL_DEFAULTS) as ColKey[]).reduce((s, k) => s + (widths[k] ?? COL_DEFAULTS[k]), 0);
@@ -444,20 +446,20 @@ export default function Companies() {
       )}
 
       {disqTarget && <DisqualifyModal account={disqTarget} onClose={() => setDisqTarget(null)} />}
+      {bulkEmailOpen && (
+        <BulkEmailModal
+          accounts={filtered.filter((a) => selected.has(a.id))}
+          contactsByAcct={contactsMap}
+          onClose={() => setBulkEmailOpen(false)}
+        />
+      )}
 
       {isAdmin && selected.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-cg-900 text-white rounded-2xl shadow-sh3 px-3 py-2 flex items-center gap-3 border border-cg-800">
           <span className="text-[13px] font-bold pl-2">{selected.size} account{selected.size === 1 ? '' : 's'} selected</span>
           <span className="w-px h-6 bg-white/20" />
           <button
-            onClick={() => {
-              const emails = filtered
-                .filter((a) => selected.has(a.id))
-                .flatMap((a) => (contactsMap.get(a.id) ?? []).map((c: import('@/hooks/useAccountDetail').Contact) => c.email).filter(Boolean));
-              const uniq = Array.from(new Set(emails as string[]));
-              if (!uniq.length) return;
-              window.location.href = `mailto:?bcc=${encodeURIComponent(uniq.join(','))}`;
-            }}
+            onClick={() => setBulkEmailOpen(true)}
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-info text-white text-[12.5px] font-bold hover:opacity-90"
           >
             <Send size={13} /> Send bulk email
@@ -470,17 +472,17 @@ export default function Companies() {
               <UserCheck size={13} /> Assign owner
             </button>
             {bulkPickerOpen && (
-              <div className="absolute bottom-full mb-2 right-0">
-                <OwnerPickerPopover
-                  profiles={profiles.data ?? []}
-                  currentId={null}
-                  onSelect={(prof) => {
-                    bulkAssign.mutate({ ids: Array.from(selected), owner_id: prof?.id ?? null, am_mail: prof?.email ?? null });
-                    setSelected(new Set());
-                  }}
-                  onClose={() => setBulkPickerOpen(false)}
-                />
-              </div>
+              <OwnerPickerPopover
+                profiles={profiles.data ?? []}
+                currentId={null}
+                placement="top"
+                align="right"
+                onSelect={(prof) => {
+                  bulkAssign.mutate({ ids: Array.from(selected), owner_id: prof?.id ?? null, am_mail: prof?.email ?? null });
+                  setSelected(new Set());
+                }}
+                onClose={() => setBulkPickerOpen(false)}
+              />
             )}
           </div>
           <button

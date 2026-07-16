@@ -9,9 +9,11 @@ export type OwnerPickerPopoverProps = {
   currentId: string | null | undefined;
   onSelect: (profile: Profile | null) => void;
   onClose: () => void;
+  placement?: 'bottom' | 'top';
+  align?: 'left' | 'right';
 };
 
-export function OwnerPickerPopover({ profiles, currentId, onSelect, onClose }: OwnerPickerPopoverProps) {
+export function OwnerPickerPopover({ profiles, currentId, onSelect, onClose, placement = 'bottom', align = 'left' }: OwnerPickerPopoverProps) {
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +48,11 @@ export function OwnerPickerPopover({ profiles, currentId, onSelect, onClose }: O
       ref={ref}
       role="listbox"
       aria-label="Select owner"
-      className="absolute z-50 top-full left-0 mt-1 w-[320px] bg-surface border-2 border-accent rounded-2xl shadow-sh3 overflow-hidden"
+      className={cn(
+        'absolute z-[60] w-[320px] bg-surface border-2 border-accent rounded-2xl shadow-sh3 overflow-hidden',
+        placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1',
+        align === 'right' ? 'right-0' : 'left-0',
+      )}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="p-2.5 border-b border-border">
