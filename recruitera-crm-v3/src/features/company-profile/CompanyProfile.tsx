@@ -12,6 +12,9 @@ import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
 import { useRenameAccount, useChangeStage, useChangeOwner } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
+import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
+import { useMe } from '@/hooks/useMe';
+import { useTags, useAccountTags, useAttachTag, useDetachTag, useCreateTag } from '@/hooks/useTags';
 import { useProfiles } from '@/hooks/useUsersData';
 import { useEnum } from '@/hooks/useEnum';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
@@ -36,6 +39,14 @@ export default function CompanyProfile() {
   const stagesEnum = useEnum('pipeline_stage');
   const rename = useRenameAccount();
   const changeStage = useChangeStage();
+  const me = useMe();
+  const isAdmin = me.data?.role === 'admin';
+  const allTags = useTags();
+  const acctTags = useAccountTags(id);
+  const attachTag = useAttachTag(id);
+  const detachTag = useDetachTag(id);
+  const createTag = useCreateTag();
+  const [tagOpen, setTagOpen] = useState(false);
 
   const [tab, setTab] = useState<Tab>('overview');
 
@@ -124,26 +135,59 @@ export default function CompanyProfile() {
               href={contacts?.[0]?.email ? `mailto:${contacts[0].email}` : undefined}
             />
             <ActionBtn icon={<FileText size={14} />} label="Proposal" primary />
-            <button
-              onClick={() => {
-                if (!confirm(`Delete ${name}? This is reversible via merged_into.`)) return;
-                changeStage.mutate({ id: lead.id, stage: 'lost' });
-              }}
-              className="h-9 w-9 rounded-lg border border-bad/40 bg-bad-bg text-bad hover:bg-bad hover:text-white flex items-center justify-center"
-              title="Disqualify (marks stage=lost)"
-            ><Trash2 size={14} /></button>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  if (!confirm(`Delete ${name}? This is reversible via merged_into.`)) return;
+                  changeStage.mutate({ id: lead.id, stage: 'lost' });
+                }}
+                className="h-9 w-9 rounded-lg border border-bad/40 bg-bad-bg text-bad hover:bg-bad hover:text-white flex items-center justify-center"
+                title="Delete (admin only)"
+              ><Trash2 size={14} /></button>
+            )}
           </div>
         </div>
 
-        {/* TAG + DISQUALIFY ROW */}
+        {/* TAGS + DISQUALIFY ROW */}
         <div className="mt-4 flex items-center gap-2 flex-wrap">
-          <button className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-dashed border-border-2 text-[11px] font-bold text-text-3 hover:border-accent-strong hover:text-accent-ink">
-            <Plus size={11} /> Add tag
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setTagOpen((v) => !v)}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-dashed border-border-2 text-[11.5px] font-bold text-text-3 hover:border-accent-strong hover:text-accent-ink"
+            >
+              <Plus size={11} /> Add tag
+            </button>
+            {tagOpen && (
+              <TagPickerPopover
+                allTags={allTags.data ?? []}
+                attachedIds={new Set((acctTags.data ?? []).map((t) => t.id))}
+                onAttach={(tid) => attachTag.mutate(tid)}
+                onDetach={(tid) => detachTag.mutate(tid)}
+                onCreate={(label) => createTag.mutateAsync(label)}
+                onClose={() => setTagOpen(false)}
+              />
+            )}
+          </div>
+
+          {(acctTags.data ?? []).map((t) => (
+            <span
+              key={t.id}
+              className="inline-flex items-center gap-1.5 h-7 pl-2.5 pr-1 rounded-full bg-accent-soft text-accent-ink text-[11.5px] font-bold border border-accent-strong/40"
+              style={t.color ? { background: `${t.color}22`, color: t.color, borderColor: `${t.color}55` } : undefined}
+            >
+              {t.label}
+              <button
+                onClick={() => detachTag.mutate(t.id)}
+                className="w-4 h-4 grid place-items-center rounded-full hover:bg-black/10"
+                title="Remove tag"
+              ><X size={10} /></button>
+            </span>
+          ))}
+
           {lead.stage !== 'lost' && (
             <button
               onClick={() => changeStage.mutate({ id: lead.id, stage: 'lost' })}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
             ><X size={12} /> Disqualify</button>
           )}
         </div>
@@ -1105,12 +1149,12 @@ function ActivityFeed({
 }) {
   const byId = new Map(profiles.map((p) => [p.id, p]));
   return (
-    <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1">
-      {loading && <div className="text-[12.5px] text-text-3">Loading…</div>}
+    <div className="bg-surface border border-border rounded-2xl px-5 py-2 shadow-sh1">
+      {loading && <div className="text-[12.5px] text-text-3 py-3">Loading…</div>}
       {!loading && activities.length === 0 && (
         <div className="py-8 text-center text-[12.5px] text-text-3">No activity yet.</div>
       )}
-      <div className="space-y-3">
+      <div>
         {activities.map((a) => (
           <ActivityRow
             key={a.id}
@@ -1132,31 +1176,52 @@ function ActivityRow({
   profiles: import('@/hooks/useUsersData').Profile[];
 }) {
   const name = author?.full_name || author?.email || 'System';
-  const chip = channelChip(activity.type);
+  const sentence = activityToSentence(activity);
   return (
-    <div className="border border-border rounded-xl p-4 flex gap-3">
-      <OwnerAvatar profile={author} size={40} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-extrabold text-text text-[14px]">{name}</span>
-          <span className={cn('inline-flex items-center h-[22px] px-2.5 rounded-full text-[11px] font-black uppercase tracking-wider', chip.cls)}>
-            {chip.label}
-          </span>
-          <span className="text-[12px] text-text-3">{fmtRelative(activity.created_at)}</span>
-        </div>
-        {activity.title && (
-          <div className="mt-1.5 text-[13.5px] font-bold text-text">
-            {renderWithMentions(activity.title, profiles)}
-          </div>
-        )}
-        {activity.text && (
-          <div className="mt-1 text-[13.5px] text-text-2 whitespace-pre-wrap leading-relaxed">
-            {renderWithMentions(activity.text, profiles)}
-          </div>
-        )}
+    <div className="flex items-center gap-3 py-3 px-1 border-b border-border last:border-0">
+      <OwnerAvatar profile={author} size={32} />
+      <div className="flex-1 min-w-0 text-[13.5px] text-text-2 leading-snug">
+        <span className="font-extrabold text-text">{name}</span>{' '}
+        {sentence.action}
+        {sentence.subject && <> <span className="font-extrabold text-text">{renderWithMentions(sentence.subject, profiles)}</span></>}
+        {sentence.trail}
+        {sentence.suffix && <> <span className="font-extrabold text-text">{renderWithMentions(sentence.suffix, profiles)}</span></>}
+        <span className="text-text-3">.</span>
+      </div>
+      <div className="text-[12px] text-text-3 flex-shrink-0 whitespace-nowrap">
+        {fmtDateTime(activity.created_at)}
       </div>
     </div>
   );
+}
+
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+function activityToSentence(a: import('@/hooks/useAccountDetail').Activity): {
+  action: string; subject?: string; trail?: string; suffix?: string;
+} {
+  const t = a.type;
+  const title = a.title || '';
+  const text = a.text || '';
+  if (t === 'task') {
+    if (a.parent_id) return { action: 'replied on task', subject: text.slice(0, 80) };
+    return { action: 'added a task', subject: title || text };
+  }
+  if (t === 'note')     return { action: 'left a note',   subject: text.slice(0, 120) };
+  if (t === 'call')     return { action: 'logged a call', subject: text.slice(0, 120) };
+  if (t === 'email')    return { action: 'sent an email', subject: a.email_subject || text.slice(0, 120) };
+  if (t === 'whatsapp') return { action: 'sent WhatsApp', subject: text.slice(0, 120) };
+  if (t === 'meeting')  return { action: 'held a meeting', subject: title || text.slice(0, 120) };
+  if (a.from_stage && a.to_stage) {
+    return { action: 'moved stage from', subject: a.from_stage.toUpperCase(), trail: ' to', suffix: a.to_stage.toUpperCase() };
+  }
+  return { action: t.replace(/_/g, ' '), subject: title || text.slice(0, 120) };
 }
 
 function NotFound() {
