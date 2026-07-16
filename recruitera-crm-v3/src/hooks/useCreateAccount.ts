@@ -52,8 +52,6 @@ export function useCreateAccount() {
         created_via: 'crm-v3.add-company',
         created_by: userId,
       };
-      if (input.industry) raw_data.industry = input.industry.trim();
-      if (input.company_size) raw_data.headcount = input.company_size;
       if (input.campaign) raw_data.campaign = input.campaign.trim();
 
       const domain = deriveDomain(input.contact.email, input.domain);
@@ -69,6 +67,10 @@ export function useCreateAccount() {
           am_mail: input.am_mail || null,
           owner_id: input.owner_id || null,
           cs_email: input.cs_email?.trim().toLowerCase() || null,
+          industry: input.industry?.trim() || null,
+          size: input.company_size || null,
+          campaign: input.campaign?.trim() || null,
+          medium: input.medium?.trim() || null,
           raw_data,
         })
         .select('id')

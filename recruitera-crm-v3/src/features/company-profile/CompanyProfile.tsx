@@ -10,9 +10,10 @@ import { useLogActivity, useToggleTaskDone, useUpdateActivity, useDeleteActivity
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
-import { useRenameAccount, useChangeStage, useChangeOwner } from '@/hooks/useAccountMutations';
+import { useRenameAccount, useChangeStage, useChangeOwner, useUpdateAccountDetails } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
+import { DisqualifyModal } from '@/features/companies/DisqualifyModal';
 import { useMe } from '@/hooks/useMe';
 import { useTags, useAccountTags, useAttachTag, useDetachTag, useCreateTag } from '@/hooks/useTags';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -47,6 +48,9 @@ export default function CompanyProfile() {
   const detachTag = useDetachTag(id);
   const createTag = useCreateTag();
   const [tagOpen, setTagOpen] = useState(false);
+  const [disqOpen, setDisqOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   const [tab, setTab] = useState<Tab>('overview');
 
@@ -99,17 +103,37 @@ export default function CompanyProfile() {
             {initials(name)}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-[26px] font-black tracking-tight text-text truncate">{name}</h1>
-              <button
-                onClick={() => {
-                  const next = (prompt('Company name', lead.name || '') || '').trim();
+            {renaming ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const next = nameDraft.trim();
                   if (next && next !== lead.name) rename.mutate({ id: lead.id, name: next });
+                  setRenaming(false);
                 }}
-                className="p-1 rounded-md text-text-3 hover:bg-surface-2 hover:text-text"
-                title="Rename"
-              ><Pencil size={14} /></button>
-            </div>
+                className="flex items-center gap-2"
+              >
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(false); }}
+                  className="text-[26px] font-black tracking-tight text-text bg-surface-2 border-2 border-accent rounded-lg px-2 py-0.5 outline-none flex-1 min-w-0"
+                />
+                <button type="submit" className="h-9 px-3 rounded-lg bg-accent text-cg-900 text-[12.5px] font-black border border-accent-strong">Save</button>
+                <button type="button" onClick={() => setRenaming(false)} className="h-9 px-3 rounded-lg border border-border text-text-2 text-[12.5px] font-bold">Cancel</button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-[26px] font-black tracking-tight text-text truncate">{name}</h1>
+                <button
+                  onClick={() => { setNameDraft(lead.name || ''); setRenaming(true); }}
+                  className="p-1 rounded-md text-text-3 hover:bg-surface-2 hover:text-text"
+                  title="Rename company"
+                  aria-label="Rename company"
+                ><Pencil size={14} /></button>
+              </div>
+            )}
             <div className="text-[12.5px] text-text-3 mt-1 flex items-center gap-2 flex-wrap">
               {lead.domain && (
                 <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-accent-ink">
@@ -134,15 +158,12 @@ export default function CompanyProfile() {
               disabled={!(contacts?.[0]?.email)}
               href={contacts?.[0]?.email ? `mailto:${contacts[0].email}` : undefined}
             />
-            <ActionBtn icon={<FileText size={14} />} label="Proposal" primary />
             {isAdmin && (
               <button
-                onClick={() => {
-                  if (!confirm(`Delete ${name}? This is reversible via merged_into.`)) return;
-                  changeStage.mutate({ id: lead.id, stage: 'lost' });
-                }}
+                onClick={() => setDisqOpen(true)}
                 className="h-9 w-9 rounded-lg border border-bad/40 bg-bad-bg text-bad hover:bg-bad hover:text-white flex items-center justify-center"
-                title="Delete (admin only)"
+                title="Disqualify (admin only) — captures reason + notes"
+                aria-label="Disqualify company"
               ><Trash2 size={14} /></button>
             )}
           </div>
@@ -186,11 +207,13 @@ export default function CompanyProfile() {
 
           {lead.stage !== 'lost' && (
             <button
-              onClick={() => changeStage.mutate({ id: lead.id, stage: 'lost' })}
+              onClick={() => setDisqOpen(true)}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
             ><X size={12} /> Disqualify</button>
           )}
         </div>
+
+        {disqOpen && <DisqualifyModal account={lead} onClose={() => setDisqOpen(false)} />}
 
         {/* STAT STRIP */}
         <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -208,10 +231,13 @@ export default function CompanyProfile() {
       </div>
 
       {/* TABS */}
-      <div className="flex items-center gap-6 border-b border-border">
+      <div role="tablist" aria-label="Company sections" className="flex items-center gap-6 border-b border-border">
         {(['overview', 'activity', 'plans', 'team', 'documents'] as Tab[]).map((t) => (
           <button
             key={t}
+            role="tab"
+            aria-selected={tab === t}
+            id={`tab-${t}`}
             onClick={() => setTab(t)}
             className={cn(
               'py-2.5 text-[13px] font-bold border-b-2 -mb-px capitalize transition-colors',
@@ -233,6 +259,7 @@ export default function CompanyProfile() {
 
           <aside className="space-y-4">
             <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
+            <CompanyDetailsPanel lead={lead} attr={attribution.data ?? null} isAdmin={isAdmin} />
             <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
             <AttributionPanel
               tracking={marketing.data ?? null}
@@ -729,6 +756,106 @@ function renderWithMentions(text: string, profiles: import('@/hooks/useUsersData
 }
 
 /* ---------- RIGHT RAIL ---------- */
+
+const COMPANY_SIZES = ['5-25', '25-50', '50-100', '100-500', '500-1000', '1000+'] as const;
+
+function CompanyDetailsPanel({
+  lead, attr, isAdmin,
+}: {
+  lead: Account;
+  attr: import('@/hooks/useAccountAttribution').AccountAttribution | null;
+  isAdmin: boolean;
+}) {
+  const update = useUpdateAccountDetails();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    industry: attr?.industry ?? '',
+    size: attr?.size ?? '',
+    domain: lead.domain ?? '',
+  });
+
+  useEffect(() => {
+    if (editing) return;
+    setForm({ industry: attr?.industry ?? '', size: attr?.size ?? '', domain: lead.domain ?? '' });
+  }, [attr?.industry, attr?.size, lead.domain, editing]);
+
+  function save() {
+    update.mutate(
+      {
+        id: lead.id,
+        industry: form.industry.trim() || null,
+        size: form.size || null,
+        domain: form.domain.trim().toLowerCase() || null,
+      },
+      { onSuccess: () => setEditing(false) },
+    );
+  }
+
+  return (
+    <Panel
+      title="Company details"
+      action={
+        isAdmin && !editing ? (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-text-3 hover:text-text p-1 rounded-md hover:bg-surface-2"
+            aria-label="Edit company details"
+            title="Edit (admin only)"
+          ><Pencil size={13} /></button>
+        ) : null
+      }
+    >
+      {!editing && (
+        <>
+          <Row k="Industry"     v={attr?.industry || '—'} />
+          <Row k="Company size" v={attr?.size || '—'} />
+          <Row k="Domain"       v={lead.domain || '—'} />
+        </>
+      )}
+      {editing && (
+        <div className="space-y-2.5">
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Industry</span>
+            <input
+              value={form.industry}
+              onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+              placeholder="e.g. Construction"
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Company size</span>
+            <select
+              value={form.size}
+              onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))}
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            >
+              <option value="">—</option>
+              {COMPANY_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Domain</span>
+            <input
+              value={form.domain}
+              onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
+              placeholder="company.com"
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            />
+          </label>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button onClick={() => setEditing(false)} className="h-8 px-3 rounded-lg border border-border text-text-2 text-[12px] font-bold">Cancel</button>
+            <button
+              onClick={save}
+              disabled={update.isPending}
+              className="h-8 px-4 rounded-lg bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+            >{update.isPending ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
 
 function AccountTeamPanel({
   primary, csEmail, profiles,

@@ -296,10 +296,10 @@ export default function Companies() {
             </thead>
             <tbody>
               {isLoading && [...Array(8)].map((_, i) => (
-                <tr key={i} className="border-b border-border/50"><td className="px-4 py-3" colSpan={8}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
+                <tr key={i} className="border-b border-border/50"><td className="px-4 py-3" colSpan={isAdmin ? 10 : 9}><div className="h-4 bg-surface-2 rounded animate-pulse" /></td></tr>
               ))}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
+                <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-10 text-center text-text-3">No companies match.</td></tr>
               )}
               {!isLoading && filtered.slice(0, 300).map((a, idx) => {
                 const dupe = dupeMap.get(a.id);
@@ -496,13 +496,15 @@ export default function Companies() {
   );
 }
 
-function BulkCheckbox({ checked, indeterminate, onChange }: { checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void }) {
+function BulkCheckbox({ checked, indeterminate, onChange, label }: { checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <input
       type="checkbox"
       checked={checked}
       ref={(el) => { if (el) el.indeterminate = !!indeterminate; }}
       onChange={(e) => onChange(e.target.checked)}
+      aria-label={label ?? (indeterminate ? 'Some selected' : checked ? 'Deselect all' : 'Select all')}
+      title={label ?? (checked ? 'Deselect all' : 'Select all')}
       className="w-[18px] h-[18px] rounded-[5px] accent-accent-strong cursor-pointer"
     />
   );

@@ -41,11 +41,14 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // Default AM email once profile loads
-    if (me.data && !form.am_mail && me.data.email) {
-      setForm((f) => ({ ...f, am_mail: me.data!.email ?? '', owner_id: me.data!.id }));
-    }
-  }, [me.data, form.am_mail]);
+    // Default AM email + owner once profile loads. Keeps owner_id and am_mail
+    // in sync so the account team panel resolves the owner correctly.
+    if (!me.data) return;
+    setForm((f) => {
+      if (f.am_mail) return f;
+      return { ...f, am_mail: me.data!.email ?? '', owner_id: me.data!.id };
+    });
+  }, [me.data]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };

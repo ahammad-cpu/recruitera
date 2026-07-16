@@ -26,6 +26,22 @@ export function useRenameAccount() {
   });
 }
 
+export function useUpdateAccountDetails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string; industry?: string | null; size?: string | null; domain?: string | null }) => {
+      const { error } = await supabase.from('accounts').update(patch).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      toast.success('Company details saved');
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['account_attribution', v.id] });
+    },
+    onError: (e) => toast.error(`Save failed: ${String((e as Error).message || e)}`),
+  });
+}
+
 export function useChangeOwner() {
   const qc = useQueryClient();
   return useMutation({

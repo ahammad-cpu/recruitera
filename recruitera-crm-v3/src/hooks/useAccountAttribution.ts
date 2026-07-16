@@ -18,6 +18,8 @@ export type AccountAttribution = {
   cta_clicked: string | null;
   wp_marketing_channel: string | null;
   wp_rec_challenge: string | null;
+  industry: string | null;
+  size: string | null;
   bubble_created_at: string | null;
   created_at: string | null;
 };
@@ -27,6 +29,7 @@ const COLUMNS =
   'utm_source,utm_medium,utm_campaign,utm_content,' +
   'referrer_url,landing_page,cta_clicked,' +
   'wp_marketing_channel,wp_rec_challenge,' +
+  'industry,size,' +
   'bubble_created_at,created_at';
 
 export function useAccountAttribution(accountId: string | undefined) {
