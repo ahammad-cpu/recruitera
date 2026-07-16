@@ -42,55 +42,45 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-4 gap-y-3">
-        <DateRange
-          label="Close Date"
-          from={draft.closeFrom}
-          to={draft.closeTo}
-          onFrom={(v) => setDraft((d) => ({ ...d, closeFrom: v }))}
-          onTo={(v) => setDraft((d) => ({ ...d, closeTo: v }))}
-        />
-
-        <Field label="Sales Owner">
-          <select
-            value={draft.owners[0] ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, owners: e.target.value ? [e.target.value] : [] }))}
-            className="w-full h-10 pl-3 pr-8 bg-surface border border-border-2 rounded-lg text-[13px] font-semibold text-text outline-none focus:border-accent-strong appearance-none"
-          >
-            <option value="">All owners</option>
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Temperature">
-          <select
-            value={draft.temps[0] ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, temps: e.target.value ? [e.target.value] : [] }))}
-            className="w-full h-10 pl-3 pr-8 bg-surface border border-border-2 rounded-lg text-[13px] font-semibold text-text outline-none focus:border-accent-strong appearance-none"
-          >
-            <option value="">All temperatures</option>
-            <option value="hot">Hot</option>
-            <option value="warm">Warm</option>
-            <option value="cold">Cold</option>
-          </select>
-        </Field>
-      </div>
-
-      <div className="flex items-center gap-3 mt-4">
-        <div className="flex items-center gap-3 text-[12px] font-bold">
-          <Range
-            label="ACV min"
-            value={draft.minAcv}
-            onChange={(v) => setDraft((d) => ({ ...d, minAcv: v }))}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex-1 min-w-[240px] max-w-[340px]">
+          <DateRange
+            label="Close Date"
+            from={draft.closeFrom}
+            to={draft.closeTo}
+            onFrom={(v) => setDraft((d) => ({ ...d, closeFrom: v }))}
+            onTo={(v) => setDraft((d) => ({ ...d, closeTo: v }))}
           />
-          <span className="text-text-3">–</span>
-          <Range
-            label="ACV max"
-            value={draft.maxAcv}
-            onChange={(v) => setDraft((d) => ({ ...d, maxAcv: v }))}
-          />
+        </div>
+
+        <div className="flex-1 min-w-[180px] max-w-[240px]">
+          <Field label="Sales Owner">
+            <select
+              value={draft.owners[0] ?? ''}
+              onChange={(e) => setDraft((d) => ({ ...d, owners: e.target.value ? [e.target.value] : [] }))}
+              className="w-full h-10 pl-3 pr-8 bg-surface border border-border-2 rounded-lg text-[13px] font-semibold text-text outline-none focus:border-accent-strong appearance-none"
+            >
+              <option value="">All owners</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <div className="flex-1 min-w-[160px] max-w-[200px]">
+          <Field label="Temperature">
+            <select
+              value={draft.temps[0] ?? ''}
+              onChange={(e) => setDraft((d) => ({ ...d, temps: e.target.value ? [e.target.value] : [] }))}
+              className="w-full h-10 pl-3 pr-8 bg-surface border border-border-2 rounded-lg text-[13px] font-semibold text-text outline-none focus:border-accent-strong appearance-none"
+            >
+              <option value="">All temperatures</option>
+              <option value="hot">Hot</option>
+              <option value="warm">Warm</option>
+              <option value="cold">Cold</option>
+            </select>
+          </Field>
         </div>
 
         <div className="ml-auto flex items-center gap-3">
@@ -179,18 +169,3 @@ function DateRange({
   );
 }
 
-function Range({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className="inline-flex items-center gap-2">
-      <span className="text-[10px] font-black uppercase tracking-widest text-text-3">{label}</span>
-      <input
-        type="number"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="—"
-        className="w-24 h-9 px-2.5 border border-border-2 rounded-md bg-surface text-[12.5px] outline-none focus:border-accent-strong tnum"
-      />
-    </label>
-  );
-}
