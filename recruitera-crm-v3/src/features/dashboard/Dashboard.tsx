@@ -10,6 +10,7 @@ import { useProfiles } from '@/hooks/useUsersData';
 import { fmtEgp, fmtInt, toEgp, initials, fmtDate } from '@/lib/format';
 import { StagePill } from '@/components/shared/StagePill';
 import { Sparkline } from '@/components/shared/Sparkline';
+import { cn } from '@/lib/cn';
 
 const OPEN = new Set(['mql', 'sql', 'demo', 'proposal']);
 
@@ -84,7 +85,15 @@ export default function Dashboard() {
   const attain = myTarget > 0 ? Math.round((wonThisMonth / myTarget) * 100) : 0;
   const remaining = Math.max(0, myTarget - wonThisMonth);
   const barPct = Math.min(100, attain);
-  const barColor = attain >= 70 ? '#22C55E' : attain >= 40 ? '#B8761A' : '#B83A3A';
+  // Theme-token classes, not raw hex — written as full literal class names
+  // (not template-concatenated) so Tailwind's content scanner can see them;
+  // a `bg-${tier}` string wouldn't survive a production build's CSS purge.
+  const barBgClass = attain >= 70 ? 'bg-ok' : attain >= 40 ? 'bg-warn' : 'bg-bad';
+  const barTextClass = attain >= 70 ? 'text-ok' : attain >= 40 ? 'text-warn' : 'text-bad';
+  const barBadgeClass = !myTarget ? 'bg-surface-2 text-text-3'
+    : attain >= 70 ? 'bg-ok-bg text-ok'
+    : attain >= 40 ? 'bg-warn-bg text-warn'
+    : 'bg-bad-bg text-bad';
 
   const myCompanies = myAccts.slice(0, 5);
   const myCoOpen = myAccts.filter((a) => OPEN.has((a.stage || '').toLowerCase())).length;
@@ -110,7 +119,7 @@ export default function Dashboard() {
     <div className="px-7 pt-6 pb-14 max-w-[1400px] space-y-5">
       {/* MY TARGET BANNER */}
       <div className="relative overflow-hidden bg-surface border border-border rounded-2xl shadow-sh1 p-6">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#22C55E] to-[#A8D800]" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-ok to-accent-strong" />
         <div className="flex items-center gap-2 flex-wrap mb-5">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{bannerLabel}</span>
           <span className="text-[12px] text-text-3 font-medium">· {monthLabel} · {displayName}</span>
@@ -128,31 +137,25 @@ export default function Dashboard() {
               ))}
             </select>
           )}
-          <span
-            className="inline-flex items-center h-6 px-2.5 rounded-full text-[10.5px] font-bold"
-            style={{
-              background: myTarget ? (attain >= 70 ? '#E5F4EC' : attain >= 40 ? '#FBF1DE' : '#F7E3E3') : '#F2F4F7',
-              color: myTarget ? (attain >= 70 ? '#2F8F5C' : attain >= 40 ? '#B8761A' : '#B83A3A') : '#81878E',
-            }}
-          >
+          <span className={cn('inline-flex items-center h-6 px-2.5 rounded-full text-[10.5px] font-bold', barBadgeClass)}>
             {myTarget ? `${attain}% attained` : 'No target'}
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_2fr] gap-7 items-center">
           <BannerStat label="Target" value={myTarget ? fmtEgp(myTarget) : '—'} hint={monthLabel} />
-          <BannerStat label="Won" value={fmtEgp(wonThisMonth)} hint="own book · this month" color="#22C55E" />
+          <BannerStat label="Won" value={fmtEgp(wonThisMonth)} hint="own book · this month" colorClass="text-ok" />
           <BannerStat label="Remaining" value={myTarget ? fmtEgp(remaining) : '—'} hint={`${daysLeft} day${daysLeft === 1 ? '' : 's'} left`} muted />
           <div>
             <div className="flex items-center gap-2.5 mb-2.5">
               <div className="flex-1 h-3.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: barColor }} />
+                <div className={cn('h-full rounded-full', barBgClass)} style={{ width: `${barPct}%` }} />
               </div>
-              <span className="tnum text-[16px] font-extrabold" style={{ color: barColor }}>
+              <span className={cn('tnum text-[16px] font-extrabold', barTextClass)}>
                 {myTarget ? `${attain}%` : '—'}
               </span>
             </div>
             <div className="flex gap-4 text-[11.5px] font-semibold">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: barColor }} /><span className="text-text-2">Won {fmtEgp(wonThisMonth)}</span></span>
+              <span className="flex items-center gap-1.5"><span className={cn('w-2.5 h-2.5 rounded-sm', barBgClass)} /><span className="text-text-2">Won {fmtEgp(wonThisMonth)}</span></span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-surface-2 border border-border-2" /><span className="text-text-3">Remaining {myTarget ? fmtEgp(remaining) : '—'}</span></span>
             </div>
           </div>
@@ -218,9 +221,7 @@ export default function Dashboard() {
             const overdue = due != null && due.getTime() < today.getTime();
             const isToday = due != null && due.getTime() === today.getTime();
             const chipLabel = overdue ? 'Overdue' : isToday ? 'Today' : due ? fmtDate(due) : '—';
-            const chipStyle = overdue || isToday
-              ? { background: '#F7E3E3', color: '#B83A3A' }
-              : { background: '#F2F4F7', color: '#81878E' };
+            const chipClass = overdue || isToday ? 'bg-bad-bg text-bad' : 'bg-surface-2 text-text-3';
             return (
               <div key={t.id} className="flex items-start gap-3.5 px-5 py-3.5 border-t border-border">
                 <div className="w-[18px] h-[18px] rounded-md border-2 border-border-2 flex-shrink-0 mt-0.5" />
@@ -230,7 +231,7 @@ export default function Dashboard() {
                     {acct ? (acct.name || acct.domain) : (t.text && t.title ? t.text : 'No company')}
                   </div>
                 </div>
-                <span className="inline-flex items-center h-5 px-2 rounded-full text-[10.5px] font-bold" style={chipStyle}>
+                <span className={cn('inline-flex items-center h-5 px-2 rounded-full text-[10.5px] font-bold', chipClass)}>
                   {chipLabel}
                 </span>
               </div>
@@ -266,11 +267,11 @@ function TodayMeetings() {
   );
 }
 
-function BannerStat({ label, value, hint, color, muted }: { label: string; value: React.ReactNode; hint?: string; color?: string; muted?: boolean }) {
+function BannerStat({ label, value, hint, colorClass, muted }: { label: string; value: React.ReactNode; hint?: string; colorClass?: string; muted?: boolean }) {
   return (
     <div>
       <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3 mb-2">{label}</div>
-      <div className="tnum text-[30px] font-black tracking-tight" style={{ color: color ?? (muted ? '#575F69' : '#2D3844') }}>{value}</div>
+      <div className={cn('tnum text-[30px] font-black tracking-tight', colorClass ?? (muted ? 'text-text-2' : 'text-text'))}>{value}</div>
       {hint && <div className="text-[11.5px] text-text-3 font-medium mt-1">{hint}</div>}
     </div>
   );

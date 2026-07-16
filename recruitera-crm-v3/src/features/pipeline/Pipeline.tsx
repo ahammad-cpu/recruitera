@@ -25,9 +25,9 @@ type ColMeta = { key: DealStage; label: string; dot: string; bar: string };
 
 const COLUMNS: ColMeta[] = [
   { key: 'mql',       label: 'MQL',       dot: 'bg-accent-strong', bar: 'border-accent-strong' },
-  { key: 'sql',       label: 'SQL',       dot: 'bg-[#392396]',     bar: 'border-[#392396]' },
-  { key: 'demo',      label: 'DEMO',      dot: 'bg-[#5B3AC7]',     bar: 'border-[#5B3AC7]' },
-  { key: 'proposal',  label: 'PROPOSAL',  dot: 'bg-[#B8761A]',     bar: 'border-[#B8761A]' },
+  { key: 'sql',       label: 'SQL',       dot: 'bg-violet',        bar: 'border-violet' },
+  { key: 'demo',      label: 'DEMO',      dot: 'bg-purple',        bar: 'border-purple' },
+  { key: 'proposal',  label: 'PROPOSAL',  dot: 'bg-warn',          bar: 'border-warn' },
   { key: 'won',       label: 'WON',       dot: 'bg-ok',            bar: 'border-ok' },
   { key: 'collected', label: 'COLLECTED', dot: 'bg-accent',        bar: 'border-accent' },
   { key: 'lost',      label: 'LOST',      dot: 'bg-bad',           bar: 'border-bad' },

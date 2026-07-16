@@ -1,5 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
 
+/*
+ * Single source of truth for every color in the app. Values are RGB triplets
+ * (not hex) so Tailwind's opacity modifiers work (bg-warn/30, border-bad/40,
+ * ...) — Tailwind wraps these in rgb(var(--x) / <alpha-value>) per its
+ * documented CSS-variable theming pattern. tailwind.config.mjs points
+ * theme.colors at these same variables, so a Tailwind utility class and a
+ * raw inline style (rgb(var(--warn))) always render identically — change a
+ * value once here and both update together. Components that need a literal
+ * color at runtime (dynamic per-row colors, chart fills, conditional inline
+ * styles) should read rgb(var(--token)) rather than hardcoding a hex value.
+ */
+:root {
+  --cg-50: 234 235 236; --cg-100: 213 215 217; --cg-200: 192 195 198; --cg-300: 171 175 180;
+  --cg-400: 150 155 161; --cg-500: 129 135 142; --cg-600: 108 115 124; --cg-700: 87 95 105;
+  --cg-800: 66 75 86; --cg-900: 45 56 68;
+
+  --accent: 192 233 48; --accent-strong: 168 209 26; --accent-soft: 240 250 208; --accent-ink: 79 94 27;
+
+  --surface: 255 255 255; --surface-2: 242 244 247;
+  --border: 226 229 234; --border-2: 205 210 218;
+  --text: 45 56 68; --text-2: 87 95 105; --text-3: 129 135 142; --text-4: 171 175 180;
+
+  --ok: 47 143 92; --ok-bg: 229 244 236;
+  --warn: 184 118 26; --warn-bg: 251 241 222;
+  --bad: 184 58 58; --bad-bg: 247 227 227;
+  --info: 44 91 168; --info-bg: 227 236 247;
+
+  /* Pipeline-stage-only hues (SQL / Demo) — not used elsewhere in the UI. */
+  --violet: 57 35 150; --violet-bg: 232 228 248;
+  --purple: 91 58 199; --purple-bg: 236 231 250;
+
+  --bg: 247 248 250;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,8 +42,8 @@ html, body, #root { height: 100%; margin: 0; padding: 0; }
 body {
   font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
   font-feature-settings: 'ss01', 'cv11';
-  background: #F7F8FA;
-  color: #2D3844;
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
   -webkit-font-smoothing: antialiased;
   font-size: 13px;
   line-height: 1.45;
@@ -22,9 +56,9 @@ button, input, select, textarea { font-family: inherit; }
 
 .sc::-webkit-scrollbar { width: 10px; height: 10px; }
 .sc::-webkit-scrollbar-thumb {
-  background: #CDD2DA;
+  background: rgb(var(--border-2));
   border-radius: 999px;
-  border: 2px solid #F7F8FA;
+  border: 2px solid rgb(var(--bg));
   background-clip: content-box;
 }
 .sc::-webkit-scrollbar-track { background: transparent; }

@@ -12,7 +12,7 @@ export function Sparkline({ seed, accent }: { seed: number; accent?: boolean }) 
           className="flex-1 rounded-[1px]"
           style={{
             height: `${h * 100}%`,
-            background: accent ? '#A8D11A' : '#CDD2DA',
+            background: accent ? 'rgb(var(--accent-strong))' : 'rgb(var(--border-2))',
             opacity: 0.6 + h * 0.4,
           }}
         />

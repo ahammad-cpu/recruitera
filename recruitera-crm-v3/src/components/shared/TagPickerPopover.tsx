@@ -96,7 +96,7 @@ export function TagPickerPopover({
             >
               <span
                 className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: t.color || 'var(--tw-color, #C0E930)' }}
+                style={{ background: t.color || 'rgb(var(--accent))' }}
               />
               <span className={cn('flex-1 truncate', attached ? 'font-black text-text' : 'font-semibold text-text-2')}>
                 {t.label}

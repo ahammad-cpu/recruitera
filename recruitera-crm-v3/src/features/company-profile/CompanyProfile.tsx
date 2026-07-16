@@ -228,7 +228,7 @@ export default function CompanyProfile() {
           <Stat
             label="Trial"
             value={lead.has_trial ? (lead.activation_status || 'Active') : 'None'}
-            valueColor={lead.has_trial && lead.activation_status === 'Active' ? '#22C55E' : undefined}
+            valueClass={lead.has_trial && lead.activation_status === 'Active' ? 'text-ok' : undefined}
             hint={lead.has_trial ? 'free trial running' : 'no trial'}
           />
           <Stat label="Created" value={fmtDate(lead.created_at)} hint={isPaid(lead) ? 'active customer' : 'no close date'} />
@@ -305,11 +305,11 @@ function ActionBtn({
   return <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className={cls}>{icon}{label}</a>;
 }
 
-function Stat({ label, value, hint, truncate, valueColor }: { label: string; value: React.ReactNode; hint?: string; truncate?: boolean; valueColor?: string }) {
+function Stat({ label, value, hint, truncate, valueClass }: { label: string; value: React.ReactNode; hint?: string; truncate?: boolean; valueClass?: string }) {
   return (
     <div className="bg-surface-2/60 rounded-xl p-3.5">
       <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{label}</div>
-      <div className={cn('mt-1 text-[16px] font-extrabold tracking-tight', truncate && 'truncate')} style={{ color: valueColor ?? '#2D3844' }} title={typeof value === 'string' ? value : undefined}>
+      <div className={cn('mt-1 text-[16px] font-extrabold tracking-tight', valueClass ?? 'text-text', truncate && 'truncate')} title={typeof value === 'string' ? value : undefined}>
         {value || '—'}
       </div>
       {hint && <div className="text-[11px] text-text-3 mt-1">{hint}</div>}
