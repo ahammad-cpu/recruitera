@@ -6,6 +6,7 @@ import { useProfiles, type Profile } from '@/hooks/useUsersData';
 import { useDeals, isOpen, isStale } from '@/hooks/useDeals';
 import { useTargets } from '@/hooks/useTargets';
 import { useRecentActivities } from '@/hooks/useRecentActivities';
+import { useCommsActivity } from '@/hooks/useCommsActivity';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, fmtEgp, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -43,6 +44,7 @@ export default function AMPerformance() {
   const dealsQ = useDeals();
   const targetsQ = useTargets();
   const activitiesQ = useRecentActivities(150);
+  const commsQ = useCommsActivity();
   const [tab, setTab] = useState<TabKey>('team');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
 
@@ -55,6 +57,17 @@ export default function AMPerformance() {
     return m;
   }, [accounts, profiles]);
 
+  const commsByAuthor = useMemo(() => {
+    const m = new Map<string, { call: number; email: number; whatsapp: number }>();
+    for (const c of commsQ.data ?? []) {
+      if (!c.author_id) continue;
+      const rec = m.get(c.author_id) ?? { call: 0, email: 0, whatsapp: 0 };
+      rec[c.type]++;
+      m.set(c.author_id, rec);
+    }
+    return m;
+  }, [commsQ.data]);
+
   const rows = useMemo(() => {
     return profiles
       .map((p) => {
@@ -66,25 +79,30 @@ export default function AMPerformance() {
         const closable = owned.filter((a) => CLOSABLE_STAGES.includes(stageOf(a))).length;
         const wins = owned.filter((a) => WIN_STAGES.includes(stageOf(a))).length;
         const score = closable > 0 ? Math.round((wins / closable) * 100) : 0;
+        const comms = commsByAuthor.get(p.id) ?? { call: 0, email: 0, whatsapp: 0 };
         return {
           profile: p, owned: owned.length, deals, collected, gaps: invoicedNotCollected,
-          closable, score, status: statusFor(closable, score),
+          closable, score, status: statusFor(closable, score), comms,
         };
       })
       .filter((r) => r.owned > 0)
       .sort((a, b) => b.score - a.score);
-  }, [profiles, accounts, ownerIdByAccount]);
+  }, [profiles, accounts, ownerIdByAccount, commsByAuthor]);
 
   const filteredRows = ownerFilter === 'all' ? rows : rows.filter((r) => r.profile.id === ownerFilter);
 
   const kpis = useMemo(() => {
     const stageOf = (a: Account) => (a.stage || '').toLowerCase();
+    const comms = commsQ.data ?? [];
     return {
       deals: accounts.filter((a) => OPEN_STAGES.includes(stageOf(a))).length,
       collected: accounts.filter((a) => stageOf(a) === 'paid').length,
       total: accounts.length,
+      calls: comms.filter((c) => c.type === 'call').length,
+      emails: comms.filter((c) => c.type === 'email').length,
+      whatsapps: comms.filter((c) => c.type === 'whatsapp').length,
     };
-  }, [accounts]);
+  }, [accounts, commsQ.data]);
 
   const gapDeals = useMemo(
     () => (dealsQ.data ?? []).filter((d) => isOpen(d) && isStale(d)),
@@ -92,9 +110,10 @@ export default function AMPerformance() {
   );
 
   function exportCsv() {
-    const header = ['account_manager', 'email', 'owned', 'deals_moved', 'collected', 'gaps', 'score', 'status'];
+    const header = ['account_manager', 'email', 'owned', 'calls', 'emails', 'whatsapp', 'deals_moved', 'collected', 'gaps', 'score', 'status'];
     const csvRows = filteredRows.map((r) => [
       r.profile.full_name || '', r.profile.email || '', String(r.owned),
+      String(r.comms.call), String(r.comms.email), String(r.comms.whatsapp),
       String(r.deals), String(r.collected), String(r.gaps), String(r.score), r.status.label,
     ]);
     const csv = [header, ...csvRows]
@@ -198,21 +217,22 @@ function KpiCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; l
 type AMRow = {
   profile: Profile; owned: number; deals: number; collected: number; gaps: number; score: number;
   status: { label: string; cls: string };
+  comms: { call: number; email: number; whatsapp: number };
 };
 
 function TeamPerformance({
   rows, kpis, isLoading,
 }: {
   rows: AMRow[];
-  kpis: { deals: number; collected: number; total: number };
+  kpis: { deals: number; collected: number; total: number; calls: number; emails: number; whatsapps: number };
   isLoading: boolean;
 }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard icon={<Phone size={15} />} label="Calls" value="—" sub="no source yet" accent />
-        <KpiCard icon={<Mail size={15} />} label="Emails" value="—" sub="no source yet" />
-        <KpiCard icon={<MessageCircle size={15} />} label="WhatsApps" value="—" sub="no source yet" />
+        <KpiCard icon={<Phone size={15} />} label="Calls" value={fmtInt(kpis.calls)} sub="logged via composer" accent />
+        <KpiCard icon={<Mail size={15} />} label="Emails" value={fmtInt(kpis.emails)} sub="logged via composer" />
+        <KpiCard icon={<MessageCircle size={15} />} label="WhatsApps" value={fmtInt(kpis.whatsapps)} sub="logged via composer" />
         <KpiCard icon={<ArrowLeftRight size={15} />} label="Deals moved" value={fmtInt(kpis.deals)} sub="proposal + won + paid" />
         <KpiCard icon={<DollarSign size={15} />} label="Collections" value={fmtInt(kpis.collected)} sub="stage = paid" />
         <KpiCard icon={<Building2 size={15} />} label="Accounts" value={fmtInt(kpis.total)} sub="in book" />
@@ -252,9 +272,9 @@ function TeamPerformance({
                         </div>
                       </div>
                     </td>
-                    <Cell v={0} />
-                    <Cell v={0} />
-                    <Cell v={0} />
+                    <Cell v={r.comms.call} />
+                    <Cell v={r.comms.email} />
+                    <Cell v={r.comms.whatsapp} />
                     <Cell v={r.deals} />
                     <Cell v={r.collected} />
                     <Cell v={r.gaps} warn={r.gaps > 0} />
