@@ -4,7 +4,7 @@ import {
   DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Filter, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -15,9 +15,10 @@ import { cn } from '@/lib/cn';
 import { WonDialog } from './WonDialog';
 import { LostDialog } from './LostDialog';
 import {
-  PipelineFilters, EMPTY_FILTERS, filtersActiveCount, filtersFromParams, filtersToParams,
+  EMPTY_FILTERS, filtersFromParams, filtersToParams,
   type PipelineFilterState,
 } from './PipelineFilters';
+import { PipelineFilterBar } from './PipelineFilterBar';
 
 type ColMeta = { key: DealStage; label: string; dot: string; bar: string };
 
@@ -78,7 +79,6 @@ export default function Pipeline() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [range, setRange] = useState<RangeKey>(() => (searchParams.get('range') as RangeKey) || 'all');
   const [filters, setFilters] = useState<PipelineFilterState>(() => filtersFromParams(searchParams));
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [pendingWon, setPendingWon] = useState<Deal | null>(null);
   const [pendingLost, setPendingLost] = useState<Deal | null>(null);
 
@@ -234,22 +234,6 @@ export default function Pipeline() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => setFiltersOpen(true)}
-            className={cn(
-              'inline-flex items-center gap-1.5 h-10 px-3.5 rounded-lg border text-[13px] font-bold',
-              filtersActiveCount(filters) > 0
-                ? 'bg-accent-soft text-accent-ink border-accent-strong'
-                : 'bg-surface border-border text-text hover:bg-surface-2',
-            )}
-          >
-            <Filter size={13} /> Filters
-            {filtersActiveCount(filters) > 0 && (
-              <span className="ml-1 tnum inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent-strong text-cg-900 text-[10px] font-black">
-                {filtersActiveCount(filters)}
-              </span>
-            )}
-          </button>
           <select
             value={range}
             onChange={(e) => setRange(e.target.value as RangeKey)}
@@ -278,6 +262,8 @@ export default function Pipeline() {
                  label="Avg deal size" value={fmtEgpCompact(avgDeal)} sub="Open pipeline" />
       </div>
 
+      <PipelineFilterBar value={filters} onChange={setFilters} profiles={profilesQ.data ?? []} />
+
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="overflow-x-auto sc pb-4 -mx-6 px-6">
           <div className="flex gap-4" style={{ minWidth: `${COLUMNS.length * 300}px` }}>
@@ -295,14 +281,6 @@ export default function Pipeline() {
           </div>
         </div>
       </DndContext>
-
-      <PipelineFilters
-        open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        value={filters}
-        onChange={setFilters}
-        profiles={profilesQ.data ?? []}
-      />
 
       {pendingWon && <WonDialog deal={pendingWon} onClose={() => setPendingWon(null)} />}
       {pendingLost && <LostDialog deal={pendingLost} onClose={() => setPendingLost(null)} />}
