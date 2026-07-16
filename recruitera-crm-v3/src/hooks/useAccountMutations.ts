@@ -59,7 +59,7 @@ export function useChangeOwner() {
     },
     onError: (err, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
-      toast.error(`Owner change failed: ${String(err)}`);
+      toast.error(`Owner change failed: ${String((err as Error)?.message || err)}`);
     },
     onSuccess: (_d, v) => toast.success(`Owner set to ${v.am_mail || 'unassigned'}`),
   });

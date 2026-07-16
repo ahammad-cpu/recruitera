@@ -80,8 +80,8 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
       className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-center justify-center p-6 overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-3xl overflow-hidden flex flex-col my-8 border border-border">
-        <header className="flex items-center gap-3 px-6 py-4 border-b border-border">
+      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col my-6 border border-border">
+        <header className="flex items-center gap-3 px-5 py-3.5 border-b border-border">
           <div className="w-10 h-10 rounded-xl bg-accent grid place-items-center text-cg-900">
             <Plus size={18} strokeWidth={3} />
           </div>
@@ -94,9 +94,9 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
           <button onClick={onClose} className="p-1.5 rounded-md text-text-3 hover:bg-surface-2"><X size={16} /></button>
         </header>
 
-        <div className="p-6 overflow-y-auto sc space-y-6">
+        <div className="p-5 overflow-y-auto sc space-y-4">
           {/* Deal type + basics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="block md:col-span-2">
               <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Deal type <span className="text-bad">*</span></span>
               <select
@@ -147,51 +147,48 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
           </div>
 
           {/* BANT block */}
-          <div className="border-t border-border pt-5">
+          <div className="border-t border-border pt-3">
             <div className="flex items-baseline gap-2 mb-1">
-              <Check size={14} className="text-accent-ink" />
-              <div className="text-[14px] font-black tracking-tight text-text">Qualify SQL — BANT</div>
+              <Check size={13} className="text-accent-ink" />
+              <div className="text-[13px] font-black tracking-tight text-text">Qualify SQL — BANT</div>
+              <span className="text-[11px] text-text-4">optional now</span>
             </div>
-            <div className="text-[12px] text-text-3 mb-4">
-              Confirm <span className="font-bold text-text">{companyName}</span> meets each BANT pillar. Yes / No / Unknown plus an optional note.
-              <span className="ml-1 text-text-4">(Optional now — you can fill this later when moving to SQL.)</span>
-            </div>
-
-            <div className="space-y-3">
+            <div className="space-y-2">
               {BANT_PILLARS.map((p) => {
                 const answer = bant[p.key as 'budget' | 'authority' | 'need' | 'timing'];
                 const noteKey = `${p.key}_note` as 'budget_note' | 'authority_note' | 'need_note' | 'timing_note';
                 return (
-                  <div key={p.key} className="border border-border rounded-xl p-3.5">
-                    <div className="text-[13.5px] leading-snug">
-                      <span className="font-black text-text">{p.label}</span>
-                      <span className="text-text-2"> — {p.q}</span>
+                  <div key={p.key} className="border border-border rounded-lg p-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="text-[12.5px] leading-snug flex-1 min-w-0">
+                        <span className="font-black text-text">{p.label}</span>
+                        <span className="text-text-3 text-[11.5px]"> — {p.q}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {(['yes', 'no', 'unknown'] as BantAnswer[]).map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setBantPart(p.key as keyof BantForm, (answer === v ? '' : v) as BantForm[keyof BantForm])}
+                            className={cn(
+                              'h-7 px-2.5 rounded-full text-[11px] font-black border capitalize transition-colors',
+                              answer === v
+                                ? v === 'yes'  ? 'bg-ok-bg text-ok border-ok'
+                                : v === 'no'   ? 'bg-bad-bg text-bad border-bad'
+                                :                'bg-surface-2 text-text-2 border-border-2'
+                                : 'bg-surface text-text-3 border-border hover:border-border-2',
+                            )}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      {(['yes', 'no', 'unknown'] as BantAnswer[]).map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => setBantPart(p.key as keyof BantForm, (answer === v ? '' : v) as BantForm[keyof BantForm])}
-                          className={cn(
-                            'h-8 px-4 rounded-full text-[12px] font-black border-2 capitalize transition-colors',
-                            answer === v
-                              ? v === 'yes'  ? 'bg-ok-bg text-ok border-ok'
-                              : v === 'no'   ? 'bg-bad-bg text-bad border-bad'
-                              :                'bg-surface-2 text-text-2 border-border-2'
-                              : 'bg-surface text-text-2 border-border hover:border-border-2',
-                          )}
-                        >
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      rows={2}
+                    <input
                       value={bant[noteKey]}
                       onChange={(e) => setBantPart(noteKey, e.target.value as BantForm[typeof noteKey])}
-                      placeholder={`Optional — ${p.ph}`}
-                      className="mt-2 w-full p-2.5 border border-border-2 rounded-lg bg-surface text-[12.5px] outline-none focus:border-accent-strong resize-vertical"
+                      placeholder={`Note — ${p.ph}`}
+                      className="mt-2 w-full h-8 px-2.5 border border-border-2 rounded-md bg-surface text-[12px] outline-none focus:border-accent-strong"
                     />
                   </div>
                 );
