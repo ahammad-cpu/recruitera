@@ -247,7 +247,7 @@ function KpiCard({
 }
 
 function Column({
-  col, rows, profilesById, isLoading, onReopen,
+  col, rows, profilesById, isLoading, boardTotal, onReopen,
 }: {
   col: ColMeta;
   rows: Deal[];
@@ -260,6 +260,7 @@ function Column({
   const total = rows.reduce((s, d) => s + (d.amount || 0), 0);
   const withValue = rows.filter((d) => (d.amount || 0) > 0);
   const avg = withValue.length ? Math.round(total / withValue.length) : 0;
+  const pct = boardTotal > 0 ? Math.round((total / boardTotal) * 100) : 0;
   return (
     <div
       ref={setNodeRef}
@@ -269,7 +270,7 @@ function Column({
         isOver && 'ring-2 ring-accent',
       )}
     >
-      <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-border/60">
+      <div className="px-4 pt-4 pb-2 flex items-center gap-2">
         <span className={cn('w-2 h-2 rounded-full flex-shrink-0', col.dot)} />
         <span className="text-[11px] font-black tracking-widest uppercase text-text">{col.label}</span>
         <span className="tnum text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
@@ -278,6 +279,14 @@ function Column({
         <span className="tnum ml-auto text-[11.5px] font-bold text-text-3">
           {total > 0 ? fmtEgpCompact(total) : '0 EGP'}
         </span>
+      </div>
+
+      <div className="px-4 pb-3 border-b border-border/60 text-[11px] italic text-text-3">
+        Total Stage Amount:{' '}
+        <span className="tnum font-semibold text-text-2 not-italic">
+          {total > 0 ? fmtEgpShort(total) : '0 EGP'}
+        </span>{' '}
+        <span className="tnum">({pct}%)</span>
       </div>
 
       <ColumnBody rows={rows} profilesById={profilesById} isLoading={isLoading} isLost={col.key === 'lost'} onReopen={onReopen} />
