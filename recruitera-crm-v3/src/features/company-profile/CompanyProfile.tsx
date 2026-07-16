@@ -9,7 +9,8 @@ import { useContacts, useActivities } from '@/hooks/useAccountDetail';
 import { useLogActivity, useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useUpsertContact } from '@/hooks/useContactMutations';
-import { useRenameAccount, useChangeStage } from '@/hooks/useAccountMutations';
+import { useRenameAccount, useChangeStage, useChangeOwner } from '@/hooks/useAccountMutations';
+import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { useProfiles } from '@/hooks/useUsersData';
 import { useEnum } from '@/hooks/useEnum';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
@@ -148,7 +149,7 @@ export default function CompanyProfile() {
         {/* STAT STRIP */}
         <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <Stat label="Deal value" value={lead.deal_value ? fmtEgp(toEgp(lead.deal_value, lead.deal_currency)) : '—'} hint={lead.deal_value ? '' : 'not set'} />
-          <Stat label="Owner" value={owner?.full_name || lead.am_mail || 'Unassigned'} truncate hint={owner?.email ?? undefined} />
+          <OwnerStat lead={lead} owner={owner} profiles={profiles.data ?? []} />
           <Stat
             label="Trial"
             value={lead.has_trial ? (lead.activation_status || 'Active') : 'None'}
@@ -228,6 +229,47 @@ function Stat({ label, value, hint, truncate, valueColor }: { label: string; val
         {value || '—'}
       </div>
       {hint && <div className="text-[11px] text-text-3 mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+function OwnerStat({
+  lead, owner, profiles,
+}: {
+  lead: Account;
+  owner: import('@/hooks/useUsersData').Profile | undefined;
+  profiles: import('@/hooks/useUsersData').Profile[];
+}) {
+  const [open, setOpen] = useState(false);
+  const changeOwner = useChangeOwner();
+  const label = owner?.full_name || lead.am_mail || 'Unassigned';
+  return (
+    <div className="bg-surface-2/60 rounded-xl p-3.5 relative">
+      <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Owner</div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-1 w-full flex items-center gap-2 text-left rounded-md hover:bg-surface-2 -mx-1 px-1 py-0.5 transition-colors"
+        title="Change owner"
+      >
+        <OwnerAvatar profile={owner} size={24} fallback={lead.am_mail ?? undefined} />
+        <span className="text-[16px] font-extrabold tracking-tight truncate text-text flex-1 min-w-0">
+          {label}
+        </span>
+      </button>
+      {owner?.email && <div className="text-[11px] text-text-3 mt-1 truncate">{owner.email}</div>}
+      {open && (
+        <OwnerPickerPopover
+          profiles={profiles}
+          currentId={lead.owner_id}
+          onSelect={(p) => {
+            changeOwner.mutate({ id: lead.id, owner_id: p?.id ?? null, am_mail: p?.email ?? null });
+          }}
+          onClose={() => setOpen(false)}
+          placement="bottom"
+          align="left"
+        />
+      )}
     </div>
   );
 }
