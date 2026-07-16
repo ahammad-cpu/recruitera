@@ -137,9 +137,12 @@ export default function Companies() {
     if (needle) {
       const qDigits = needle.replace(/\D+/g, '');
       rows = rows.filter((a) => {
+        // Free-text search matches the company itself + its contacts.
+        // Owner email is deliberately excluded — a search for "icareer"
+        // shouldn't return every account owned by *@icareer.ai. The Owner
+        // filter in the toolbar covers that case explicitly.
         if ((a.name || '').toLowerCase().includes(needle)) return true;
         if ((a.domain || '').toLowerCase().includes(needle)) return true;
-        if ((a.am_mail || '').toLowerCase().includes(needle)) return true;
         const cList = contactsMap.get(a.id) ?? [];
         for (const c of cList) {
           if ((c.full_name || '').toLowerCase().includes(needle)) return true;
