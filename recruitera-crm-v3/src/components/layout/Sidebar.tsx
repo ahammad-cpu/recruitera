@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { RecruiteraLogo } from './RecruiteraLogo';
+import { RecruiteraLogo, RecruiteraFullLogo } from './RecruiteraLogo';
 import { useSession, signOut } from '@/lib/auth';
 import { useMe } from '@/hooks/useMe';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -83,7 +83,7 @@ export function Sidebar() {
           collapsed ? 'flex-col gap-2 px-0' : 'justify-between gap-2 px-2',
         )}
       >
-        <RecruiteraLogo size={36} />
+        {collapsed ? <RecruiteraLogo size={36} /> : <RecruiteraFullLogo height={28} />}
         <button
           onClick={toggleCollapsed}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
