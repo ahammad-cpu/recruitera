@@ -35,9 +35,11 @@ export function OwnerPickerPopover({ profiles, currentId, onSelect, onClose, pla
   }, [onClose]);
 
   const filtered = useMemo(() => {
+    // Defensive — a null profile in the list would crash the row map via key={p.id}.
+    const safe = (profiles ?? []).filter((p): p is Profile => !!p && !!p.id);
     const needle = q.trim().toLowerCase();
-    if (!needle) return profiles;
-    return profiles.filter((p) =>
+    if (!needle) return safe;
+    return safe.filter((p) =>
       (p.full_name || '').toLowerCase().includes(needle) ||
       (p.email || '').toLowerCase().includes(needle),
     );

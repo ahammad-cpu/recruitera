@@ -101,7 +101,8 @@ export default function Companies() {
   const totalWidth = (Object.keys(COL_DEFAULTS) as ColKey[]).reduce((s, k) => s + (widths[k] ?? COL_DEFAULTS[k]), 0);
 
   const contactsMap = contacts.data ?? new Map();
-  const rowsBase = (data ?? []).filter((a) => !a.merged_into);
+  // Defensive: skip nulls/junk before any downstream .id access.
+  const rowsBase = (data ?? []).filter((a): a is Account => !!a && !!a.id && !a.merged_into);
 
   const dupeMap: Map<string, DupeEntry> = useMemo(
     () => buildDupeMap(rowsBase, contactsMap),
