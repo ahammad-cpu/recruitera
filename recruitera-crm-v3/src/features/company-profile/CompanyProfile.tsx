@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
@@ -261,6 +261,17 @@ function ContactPersonCard({ accountId, contact, loading }: { accountId: string;
     email: contact?.email ?? '',
     phone: contact?.phone ?? '',
   });
+
+  // Sync form once contact arrives from the query. Don't clobber unsaved edits.
+  useEffect(() => {
+    if (editing) return;
+    setForm({
+      full_name: contact?.full_name ?? '',
+      job_title: contact?.job_title ?? '',
+      email: contact?.email ?? '',
+      phone: contact?.phone ?? '',
+    });
+  }, [contact?.id, contact?.full_name, contact?.job_title, contact?.email, contact?.phone, editing]);
 
   function save() {
     upsert.mutate({ id: contact?.id, ...form }, { onSuccess: () => setEditing(false) });
