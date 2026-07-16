@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { quarterStartISO, defaultFilters, EMPTY_FILTERS } from './PipelineFilters';
+import { quarterStartISO, yearStartISO, defaultFilters, resetFilters, EMPTY_FILTERS } from './PipelineFilters';
 
 describe('quarterStartISO', () => {
   it('returns Jan 1 for a date in Q1', () => {
@@ -20,6 +20,13 @@ describe('quarterStartISO', () => {
   });
 });
 
+describe('yearStartISO', () => {
+  it('returns Jan 1 for any month of the given year', () => {
+    expect(yearStartISO(new Date(2026, 5, 15))).toBe('2026-01-01');
+    expect(yearStartISO(new Date(2026, 11, 31))).toBe('2026-01-01');
+  });
+});
+
 describe('defaultFilters', () => {
   it('is EMPTY_FILTERS but with closeFrom pre-set to the quarter start', () => {
     const d = defaultFilters();
@@ -30,5 +37,17 @@ describe('defaultFilters', () => {
     expect(d.closeTo).toBe('');
     // yyyy-mm-01 for month index 0/3/6/9
     expect(d.closeFrom).toMatch(/^\d{4}-(01|04|07|10)-01$/);
+  });
+});
+
+describe('resetFilters', () => {
+  it('is EMPTY_FILTERS but with closeFrom pre-set to the year start (Jan 1)', () => {
+    const r = resetFilters();
+    expect(r.owners).toEqual([]);
+    expect(r.temps).toEqual([]);
+    expect(r.minAcv).toBe('');
+    expect(r.maxAcv).toBe('');
+    expect(r.closeTo).toBe('');
+    expect(r.closeFrom).toMatch(/^\d{4}-01-01$/);
   });
 });

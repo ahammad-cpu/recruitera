@@ -93,9 +93,9 @@ export default function Pipeline() {
       if (min != null && v < min) return false;
       if (max != null && v > max) return false;
       if (from != null || to != null) {
-        const closeIso = d.closed_at || d.expected_close_date;
-        if (!closeIso) return false;
-        const t = new Date(closeIso).getTime();
+        // Created between — the moment the deal was opened. Every deal has
+        // this, so no missing-data landmine (unlike closed_at).
+        const t = new Date(d.created_at).getTime();
         if (from != null && t < from) return false;
         if (to != null && t > to) return false;
       }

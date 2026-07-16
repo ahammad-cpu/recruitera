@@ -7,6 +7,8 @@ export type PipelineFilterState = {
   temps: string[];       // 'hot' | 'warm' | 'cold'
   minAcv: string;        // stringified number ('' = no filter)
   maxAcv: string;
+  /** Filter shape: `Created between` — reads deals.created_at.
+   *  Field keys stay named `closeFrom/closeTo` for URL back-compat. */
   closeFrom: string;     // yyyy-mm-dd
   closeTo: string;
 };
@@ -25,9 +27,19 @@ export function quarterStartISO(now: Date = new Date()): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/** Filters shown on first render — Close-Date From defaults to the start of the quarter. */
+/** yyyy-mm-dd for the first day of the current year (Jan 1). */
+export function yearStartISO(now: Date = new Date()): string {
+  return `${now.getFullYear()}-01-01`;
+}
+
+/** Filters on first render — Created From defaults to the start of the current quarter. */
 export function defaultFilters(): PipelineFilterState {
   return { ...EMPTY_FILTERS, closeFrom: quarterStartISO() };
+}
+
+/** Filters after Reset — Created From defaults to the start of the current year. */
+export function resetFilters(): PipelineFilterState {
+  return { ...EMPTY_FILTERS, closeFrom: yearStartISO() };
 }
 
 export function filtersActiveCount(f: PipelineFilterState): number {

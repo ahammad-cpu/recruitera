@@ -3,7 +3,7 @@ import { Filter, X, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { Profile } from '@/hooks/useUsersData';
 import type { PipelineFilterState } from './PipelineFilters';
-import { EMPTY_FILTERS, filtersActiveCount } from './PipelineFilters';
+import { filtersActiveCount, resetFilters } from './PipelineFilters';
 
 type Props = {
   value: PipelineFilterState;
@@ -28,7 +28,13 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(value), [draft, value]);
 
   function apply() { onChange(draft); }
-  function reset() { setDraft(EMPTY_FILTERS); onChange(EMPTY_FILTERS); }
+  function reset() {
+    // Reset returns to start-of-year rather than a bare empty filter — the
+    // pipeline is almost never useful without a date anchor.
+    const r = resetFilters();
+    setDraft(r);
+    onChange(r);
+  }
 
   return (
     <div className="bg-surface border border-border rounded-2xl shadow-sh1 p-4">
@@ -45,7 +51,7 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-[240px] max-w-[340px]">
           <DateRange
-            label="Close Date"
+            label="Created"
             from={draft.closeFrom}
             to={draft.closeTo}
             onFrom={(v) => setDraft((d) => ({ ...d, closeFrom: v }))}
