@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { AuthGate } from './AuthGate';
-import Dashboard from '@/features/dashboard/Dashboard';
+import DashboardRouter from '@/features/dashboard/DashboardRouter';
 import Companies from '@/features/companies/Companies';
 import CompanyProfile from '@/features/company-profile/CompanyProfile';
 import Pipeline from '@/features/pipeline/Pipeline';
@@ -34,7 +34,7 @@ export const router = createBrowserRouter([
       </AuthGate>
     ),
     children: [
-      { index: true, element: <Dashboard /> },
+      { index: true, element: <DashboardRouter /> },
       { path: 'companies', element: <Companies /> },
       { path: 'companies/:id', element: <CompanyProfile /> },
       { path: 'pipeline', element: <Pipeline /> },

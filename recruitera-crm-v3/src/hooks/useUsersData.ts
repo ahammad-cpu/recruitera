@@ -22,6 +22,7 @@ export type Role = {
   description: string | null;
   is_system: boolean | null;
   module_access: Record<string, boolean> | null;
+  dashboard: 'sales' | 'cs' | null;
 };
 
 export type Team = {
