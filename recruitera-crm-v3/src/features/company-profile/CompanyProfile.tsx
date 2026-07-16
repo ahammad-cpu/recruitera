@@ -192,7 +192,7 @@ export default function CompanyProfile() {
         </div>
       )}
 
-      {tab === 'activity' && <ActivityFeed activities={activities ?? []} loading={loadingActs} />}
+      {tab === 'activity' && <ActivityFeed activities={activities ?? []} profiles={profiles.data ?? []} loading={loadingActs} />}
       {tab === 'plans' && <PlansTab accountId={lead.id} />}
       {tab === 'team' && <TeamTab accountId={lead.id} />}
       {tab === 'documents' && <DocumentsTab accountId={lead.id} />}
@@ -795,23 +795,65 @@ function Panel({ title, hint, icon, action, children }: { title: string; hint?: 
   );
 }
 
-function ActivityFeed({ activities, loading }: { activities: import('@/hooks/useAccountDetail').Activity[]; loading: boolean }) {
+function ActivityFeed({
+  activities, profiles, loading,
+}: {
+  activities: import('@/hooks/useAccountDetail').Activity[];
+  profiles: import('@/hooks/useUsersData').Profile[];
+  loading: boolean;
+}) {
+  const byId = new Map(profiles.map((p) => [p.id, p]));
   return (
     <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1">
       {loading && <div className="text-[12.5px] text-text-3">Loading…</div>}
-      {!loading && activities.length === 0 && <div className="py-8 text-center text-[12.5px] text-text-3">No activity yet.</div>}
-      <ol className="space-y-3">
+      {!loading && activities.length === 0 && (
+        <div className="py-8 text-center text-[12.5px] text-text-3">No activity yet.</div>
+      )}
+      <div className="space-y-3">
         {activities.map((a) => (
-          <li key={a.id} className="border-l-2 border-border pl-3 pb-2">
-            <div className="flex items-center gap-2 text-[11px]">
-              <span className="font-bold uppercase text-accent-ink bg-accent-soft px-1.5 py-0.5 rounded">{a.type}</span>
-              <span className="ml-auto text-text-4">{fmtDate(a.created_at)}</span>
-            </div>
-            {a.title && <div className="mt-1 text-[13px] font-bold text-text">{a.title}</div>}
-            {a.text && <div className="mt-0.5 text-[12.5px] text-text-2 whitespace-pre-wrap">{a.text}</div>}
-          </li>
+          <ActivityRow
+            key={a.id}
+            activity={a}
+            author={a.author_id ? byId.get(a.author_id) : undefined}
+            profiles={profiles}
+          />
         ))}
-      </ol>
+      </div>
+    </div>
+  );
+}
+
+function ActivityRow({
+  activity, author, profiles,
+}: {
+  activity: import('@/hooks/useAccountDetail').Activity;
+  author: import('@/hooks/useUsersData').Profile | undefined;
+  profiles: import('@/hooks/useUsersData').Profile[];
+}) {
+  const name = author?.full_name || author?.email || 'System';
+  const chip = channelChip(activity.type);
+  return (
+    <div className="border border-border rounded-xl p-4 flex gap-3">
+      <OwnerAvatar profile={author} size={40} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-extrabold text-text text-[14px]">{name}</span>
+          <span className={cn('inline-flex items-center h-[22px] px-2.5 rounded-full text-[11px] font-black uppercase tracking-wider', chip.cls)}>
+            {chip.label}
+          </span>
+          <span className="text-[12px] text-text-3">{fmtRelative(activity.created_at)}</span>
+        </div>
+        {activity.title && (
+          <div className="mt-1.5 text-[13.5px] font-bold text-text">
+            {renderWithMentions(activity.title, profiles)}
+          </div>
+        )}
+        {activity.text && (
+          <div className="mt-1 text-[13.5px] text-text-2 whitespace-pre-wrap leading-relaxed">
+            {renderWithMentions(activity.text, profiles)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
