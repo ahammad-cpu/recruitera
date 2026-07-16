@@ -324,7 +324,7 @@ function Card({ a, owner }: { a: Account; owner: import('@/hooks/useUsersData').
         <div
           {...attributes}
           {...listeners}
-          className="w-9 h-9 rounded-full bg-surface-2 border border-border text-text-2 text-[11px] font-black flex items-center justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
+          className="w-9 h-9 rounded-lg bg-cg-900 text-white text-[11px] font-black flex items-center justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
           title="Drag to change stage"
         >
           {initials(a.name || a.domain)}
@@ -335,7 +335,7 @@ function Card({ a, owner }: { a: Account; owner: import('@/hooks/useUsersData').
         <TempPill kind={temp} />
       </div>
 
-      <div className="mt-3 grid grid-cols-[46px_1fr] gap-y-1.5 text-[12px]">
+      <div className="mt-3 pt-3 border-t border-border/70 grid grid-cols-[46px_1fr] gap-y-1.5 text-[12px]">
         <div className="text-text-3 font-bold uppercase tracking-wider text-[10px] leading-[18px]">ACV</div>
         <div className="tnum font-extrabold text-text">
           {dealValue > 0 ? fmtEgpShort(dealValue) : <span className="text-text-4 font-bold">0 EGP</span>}
@@ -366,7 +366,7 @@ function TempPill({ kind }: { kind: 'hot' | 'warm' | 'cold' }) {
   }
   if (kind === 'warm') {
     return (
-      <span className="inline-flex items-center gap-1 h-[22px] pl-1.5 pr-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-black tracking-wider">
+      <span className="inline-flex items-center gap-1 h-[22px] pl-1.5 pr-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
         <CheckCircle2 size={11} /> Warm
       </span>
     );
