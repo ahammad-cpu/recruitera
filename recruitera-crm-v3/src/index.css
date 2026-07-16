@@ -22,7 +22,13 @@
 
   --accent: 201 253 19; --accent-strong: 179 224 14; --accent-soft: 240 250 208; --accent-ink: 0 36 39; /* Electric Lime — brand secondary; ink pairs it with Deep Teal, same combo as the logo */
 
-  --surface: 255 255 255; --surface-2: 244 247 239; /* Paper — brand "Product BG" */
+  /* NOT Paper (#F4F7EF) — that's nearly white on its own, and surface-2 is
+     used at partial opacity all over the app (bg-surface-2/40, /50, /60...),
+     which washed it out to an almost-invisible pale tint against white
+     surfaces. Kept the neutral gray that's actually tuned for contrast here;
+     Paper is still available as its own brand swatch below if needed. */
+  --surface: 255 255 255; --surface-2: 242 244 247;
+  --paper: 244 247 239;
   --border: 226 229 234; --border-2: 205 210 218;
   --text: 0 36 39; --text-2: 87 95 105; --text-3: 129 135 142; --text-4: 171 175 180;
 

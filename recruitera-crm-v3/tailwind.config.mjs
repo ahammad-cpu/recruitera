@@ -63,6 +63,7 @@ export default {
         // for feature-specific UI as it's built.
         cyan: withOpacity('--cyan'),
         flame: withOpacity('--flame'),
+        paper: withOpacity('--paper'),
         bg: withOpacity('--bg'),
       },
       fontFamily: {
