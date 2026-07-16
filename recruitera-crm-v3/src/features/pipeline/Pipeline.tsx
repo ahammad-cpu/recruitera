@@ -9,7 +9,7 @@ import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
-import { fmtInt, initials, fmtDate } from '@/lib/format';
+import { fmtInt, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { WonDialog } from './WonDialog';
 import { LostDialog } from './LostDialog';
@@ -369,26 +369,24 @@ function Card({
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={style}
       className={cn(
-        'bg-surface border border-border rounded-xl p-3.5 transition-shadow',
+        'bg-surface border border-border rounded-xl p-3.5 transition-shadow cursor-grab active:cursor-grabbing',
         'hover:shadow-sh2 hover:border-border-2',
         isDragging && 'shadow-sh3 opacity-90',
       )}
     >
-      <div className="flex items-center gap-2.5">
-        <div
-          {...attributes}
-          {...listeners}
-          className="w-9 h-9 rounded-lg bg-cg-900 text-white text-[11px] font-black flex items-center justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
-          title="Drag to change stage"
+      <div className="flex items-start gap-2">
+        <Link
+          to={`/companies/${d.account_id}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="min-w-0 flex-1 block"
         >
-          {initials(name)}
-        </div>
-        <Link to={`/companies/${d.account_id}`} className="min-w-0 flex-1 block">
-          <div className="text-[13.5px] font-extrabold text-text truncate">{name}</div>
+          <div className="text-[15px] font-black text-text truncate leading-tight">{name}</div>
           {d.company?.industry && (
-            <div className="text-[11px] text-text-3 truncate">{d.company.industry}</div>
+            <div className="text-[11.5px] text-text-3 truncate mt-0.5">{d.company.industry}</div>
           )}
         </Link>
         <TempPill kind={temp} />
