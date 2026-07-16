@@ -4,10 +4,11 @@ import {
   DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Filter } from 'lucide-react';
-import { useAccounts, type Account } from '@/hooks/useAccounts';
-import { useMoveDeal, positionBetween } from '@/hooks/usePipelineMutations';
+import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Filter, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
+import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
+import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
+import { useMe } from '@/hooks/useMe';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, initials, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -18,21 +19,17 @@ import {
   type PipelineFilterState,
 } from './PipelineFilters';
 
-type ColMeta = {
-  key: string;
-  label: string;
-  dot: string;   // bg color for the dot
-  bar: string;   // border-t color
-};
+type ColMeta = { key: DealStage; label: string; dot: string; bar: string };
 
 const COLUMNS: ColMeta[] = [
-  { key: 'mql',      label: 'MQL',      dot: 'bg-accent-strong',       bar: 'border-accent-strong' },
-  { key: 'sql',      label: 'SQL',      dot: 'bg-[#392396]',           bar: 'border-[#392396]' },
-  { key: 'demo',     label: 'DEMO',     dot: 'bg-[#5B3AC7]',           bar: 'border-[#5B3AC7]' },
-  { key: 'proposal', label: 'PROPOSAL', dot: 'bg-[#B8761A]',           bar: 'border-[#B8761A]' },
-  { key: 'won',      label: 'WON',      dot: 'bg-ok',                  bar: 'border-ok' },
-  { key: 'paid',     label: 'PAID',     dot: 'bg-accent',              bar: 'border-accent' },
-  { key: 'lost',     label: 'LOST',     dot: 'bg-bad',                 bar: 'border-bad' },
+  { key: 'mql',         label: 'MQL',         dot: 'bg-accent-strong', bar: 'border-accent-strong' },
+  { key: 'sql',         label: 'SQL',         dot: 'bg-[#392396]',     bar: 'border-[#392396]' },
+  { key: 'demo',        label: 'DEMO',        dot: 'bg-[#5B3AC7]',     bar: 'border-[#5B3AC7]' },
+  { key: 'proposal',    label: 'PROPOSAL',    dot: 'bg-[#B8761A]',     bar: 'border-[#B8761A]' },
+  { key: 'negotiation', label: 'NEGOTIATION', dot: 'bg-warn',          bar: 'border-warn' },
+  { key: 'won',         label: 'WON',         dot: 'bg-ok',            bar: 'border-ok' },
+  { key: 'collected',   label: 'COLLECTED',   dot: 'bg-accent',        bar: 'border-accent' },
+  { key: 'lost',        label: 'LOST',        dot: 'bg-bad',           bar: 'border-bad' },
 ];
 
 type RangeKey = 'all' | 'week' | 'month' | 'quarter' | 'year';
@@ -63,39 +60,50 @@ function fmtEgpCompact(n: number): string {
   return fmtEgpShort(n);
 }
 
-function temperature(a: Account): 'hot' | 'warm' | 'cold' {
-  // Missing score → Warm by default (matches v2 behavior).
-  const s = a.funnel_score;
-  if (s == null) return 'warm';
-  if (s >= 80) return 'hot';
-  if (s >= 30) return 'warm';
-  return 'cold';
+function temperature(d: Deal): 'hot' | 'warm' | 'cold' {
+  if (d.temperature) return d.temperature;
+  return 'warm'; // default when unset
 }
 
+type Scope = 'mine' | 'all';
+
 export default function Pipeline() {
-  const { data, isLoading, error } = useAccounts();
+  const { data, isLoading, error } = useDeals();
   const profilesQ = useProfiles();
+  const me = useMe();
   const moveDeal = useMoveDeal();
+  const reopen = useReopenDeal();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [range, setRange] = useState<RangeKey>(() => (searchParams.get('range') as RangeKey) || 'all');
   const [filters, setFilters] = useState<PipelineFilterState>(() => filtersFromParams(searchParams));
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [pendingWon, setPendingWon] = useState<Account | null>(null);
-  const [pendingLost, setPendingLost] = useState<Account | null>(null);
+  const [pendingWon, setPendingWon] = useState<Deal | null>(null);
+  const [pendingLost, setPendingLost] = useState<Deal | null>(null);
 
-  // Sync range + filters into the URL so deep links restore the view.
+  // Role-aware default view: reps see "My deals" first, managers/admins see all.
+  const canSeeAll = me.data?.role === 'admin' || me.data?.role === 'manager' || me.data?.role === 'lead';
+  const [scope, setScope] = useState<Scope>(() => {
+    const p = searchParams.get('scope') as Scope | null;
+    if (p === 'mine' || p === 'all') return p;
+    return canSeeAll ? 'all' : 'mine';
+  });
+  // Bump scope default once me.data resolves (initial render likely had role=undefined).
+  useEffect(() => {
+    if (searchParams.has('scope')) return;
+    if (canSeeAll && scope === 'mine' && me.data) setScope('all');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.data?.role]);
+
   useEffect(() => {
     const p: Record<string, string> = { ...filtersToParams(filters) };
     if (range !== 'all') p.range = range;
+    p.scope = scope;
     const next = new URLSearchParams(p);
-    // Only setSearchParams if actually changed to avoid render loops.
-    if (next.toString() !== searchParams.toString()) {
-      setSearchParams(next, { replace: true });
-    }
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, filters]);
+  }, [range, filters, scope]);
 
   const profilesById = useMemo(() => {
     const m = new Map<string, import('@/hooks/useUsersData').Profile>();
@@ -103,25 +111,30 @@ export default function Pipeline() {
     return m;
   }, [profilesQ.data]);
 
-  const activeAccounts = useMemo(() => (data ?? []).filter((a) => !a.merged_into), [data]);
+  const allDeals = data ?? [];
 
-  // Apply filter panel to the whole visible dataset. Everything downstream
-  // (KPIs, column groups, totals) reads from `accounts`.
-  const accounts = useMemo(() => {
+  // Scope: 'mine' filters to my own deals (owner_id === me).
+  const scoped = useMemo(() => {
+    if (scope === 'all' || !me.data?.id) return allDeals;
+    return allDeals.filter((d) => d.owner_id === me.data!.id);
+  }, [allDeals, scope, me.data?.id]);
+
+  // Apply filter panel.
+  const deals = useMemo(() => {
     const min = filters.minAcv ? Number(filters.minAcv) : null;
     const max = filters.maxAcv ? Number(filters.maxAcv) : null;
     const from = filters.closeFrom ? new Date(filters.closeFrom).getTime() : null;
     const to = filters.closeTo ? new Date(filters.closeTo).getTime() + 86_400_000 - 1 : null;
     const ownersSet = new Set(filters.owners);
     const tempsSet = new Set(filters.temps);
-    return activeAccounts.filter((a) => {
-      if (ownersSet.size && !(a.owner_id && ownersSet.has(a.owner_id))) return false;
-      if (tempsSet.size && !tempsSet.has(temperature(a))) return false;
-      const v = a.deal_value || 0;
+    return scoped.filter((d) => {
+      if (ownersSet.size && !(d.owner_id && ownersSet.has(d.owner_id))) return false;
+      if (tempsSet.size && !tempsSet.has(temperature(d))) return false;
+      const v = d.amount || 0;
       if (min != null && v < min) return false;
       if (max != null && v > max) return false;
       if (from != null || to != null) {
-        const closeIso = a.disqualified_at || null;
+        const closeIso = d.closed_at || d.expected_close_date;
         if (!closeIso) return false;
         const t = new Date(closeIso).getTime();
         if (from != null && t < from) return false;
@@ -129,28 +142,23 @@ export default function Pipeline() {
       }
       return true;
     });
-  }, [activeAccounts, filters]);
+  }, [scoped, filters]);
 
   // Range-scoped view for KPIs. Filters by created_at.
-  const scoped = useMemo(() => {
+  const rangeScoped = useMemo(() => {
     const start = rangeStart(range);
-    if (!start) return accounts;
+    if (!start) return deals;
     const t = start.getTime();
-    return accounts.filter((a) => new Date(a.created_at).getTime() >= t);
-  }, [accounts, range]);
+    return deals.filter((d) => new Date(d.created_at).getTime() >= t);
+  }, [deals, range]);
 
-  // Kanban groups — sorted by board_position (asc). Nulls go last, then id.
   const groups = useMemo(() => {
-    const m = new Map<string, Account[]>();
+    const m = new Map<DealStage, Deal[]>();
     COLUMNS.forEach((c) => m.set(c.key, []));
-    accounts.forEach((a) => {
-      const k = (a.stage || '').toLowerCase();
-      if (m.has(k)) m.get(k)!.push(a);
-    });
+    deals.forEach((d) => { if (m.has(d.stage)) m.get(d.stage)!.push(d); });
     m.forEach((arr) =>
       arr.sort((x, y) => {
-        const xp = x.board_position;
-        const yp = y.board_position;
+        const xp = x.board_position, yp = y.board_position;
         if (xp == null && yp == null) return x.id.localeCompare(y.id);
         if (xp == null) return 1;
         if (yp == null) return -1;
@@ -158,50 +166,44 @@ export default function Pipeline() {
       }),
     );
     return m;
-  }, [accounts]);
+  }, [deals]);
 
-  const openStages = new Set(['mql', 'sql', 'demo', 'proposal']);
-  const openDeals = accounts.filter((a) => openStages.has((a.stage || '').toLowerCase()));
-  const openPipeline = openDeals.reduce((s, a) => s + (a.deal_value || 0), 0);
-  const boardTotal = accounts.reduce((s, a) => s + (a.deal_value || 0), 0);
-  const wonQtd = scoped.filter((a) => (a.stage || '').toLowerCase() === 'won').reduce((s, a) => s + (a.deal_value || 0), 0);
-  const proposalsLive = accounts.filter((a) => (a.stage || '').toLowerCase() === 'proposal').length;
-  const dealsWithValue = openDeals.filter((a) => (a.deal_value || 0) > 0);
+  const openStages = new Set<DealStage>(['mql', 'sql', 'demo', 'proposal', 'negotiation']);
+  const openDeals = deals.filter((d) => openStages.has(d.stage));
+  const openPipeline = openDeals.reduce((s, d) => s + (d.amount || 0), 0);
+  const boardTotal = deals.reduce((s, d) => s + (d.amount || 0), 0);
+  const wonQtd = rangeScoped.filter((d) => d.stage === 'won' || d.stage === 'collected').reduce((s, d) => s + (d.amount || 0), 0);
+  const proposalsLive = deals.filter((d) => d.stage === 'proposal' || d.stage === 'negotiation').length;
+  const dealsWithValue = openDeals.filter((d) => (d.amount || 0) > 0);
   const avgDeal = dealsWithValue.length ? openPipeline / dealsWithValue.length : 0;
   const totalLeads = openDeals.length;
 
   function handleDragEnd(e: DragEndEvent) {
     const id = String(e.active.id);
-    const nextStage = e.over?.id ? String(e.over.id) : null;
+    const nextStage = e.over?.id ? String(e.over.id) as DealStage : null;
     if (!nextStage) return;
-    const acct = activeAccounts.find((a) => a.id === id);
-    if (!acct) return;
-    const curr = (acct.stage || '').toLowerCase();
-    if (curr === nextStage) return;
+    const deal = allDeals.find((d) => d.id === id);
+    if (!deal || deal.stage === nextStage) return;
 
-    // Won / Lost drops require the confirmation dialog — the mutation runs
-    // from inside the dialog, so we short-circuit here without moving.
-    if (nextStage === 'won') { setPendingWon(acct); return; }
-    if (nextStage === 'lost') { setPendingLost(acct); return; }
+    if (nextStage === 'won') { setPendingWon(deal); return; }
+    if (nextStage === 'lost') { setPendingLost(deal); return; }
 
-    // Regular move: place at the top of the target column (before the
-    // current first card). Fractional positioning so we never renumber.
     const targetRows = groups.get(nextStage) ?? [];
     const firstPos = targetRows[0]?.board_position ?? null;
     const position = positionBetween(null, firstPos);
-    moveDeal.mutate({ id, stage: nextStage, position });
+    moveDeal.mutate({ id, stage: nextStage, position, currentAmount: deal.amount });
   }
 
   function exportCsv() {
-    const header = ['stage', 'company', 'owner_email', 'deal_value', 'currency', 'temperature', 'created_at'];
-    const rows = accounts.map((a) => [
-      a.stage || '',
-      a.name || '',
-      a.am_mail || '',
-      String(a.deal_value ?? ''),
-      a.deal_currency || 'EGP',
-      temperature(a),
-      a.created_at,
+    const header = ['stage', 'company', 'owner_email', 'amount', 'currency', 'temperature', 'created_at'];
+    const rows = deals.map((d) => [
+      d.stage,
+      d.company?.name || '',
+      profilesById.get(d.owner_id || '')?.email || '',
+      String(d.amount ?? ''),
+      d.currency || 'EGP',
+      temperature(d),
+      d.created_at,
     ]);
     const csv = [header, ...rows]
       .map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(','))
@@ -219,12 +221,18 @@ export default function Pipeline() {
 
   return (
     <div className="p-6 space-y-4">
-      {/* HEADER */}
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-[26px] font-black tracking-tight text-text">Sales Pipeline</h1>
         <span className="inline-flex items-center h-7 px-3 rounded-full bg-surface-2 border border-border text-text-2 text-[12px] font-bold">
           {isLoading ? '…' : `${fmtInt(totalLeads)} leads`}
         </span>
+
+        {/* Scope toggle — reps default to 'mine', managers/admins to 'all'. */}
+        <div className="inline-flex items-center bg-surface-2 border border-border rounded-full p-1 ml-2">
+          <ScopeTab active={scope === 'mine'} onClick={() => setScope('mine')} label="My deals" />
+          <ScopeTab active={scope === 'all'}  onClick={() => setScope('all')}  label={canSeeAll ? 'Team' : 'All'} />
+        </div>
+
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setFiltersOpen(true)}
@@ -242,12 +250,11 @@ export default function Pipeline() {
               </span>
             )}
           </button>
-          <label className="sr-only" htmlFor="pipeline-range">Time range</label>
           <select
-            id="pipeline-range"
             value={range}
             onChange={(e) => setRange(e.target.value as RangeKey)}
             className="h-10 pl-3.5 pr-8 border border-border-2 rounded-lg bg-surface text-[13px] font-bold text-text outline-none focus:border-accent-strong appearance-none"
+            aria-label="Time range"
           >
             {RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </select>
@@ -260,31 +267,17 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* KPI CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard
-          icon={<Briefcase size={18} />} iconBg="bg-accent-soft" iconColor="text-accent-ink"
-          barColor="bg-accent-strong"
-          label="Open pipeline" value={fmtEgpCompact(openPipeline)} sub="Active new-business"
-        />
-        <KpiCard
-          icon={<Trophy size={18} />} iconBg="bg-warn-bg" iconColor="text-warn"
-          barColor="bg-warn"
-          label="Won QTD" value={fmtEgpCompact(wonQtd)} sub="Closed revenue"
-        />
-        <KpiCard
-          icon={<FileText size={18} />} iconBg="bg-info-bg" iconColor="text-info"
-          barColor="bg-info"
-          label="Proposals live" value={fmtInt(proposalsLive)} sub="Awaiting decision"
-        />
-        <KpiCard
-          icon={<Gauge size={18} />} iconBg="bg-ok-bg" iconColor="text-ok"
-          barColor="bg-ok"
-          label="Avg deal size" value={fmtEgpCompact(avgDeal)} sub="Open pipeline"
-        />
+        <KpiCard icon={<Briefcase size={18} />} iconBg="bg-accent-soft" iconColor="text-accent-ink" barColor="bg-accent-strong"
+                 label="Open pipeline" value={fmtEgpCompact(openPipeline)} sub="Active new-business" />
+        <KpiCard icon={<Trophy size={18} />} iconBg="bg-warn-bg" iconColor="text-warn" barColor="bg-warn"
+                 label="Won QTD" value={fmtEgpCompact(wonQtd)} sub="Closed revenue" />
+        <KpiCard icon={<FileText size={18} />} iconBg="bg-info-bg" iconColor="text-info" barColor="bg-info"
+                 label="Proposals live" value={fmtInt(proposalsLive)} sub="Awaiting decision" />
+        <KpiCard icon={<Gauge size={18} />} iconBg="bg-ok-bg" iconColor="text-ok" barColor="bg-ok"
+                 label="Avg deal size" value={fmtEgpCompact(avgDeal)} sub="Open pipeline" />
       </div>
 
-      {/* BOARD */}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="overflow-x-auto sc pb-4 -mx-6 px-6">
           <div className="flex gap-4" style={{ minWidth: `${COLUMNS.length * 300}px` }}>
@@ -296,6 +289,7 @@ export default function Pipeline() {
                 profilesById={profilesById}
                 isLoading={isLoading}
                 boardTotal={boardTotal}
+                onReopen={(id) => reopen.mutate({ id })}
               />
             ))}
           </div>
@@ -310,9 +304,21 @@ export default function Pipeline() {
         profiles={profilesQ.data ?? []}
       />
 
-      {pendingWon && <WonDialog account={pendingWon} onClose={() => setPendingWon(null)} />}
-      {pendingLost && <LostDialog account={pendingLost} onClose={() => setPendingLost(null)} />}
+      {pendingWon && <WonDialog deal={pendingWon} onClose={() => setPendingWon(null)} />}
+      {pendingLost && <LostDialog deal={pendingLost} onClose={() => setPendingLost(null)} />}
     </div>
+  );
+}
+
+function ScopeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'h-8 px-3.5 rounded-full text-[12.5px] font-bold transition-colors',
+        active ? 'bg-surface text-text shadow-sh1' : 'text-text-3 hover:text-text-2',
+      )}
+    >{label}</button>
   );
 }
 
@@ -336,17 +342,18 @@ function KpiCard({
 }
 
 function Column({
-  col, rows, profilesById, isLoading,
+  col, rows, profilesById, isLoading, onReopen,
 }: {
   col: ColMeta;
-  rows: Account[];
+  rows: Deal[];
   profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
   isLoading: boolean;
   boardTotal: number;
+  onReopen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
-  const total = rows.reduce((s, a) => s + (a.deal_value || 0), 0);
-  const withValue = rows.filter((a) => (a.deal_value || 0) > 0);
+  const total = rows.reduce((s, d) => s + (d.amount || 0), 0);
+  const withValue = rows.filter((d) => (d.amount || 0) > 0);
   const avg = withValue.length ? Math.round(total / withValue.length) : 0;
   return (
     <div
@@ -368,25 +375,16 @@ function Column({
         </span>
       </div>
 
-      <ColumnBody
-        rows={rows}
-        profilesById={profilesById}
-        isLoading={isLoading}
-      />
+      <ColumnBody rows={rows} profilesById={profilesById} isLoading={isLoading} isLost={col.key === 'lost'} onReopen={onReopen} />
 
-      {/* TOTAL / AVG footer — matches v2 layout */}
       <div className="px-4 py-3 border-t border-border bg-surface-2/60 rounded-b-2xl">
         <div className="flex items-baseline justify-between">
           <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Total</div>
-          <div className="tnum text-[12.5px] font-black text-text">
-            {total > 0 ? fmtEgpShort(total) : '0 EGP'}
-          </div>
+          <div className="tnum text-[12.5px] font-black text-text">{total > 0 ? fmtEgpShort(total) : '0 EGP'}</div>
         </div>
         <div className="flex items-baseline justify-between mt-1">
           <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Avg</div>
-          <div className="tnum text-[12.5px] font-bold text-text-2">
-            {avg > 0 ? fmtEgpShort(avg) : '0 EGP'}
-          </div>
+          <div className="tnum text-[12.5px] font-bold text-text-2">{avg > 0 ? fmtEgpShort(avg) : '0 EGP'}</div>
         </div>
       </div>
     </div>
@@ -395,15 +393,14 @@ function Column({
 
 const PAGE = 30;
 function ColumnBody({
-  rows, profilesById, isLoading,
+  rows, profilesById, isLoading, isLost, onReopen,
 }: {
-  rows: Account[];
+  rows: Deal[];
   profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
   isLoading: boolean;
+  isLost: boolean;
+  onReopen: (id: string) => void;
 }) {
-  // Lightweight windowing — render PAGE cards at a time and let the user
-  // reveal more. Auto-loads-more when they scroll near the bottom, so it
-  // feels virtualized without pulling in react-window.
   const [visible, setVisible] = useState(PAGE);
   useEffect(() => { setVisible(PAGE); }, [rows.length]);
 
@@ -425,8 +422,14 @@ function ColumnBody({
       {!isLoading && rows.length === 0 && (
         <div className="py-8 text-center text-[11.5px] text-text-4">No deals</div>
       )}
-      {rows.slice(0, visible).map((a) => (
-        <Card key={a.id} a={a} owner={a.owner_id ? profilesById.get(a.owner_id) : undefined} />
+      {rows.slice(0, visible).map((d) => (
+        <Card
+          key={d.id}
+          d={d}
+          owner={d.owner_id ? profilesById.get(d.owner_id) : undefined}
+          isLost={isLost}
+          onReopen={onReopen}
+        />
       ))}
       {visible < rows.length && (
         <button
@@ -440,13 +443,24 @@ function ColumnBody({
   );
 }
 
-function Card({ a, owner }: { a: Account; owner: import('@/hooks/useUsersData').Profile | undefined }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: a.id });
+function Card({
+  d, owner, isLost, onReopen,
+}: {
+  d: Deal;
+  owner: import('@/hooks/useUsersData').Profile | undefined;
+  isLost: boolean;
+  onReopen: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: d.id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
     : undefined;
-  const temp = temperature(a);
-  const dealValue = (a.deal_value ?? 0);
+  const temp = temperature(d);
+  const stale = isStale(d);
+  const overdue = isOverdue(d);
+  const dealValue = d.amount ?? 0;
+  const name = d.company?.name || d.title || '—';
+
   return (
     <div
       ref={setNodeRef}
@@ -464,13 +478,31 @@ function Card({ a, owner }: { a: Account; owner: import('@/hooks/useUsersData').
           className="w-9 h-9 rounded-lg bg-cg-900 text-white text-[11px] font-black flex items-center justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
           title="Drag to change stage"
         >
-          {initials(a.name || a.domain)}
+          {initials(name)}
         </div>
-        <Link to={`/companies/${a.id}`} className="min-w-0 flex-1 block">
-          <div className="text-[13.5px] font-extrabold text-text truncate">{a.name || a.domain || '—'}</div>
+        <Link to={`/companies/${d.account_id}`} className="min-w-0 flex-1 block">
+          <div className="text-[13.5px] font-extrabold text-text truncate">{name}</div>
+          {d.company?.industry && (
+            <div className="text-[11px] text-text-3 truncate">{d.company.industry}</div>
+          )}
         </Link>
         <TempPill kind={temp} />
       </div>
+
+      {(stale || overdue) && (
+        <div className="mt-2 flex items-center gap-1.5">
+          {overdue && (
+            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-bad-bg text-bad text-[10.5px] font-black tracking-wider">
+              <AlertTriangle size={10} /> Overdue
+            </span>
+          )}
+          {stale && (
+            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
+              <Clock size={10} /> Stale
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 pt-3 border-t border-border/70 grid grid-cols-[46px_1fr] gap-y-1.5 text-[12px]">
         <div className="text-text-3 font-bold uppercase tracking-wider text-[10px] leading-[18px]">ACV</div>
@@ -478,16 +510,28 @@ function Card({ a, owner }: { a: Account; owner: import('@/hooks/useUsersData').
           {dealValue > 0 ? fmtEgpShort(dealValue) : <span className="text-text-4 font-bold">0 EGP</span>}
         </div>
         <div className="text-text-3 font-bold uppercase tracking-wider text-[10px] leading-[18px]">Close</div>
-        <div className="tnum text-text-3 font-bold">
-          {a.disqualified_at ? fmtDate(a.disqualified_at) : <span className="text-text-4">—</span>}
+        <div className={cn('tnum font-bold', overdue ? 'text-bad' : 'text-text-3')}>
+          {d.expected_close_date
+            ? fmtDate(d.expected_close_date)
+            : d.closed_at ? fmtDate(d.closed_at)
+            : <span className="text-text-4">—</span>}
         </div>
       </div>
 
       <div className="mt-3 pt-2.5 border-t border-border/70 flex items-center gap-2 min-w-0">
-        <OwnerAvatar profile={owner} size={22} fallback={a.am_mail ?? undefined} />
-        <span className="text-[11.5px] font-bold text-text-2 truncate">
-          {owner?.full_name || owner?.email || a.am_mail || 'Unassigned'}
+        <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
+        <span className="text-[11.5px] font-bold text-text-2 truncate flex-1">
+          {owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'}
         </span>
+        {isLost && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onReopen(d.id); }}
+            title="Reopen deal — sends it back to MQL"
+            className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-border bg-surface text-text-3 hover:text-accent-ink hover:border-accent-strong text-[10.5px] font-black"
+          >
+            <RotateCcw size={11} /> Reopen
+          </button>
+        )}
       </div>
     </div>
   );
@@ -514,3 +558,6 @@ function TempPill({ kind }: { kind: 'hot' | 'warm' | 'cold' }) {
     </span>
   );
 }
+
+// EMPTY_FILTERS export kept for consumers that may want to reset externally.
+export { EMPTY_FILTERS };

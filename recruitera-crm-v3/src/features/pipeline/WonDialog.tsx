@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Check, Trophy, FileText, CheckSquare } from 'lucide-react';
-import type { Account } from '@/hooks/useAccounts';
-import { useMarkWon } from '@/hooks/usePipelineMutations';
+import type { Deal } from '@/hooks/useDeals';
+import { useMarkDealWon } from '@/hooks/useDealMutations';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/cn';
 
-type Props = { account: Account; onClose: () => void; onDone?: () => void };
+type Props = { deal: Deal; onClose: () => void; onDone?: () => void };
 
-export function WonDialog({ account, onClose, onDone }: Props) {
-  const mark = useMarkWon();
-  const [amount, setAmount] = useState<string>(String(account.deal_value ?? ''));
-  const [currency] = useState<string>(account.deal_currency || 'EGP');
+export function WonDialog({ deal, onClose, onDone }: Props) {
+  const mark = useMarkDealWon();
+  const [amount, setAmount] = useState<string>(String(deal.amount ?? ''));
+  const currency = deal.currency || 'EGP';
   const [requestInvoice, setRequestInvoice] = useState(true);
   const [createCollectionTask, setCreateCollectionTask] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -25,7 +26,29 @@ export function WonDialog({ account, onClose, onDone }: Props) {
     const n = Number(amount);
     if (!Number.isFinite(n) || n <= 0) { setErr('Deal value must be greater than 0'); return; }
     try {
-      await mark.mutateAsync({ id: account.id, amount: n, currency, requestInvoice, createCollectionTask });
+      await mark.mutateAsync({ id: deal.id, amount: n, currency });
+      // Fire follow-up tasks best-effort so a failure doesn't block the win.
+      const tasks: Array<Record<string, unknown>> = [];
+      if (requestInvoice && deal.account_id) {
+        tasks.push({
+          account_id: deal.account_id, type: 'task',
+          title: 'Request invoice from finance',
+          text: 'Auto-created on WON — routes to finance for issuance.',
+        });
+      }
+      if (createCollectionTask && deal.account_id) {
+        const due = new Date(); due.setDate(due.getDate() + 14);
+        tasks.push({
+          account_id: deal.account_id, type: 'task',
+          title: 'Track payment (14-day window)',
+          text: 'Auto-created on WON — collection team follow-up; flag overdue after 14 days.',
+          task_due_date: due.toISOString().slice(0, 10),
+        });
+      }
+      if (tasks.length) {
+        const { error } = await supabase.from('activities').insert(tasks);
+        if (error) console.warn('[WonDialog] follow-up tasks failed', error);
+      }
       onDone?.();
       onClose();
     } catch (e) {
@@ -34,6 +57,7 @@ export function WonDialog({ account, onClose, onDone }: Props) {
   }
 
   const wonOn = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const name = deal.company?.name || deal.title || 'Untitled deal';
 
   return (
     <div
@@ -47,9 +71,7 @@ export function WonDialog({ account, onClose, onDone }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-black tracking-[0.18em] uppercase text-ok">Mark deal as WON</div>
-            <div className="text-[22px] font-black tracking-tight text-text mt-0.5 truncate">
-              {account.name || account.domain || 'Untitled account'}
-            </div>
+            <div className="text-[22px] font-black tracking-tight text-text mt-0.5 truncate">{name}</div>
             <div className="text-[12.5px] text-text-2 mt-1">
               Confirm the deal value and select follow-ups for finance &amp; collections.
             </div>
@@ -84,7 +106,7 @@ export function WonDialog({ account, onClose, onDone }: Props) {
                 onChange={setRequestInvoice}
                 icon={<FileText size={16} />}
                 title="Request invoice from finance"
-                sub="Auto-creates a draft invoice and routes to finance@wuzzuf.net for issuance."
+                sub="Auto-creates a draft invoice and routes to finance for issuance."
               />
               <FollowupRow
                 checked={createCollectionTask}
@@ -107,9 +129,7 @@ export function WonDialog({ account, onClose, onDone }: Props) {
           <button
             onClick={onClose}
             className="h-10 px-5 rounded-lg border border-border bg-surface text-[13px] font-bold text-text-2 hover:bg-surface"
-          >
-            Cancel
-          </button>
+          >Cancel</button>
           <button
             onClick={submit}
             disabled={mark.isPending}

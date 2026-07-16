@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { XCircle, X } from 'lucide-react';
-import type { Account } from '@/hooks/useAccounts';
-import { DISQ_REASONS, useDisqualifyAccount, type DisqReason } from '@/hooks/useDisqualify';
+import type { Deal } from '@/hooks/useDeals';
+import { useMarkDealLost } from '@/hooks/useDealMutations';
+import { DISQ_REASONS, type DisqReason } from '@/hooks/useDisqualify';
 import { cn } from '@/lib/cn';
 
-type Props = { account: Account; onClose: () => void; onDone?: () => void };
+type Props = { deal: Deal; onClose: () => void; onDone?: () => void };
 
 const REASON_DOT: Record<DisqReason, string> = {
   not_icp:      'bg-info',
@@ -28,8 +29,8 @@ const REASON_LABEL_OVERRIDE: Partial<Record<DisqReason, string>> = {
   other:        'No decision',
 };
 
-export function LostDialog({ account, onClose, onDone }: Props) {
-  const disq = useDisqualifyAccount();
+export function LostDialog({ deal, onClose, onDone }: Props) {
+  const mark = useMarkDealLost();
   const [reason, setReason] = useState<DisqReason | ''>('');
   const [notes, setNotes] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -44,13 +45,15 @@ export function LostDialog({ account, onClose, onDone }: Props) {
     setErr(null);
     if (!reason) { setErr('Pick a reason'); return; }
     try {
-      await disq.mutateAsync({ id: account.id, reason, notes });
+      await mark.mutateAsync({ id: deal.id, reason, notes });
       onDone?.();
       onClose();
     } catch (e) {
       setErr(String((e as Error).message || e));
     }
   }
+
+  const name = deal.company?.name || deal.title || 'Untitled deal';
 
   return (
     <div
@@ -64,9 +67,7 @@ export function LostDialog({ account, onClose, onDone }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-black tracking-[0.18em] uppercase text-bad">Mark deal as LOST</div>
-            <div className="text-[22px] font-black tracking-tight text-text mt-0.5 truncate">
-              {account.name || account.domain || 'Untitled account'}
-            </div>
+            <div className="text-[22px] font-black tracking-tight text-text mt-0.5 truncate">{name}</div>
             <div className="text-[12.5px] text-text-2 mt-1">
               Capture why this deal didn&apos;t close — feeds the lost-reason report.
             </div>
@@ -129,15 +130,13 @@ export function LostDialog({ account, onClose, onDone }: Props) {
           <button
             onClick={onClose}
             className="h-10 px-5 rounded-lg border border-border bg-surface text-[13px] font-bold text-text-2 hover:bg-surface"
-          >
-            Cancel
-          </button>
+          >Cancel</button>
           <button
             onClick={submit}
-            disabled={disq.isPending || !reason}
+            disabled={mark.isPending || !reason}
             className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-bad text-white text-[13px] font-black hover:opacity-90 disabled:opacity-50"
           >
-            <X size={14} strokeWidth={3} /> {disq.isPending ? 'Marking…' : 'Mark as lost'}
+            <X size={14} strokeWidth={3} /> {mark.isPending ? 'Marking…' : 'Mark as lost'}
           </button>
         </footer>
       </div>

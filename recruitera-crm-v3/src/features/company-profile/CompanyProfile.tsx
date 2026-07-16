@@ -25,6 +25,7 @@ import { cn } from '@/lib/cn';
 import { PlansTab } from './PlansTab';
 import { TeamTab } from './TeamTab';
 import { DocumentsTab } from './DocumentsTab';
+import { DealsSection } from './DealsSection';
 
 type Tab = 'overview' | 'activity' | 'plans' | 'team' | 'documents';
 
@@ -260,6 +261,7 @@ export default function CompanyProfile() {
           <aside className="space-y-4">
             <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
             <CompanyDetailsPanel lead={lead} attr={attribution.data ?? null} isAdmin={isAdmin} />
+            <DealsSection accountId={lead.id} />
             <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
             <AttributionPanel
               tracking={marketing.data ?? null}
