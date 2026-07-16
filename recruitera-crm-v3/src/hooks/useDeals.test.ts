@@ -6,10 +6,15 @@ const base: Pick<Deal, 'stage' | 'last_activity_at' | 'expected_close_date'> = {
 };
 
 describe('OPEN_STAGES / CLOSED_STAGES', () => {
-  it('cover every stage exactly once and never overlap', () => {
+  it('never overlap', () => {
     const all = new Set([...OPEN_STAGES, ...CLOSED_STAGES]);
     expect(all.size).toBe(OPEN_STAGES.length + CLOSED_STAGES.length);
-    expect(all.size).toBe(8);
+  });
+  it('open covers MQL through PROPOSAL (NEGOTIATION intentionally excluded from board)', () => {
+    expect(OPEN_STAGES).toEqual(['mql', 'sql', 'demo', 'proposal']);
+  });
+  it('closed covers won / collected / lost', () => {
+    expect(CLOSED_STAGES).toEqual(['won', 'collected', 'lost']);
   });
 });
 

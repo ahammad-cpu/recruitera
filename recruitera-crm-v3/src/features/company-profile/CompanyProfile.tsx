@@ -354,18 +354,30 @@ function OwnerStat({
 }
 
 function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]; onChange: (s: string) => void }) {
+  const current = (lead.stage || 'lead').toLowerCase();
+  // A company in "lead" state doesn't have a deal yet — stage changes only
+  // make sense on real deals. Show the pill read-only + guide the user to
+  // create a deal via the Deals panel.
+  const isLead = current === 'lead';
   return (
     <div className="bg-surface-2/60 rounded-xl p-3.5">
       <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex items-center gap-2 flex-wrap">
         <StagePill stage={lead.stage} />
-        <select
-          value={(lead.stage || 'lead').toLowerCase()}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-7 pl-2 pr-6 border border-border rounded-md bg-surface text-[11px] font-bold outline-none"
-        >
-          {stages.map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
-        </select>
+        {isLead ? (
+          <span className="text-[11px] text-text-3 font-semibold">
+            No deal yet — create one to set a stage
+          </span>
+        ) : (
+          <select
+            value={current}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-7 pl-2 pr-6 border border-border rounded-md bg-surface text-[11px] font-bold outline-none"
+            aria-label="Change stage"
+          >
+            {stages.filter((s) => s !== 'lead').map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+          </select>
+        )}
       </div>
     </div>
   );

@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase';
 export type DealStage =
   | 'mql' | 'sql' | 'demo' | 'proposal' | 'negotiation' | 'won' | 'collected' | 'lost';
 
-export const OPEN_STAGES: DealStage[] = ['mql', 'sql', 'demo', 'proposal', 'negotiation'];
+// NEGOTIATION exists in the DB enum for historical rows but the funnel no
+// longer shows it — deals that land there are surfaced under PROPOSAL.
+export const OPEN_STAGES: DealStage[] = ['mql', 'sql', 'demo', 'proposal'];
 export const CLOSED_STAGES: DealStage[] = ['won', 'collected', 'lost'];
 
 export type Deal = {

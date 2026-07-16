@@ -22,14 +22,13 @@ import { PipelineFilterBar } from './PipelineFilterBar';
 type ColMeta = { key: DealStage; label: string; dot: string; bar: string };
 
 const COLUMNS: ColMeta[] = [
-  { key: 'mql',         label: 'MQL',         dot: 'bg-accent-strong', bar: 'border-accent-strong' },
-  { key: 'sql',         label: 'SQL',         dot: 'bg-[#392396]',     bar: 'border-[#392396]' },
-  { key: 'demo',        label: 'DEMO',        dot: 'bg-[#5B3AC7]',     bar: 'border-[#5B3AC7]' },
-  { key: 'proposal',    label: 'PROPOSAL',    dot: 'bg-[#B8761A]',     bar: 'border-[#B8761A]' },
-  { key: 'negotiation', label: 'NEGOTIATION', dot: 'bg-warn',          bar: 'border-warn' },
-  { key: 'won',         label: 'WON',         dot: 'bg-ok',            bar: 'border-ok' },
-  { key: 'collected',   label: 'COLLECTED',   dot: 'bg-accent',        bar: 'border-accent' },
-  { key: 'lost',        label: 'LOST',        dot: 'bg-bad',           bar: 'border-bad' },
+  { key: 'mql',       label: 'MQL',       dot: 'bg-accent-strong', bar: 'border-accent-strong' },
+  { key: 'sql',       label: 'SQL',       dot: 'bg-[#392396]',     bar: 'border-[#392396]' },
+  { key: 'demo',      label: 'DEMO',      dot: 'bg-[#5B3AC7]',     bar: 'border-[#5B3AC7]' },
+  { key: 'proposal',  label: 'PROPOSAL',  dot: 'bg-[#B8761A]',     bar: 'border-[#B8761A]' },
+  { key: 'won',       label: 'WON',       dot: 'bg-ok',            bar: 'border-ok' },
+  { key: 'collected', label: 'COLLECTED', dot: 'bg-accent',        bar: 'border-accent' },
+  { key: 'lost',      label: 'LOST',      dot: 'bg-bad',           bar: 'border-bad' },
 ];
 
 
@@ -114,12 +113,12 @@ export default function Pipeline() {
     return m;
   }, [deals]);
 
-  const openStages = new Set<DealStage>(['mql', 'sql', 'demo', 'proposal', 'negotiation']);
+  const openStages = new Set<DealStage>(['mql', 'sql', 'demo', 'proposal']);
   const openDeals = deals.filter((d) => openStages.has(d.stage));
   const openPipeline = openDeals.reduce((s, d) => s + (d.amount || 0), 0);
   const boardTotal = deals.reduce((s, d) => s + (d.amount || 0), 0);
   const wonQtd = deals.filter((d) => d.stage === 'won' || d.stage === 'collected').reduce((s, d) => s + (d.amount || 0), 0);
-  const proposalsLive = deals.filter((d) => d.stage === 'proposal' || d.stage === 'negotiation').length;
+  const proposalsLive = deals.filter((d) => d.stage === 'proposal').length;
   const dealsWithValue = openDeals.filter((d) => (d.amount || 0) > 0);
   const avgDeal = dealsWithValue.length ? openPipeline / dealsWithValue.length : 0;
   const totalLeads = openDeals.length;
@@ -227,14 +226,16 @@ function KpiCard({
   label: string; value: string; sub: string;
 }) {
   return (
-    <div className="relative bg-surface border border-border rounded-2xl p-5 pt-6 shadow-sh1 overflow-hidden">
-      <div className={cn('absolute top-0 left-0 right-0 h-1', barColor)} />
-      <div className="flex items-center gap-3 mb-3.5">
-        <div className={cn('w-10 h-10 rounded-xl grid place-items-center', iconBg, iconColor)}>{icon}</div>
-        <div className="text-[10px] font-black tracking-[0.14em] uppercase text-text-3">{label}</div>
+    <div className="relative bg-surface border border-border rounded-xl p-3.5 pt-4 shadow-sh1 overflow-hidden">
+      <div className={cn('absolute top-0 left-0 right-0 h-[3px]', barColor)} />
+      <div className="flex items-center gap-2.5">
+        <div className={cn('w-8 h-8 rounded-lg grid place-items-center flex-shrink-0', iconBg, iconColor)}>{icon}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[9.5px] font-black tracking-[0.14em] uppercase text-text-3">{label}</div>
+          <div className="tnum text-[18px] font-black tracking-tight text-text leading-none mt-0.5">{value}</div>
+        </div>
       </div>
-      <div className="tnum text-[28px] font-black tracking-tight text-text leading-none">{value}</div>
-      <div className="text-[11.5px] text-text-3 font-semibold mt-2">{sub}</div>
+      <div className="text-[10.5px] text-text-3 font-semibold mt-1.5">{sub}</div>
     </div>
   );
 }
