@@ -13,6 +13,7 @@ export type Task = {
   priority: string | null;
   assigned_to: string | null;
   created_at: string;
+  onboarding_plan_id: string | null;
 };
 
 export function useTasks() {
@@ -21,7 +22,7 @@ export function useTasks() {
     queryFn: async (): Promise<Task[]> => {
       const { data, error } = await supabase
         .from('activities')
-        .select('id,account_id,author_id,title,text,task_due_date,task_done,task_done_at,priority,assigned_to,created_at')
+        .select('id,account_id,author_id,title,text,task_due_date,task_done,task_done_at,priority,assigned_to,created_at,onboarding_plan_id')
         .eq('type', 'task')
         .order('task_due_date', { ascending: true, nullsFirst: false })
         .limit(500);

@@ -15,6 +15,7 @@ export type Account = {
   deal_value: number | null;
   deal_currency: string | null;
   owner_id: string | null;
+  customer_success_id: string | null;
   disq_stage: string | null;
   disqualified_reason: string | null;
   disqualified_notes: string | null;
@@ -25,6 +26,9 @@ export type Account = {
   board_position: number | null;
   created_at: string;
   bubble_created_at: string | null;
+  health_score: number | null;
+  health_status: 'healthy' | 'needs_attention' | 'at_risk' | 'critical' | null;
+  health_factors: { payment_contract: number; engagement: number; onboarding: number; reasons: string[] } | null;
 };
 
 export function useAccounts() {
@@ -38,7 +42,7 @@ export function useAccounts() {
       while (true) {
         const { data, error } = await supabase
           .from('accounts')
-          .select('id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,deal_value,deal_currency,owner_id,disq_stage,disqualified_reason,disqualified_notes,disqualified_at,cs_email,merged_into,funnel_score,board_position,created_at,bubble_created_at')
+          .select('id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,deal_value,deal_currency,owner_id,customer_success_id,disq_stage,disqualified_reason,disqualified_notes,disqualified_at,cs_email,merged_into,funnel_score,board_position,created_at,bubble_created_at,health_score,health_status,health_factors')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
