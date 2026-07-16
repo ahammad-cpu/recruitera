@@ -633,7 +633,7 @@ function QuickTasksPanel({
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1">
-      <div className="text-[10px] font-black tracking-[0.14em] uppercase text-info mb-1">Tasks</div>
+      <div className="text-[10px] font-black tracking-[0.14em] uppercase text-accent-ink mb-1">Tasks</div>
       <div className="text-[22px] font-black tracking-tight text-text mb-3">
         {openTasks.length} <span className="text-text-3 font-black">open</span>
       </div>
