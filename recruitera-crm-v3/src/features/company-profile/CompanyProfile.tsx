@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useContacts, useActivities } from '@/hooks/useAccountDetail';
-import { useLogActivity } from '@/hooks/useActivityMutations';
+import { useLogActivity, useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useUpsertContact } from '@/hooks/useContactMutations';
 import { useRenameAccount, useChangeStage } from '@/hooks/useAccountMutations';
@@ -186,7 +186,7 @@ export default function CompanyProfile() {
 
           <aside className="space-y-4">
             <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
-            <QuickTasksPanel accountId={lead.id} />
+            <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
             <AttributionPanel tracking={marketing.data ?? null} loading={marketing.isLoading} />
           </aside>
         </div>
@@ -607,27 +607,124 @@ function TeamRow({
   );
 }
 
-function QuickTasksPanel({ accountId }: { accountId: string }) {
+function QuickTasksPanel({
+  accountId, activities,
+}: {
+  accountId: string;
+  activities: import('@/hooks/useAccountDetail').Activity[];
+}) {
   const [text, setText] = useState('');
+  const [kind, setKind] = useState<'Quick' | 'Call' | 'Email' | 'Follow-up'>('Quick');
+  const [view, setView] = useState<'todo' | 'done'>('todo');
   const log = useLogActivity(accountId);
+  const toggle = useToggleTaskDone();
+
+  const tasks = activities.filter((a) => a.type === 'task');
+  const openTasks = tasks.filter((t) => !t.task_done);
+  const doneTasks = tasks.filter((t) => t.task_done);
+  const list = view === 'todo' ? openTasks : doneTasks;
+
+  function add() {
+    const t = text.trim();
+    if (!t) return;
+    const title = kind === 'Quick' ? t : `[${kind}] ${t}`;
+    log.mutate({ type: 'task', title }, { onSuccess: () => setText('') });
+  }
+
   return (
-    <Panel title="Tasks" hint="0 open">
-      <div className="flex items-center gap-2">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Quick task…"
-          className="flex-1 h-8 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] outline-none focus:border-accent-strong"
-        />
+    <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1">
+      <div className="text-[10px] font-black tracking-[0.14em] uppercase text-info mb-1">Tasks</div>
+      <div className="text-[22px] font-black tracking-tight text-text mb-3">
+        {openTasks.length} <span className="text-text-3 font-black">open</span>
+      </div>
+
+      {/* Tabs */}
+      <div className="inline-flex items-center bg-surface-2 border border-border rounded-full p-1 mb-3">
+        <TaskTab active={view === 'todo'} onClick={() => setView('todo')} label={`To do · ${openTasks.length}`} />
+        <TaskTab active={view === 'done'} onClick={() => setView('done')} label={`Done · ${doneTasks.length}`} />
+      </div>
+
+      {/* Composer */}
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+        placeholder="Quick task…"
+        className="w-full h-11 px-3.5 border border-border-2 rounded-xl bg-surface text-[13px] text-text placeholder:text-text-3 outline-none focus:border-accent-strong mb-2"
+      />
+      <div className="flex items-center gap-2 mb-3">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as typeof kind)}
+          className="flex-1 h-11 px-3.5 border border-border-2 rounded-xl bg-surface text-[13px] font-semibold text-text outline-none focus:border-accent-strong"
+        >
+          <option>Quick</option>
+          <option>Call</option>
+          <option>Email</option>
+          <option>Follow-up</option>
+        </select>
         <button
-          onClick={() => { const t = text.trim(); if (!t) return; log.mutate({ type: 'task', title: t }, { onSuccess: () => setText('') }); }}
-          className="h-8 px-3 rounded-lg bg-cg-900 text-white text-[12px] font-bold hover:bg-cg-800"
-        >Add</button>
+          onClick={add}
+          disabled={!text.trim() || log.isPending}
+          className="h-11 px-6 rounded-xl bg-accent text-cg-900 text-[13.5px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+        >
+          {log.isPending ? 'Adding…' : 'Add'}
+        </button>
       </div>
-      <div className="mt-3 border border-dashed border-border rounded-xl p-6 text-center text-[12px] text-text-3">
-        No open tasks
-      </div>
-    </Panel>
+
+      {/* List */}
+      {list.length === 0 ? (
+        <div className="mt-1 border border-dashed border-border rounded-xl p-5 text-center text-[12px] text-text-3">
+          {view === 'todo' ? 'No open tasks' : 'No completed tasks'}
+        </div>
+      ) : (
+        <div className="space-y-2 mt-1">
+          {list.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              onToggle={() => toggle.mutate({ id: t.id, done: !t.task_done })}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'h-8 px-4 rounded-full text-[12.5px] font-bold transition-colors',
+        active ? 'bg-surface text-text shadow-sh1' : 'text-text-3 hover:text-text-2',
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function TaskRow({
+  task, onToggle,
+}: {
+  task: import('@/hooks/useAccountDetail').Activity;
+  onToggle: () => void;
+}) {
+  const done = !!task.task_done;
+  return (
+    <label className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-surface-2/70 border border-border cursor-pointer hover:border-border-2 transition-colors">
+      <input
+        type="checkbox"
+        checked={done}
+        onChange={onToggle}
+        className="w-[18px] h-[18px] rounded border-2 border-border-2 accent-accent cursor-pointer flex-shrink-0"
+      />
+      <span className={cn('text-[13.5px] flex-1 min-w-0 truncate', done ? 'line-through text-text-3' : 'font-bold text-text')}>
+        {task.title || task.text || 'Untitled task'}
+      </span>
+    </label>
   );
 }
 
