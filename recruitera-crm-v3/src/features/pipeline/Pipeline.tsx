@@ -13,6 +13,8 @@ import { fmtInt } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { WonDialog } from './WonDialog';
 import { LostDialog } from './LostDialog';
+import { ProposalDialog } from './ProposalDialog';
+import { DEAL_TYPES } from '@/hooks/useDeals';
 import {
   defaultFilters, filtersFromParams, filtersToParams,
   type PipelineFilterState,
@@ -62,6 +64,7 @@ export default function Pipeline() {
   });
   const [pendingWon, setPendingWon] = useState<Deal | null>(null);
   const [pendingLost, setPendingLost] = useState<Deal | null>(null);
+  const [pendingProposal, setPendingProposal] = useState<Deal | null>(null);
 
   useEffect(() => {
     const p: Record<string, string> = { ...filtersToParams(filters) };
@@ -138,6 +141,9 @@ export default function Pipeline() {
 
     if (nextStage === 'won') { setPendingWon(deal); return; }
     if (nextStage === 'lost') { setPendingLost(deal); return; }
+    // Moving to Proposal must capture value + expected close so the number
+    // shows up on the card + on the company Deals section.
+    if (nextStage === 'proposal') { setPendingProposal(deal); return; }
 
     const targetRows = groups.get(nextStage) ?? [];
     const firstPos = targetRows[0]?.board_position ?? null;
@@ -221,6 +227,7 @@ export default function Pipeline() {
 
       {pendingWon && <WonDialog deal={pendingWon} onClose={() => setPendingWon(null)} />}
       {pendingLost && <LostDialog deal={pendingLost} onClose={() => setPendingLost(null)} />}
+      {pendingProposal && <ProposalDialog deal={pendingProposal} onClose={() => setPendingProposal(null)} />}
     </div>
   );
 }
@@ -400,8 +407,22 @@ function Card({
         <TempPill kind={temp} />
       </div>
 
-      {(stale || overdue) && (
-        <div className="mt-2 flex items-center gap-1.5">
+      {/* Deal type + ACV (only when set) — helps reps eyeball the funnel */}
+      {(d.deal_type || (d.amount ?? 0) > 0 || stale || overdue) && (
+        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+          {d.deal_type && (
+            <span
+              className="inline-flex items-center h-[20px] px-2 rounded-full bg-surface-2 border border-border text-text-2 text-[10.5px] font-bold"
+              title="Deal type"
+            >
+              {DEAL_TYPES.find((t) => t.key === d.deal_type)?.label ?? d.deal_type}
+            </span>
+          )}
+          {(d.amount ?? 0) > 0 && (
+            <span className="tnum inline-flex items-center h-[20px] px-2 rounded-full bg-accent-soft text-accent-ink text-[10.5px] font-black">
+              {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(d.amount!)} {d.currency || 'EGP'}
+            </span>
+          )}
           {overdue && (
             <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-bad-bg text-bad text-[10.5px] font-black tracking-wider">
               <AlertTriangle size={10} /> Overdue
@@ -414,9 +435,6 @@ function Card({
           )}
         </div>
       )}
-
-      {/* ACV row intentionally removed — reps don't need it visible per card;
-          Won dialog + column totals surface the numbers when they matter. */}
 
       <div className="mt-3 pt-2.5 border-t border-border/70 flex items-center gap-2 min-w-0">
         <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
