@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home, Building2, TrendingUp, RefreshCw, Bell, CheckSquare,
   BarChart3, FileText, ScrollText, Users, Link as LinkIcon,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { RecruiteraLogo } from './RecruiteraLogo';
@@ -14,8 +16,17 @@ import { fmtInt, initials } from '@/lib/format';
 
 type NavItem = { to: string; icon: React.ComponentType<{ size?: number }>; label: string; badge?: string | number; badgeAccent?: 'bad' };
 
+const COLLAPSE_KEY = 'crm-v3:sidebar-collapsed';
+
 export function Sidebar() {
-  const collapsed = false;
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }
   const { session } = useSession();
   const me = useMe();
   const accounts = useAccounts();
@@ -58,10 +69,18 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'sc bg-surface border-r border-border flex flex-col gap-1 overflow-y-auto overflow-x-hidden transition-[width,padding] duration-200',
+        'sc relative bg-surface border-r border-border flex flex-col gap-1 overflow-y-auto overflow-x-hidden transition-[width,padding] duration-200',
         collapsed ? 'w-[60px] px-1.5 py-[18px]' : 'w-[220px] px-[14px] py-[18px]',
       )}
     >
+      <button
+        onClick={toggleCollapsed}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className="absolute top-4 -right-3 z-10 w-6 h-6 rounded-full bg-surface border border-border shadow-sh1 grid place-items-center text-text-3 hover:text-text hover:border-border-2"
+      >
+        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+      </button>
+
       <div className="flex items-center justify-center gap-2 px-2 pb-4 mb-3 border-b border-border">
         <RecruiteraLogo size={36} />
       </div>

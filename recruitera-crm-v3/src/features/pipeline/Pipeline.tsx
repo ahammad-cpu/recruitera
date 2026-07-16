@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
-  type DragEndEvent,
+  DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Briefcase, Trophy, FileText, Gauge, Download, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -65,6 +65,7 @@ export default function Pipeline() {
   const [pendingWon, setPendingWon] = useState<Deal | null>(null);
   const [pendingLost, setPendingLost] = useState<Deal | null>(null);
   const [pendingProposal, setPendingProposal] = useState<Deal | null>(null);
+  const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
 
   useEffect(() => {
     const p: Record<string, string> = { ...filtersToParams(filters) };
@@ -132,7 +133,12 @@ export default function Pipeline() {
   const avgDeal = dealsWithValue.length ? openPipeline / dealsWithValue.length : 0;
   const totalLeads = openDeals.length;
 
+  function handleDragStart(e: DragStartEvent) {
+    setActiveDeal(allDeals.find((d) => d.id === String(e.active.id)) ?? null);
+  }
+
   function handleDragEnd(e: DragEndEvent) {
+    setActiveDeal(null);
     const id = String(e.active.id);
     const nextStage = e.over?.id ? String(e.over.id) as DealStage : null;
     if (!nextStage) return;
@@ -207,7 +213,7 @@ export default function Pipeline() {
 
       <PipelineFilterBar value={filters} onChange={setFilters} profiles={profilesQ.data ?? []} />
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="overflow-x-auto sc pb-4 -mx-6 px-6">
           <div className="flex gap-4" style={{ minWidth: `${COLUMNS.length * 300}px` }}>
             {COLUMNS.map((col) => (
@@ -223,6 +229,19 @@ export default function Pipeline() {
             ))}
           </div>
         </div>
+        <DragOverlay dropAnimation={null}>
+          {activeDeal && (
+            <div className="w-[292px] rotate-2 shadow-sh3">
+              <Card
+                d={activeDeal}
+                owner={activeDeal.owner_id ? profilesById.get(activeDeal.owner_id) : undefined}
+                isLost={false}
+                onReopen={() => {}}
+                isOverlay
+              />
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       {pendingWon && <WonDialog deal={pendingWon} onClose={() => setPendingWon(null)} />}
@@ -365,115 +384,101 @@ function ColumnBody({
 }
 
 function Card({
-  d, owner, isLost, onReopen,
+  d, owner, isLost, onReopen, isOverlay,
 }: {
   d: Deal;
   owner: import('@/hooks/useUsersData').Profile | undefined;
   isLost: boolean;
   onReopen: (id: string) => void;
+  isOverlay?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: d.id });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
-    : undefined;
-  const temp = temperature(d);
+  // The DragOverlay clone is a plain visual copy — it must not itself be
+  // draggable/droppable, only the source card in the column is.
+  const drag = useDraggable({ id: d.id, disabled: isOverlay });
+  const { attributes, listeners, setNodeRef, isDragging } = drag;
   const stale = isStale(d);
   const overdue = isOverdue(d);
   const name = d.company?.name || d.title || '—';
 
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={style}
+      ref={isOverlay ? undefined : setNodeRef}
+      {...(isOverlay ? {} : attributes)}
+      {...(isOverlay ? {} : listeners)}
       className={cn(
-        'bg-surface border border-border rounded-xl p-3.5 transition-shadow cursor-grab active:cursor-grabbing',
+        'relative bg-surface border border-border rounded-xl p-3.5 transition-shadow cursor-grab active:cursor-grabbing',
         'hover:shadow-sh2 hover:border-border-2',
-        isDragging && 'shadow-sh3 opacity-90',
+        isOverlay && 'shadow-sh3 scale-[1.03]',
       )}
     >
-      <div className="flex items-start gap-2">
-        <Link
-          to={`/companies/${d.account_id}`}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="min-w-0 flex-1 block"
-        >
-          <div className="text-[15px] font-black text-text truncate leading-tight">{name}</div>
-          {d.company?.industry && (
-            <div className="text-[11.5px] text-text-3 truncate mt-0.5">{d.company.industry}</div>
-          )}
-        </Link>
-        <TempPill kind={temp} />
-      </div>
+      {/* While dragging, the source card becomes an empty dashed "ghost"
+          slot (content hidden but space preserved) — the DragOverlay clone
+          is what actually follows the pointer. This avoids the old bug
+          where a CSS-translated card floated free of its column and
+          overlapped unrelated UI (KPI cards, other columns). */}
+      {isDragging && !isOverlay && (
+        <div className="absolute inset-0 rounded-xl border-2 border-dashed border-border-2 bg-surface-2/40" />
+      )}
+      <div className={cn(isDragging && !isOverlay && 'invisible')}>
+        <div className="flex items-start gap-2">
+          <Link
+            to={`/companies/${d.account_id}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="min-w-0 flex-1 block"
+          >
+            <div className="text-[15px] font-black text-text truncate leading-tight">{name}</div>
+            {d.company?.industry && (
+              <div className="text-[11.5px] text-text-3 truncate mt-0.5">{d.company.industry}</div>
+            )}
+          </Link>
+        </div>
 
-      {/* Deal type + ACV (only when set) — helps reps eyeball the funnel */}
-      {(d.deal_type || (d.amount ?? 0) > 0 || stale || overdue) && (
-        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-          {d.deal_type && (
-            <span
-              className="inline-flex items-center h-[20px] px-2 rounded-full bg-surface-2 border border-border text-text-2 text-[10.5px] font-bold"
-              title="Deal type"
+        {/* Deal type + ACV (only when set) — helps reps eyeball the funnel */}
+        {(d.deal_type || (d.amount ?? 0) > 0 || stale || overdue) && (
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            {d.deal_type && (
+              <span
+                className="inline-flex items-center h-[20px] px-2 rounded-full bg-surface-2 border border-border text-text-2 text-[10.5px] font-bold"
+                title="Deal type"
+              >
+                {DEAL_TYPES.find((t) => t.key === d.deal_type)?.label ?? d.deal_type}
+              </span>
+            )}
+            {(d.amount ?? 0) > 0 && (
+              <span className="tnum inline-flex items-center h-[20px] px-2 rounded-full bg-accent-soft text-accent-ink text-[10.5px] font-black">
+                {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(d.amount!)} {d.currency || 'EGP'}
+              </span>
+            )}
+            {overdue && (
+              <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-bad-bg text-bad text-[10.5px] font-black tracking-wider">
+                <AlertTriangle size={10} /> Overdue
+              </span>
+            )}
+            {stale && (
+              <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
+                <Clock size={10} /> Stale
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 pt-2.5 border-t border-border/70 flex items-center gap-2 min-w-0">
+          <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
+          <span className="text-[11.5px] font-bold text-text-2 truncate flex-1">
+            {owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'}
+          </span>
+          {isLost && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReopen(d.id); }}
+              title="Reopen deal — sends it back to MQL"
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-border bg-surface text-text-3 hover:text-accent-ink hover:border-accent-strong text-[10.5px] font-black"
             >
-              {DEAL_TYPES.find((t) => t.key === d.deal_type)?.label ?? d.deal_type}
-            </span>
-          )}
-          {(d.amount ?? 0) > 0 && (
-            <span className="tnum inline-flex items-center h-[20px] px-2 rounded-full bg-accent-soft text-accent-ink text-[10.5px] font-black">
-              {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(d.amount!)} {d.currency || 'EGP'}
-            </span>
-          )}
-          {overdue && (
-            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-bad-bg text-bad text-[10.5px] font-black tracking-wider">
-              <AlertTriangle size={10} /> Overdue
-            </span>
-          )}
-          {stale && (
-            <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
-              <Clock size={10} /> Stale
-            </span>
+              <RotateCcw size={11} /> Reopen
+            </button>
           )}
         </div>
-      )}
-
-      <div className="mt-3 pt-2.5 border-t border-border/70 flex items-center gap-2 min-w-0">
-        <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
-        <span className="text-[11.5px] font-bold text-text-2 truncate flex-1">
-          {owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'}
-        </span>
-        {isLost && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onReopen(d.id); }}
-            title="Reopen deal — sends it back to MQL"
-            className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-border bg-surface text-text-3 hover:text-accent-ink hover:border-accent-strong text-[10.5px] font-black"
-          >
-            <RotateCcw size={11} /> Reopen
-          </button>
-        )}
       </div>
     </div>
-  );
-}
-
-function TempPill({ kind }: { kind: 'hot' | 'warm' | 'cold' }) {
-  if (kind === 'hot') {
-    return (
-      <span className="inline-flex items-center gap-1 h-[22px] pl-1.5 pr-2 rounded-full bg-bad-bg text-bad text-[10.5px] font-black tracking-wider">
-        <Flame size={11} /> Hot
-      </span>
-    );
-  }
-  if (kind === 'warm') {
-    return (
-      <span className="inline-flex items-center gap-1 h-[22px] pl-1.5 pr-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
-        <CheckCircle2 size={11} /> Warm
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 h-[22px] px-2 rounded-full bg-surface-2 border border-border text-text-3 text-[10.5px] font-black tracking-wider">
-      Cold
-    </span>
   );
 }
 

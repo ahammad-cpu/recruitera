@@ -17,9 +17,9 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
   const qc = useQueryClient();
   const [amount, setAmount] = useState<string>(String(deal.amount ?? ''));
   const [close, setClose] = useState<string>(deal.expected_close_date ?? '');
+  const [currency, setCurrency] = useState<string>(deal.currency || 'EGP');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const currency = deal.currency || 'EGP';
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -82,9 +82,14 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
           <label className="block">
             <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Deal value ({currency}) <span className="text-bad">*</span></span>
             <div className="mt-1.5 flex items-stretch border-2 border-border-2 rounded-lg overflow-hidden focus-within:border-warn bg-surface">
-              <span className="px-3 flex items-center bg-surface-2 border-r-2 border-border-2 text-[12px] font-black text-text-2">
-                {currency}
-              </span>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="px-2.5 flex items-center bg-surface-2 border-r-2 border-border-2 text-[12px] font-black text-text-2 outline-none appearance-none cursor-pointer"
+              >
+                <option value="EGP">EGP</option>
+                <option value="USD">USD</option>
+              </select>
               <input
                 autoFocus
                 type="number"

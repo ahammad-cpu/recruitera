@@ -21,7 +21,7 @@ import { fmtInt, fmtDate, initials } from '@/lib/format';
 import { isJunkAccount, buildDupeMap, type DupeEntry } from '@/lib/dedupe';
 import { cn } from '@/lib/cn';
 
-type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won';
+type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'disqualified';
 const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }> = [
   { key: 'all', label: 'All', test: () => true },
   { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' },
@@ -31,6 +31,8 @@ const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }>
   { key: 'expired', label: 'Expired', test: (a) => !!a.has_trial && a.activation_status === 'Expired' },
   { key: 'churned', label: 'Churned', test: (a) => (a.stage || '').toLowerCase() === 'paid' && a.activation_status === 'Expired' },
   { key: 'won', label: 'Won', test: (a) => (a.stage || '').toLowerCase() === 'won' },
+  // Disqualified is only ever set at Lead stage — never a funnel outcome.
+  { key: 'disqualified', label: 'Disqualified', test: (a) => !!a.disqualified_reason },
 ];
 
 type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';

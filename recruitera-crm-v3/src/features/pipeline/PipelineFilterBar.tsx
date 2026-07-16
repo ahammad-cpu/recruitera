@@ -68,21 +68,6 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
           />
         </div>
 
-        <div className="flex-1 min-w-[160px] max-w-[200px]">
-          <Field label="Temperature">
-            <select
-              value={draft.temps[0] ?? ''}
-              onChange={(e) => setDraft((d) => ({ ...d, temps: e.target.value ? [e.target.value] : [] }))}
-              className="w-full h-10 pl-3 pr-8 bg-surface border border-border-2 rounded-lg text-[13px] font-semibold text-text outline-none focus:border-accent-strong appearance-none"
-            >
-              <option value="">All temperatures</option>
-              <option value="hot">Hot</option>
-              <option value="warm">Warm</option>
-              <option value="cold">Cold</option>
-            </select>
-          </Field>
-        </div>
-
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={reset}
@@ -104,18 +89,6 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
             Apply Filters
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-[10px] font-black uppercase tracking-widest text-text-3 mb-1.5">{label}</div>
-      <div className="relative">
-        {children}
-        <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-3" />
       </div>
     </div>
   );
