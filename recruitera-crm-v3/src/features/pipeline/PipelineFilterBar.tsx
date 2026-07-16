@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Filter, X, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Filter, X, ChevronDown, Check, Search } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { Profile } from '@/hooks/useUsersData';
 import type { PipelineFilterState } from './PipelineFilters';
@@ -51,7 +51,7 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-[240px] max-w-[340px]">
           <DateRange
-            label="Closed between"
+            label="Created"
             from={draft.closeFrom}
             to={draft.closeTo}
             onFrom={(v) => setDraft((d) => ({ ...d, closeFrom: v }))}
@@ -59,19 +59,13 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
           />
         </div>
 
-        <div className="flex-1 min-w-[180px] max-w-[240px]">
-          <Field label="Sales Owner">
-            <select
-              value={draft.owners[0] ?? ''}
-              onChange={(e) => setDraft((d) => ({ ...d, owners: e.target.value ? [e.target.value] : [] }))}
-              className="w-full h-10 pl-3 pr-8 bg-surface border border-border-2 rounded-lg text-[13px] font-semibold text-text outline-none focus:border-accent-strong appearance-none"
-            >
-              <option value="">All owners</option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-              ))}
-            </select>
-          </Field>
+        <div className="flex-1 min-w-[200px] max-w-[280px]">
+          <div className="text-[10px] font-black uppercase tracking-widest text-text-3 mb-1.5">Sales Owner</div>
+          <OwnerMulti
+            profiles={profiles}
+            selected={draft.owners}
+            onChange={(next) => setDraft((d) => ({ ...d, owners: next }))}
+          />
         </div>
 
         <div className="flex-1 min-w-[160px] max-w-[200px]">
@@ -171,6 +165,133 @@ function DateRange({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function OwnerMulti({
+  profiles, selected, onChange,
+}: {
+  profiles: Profile[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const root = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const matches = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    const safe = (profiles ?? []).filter((p): p is Profile => !!p && !!p.id);
+    if (!n) return safe;
+    return safe.filter((p) => (p.full_name || '').toLowerCase().includes(n) || (p.email || '').toLowerCase().includes(n));
+  }, [profiles, q]);
+
+  function toggle(id: string) {
+    onChange(selectedSet.has(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  }
+  function clear() { onChange([]); }
+  function selectAll() { onChange(matches.map((p) => p.id)); }
+
+  const labelById = useMemo(() => {
+    const m = new Map<string, string>();
+    (profiles ?? []).forEach((p) => { if (p?.id) m.set(p.id, p.full_name || p.email || '—'); });
+    return m;
+  }, [profiles]);
+
+  const summary =
+    selected.length === 0 ? 'All owners'
+    : selected.length === 1 ? (labelById.get(selected[0]) || '1 owner')
+    : `${selected.length} owners`;
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'w-full h-10 pl-3 pr-8 bg-surface border rounded-lg text-[13px] font-semibold text-left flex items-center transition-colors',
+          selected.length > 0 ? 'border-accent-strong text-text' : 'border-border-2 text-text-2 hover:border-border-2',
+        )}
+      >
+        <span className="truncate flex-1">{summary}</span>
+        <ChevronDown size={13} className="text-text-3 flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-surface border border-border rounded-xl shadow-sh3 overflow-hidden">
+          <div className="p-2 border-b border-border">
+            <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-md px-2 h-8">
+              <Search size={13} className="text-text-3" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search owner…"
+                className="flex-1 bg-transparent border-0 outline-none text-[12.5px] text-text"
+              />
+              {q && (
+                <button onClick={() => setQ('')} className="text-text-3 hover:text-text"><X size={12} /></button>
+              )}
+            </div>
+          </div>
+          <div className="max-h-[240px] overflow-y-auto sc py-1">
+            {matches.length === 0 && (
+              <div className="px-3 py-6 text-center text-[12px] text-text-3">No users match</div>
+            )}
+            {matches.map((p) => {
+              const on = selectedSet.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-surface-2"
+                >
+                  <span className={cn(
+                    'w-4 h-4 rounded border-2 grid place-items-center flex-shrink-0',
+                    on ? 'bg-accent-strong border-accent-strong text-cg-900' : 'border-border-2',
+                  )}>
+                    {on && <Check size={12} strokeWidth={3.5} />}
+                  </span>
+                  <span className="truncate flex-1">{p.full_name || p.email}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-surface-2/50">
+            <button
+              onClick={selectAll}
+              disabled={matches.length === 0}
+              className="text-[11.5px] font-bold text-text-3 hover:text-accent-ink disabled:opacity-40"
+            >
+              Select all
+            </button>
+            <button
+              onClick={clear}
+              disabled={selected.length === 0}
+              className="text-[11.5px] font-bold text-text-3 hover:text-bad disabled:opacity-40"
+            >
+              Clear
+            </button>
+            <div className="ml-auto text-[11px] text-text-3 tnum">{selected.length} selected</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

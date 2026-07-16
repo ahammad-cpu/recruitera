@@ -93,17 +93,11 @@ export default function Pipeline() {
       if (min != null && v < min) return false;
       if (max != null && v > max) return false;
       if (from != null || to != null) {
-        // Date range only limits CLOSED deals — open deals always show so
-        // the funnel always reflects current state. Reps ask "what's the
-        // pipeline now" + "what closed recently" as two questions; the date
-        // filter answers the second one without hiding the first.
-        const isClosedDeal = d.stage === 'won' || d.stage === 'collected' || d.stage === 'lost';
-        if (isClosedDeal) {
-          const closeIso = d.closed_at || d.created_at;
-          const t = new Date(closeIso).getTime();
-          if (from != null && t < from) return false;
-          if (to != null && t > to) return false;
-        }
+        // Created between — the moment the deal was opened. Every deal has
+        // this so there's no missing-data landmine.
+        const t = new Date(d.created_at).getTime();
+        if (from != null && t < from) return false;
+        if (to != null && t > to) return false;
       }
       return true;
     });
