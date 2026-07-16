@@ -59,6 +59,24 @@ export function useSaveCycle(accountId: string | undefined) {
   });
 }
 
+/** Used by the Renewal board's drag-and-drop: Renewed/Churned are the only
+ * two columns backed by a real, settable status — the day-count buckets
+ * (90/60/30/Overdue) are always derived from ends_at, never draggable-into. */
+export function useUpdateCycleStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: 'renewed' | 'churned' }) => {
+      const { error } = await supabase.from('contract_cycles').update({ status }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_r, { status }) => {
+      toast.success(status === 'renewed' ? 'Marked as renewed' : 'Marked as churned');
+      qc.invalidateQueries({ queryKey: ['contract_cycles'] });
+    },
+    onError: (e) => toast.error(`Update failed: ${String((e as Error).message || e)}`),
+  });
+}
+
 export function useDeleteCycle(accountId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
