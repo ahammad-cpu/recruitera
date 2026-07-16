@@ -1,9 +1,43 @@
+import { useRef, useState } from 'react';
 import { ScrollText, Plus, Download, Trash2 } from 'lucide-react';
-import { useAccountDocuments } from '@/hooks/useAccountDocuments';
+import {
+  useAccountDocuments, useUploadDocument, useDownloadDocument, useDeleteDocument,
+  type AccountDocument,
+} from '@/hooks/useAccountDocuments';
+import { useMe } from '@/hooks/useMe';
 
 export function DocumentsTab({ accountId }: { accountId: string }) {
   const { data, isLoading } = useAccountDocuments(accountId);
+  const me = useMe();
+  const upload = useUploadDocument(accountId);
+  const download = useDownloadDocument();
+  const del = useDeleteDocument(accountId);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
   const files = data ?? [];
+  const isAdmin = me.data?.role === 'admin';
+
+  function pick() { fileRef.current?.click(); }
+
+  function handleFile(f: File | null | undefined) {
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { alert('Max file size is 25 MB.'); return; }
+    upload.mutate(f);
+  }
+
+  function canDelete(f: AccountDocument) {
+    return isAdmin || (me.data?.id && f.uploader_id === me.data.id);
+  }
+
+  const hiddenInput = (
+    <input
+      ref={fileRef}
+      type="file"
+      className="hidden"
+      onChange={(e) => { handleFile(e.target.files?.[0]); if (fileRef.current) fileRef.current.value = ''; }}
+    />
+  );
 
   if (isLoading) {
     return (
@@ -15,18 +49,33 @@ export function DocumentsTab({ accountId }: { accountId: string }) {
 
   if (files.length === 0) {
     return (
-      <div className="bg-surface border border-border rounded-2xl px-8 py-14 shadow-sh1 text-center">
-        <div className="w-12 h-12 rounded-xl bg-surface-2 border border-border inline-grid place-items-center text-text-3 mb-3.5">
-          <ScrollText size={20} />
+      <>
+        <div
+          onClick={pick}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); }}
+          className={`bg-surface border-2 border-dashed rounded-2xl px-8 py-14 shadow-sh1 text-center cursor-pointer transition-colors ${
+            dragOver ? 'border-accent bg-accent-soft/40' : 'border-border hover:border-border-2'
+          }`}
+        >
+          <div className="w-12 h-12 rounded-xl bg-surface-2 border border-border inline-grid place-items-center text-text-3 mb-3.5">
+            <ScrollText size={20} />
+          </div>
+          <div className="text-[16px] font-extrabold tracking-tight mb-1.5">No documents yet</div>
+          <div className="text-[13px] text-text-3 font-medium max-w-md mx-auto mb-4">
+            Contracts, proposals, and supporting files uploaded here stay attached to this account. Drop a file or click below.
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); pick(); }}
+            disabled={upload.isPending}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-accent text-cg-900 text-[13px] font-bold border border-accent-strong hover:bg-accent-strong disabled:opacity-60"
+          >
+            <Plus size={13} /> {upload.isPending ? 'Uploading…' : 'Upload first document'}
+          </button>
         </div>
-        <div className="text-[16px] font-extrabold tracking-tight mb-1.5">No documents yet</div>
-        <div className="text-[13px] text-text-3 font-medium max-w-md mx-auto mb-4">
-          Contracts, proposals, and supporting files uploaded here stay attached to this account.
-        </div>
-        <button className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-accent text-cg-900 text-[13px] font-bold border border-accent-strong hover:bg-accent-strong">
-          <Plus size={13} /> Upload first document
-        </button>
-      </div>
+        {hiddenInput}
+      </>
     );
   }
 
@@ -36,8 +85,12 @@ export function DocumentsTab({ accountId }: { accountId: string }) {
         <div className="text-[10px] font-black uppercase tracking-widest text-text-3">
           Documents · {files.length}
         </div>
-        <button className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-accent text-cg-900 text-[12px] font-bold border border-accent-strong hover:bg-accent-strong">
-          <Plus size={12} /> Upload
+        <button
+          onClick={pick}
+          disabled={upload.isPending}
+          className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-accent text-cg-900 text-[12px] font-bold border border-accent-strong hover:bg-accent-strong disabled:opacity-60"
+        >
+          <Plus size={12} /> {upload.isPending ? 'Uploading…' : 'Upload'}
         </button>
       </div>
 
@@ -55,15 +108,28 @@ export function DocumentsTab({ accountId }: { accountId: string }) {
               <div className="text-[11px] text-text-3 font-semibold mt-0.5">{fmtDate(f.created_at)}</div>
             </div>
             <span className="tnum text-[11.5px] text-text-3 font-bold whitespace-nowrap">{fmtBytes(f.size_bytes)}</span>
-            <button className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-border bg-surface text-text-2 text-[11.5px] font-bold hover:bg-surface-2">
+            <button
+              onClick={() => download.mutate(f)}
+              disabled={download.isPending}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-border bg-surface text-text-2 text-[11.5px] font-bold hover:bg-surface-2 disabled:opacity-60"
+            >
               <Download size={11} /> Download
             </button>
-            <button title="Archive" className="w-7 h-7 rounded-md text-text-3 hover:bg-bad-bg hover:text-bad flex items-center justify-center">
-              <Trash2 size={13} />
-            </button>
+            {canDelete(f) ? (
+              <button
+                onClick={() => { if (confirm(`Remove "${f.file_name}"?`)) del.mutate(f); }}
+                title="Remove"
+                className="w-7 h-7 rounded-md text-text-3 hover:bg-bad-bg hover:text-bad flex items-center justify-center"
+              >
+                <Trash2 size={13} />
+              </button>
+            ) : (
+              <div />
+            )}
           </div>
         ))}
       </div>
+      {hiddenInput}
     </div>
   );
 }

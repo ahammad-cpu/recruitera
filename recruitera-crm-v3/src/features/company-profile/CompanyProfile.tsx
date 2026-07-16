@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useContacts, useActivities } from '@/hooks/useAccountDetail';
-import { useLogActivity, useToggleTaskDone } from '@/hooks/useActivityMutations';
+import { useLogActivity, useToggleTaskDone, useUpdateActivity, useDeleteActivity } from '@/hooks/useActivityMutations';
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
@@ -574,7 +574,13 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
       {filtered.length > 0 && (
         <div className="mt-4 space-y-3">
           {filtered.slice(0, 30).map((a) => (
-            <NoteItem key={a.id} activity={a} author={a.author_id ? profileById.get(a.author_id) : undefined} profiles={profileList} />
+            <NoteItem
+              key={a.id}
+              accountId={accountId}
+              activity={a}
+              author={a.author_id ? profileById.get(a.author_id) : undefined}
+              profiles={profileList}
+            />
           ))}
         </div>
       )}
@@ -583,16 +589,35 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
 }
 
 function NoteItem({
-  activity, author, profiles,
+  accountId, activity, author, profiles,
 }: {
+  accountId: string;
   activity: import('@/hooks/useAccountDetail').Activity;
   author: import('@/hooks/useUsersData').Profile | undefined;
   profiles: import('@/hooks/useUsersData').Profile[];
 }) {
+  const me = useMe();
+  const isMine = me.data?.id && activity.author_id === me.data.id;
+  const canEdit = !!isMine;
+  const canDelete = !!isMine || me.data?.role === 'admin';
+
+  const update = useUpdateActivity(accountId);
+  const del = useDeleteActivity(accountId);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(activity.text || '');
+
   const name = author?.full_name || author?.email || 'Someone';
   const chip = channelChip(activity.type);
+
+  function save() {
+    const next = draft.trim();
+    if (!next) return;
+    if (next === (activity.text || '').trim()) { setEditing(false); return; }
+    update.mutate({ id: activity.id, text: next }, { onSuccess: () => setEditing(false) });
+  }
+
   return (
-    <div className="border border-border rounded-xl p-4 flex gap-3">
+    <div className="border border-border rounded-xl p-4 flex gap-3 group">
       <OwnerAvatar profile={author} size={40} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -601,10 +626,51 @@ function NoteItem({
             {chip.label}
           </span>
           <span className="text-[12px] text-text-3">{fmtRelative(activity.created_at)}</span>
+          {(canEdit || canDelete) && !editing && (
+            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {canEdit && (
+                <button
+                  onClick={() => { setDraft(activity.text || ''); setEditing(true); }}
+                  className="text-[11px] font-bold text-text-3 hover:text-accent-ink px-1.5 py-0.5 rounded"
+                >Edit</button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => { if (confirm('Delete this note?')) del.mutate(activity.id); }}
+                  className="text-[11px] font-bold text-text-3 hover:text-bad px-1.5 py-0.5 rounded"
+                >Delete</button>
+              )}
+            </div>
+          )}
         </div>
-        {activity.text && (
+        {!editing && activity.text && (
           <div className="mt-1.5 text-[13.5px] text-text-2 whitespace-pre-wrap leading-relaxed">
             {renderWithMentions(activity.text, profiles)}
+          </div>
+        )}
+        {editing && (
+          <div className="mt-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') save();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              rows={3}
+              className="w-full bg-surface border border-border rounded-lg p-2.5 text-[13px] text-text outline-none focus:border-accent-strong resize-vertical"
+            />
+            <div className="flex items-center justify-end gap-2 mt-2">
+              <button
+                onClick={() => setEditing(false)}
+                className="h-8 px-3 rounded-lg border border-border text-text-2 text-[12px] font-bold"
+              >Cancel</button>
+              <button
+                onClick={save}
+                disabled={!draft.trim() || update.isPending}
+                className="h-8 px-3.5 rounded-lg bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+              >{update.isPending ? 'Saving…' : 'Save'}</button>
+            </div>
           </div>
         )}
       </div>

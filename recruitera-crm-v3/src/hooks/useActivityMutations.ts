@@ -36,6 +36,43 @@ export function useLogActivity(accountId: string | undefined) {
   });
 }
 
+export function useUpdateActivity(accountId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, text, title }: { id: string; text?: string | null; title?: string | null }) => {
+      const patch: Record<string, unknown> = { edited_at: new Date().toISOString() };
+      if (text !== undefined) patch.text = text;
+      if (title !== undefined) patch.title = title;
+      const { error } = await supabase.from('activities').update(patch).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activities', accountId] });
+      qc.invalidateQueries({ queryKey: ['activities', 'recent'] });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
+    onError: (e) => toast.error(`Save failed: ${String((e as Error).message || e)}`),
+  });
+}
+
+export function useDeleteActivity(accountId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Hard delete — RLS restricts to author or admin server-side.
+      const { error } = await supabase.from('activities').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Deleted');
+      qc.invalidateQueries({ queryKey: ['activities', accountId] });
+      qc.invalidateQueries({ queryKey: ['activities', 'recent'] });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
+    onError: (e) => toast.error(`Delete failed: ${String((e as Error).message || e)}`),
+  });
+}
+
 export function useToggleTaskDone() {
   const qc = useQueryClient();
   return useMutation({
