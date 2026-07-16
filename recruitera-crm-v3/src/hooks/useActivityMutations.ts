@@ -6,10 +6,11 @@ export function useLogActivity(accountId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      type, text, title, task_due_date, assigned_to, parent_id,
+      type, text, title, task_due_date, assigned_to, parent_id, mentions,
     }: {
       type: string; text?: string; title?: string;
       task_due_date?: string | null; assigned_to?: string | null; parent_id?: string | null;
+      mentions?: string[];
     }) => {
       if (!accountId) throw new Error('No account');
       const { data: session } = await supabase.auth.getSession();
@@ -23,6 +24,7 @@ export function useLogActivity(accountId: string | undefined) {
         task_due_date: task_due_date || null,
         assigned_to: assigned_to || null,
         parent_id: parent_id || null,
+        mentions: mentions && mentions.length ? mentions : null,
       });
       if (error) throw error;
     },

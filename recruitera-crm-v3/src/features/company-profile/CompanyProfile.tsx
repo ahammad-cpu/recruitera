@@ -529,7 +529,19 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
   function submit() {
     const t = text.trim();
     if (!t) return;
-    log.mutate({ type, text: t }, { onSuccess: () => setText('') });
+    // The composer only highlights @mentions visually — resolve them here
+    // against the loaded profile list so the DB mention trigger (which reads
+    // activities.mentions, not the raw text) actually fires and emails the
+    // right people.
+    const lower = t.toLowerCase();
+    const handles = new Set<string>();
+    for (const p of profileList) {
+      const prefix = (p.email || '').split('@')[0].toLowerCase();
+      const fullName = (p.full_name || '').toLowerCase();
+      if (prefix && lower.includes(`@${prefix}`)) handles.add(prefix);
+      else if (fullName && lower.includes(`@${fullName}`)) handles.add(prefix || fullName.replace(/\s+/g, ''));
+    }
+    log.mutate({ type, text: t, mentions: [...handles] }, { onSuccess: () => setText('') });
   }
 
   const filtered = activities.filter((a) => ['note', 'call', 'email', 'whatsapp', 'meeting'].includes(a.type));
