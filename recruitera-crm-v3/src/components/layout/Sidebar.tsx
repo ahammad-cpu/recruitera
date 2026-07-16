@@ -9,9 +9,10 @@ import { cn } from '@/lib/cn';
 import { RecruiteraLogo } from './RecruiteraLogo';
 import { useSession, signOut } from '@/lib/auth';
 import { useMe } from '@/hooks/useMe';
-import { useAccounts, isPaid } from '@/hooks/useAccounts';
+import { useAccounts } from '@/hooks/useAccounts';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks } from '@/hooks/useTasks';
+import { useRenewalBoard } from '@/hooks/useRenewals';
 import { fmtInt, initials } from '@/lib/format';
 
 type NavItem = { to: string; icon: React.ComponentType<{ size?: number }>; label: string; badge?: string | number; badgeAccent?: 'bad' };
@@ -32,13 +33,16 @@ export function Sidebar() {
   const accounts = useAccounts();
   const notifs = useNotifications();
   const tasks = useTasks();
+  const renewal = useRenewalBoard();
 
   // Exclude merged-loser rows everywhere — they folded into another account
   // and are no longer standalone. Matches Companies page count.
   const acts = (accounts.data ?? []).filter((a) => !a.merged_into);
   const activeAccts = acts.length;
   const openLeads = acts.filter((a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase())).length;
-  const renewalCount = acts.filter(isPaid).length;
+  // Matches the Renewal page exactly — count of accounts across all 6
+  // buckets (90/60/30/overdue/renewed/churned), not just "is paying".
+  const renewalCount = renewal.rows.length;
   const unreadNotifs = (notifs.data ?? []).filter((n) => !n.read_at).length;
   const openTasks = (tasks.data ?? []).filter((t) => !t.task_done).length;
 

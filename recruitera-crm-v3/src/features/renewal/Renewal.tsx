@@ -1,59 +1,93 @@
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useAccounts, isPaid } from '@/hooks/useAccounts';
-import { fmtInt, initials } from '@/lib/format';
+import { RefreshCw } from 'lucide-react';
+import { useRenewalBoard, type RenewalRow } from '@/hooks/useRenewals';
+import { RENEWAL_COLUMNS } from '@/lib/renewal';
+import { fmtInt, fmtDate } from '@/lib/format';
+import { cn } from '@/lib/cn';
 
 export default function Renewal() {
-  const { data, isLoading, error } = useAccounts();
-
-  const paid = useMemo(() => (data ?? []).filter(isPaid), [data]);
+  const { rowsByBucket, isLoading, error, refetch } = useRenewalBoard();
 
   if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
 
   return (
-    <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-lg font-bold text-text">Renewal Pipeline</h1>
-        <p className="text-[12.5px] text-text-3 mt-0.5">
-          {isLoading ? 'Loading…' : `${fmtInt(paid.length)} active paid customers`}
-        </p>
+    <div className="p-6 space-y-5">
+      <div className="flex items-start gap-3 flex-wrap">
+        <div>
+          <h1 className="text-[22px] font-black tracking-tight text-text">Renewal Pipeline</h1>
+          <p className="text-[13px] text-text-3 font-medium mt-1">
+            Active contracts, bucketed by days remaining until renewal.
+          </p>
+        </div>
+        <div className="flex-1" />
+        <button
+          onClick={refetch}
+          className="inline-flex items-center gap-1.5 h-[34px] px-3.5 rounded-lg border border-border-2 bg-surface text-[13px] font-semibold text-text-2 hover:bg-surface-2"
+        >
+          <RefreshCw size={13} /> Refresh
+        </button>
       </div>
 
-      <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
-        <div className="grid grid-cols-[1fr_180px_120px] px-4 py-2.5 bg-surface-2 text-[11px] font-bold uppercase tracking-wider text-text-3">
-          <div>Account</div>
-          <div>Owner</div>
-          <div>Paid status</div>
+      <div className="overflow-x-auto sc pb-2">
+        <div className="flex gap-3" style={{ minWidth: `${RENEWAL_COLUMNS.length * 260}px` }}>
+          {RENEWAL_COLUMNS.map((col) => {
+            const colRows = rowsByBucket.get(col.key) ?? [];
+            return (
+              <div
+                key={col.key}
+                className="w-[260px] flex-shrink-0 flex flex-col bg-surface-2 border border-border rounded-2xl overflow-hidden min-h-[520px]"
+              >
+                <div className="flex items-center gap-2 px-4 pt-3.5 pb-3 bg-surface">
+                  <span className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', col.dot)} />
+                  <span className="text-[14px] font-black tracking-tight text-text">{col.label}</span>
+                  <div className="flex-1" />
+                  <span className="tnum bg-surface-2 border border-border text-text-2 text-[12px] font-black px-2.5 py-0.5 rounded-full">
+                    {isLoading ? '…' : colRows.length}
+                  </span>
+                </div>
+
+                <div className="flex-1 p-3 space-y-2.5 overflow-y-auto sc">
+                  {isLoading && [...Array(2)].map((_, i) => (
+                    <div key={i} className="h-24 bg-surface rounded-xl animate-pulse" />
+                  ))}
+                  {!isLoading && colRows.length === 0 && (
+                    <div className="py-8 text-center text-[12.5px] font-semibold text-text-4">No customers here</div>
+                  )}
+                  {!isLoading && colRows.map((r) => (
+                    <RenewalCard key={r.account.id} row={r} chipClass={col.chip} label={col.label} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
-        {isLoading && [...Array(8)].map((_, i) => (
-          <div key={i} className="border-t border-border px-4 py-3">
-            <div className="h-4 bg-surface-2 rounded animate-pulse" />
-          </div>
-        ))}
-        {!isLoading && paid.slice(0, 300).map((a) => (
-          <Link
-            key={a.id}
-            to={`/companies/${a.id}`}
-            className="grid grid-cols-[1fr_180px_120px] px-4 py-2.5 border-t border-border hover:bg-surface-2 transition-colors"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-cg-800 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                {initials(a.name || a.domain)}
-              </div>
-              <div className="min-w-0">
-                <div className="font-semibold text-text text-[13px] truncate">{a.name || a.domain}</div>
-                <div className="text-[11px] text-text-3 truncate">{a.domain}</div>
-              </div>
-            </div>
-            <div className="text-[12px] text-text-2 self-center truncate">{a.am_mail || '—'}</div>
-            <div className="self-center">
-              <span className="inline-flex items-center h-5 px-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-bold">
-                {a.paid_status || 'Paid'}
-              </span>
-            </div>
-          </Link>
-        ))}
       </div>
     </div>
+  );
+}
+
+function RenewalCard({ row, chipClass, label }: { row: RenewalRow; chipClass: string; label: string }) {
+  const { account, cycle, bucket } = row;
+  const name = account.name || account.domain || '—';
+  const plan = cycle.plan_tier || '—';
+  const chipLabel = bucket === 'overdue' ? 'Overdue' : bucket === 'renewed' ? 'Renewed' : bucket === 'churned' ? 'Churned' : label;
+
+  return (
+    <Link
+      to={`/companies/${account.id}`}
+      className="block bg-surface border border-border rounded-[11px] p-3.5 shadow-sh1 hover:shadow-sh2 hover:border-border-2 transition-shadow"
+    >
+      <div className="text-[14.5px] font-black tracking-tight text-text truncate leading-tight">{name}</div>
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <span className="text-[12px] font-semibold text-text-2">{plan}</span>
+        <span className="tnum text-[13px] font-black text-text">EGP {fmtInt(row.value)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-border">
+        <span className="text-[11px] font-semibold text-text-3">Ends {fmtDate(cycle.ends_at)}</span>
+        <span className={cn('inline-flex items-center h-5 px-2 rounded-full text-[10.5px] font-bold', chipClass)}>
+          {chipLabel}
+        </span>
+      </div>
+    </Link>
   );
 }
