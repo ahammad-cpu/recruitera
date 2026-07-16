@@ -61,7 +61,7 @@ export function Sidebar() {
     <aside
       className={cn(
         'sc bg-surface border-r border-border flex flex-col gap-1 overflow-y-auto overflow-x-hidden transition-[width,padding] duration-200',
-        collapsed ? 'w-[64px] px-2 py-[18px]' : 'w-[220px] px-[14px] py-[18px]',
+        collapsed ? 'w-[60px] px-1.5 py-[18px]' : 'w-[220px] px-[14px] py-[18px]',
       )}
     >
       <div className="flex items-center justify-center gap-2 px-2 pb-4 mb-3 border-b border-border">
