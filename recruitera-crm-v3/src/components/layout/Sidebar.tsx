@@ -73,16 +73,20 @@ export function Sidebar() {
         collapsed ? 'w-[60px] px-1.5 py-[18px]' : 'w-[220px] px-[14px] py-[18px]',
       )}
     >
-      <button
-        onClick={toggleCollapsed}
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className="absolute top-4 -right-3 z-10 w-6 h-6 rounded-full bg-surface border border-border shadow-sh1 grid place-items-center text-text-3 hover:text-text hover:border-border-2"
+      <div
+        className={cn(
+          'flex items-center pb-4 mb-3 border-b border-border',
+          collapsed ? 'flex-col gap-2 px-0' : 'justify-between gap-2 px-2',
+        )}
       >
-        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-      </button>
-
-      <div className="flex items-center justify-center gap-2 px-2 pb-4 mb-3 border-b border-border">
         <RecruiteraLogo size={36} />
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="w-6 h-6 flex-shrink-0 rounded-full bg-surface-2 border border-border grid place-items-center text-text-3 hover:text-text hover:border-border-2"
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        </button>
       </div>
 
       <Section label="Workspace" collapsed={collapsed} />
