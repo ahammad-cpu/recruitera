@@ -51,7 +51,7 @@ export function PipelineFilterBar({ value, onChange, profiles }: Props) {
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-[240px] max-w-[340px]">
           <DateRange
-            label="Created"
+            label="Closed between"
             from={draft.closeFrom}
             to={draft.closeTo}
             onFrom={(v) => setDraft((d) => ({ ...d, closeFrom: v }))}
