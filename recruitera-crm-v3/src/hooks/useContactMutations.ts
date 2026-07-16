@@ -8,12 +8,13 @@ export function useUpsertContact(accountId: string | undefined) {
   return useMutation({
     mutationFn: async (input: Partial<Contact> & { id?: string }) => {
       if (!accountId) throw new Error('No account');
-      const payload = { ...input, account_id: accountId, updated_at: new Date().toISOString() };
-      if (input.id) {
-        const { error } = await supabase.from('contacts').update(payload).eq('id', input.id);
+      const { id, ...rest } = input;
+      const payload = { ...rest, account_id: accountId, updated_at: new Date().toISOString() };
+      if (id) {
+        const { error } = await supabase.from('contacts').update(payload).eq('id', id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('contacts').insert({ ...payload, is_primary: true });
+        const { error } = await supabase.from('contacts').insert({ is_primary: false, ...payload });
         if (error) throw error;
       }
     },
