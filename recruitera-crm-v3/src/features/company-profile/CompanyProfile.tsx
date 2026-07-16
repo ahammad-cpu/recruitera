@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
-  X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles,
+  X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles, Clock,
 } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useContacts, useActivities } from '@/hooks/useAccountDetail';
@@ -672,13 +672,37 @@ function QuickTasksPanel({
   accountId: string;
   activities: import('@/hooks/useAccountDetail').Activity[];
 }) {
+  const profiles = useProfiles();
+  const profileList = profiles.data ?? [];
+  const profileById = useMemo(() => {
+    const m = new Map<string, import('@/hooks/useUsersData').Profile>();
+    profileList.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [profileList]);
+
   const [text, setText] = useState('');
   const [kind, setKind] = useState<'Quick' | 'Call' | 'Email' | 'Follow-up'>('Quick');
+  const [due, setDue] = useState<string>('');
+  const [assignee, setAssignee] = useState<string>('');
   const [view, setView] = useState<'todo' | 'done'>('todo');
   const log = useLogActivity(accountId);
   const toggle = useToggleTaskDone();
 
-  const tasks = activities.filter((a) => a.type === 'task');
+  const tasks = activities.filter((a) => a.type === 'task' && !a.parent_id);
+  const repliesByParent = useMemo(() => {
+    const m = new Map<string, import('@/hooks/useAccountDetail').Activity[]>();
+    activities
+      .filter((a) => a.parent_id)
+      .forEach((a) => {
+        const arr = m.get(a.parent_id!) ?? [];
+        arr.push(a);
+        m.set(a.parent_id!, arr);
+      });
+    // oldest first
+    m.forEach((arr) => arr.sort((a, b) => a.created_at.localeCompare(b.created_at)));
+    return m;
+  }, [activities]);
+
   const openTasks = tasks.filter((t) => !t.task_done);
   const doneTasks = tasks.filter((t) => t.task_done);
   const list = view === 'todo' ? openTasks : doneTasks;
@@ -687,7 +711,16 @@ function QuickTasksPanel({
     const t = text.trim();
     if (!t) return;
     const title = kind === 'Quick' ? t : `[${kind}] ${t}`;
-    log.mutate({ type: 'task', title }, { onSuccess: () => setText('') });
+    log.mutate(
+      { type: 'task', title, task_due_date: due || null, assigned_to: assignee || null },
+      {
+        onSuccess: () => {
+          setText('');
+          setDue('');
+          setAssignee('');
+        },
+      },
+    );
   }
 
   return (
@@ -711,21 +744,39 @@ function QuickTasksPanel({
         placeholder="Quick task…"
         className="w-full h-11 px-3.5 border border-border-2 rounded-xl bg-surface text-[13px] text-text placeholder:text-text-3 outline-none focus:border-accent-strong mb-2"
       />
-      <div className="flex items-center gap-2 mb-3">
+      <div className="grid grid-cols-2 gap-2 mb-2">
         <select
           value={kind}
           onChange={(e) => setKind(e.target.value as typeof kind)}
-          className="flex-1 h-11 px-3.5 border border-border-2 rounded-xl bg-surface text-[13px] font-semibold text-text outline-none focus:border-accent-strong"
+          className="h-10 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] font-semibold text-text outline-none focus:border-accent-strong"
         >
           <option>Quick</option>
           <option>Call</option>
           <option>Email</option>
           <option>Follow-up</option>
         </select>
+        <input
+          type="date"
+          value={due}
+          onChange={(e) => setDue(e.target.value)}
+          className="h-10 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] text-text outline-none focus:border-accent-strong"
+        />
+      </div>
+      <div className="flex items-center gap-2 mb-3">
+        <select
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+          className="flex-1 h-10 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] font-semibold text-text outline-none focus:border-accent-strong"
+        >
+          <option value="">Assign to…</option>
+          {profileList.map((p) => (
+            <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+          ))}
+        </select>
         <button
           onClick={add}
           disabled={!text.trim() || log.isPending}
-          className="h-11 px-6 rounded-xl bg-accent text-cg-900 text-[13.5px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+          className="h-10 px-6 rounded-lg bg-accent text-cg-900 text-[13px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
         >
           {log.isPending ? 'Adding…' : 'Add'}
         </button>
@@ -741,7 +792,11 @@ function QuickTasksPanel({
           {list.map((t) => (
             <TaskRow
               key={t.id}
+              accountId={accountId}
               task={t}
+              assignee={t.assigned_to ? profileById.get(t.assigned_to) : undefined}
+              replies={repliesByParent.get(t.id) ?? []}
+              profileById={profileById}
               onToggle={() => toggle.mutate({ id: t.id, done: !t.task_done })}
             />
           ))}
@@ -766,24 +821,114 @@ function TaskTab({ active, onClick, label }: { active: boolean; onClick: () => v
 }
 
 function TaskRow({
-  task, onToggle,
+  accountId, task, assignee, replies, profileById, onToggle,
 }: {
+  accountId: string;
   task: import('@/hooks/useAccountDetail').Activity;
+  assignee: import('@/hooks/useUsersData').Profile | undefined;
+  replies: import('@/hooks/useAccountDetail').Activity[];
+  profileById: Map<string, import('@/hooks/useUsersData').Profile>;
   onToggle: () => void;
 }) {
   const done = !!task.task_done;
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const log = useLogActivity(accountId);
+
+  function sendReply() {
+    const t = replyText.trim();
+    if (!t) return;
+    log.mutate(
+      { type: 'task', text: t, parent_id: task.id },
+      { onSuccess: () => { setReplyText(''); setReplyOpen(false); } },
+    );
+  }
+
+  const dueClass = (() => {
+    if (!task.task_due_date) return '';
+    const today = new Date().toISOString().slice(0, 10);
+    if (task.task_due_date < today && !done) return 'bg-bad-bg text-bad';
+    if (task.task_due_date === today) return 'bg-warn-bg text-warn';
+    return 'bg-surface-2 text-text-2 border border-border';
+  })();
+
   return (
-    <label className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-surface-2/70 border border-border cursor-pointer hover:border-border-2 transition-colors">
-      <input
-        type="checkbox"
-        checked={done}
-        onChange={onToggle}
-        className="w-[18px] h-[18px] rounded border-2 border-border-2 accent-accent cursor-pointer flex-shrink-0"
-      />
-      <span className={cn('text-[13.5px] flex-1 min-w-0 truncate', done ? 'line-through text-text-3' : 'font-bold text-text')}>
-        {task.title || task.text || 'Untitled task'}
-      </span>
-    </label>
+    <div className="rounded-xl bg-surface-2/70 border border-border hover:border-border-2 transition-colors">
+      <div className="flex items-start gap-3 px-3.5 py-3">
+        <input
+          type="checkbox"
+          checked={done}
+          onChange={onToggle}
+          className="mt-0.5 w-[18px] h-[18px] rounded border-2 border-border-2 accent-accent cursor-pointer flex-shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <div className={cn('text-[13.5px] break-words', done ? 'line-through text-text-3' : 'font-bold text-text')}>
+            {task.title || task.text || 'Untitled task'}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap mt-1.5">
+            {task.task_due_date && (
+              <span className={cn('inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[11px] font-bold', dueClass)}>
+                <Clock size={10} /> {fmtDate(task.task_due_date)}
+              </span>
+            )}
+            {assignee && (
+              <span className="inline-flex items-center gap-1.5 h-[20px] pl-0.5 pr-2 rounded-full bg-surface border border-border">
+                <OwnerAvatar profile={assignee} size={18} />
+                <span className="text-[11px] font-bold text-text-2 truncate max-w-[120px]">{assignee.full_name || assignee.email}</span>
+              </span>
+            )}
+            <button
+              onClick={() => setReplyOpen((v) => !v)}
+              className="ml-auto text-[11.5px] font-bold text-accent-ink hover:underline"
+            >
+              {replies.length > 0 ? `${replyOpen ? 'Hide' : 'Show'} ${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}` : (replyOpen ? 'Cancel' : 'Reply')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {(replyOpen || replies.length > 0) && (
+        <div className="border-t border-border px-3.5 py-3 space-y-2 bg-surface/60 rounded-b-xl">
+          {replies.map((r) => {
+            const who = r.author_id ? profileById.get(r.author_id) : undefined;
+            return (
+              <div key={r.id} className="flex items-start gap-2">
+                <OwnerAvatar profile={who} size={22} />
+                <div className="flex-1 min-w-0 bg-surface border border-border rounded-lg px-2.5 py-1.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-text-3">
+                    <span className="font-bold text-text">{who?.full_name || who?.email || 'Someone'}</span>
+                    <span>·</span>
+                    <span>{fmtRelative(r.created_at)}</span>
+                  </div>
+                  {r.text && <div className="text-[12.5px] text-text-2 whitespace-pre-wrap mt-0.5">{r.text}</div>}
+                </div>
+              </div>
+            );
+          })}
+          {replyOpen && (
+            <div className="flex items-start gap-2">
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendReply(); } }}
+                  placeholder="Write a reply…"
+                  className="flex-1 h-9 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] outline-none focus:border-accent-strong"
+                />
+                <button
+                  onClick={sendReply}
+                  disabled={!replyText.trim() || log.isPending}
+                  className="h-9 px-4 rounded-lg bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+                >
+                  Reply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

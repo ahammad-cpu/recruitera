@@ -23,6 +23,8 @@ export type Activity = {
   to_stage: string | null;
   task_due_date: string | null;
   task_done: boolean | null;
+  assigned_to: string | null;
+  parent_id: string | null;
   email_subject: string | null;
   call_outcome: string | null;
   call_duration_minutes: number | null;
@@ -54,7 +56,7 @@ export function useActivities(accountId: string | undefined) {
     queryFn: async (): Promise<Activity[]> => {
       const { data, error } = await supabase
         .from('activities')
-        .select('id,account_id,author_id,type,text,title,from_stage,to_stage,task_due_date,task_done,email_subject,call_outcome,call_duration_minutes,meeting_start_at,created_at')
+        .select('id,account_id,author_id,type,text,title,from_stage,to_stage,task_due_date,task_done,assigned_to,parent_id,email_subject,call_outcome,call_duration_minutes,meeting_start_at,created_at')
         .eq('account_id', accountId!)
         .order('created_at', { ascending: false })
         .limit(100);

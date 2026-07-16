@@ -5,12 +5,24 @@ import { supabase } from '@/lib/supabase';
 export function useLogActivity(accountId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ type, text, title }: { type: string; text?: string; title?: string }) => {
+    mutationFn: async ({
+      type, text, title, task_due_date, assigned_to, parent_id,
+    }: {
+      type: string; text?: string; title?: string;
+      task_due_date?: string | null; assigned_to?: string | null; parent_id?: string | null;
+    }) => {
       if (!accountId) throw new Error('No account');
       const { data: session } = await supabase.auth.getSession();
       const author_id = session.session?.user?.id ?? null;
       const { error } = await supabase.from('activities').insert({
-        account_id: accountId, type, text: text || null, title: title || null, author_id,
+        account_id: accountId,
+        type,
+        text: text || null,
+        title: title || null,
+        author_id,
+        task_due_date: task_due_date || null,
+        assigned_to: assigned_to || null,
+        parent_id: parent_id || null,
       });
       if (error) throw error;
     },
@@ -18,6 +30,7 @@ export function useLogActivity(accountId: string | undefined) {
       toast.success('Logged');
       qc.invalidateQueries({ queryKey: ['activities', accountId] });
       qc.invalidateQueries({ queryKey: ['activities', 'recent'] });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
     },
     onError: (err) => toast.error(`Log failed: ${String(err)}`),
   });
