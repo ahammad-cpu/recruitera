@@ -10,7 +10,7 @@ export type NewAccountInput = {
   medium?: string | null;
   am_mail?: string | null;
   owner_id?: string | null;
-  rc_email?: string | null;
+  cs_email?: string | null;
   industry?: string | null;
   company_size?: string | null;
   domain?: string | null;
@@ -54,7 +54,6 @@ export function useCreateAccount() {
       };
       if (input.industry) raw_data.industry = input.industry.trim();
       if (input.company_size) raw_data.headcount = input.company_size;
-      if (input.rc_email) raw_data.rc_email = input.rc_email.trim().toLowerCase();
       if (input.campaign) raw_data.campaign = input.campaign.trim();
 
       const domain = deriveDomain(input.contact.email, input.domain);
@@ -69,6 +68,7 @@ export function useCreateAccount() {
           stage: (input.stage ?? 'lead') as 'lead' | 'mql' | 'sql' | 'demo' | 'proposal' | 'won' | 'paid' | 'lost',
           am_mail: input.am_mail || null,
           owner_id: input.owner_id || null,
+          cs_email: input.cs_email?.trim().toLowerCase() || null,
           raw_data,
         })
         .select('id')

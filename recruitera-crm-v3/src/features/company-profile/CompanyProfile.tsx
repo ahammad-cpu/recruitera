@@ -185,7 +185,7 @@ export default function CompanyProfile() {
           </div>
 
           <aside className="space-y-4">
-            <AccountTeamPanel primary={owner} />
+            <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
             <QuickTasksPanel accountId={lead.id} />
             <AttributionPanel tracking={marketing.data ?? null} loading={marketing.isLoading} />
           </aside>
@@ -387,23 +387,49 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
 
 /* ---------- RIGHT RAIL ---------- */
 
-function AccountTeamPanel({ primary }: { primary: import('@/hooks/useUsersData').Profile | undefined }) {
+function AccountTeamPanel({
+  primary, csEmail, profiles,
+}: {
+  primary: import('@/hooks/useUsersData').Profile | undefined;
+  csEmail: string | null;
+  profiles: import('@/hooks/useUsersData').Profile[];
+}) {
+  const cs = csEmail ? profiles.find((p) => p.email?.toLowerCase() === csEmail.toLowerCase()) : undefined;
   return (
     <Panel title="Account team">
-      {!primary && <div className="text-[12px] text-text-3">Unassigned.</div>}
-      {primary && (
-        <div className="flex items-center gap-3">
-          <OwnerAvatar profile={primary} size={36} />
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-extrabold text-text truncate flex items-center gap-1.5">
-              {primary.full_name || primary.email}
-              <span className="text-[9px] font-black uppercase tracking-widest text-accent-ink bg-accent-soft px-1 py-0.5 rounded" title="Account Owner">AC</span>
-            </div>
-            <div className="text-[11px] text-text-3 truncate">{primary.email}</div>
-          </div>
-        </div>
-      )}
+      {!primary && !csEmail && <div className="text-[12px] text-text-3">Unassigned.</div>}
+      <div className="space-y-3">
+        {primary && <TeamRow profile={primary} role="AC" roleTitle="Account Consultant" />}
+        {csEmail && <TeamRow profile={cs} fallbackEmail={csEmail} role="CS" roleTitle="Customer Success" />}
+      </div>
     </Panel>
+  );
+}
+
+function TeamRow({
+  profile, fallbackEmail, role, roleTitle,
+}: {
+  profile: import('@/hooks/useUsersData').Profile | undefined;
+  fallbackEmail?: string;
+  role: 'AC' | 'CS';
+  roleTitle: string;
+}) {
+  const name = profile?.full_name || profile?.email || fallbackEmail || '—';
+  const email = profile?.email || fallbackEmail || '';
+  return (
+    <div className="flex items-center gap-3">
+      <OwnerAvatar profile={profile} size={36} fallback={fallbackEmail} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-extrabold text-text truncate flex items-center gap-1.5">
+          {name}
+          <span
+            className="text-[9px] font-black uppercase tracking-widest text-accent-ink bg-accent-soft px-1 py-0.5 rounded"
+            title={roleTitle}
+          >{role}</span>
+        </div>
+        {email && <div className="text-[11px] text-text-3 truncate">{email}</div>}
+      </div>
+    </div>
   );
 }
 

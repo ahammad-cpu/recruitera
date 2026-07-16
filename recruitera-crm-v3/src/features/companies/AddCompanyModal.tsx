@@ -33,7 +33,7 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
     medium: '',
     am_mail: me.data?.email ?? '',
     owner_id: me.data?.id ?? null,
-    rc_email: '',
+    cs_email: '',
     industry: '',
     company_size: '',
     contact: { full_name: '', phone: '', email: '', job_title: '' },
@@ -157,10 +157,10 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
               type="email"
             />
             <FieldText
-              label="RC email"
-              value={form.rc_email ?? ''}
-              onChange={(v) => set('rc_email', v)}
-              placeholder="rc@recruitera.ai"
+              label={<>CS email <span className="text-text-4 font-medium normal-case tracking-normal">— customer success</span></>}
+              value={form.cs_email ?? ''}
+              onChange={(v) => set('cs_email', v)}
+              placeholder="cs@recruitera.ai"
               type="email"
             />
           </div>
