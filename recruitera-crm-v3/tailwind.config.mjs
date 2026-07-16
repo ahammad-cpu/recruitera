@@ -59,6 +59,10 @@ export default {
         // Pipeline-stage-only hues (SQL / Demo columns + StagePill badges).
         violet: { DEFAULT: withOpacity('--violet'), bg: withOpacity('--violet-bg') },
         purple: { DEFAULT: withOpacity('--purple'), bg: withOpacity('--purple-bg') },
+        // Brand accents without a semantic slot yet (Cyan, Flame) — available
+        // for feature-specific UI as it's built.
+        cyan: withOpacity('--cyan'),
+        flame: withOpacity('--flame'),
         bg: withOpacity('--bg'),
       },
       fontFamily: {
@@ -67,10 +71,12 @@ export default {
       fontSize: {
         xxs: ['10px', '1.4'],
       },
+      // Tinted with the brand primary (Deep Teal, --cg-900/--text) so shadows
+      // stay consistent with the rest of the palette above.
       boxShadow: {
-        sh1: '0 1px 0 rgba(45,56,68,.04)',
-        sh2: '0 1px 2px rgba(45,56,68,.06),0 4px 12px rgba(45,56,68,.04)',
-        sh3: '0 8px 24px rgba(45,56,68,.10),0 2px 6px rgba(45,56,68,.06)',
+        sh1: '0 1px 0 rgba(0,36,39,.04)',
+        sh2: '0 1px 2px rgba(0,36,39,.06),0 4px 12px rgba(0,36,39,.04)',
+        sh3: '0 8px 24px rgba(0,36,39,.10),0 2px 6px rgba(0,36,39,.06)',
       },
     },
   },

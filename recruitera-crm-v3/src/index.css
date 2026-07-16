@@ -12,24 +12,33 @@
  * styles) should read rgb(var(--token)) rather than hardcoding a hex value.
  */
 :root {
+  /* Brand palette (Figma "Main colors" system):
+     Primary = Deep Teal #002427 · Secondary = Electric Lime #C9FD13
+     Accents = Cream #FFF7D7 · Cyan #22AEE2 · Paper #F4F7EF ·
+               Ocean #127295 · Plum #534287 · Flame #FF5400 */
   --cg-50: 234 235 236; --cg-100: 213 215 217; --cg-200: 192 195 198; --cg-300: 171 175 180;
   --cg-400: 150 155 161; --cg-500: 129 135 142; --cg-600: 108 115 124; --cg-700: 87 95 105;
-  --cg-800: 66 75 86; --cg-900: 45 56 68;
+  --cg-800: 66 75 86; --cg-900: 0 36 39; /* Deep Teal — brand primary */
 
-  --accent: 192 233 48; --accent-strong: 168 209 26; --accent-soft: 240 250 208; --accent-ink: 79 94 27;
+  --accent: 201 253 19; --accent-strong: 179 224 14; --accent-soft: 240 250 208; --accent-ink: 0 36 39; /* Electric Lime — brand secondary; ink pairs it with Deep Teal, same combo as the logo */
 
-  --surface: 255 255 255; --surface-2: 242 244 247;
+  --surface: 255 255 255; --surface-2: 244 247 239; /* Paper — brand "Product BG" */
   --border: 226 229 234; --border-2: 205 210 218;
-  --text: 45 56 68; --text-2: 87 95 105; --text-3: 129 135 142; --text-4: 171 175 180;
+  --text: 0 36 39; --text-2: 87 95 105; --text-3: 129 135 142; --text-4: 171 175 180;
 
   --ok: 47 143 92; --ok-bg: 229 244 236;
-  --warn: 184 118 26; --warn-bg: 251 241 222;
+  --warn: 184 118 26; --warn-bg: 255 247 215; /* Cream — brand "WarmLight BG" */
   --bad: 184 58 58; --bad-bg: 247 227 227;
-  --info: 44 91 168; --info-bg: 227 236 247;
+  --info: 18 114 149; --info-bg: 227 236 247; /* Ocean — brand "info states" */
 
   /* Pipeline-stage-only hues (SQL / Demo) — not used elsewhere in the UI. */
   --violet: 57 35 150; --violet-bg: 232 228 248;
-  --purple: 91 58 199; --purple-bg: 236 231 250;
+  --purple: 83 66 135; --purple-bg: 236 231 250; /* Plum — brand accent */
+
+  /* Brand accents without an existing semantic home yet — available for
+     future feature-specific UI (product-feature callouts, urgent CTAs). */
+  --cyan: 34 174 226;
+  --flame: 255 84 0;
 
   --bg: 247 248 250;
 }
