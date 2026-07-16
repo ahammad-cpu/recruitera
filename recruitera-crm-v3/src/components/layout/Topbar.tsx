@@ -4,6 +4,7 @@ import { Search, Plus } from 'lucide-react';
 import { useAccounts } from '@/hooks/useAccounts';
 import { fmtInt } from '@/lib/format';
 import { AddCompanyModal } from '@/features/companies/AddCompanyModal';
+import { BulkUploadModal } from '@/features/companies/BulkUploadModal';
 
 const TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -26,6 +27,7 @@ export function Topbar() {
   // Exclude merged-loser rows so LIVE count matches Companies page (521, not 610).
   const count = (data ?? []).filter((a) => !a.merged_into).length;
   const [addOpen, setAddOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   return (
     <div className="h-[60px] flex-shrink-0 bg-surface border-b border-border flex items-center px-6 gap-4">
@@ -60,14 +62,10 @@ export function Topbar() {
       {addOpen && (
         <AddCompanyModal
           onClose={() => setAddOpen(false)}
-          onBulkUpload={() => {
-            setAddOpen(false);
-            import('sonner').then(({ toast }) =>
-              toast.info('Bulk upload — ping me the xlsx and I\'ll wire the picker next.')
-            );
-          }}
+          onBulkUpload={() => { setAddOpen(false); setBulkOpen(true); }}
         />
       )}
+      {bulkOpen && <BulkUploadModal onClose={() => setBulkOpen(false)} />}
     </div>
   );
 }
