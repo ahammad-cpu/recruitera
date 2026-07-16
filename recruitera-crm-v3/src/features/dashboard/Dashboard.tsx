@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Phone } from 'lucide-react';
+import { CheckSquare, Square, Phone } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useTargets } from '@/hooks/useTargets';
-import { useTasks } from '@/hooks/useTasks';
+import { useTasks, type Task } from '@/hooks/useTasks';
+import { useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { useMe } from '@/hooks/useMe';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -108,6 +109,11 @@ export default function Dashboard() {
     return false;
   });
   const myOpenTasks = openTasksAll.slice(0, 5);
+  const createdTasksAll = (tasks.data ?? []).filter((t) => !t.task_done && t.author_id && t.author_id === meId);
+  const [taskTab, setTaskTab] = useState<'assigned' | 'created'>('assigned');
+  const taskListShown = (taskTab === 'assigned' ? openTasksAll : createdTasksAll).slice(0, 5);
+  const taskBadgeCount = taskTab === 'assigned' ? openTasksAll.length : createdTasksAll.length;
+  const toggleTaskDone = useToggleTaskDone();
   const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
   const currentOwner = isTeam
     ? { full_name: 'Whole team', id: 'all' }
@@ -174,10 +180,10 @@ export default function Dashboard() {
       {/* 2-COL: My companies + My tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel
-          title="My companies"
+          title="New Accounts Assigned to Me"
           badge={fmtInt(myAccts.length)}
           hint={`${myCoOpen} open`}
-          action={<Link to="/companies" className="text-[13px] text-accent-ink font-bold">View all</Link>}
+          action={<Link to="/companies?assigned=me" className="text-[13px] text-accent-ink font-bold">View All Companies</Link>}
         >
           {isLoading && <div className="p-5 text-[12.5px] text-text-3">Loading…</div>}
           {!isLoading && myCompanies.length === 0 && (
@@ -205,16 +211,30 @@ export default function Dashboard() {
         </Panel>
 
         <Panel
-          title="My tasks"
-          badge={openTasksAll.length ? String(openTasksAll.length) : '0'}
+          title="My Open Tasks"
+          badge={taskBadgeCount ? String(taskBadgeCount) : '0'}
           badgeAccent="warn"
           action={<Link to="/tasks" className="text-[13px] text-accent-ink font-bold">View all</Link>}
         >
+          <div className="flex gap-0.5 mx-5 mb-1 bg-surface-2 border border-border rounded-md p-0.5 w-fit">
+            {(['assigned', 'created'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setTaskTab(k)}
+                className={cn(
+                  'px-2.5 py-1 rounded text-[12px] font-semibold',
+                  taskTab === k ? 'bg-surface text-text shadow-sh1' : 'text-text-3',
+                )}
+              >
+                {k === 'assigned' ? 'Assigned to Me' : 'Created by Me'}
+              </button>
+            ))}
+          </div>
           {tasks.isLoading && <div className="p-5 text-[12.5px] text-text-3">Loading…</div>}
-          {!tasks.isLoading && myOpenTasks.length === 0 && (
+          {!tasks.isLoading && taskListShown.length === 0 && (
             <div className="p-8 text-center text-[12.5px] text-text-3 border-t border-border">Inbox zero.</div>
           )}
-          {myOpenTasks.map((t) => {
+          {taskListShown.map((t) => {
             const acct = t.account_id ? rows.find((a) => a.id === t.account_id) : null;
             const due = t.task_due_date ? new Date(t.task_due_date) : null;
             const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -224,7 +244,14 @@ export default function Dashboard() {
             const chipClass = overdue || isToday ? 'bg-bad-bg text-bad' : 'bg-surface-2 text-text-3';
             return (
               <div key={t.id} className="flex items-start gap-3.5 px-5 py-3.5 border-t border-border">
-                <div className="w-[18px] h-[18px] rounded-md border-2 border-border-2 flex-shrink-0 mt-0.5" />
+                <button
+                  onClick={() => toggleTaskDone.mutate({ id: t.id, done: true })}
+                  disabled={toggleTaskDone.isPending}
+                  title="Mark task complete"
+                  className="flex-shrink-0 mt-0.5 text-text-3 hover:text-ok disabled:opacity-50"
+                >
+                  <Square size={18} strokeWidth={2} />
+                </button>
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-semibold text-text">{t.title || t.text || '(untitled)'}</div>
                   <div className="text-[12px] text-text-3 mt-0.5 truncate">

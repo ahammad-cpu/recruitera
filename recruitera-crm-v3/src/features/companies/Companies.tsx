@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Search, Search as SearchIcon, ArrowUpDown, AlertTriangle, Send, UserCheck, X, Ban, RotateCcw } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useEnum } from '@/hooks/useEnum';
@@ -93,6 +93,16 @@ export default function Companies() {
   const [stage, setStage] = useState('all');
   const [source, setSource] = useState('all');
   const [owner, setOwner] = useState('all');
+  const [searchParams] = useSearchParams();
+
+  // Dashboard's "View All Companies" link passes ?assigned=me — auto-select
+  // the current user in the Owner filter once their profile has loaded.
+  useEffect(() => {
+    if (searchParams.get('assigned') === 'me' && me.data?.email) {
+      setOwner(me.data.email);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, me.data?.email]);
   const [trialF, setTrialF] = useState<'all' | 'on' | 'expired'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
   const [mergePair, setMergePair] = useState<{ a: Account; b: Account; reasons: Set<'name' | 'domain' | 'phone' | 'email'> } | null>(null);

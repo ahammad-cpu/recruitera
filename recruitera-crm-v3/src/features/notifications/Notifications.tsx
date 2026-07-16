@@ -1,15 +1,35 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, BellDot, Check } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useActivityMutations';
 import { useMe } from '@/hooks/useMe';
 import { fmtDate } from '@/lib/format';
+import { cn } from '@/lib/cn';
+
+const STATUS_FILTERS = ['all', 'unread', 'read'] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 export default function Notifications() {
   const { data, isLoading, error } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const me = useMe();
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [kind, setKind] = useState('all');
+
+  const kinds = useMemo(
+    () => Array.from(new Set((data ?? []).map((n) => n.kind).filter(Boolean))).sort() as string[],
+    [data],
+  );
+
+  const filtered = useMemo(() => {
+    let rows = data ?? [];
+    if (status === 'unread') rows = rows.filter((n) => !n.read_at);
+    if (status === 'read') rows = rows.filter((n) => !!n.read_at);
+    if (kind !== 'all') rows = rows.filter((n) => n.kind === kind);
+    return rows;
+  }, [data, status, kind]);
 
   if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
   const unread = (data ?? []).filter((n) => !n.read_at).length;
@@ -35,10 +55,39 @@ export default function Notifications() {
         )}
       </div>
 
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-0.5 bg-surface-2 border border-border rounded-md p-0.5">
+          {STATUS_FILTERS.map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(s)}
+              className={cn(
+                'px-2.5 py-1 rounded text-[12px] font-semibold capitalize',
+                status === s ? 'bg-surface text-text shadow-sh1' : 'text-text-3',
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        {kinds.length > 0 && (
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
+          >
+            <option value="all">All types</option>
+            {kinds.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
         {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
-        {!isLoading && (data?.length ?? 0) === 0 && <div className="p-8 text-center text-[12.5px] text-text-3">Inbox zero.</div>}
-        {data?.map((n) => {
+        {!isLoading && filtered.length === 0 && <div className="p-8 text-center text-[12.5px] text-text-3">Inbox zero.</div>}
+        {filtered.map((n) => {
           const isUnread = !n.read_at;
           return (
             <div key={n.id} className={`px-4 py-3 border-t border-border first:border-0 flex items-start gap-3 ${isUnread ? 'bg-accent-soft/30' : ''}`}>
