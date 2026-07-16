@@ -8,6 +8,7 @@ import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useContacts, useActivities } from '@/hooks/useAccountDetail';
 import { useLogActivity, useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
+import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
 import { useRenameAccount, useChangeStage, useChangeOwner } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
@@ -30,6 +31,7 @@ export default function CompanyProfile() {
   const { data: contacts, isLoading: loadingContacts } = useContacts(id);
   const { data: activities, isLoading: loadingActs } = useActivities(id);
   const marketing = useMarketingTracking(id);
+  const attribution = useAccountAttribution(id);
   const profiles = useProfiles();
   const stagesEnum = useEnum('pipeline_stage');
   const rename = useRenameAccount();
@@ -188,7 +190,11 @@ export default function CompanyProfile() {
           <aside className="space-y-4">
             <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
             <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
-            <AttributionPanel tracking={marketing.data ?? null} loading={marketing.isLoading} />
+            <AttributionPanel
+              tracking={marketing.data ?? null}
+              attr={attribution.data ?? null}
+              loading={marketing.isLoading || attribution.isLoading}
+            />
           </aside>
         </div>
       )}
@@ -781,46 +787,143 @@ function TaskRow({
   );
 }
 
-function AttributionPanel({ tracking, loading }: { tracking: import('@/hooks/useMarketingTracking').MarketingTracking | null; loading: boolean }) {
+function AttributionPanel({
+  tracking, attr, loading,
+}: {
+  tracking: import('@/hooks/useMarketingTracking').MarketingTracking | null;
+  attr: import('@/hooks/useAccountAttribution').AccountAttribution | null;
+  loading: boolean;
+}) {
+  const source   = attr?.source                                      || null;
+  const medium   = tracking?.last_medium   || attr?.medium           || null;
+  const campaign = tracking?.last_campaign || attr?.campaign         || null;
+  const joinedAt = attr?.bubble_created_at || attr?.created_at       || null;
+
+  const utmRows: [string, string | null][] = [
+    ['utm_source',   attr?.utm_source ?? null],
+    ['utm_medium',   attr?.utm_medium ?? null],
+    ['utm_campaign', attr?.utm_campaign ?? null],
+    ['utm_content',  attr?.utm_content ?? null],
+  ];
+  const landingRows: [string, string | null, { link?: boolean }][] = [
+    ['Referrer',     attr?.referrer_url ?? null, { link: true }],
+    ['Landing page', attr?.landing_page ?? null, { link: true }],
+    ['CTA clicked',  attr?.cta_clicked ?? null,  {}],
+  ];
+  const channelRows: [string, string | null][] = [
+    ['Marketing channel', attr?.wp_marketing_channel ?? null],
+    ['Rec challenge',     attr?.wp_rec_challenge ?? null],
+  ];
+
+  const hasFirst = !!(tracking?.first_source || tracking?.first_medium || tracking?.first_date);
+  const hasLanding = !!tracking?.first_landing_page;
+
   return (
     <>
       <Panel title="Attribution" icon={<Sparkles size={13} />}>
-        <Row k="Source" v={tracking?.first_source || tracking?.last_source || '—'} />
-        <Row k="Medium" v={tracking?.first_medium || tracking?.last_medium || '(none)'} />
-        <Row k="Campaign" v={tracking?.first_campaign || tracking?.last_campaign || '—'} />
-        <Row k="Joined at" v={fmtDate(tracking?.first_date)} />
+        <CoreRow k="Source"    v={source} />
+        <CoreRow k="Medium"    v={medium}    fallback="(none)" />
+        <CoreRow k="Campaign"  v={campaign} />
+        <CoreRow k="Joined at" v={joinedAt ? fmtDate(joinedAt) : null} />
+
+        <AttrSection title="UTM Parameters" rows={utmRows.map(([k, v]) => [k, v])} />
+        <AttrSection title="Landing" rows={landingRows.map(([k, v, o]) => [k, v, o])} />
+        <AttrSection title="Recruitera Channels" rows={channelRows.map(([k, v]) => [k, v])} />
       </Panel>
 
-      <Panel title="Marketing tracking" hint={tracking?.touch_count ? `${tracking.touch_count} touch${tracking.touch_count === 1 ? '' : 'es'}` : '—'}>
+      <Panel
+        title="Marketing tracking"
+        hint={tracking?.touch_count ? `${tracking.touch_count} touch${tracking.touch_count === 1 ? '' : 'es'}` : '—'}
+      >
         {loading && <div className="text-[12px] text-text-3">Loading…</div>}
         {!loading && !tracking && <div className="text-[12px] text-text-3">No tracking data.</div>}
         {tracking && (
           <div className="space-y-3">
-            <div className="border border-border rounded-xl p-3">
-              <div className="text-[10px] font-black uppercase tracking-widest text-text-3">First touch</div>
-              <div className="text-[13px] font-bold text-text mt-1 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-info" />
-                {tracking.first_source || '(direct)'}
+            {hasFirst && (
+              <div className="border border-border rounded-xl p-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-text-3">First touch</div>
+                <div className="text-[13px] font-bold text-text mt-1 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-info" />
+                  {tracking.first_source || '(direct)'}
+                </div>
+                {tracking.first_medium && (
+                  <div className="text-[11px] text-text-3">
+                    {tracking.first_medium}
+                    {tracking.first_campaign ? ` · ${tracking.first_campaign}` : ''}
+                  </div>
+                )}
+                {tracking.first_date && <div className="text-[11px] text-text-4 mt-1">{fmtDate(tracking.first_date)}</div>}
               </div>
-              <div className="text-[11px] text-text-3">{tracking.first_medium || '(none)'}</div>
-              <div className="text-[11px] text-text-4 mt-1">{fmtDate(tracking.first_date)}</div>
-            </div>
+            )}
             {tracking.device_type && (
               <div className="border border-border rounded-xl p-3">
                 <div className="text-[10px] font-black uppercase tracking-widest text-text-3">Device</div>
                 <div className="text-[13px] font-bold text-text mt-1">{tracking.device_type}</div>
               </div>
             )}
-            {tracking.first_landing_page && (
+            {hasLanding && (
               <div className="border border-border rounded-xl p-3">
                 <div className="text-[10px] font-black uppercase tracking-widest text-text-3">First landing page</div>
-                <div className="text-[12px] font-mono text-accent-ink mt-1 break-all">{tracking.first_landing_page}</div>
+                <a href={tracking.first_landing_page!} target="_blank" rel="noreferrer"
+                   className="text-[12px] font-mono text-accent-ink mt-1 break-all block">
+                  {tracking.first_landing_page}
+                </a>
               </div>
             )}
           </div>
         )}
       </Panel>
     </>
+  );
+}
+
+function CoreRow({ k, v, fallback = '—' }: { k: string; v: string | null; fallback?: string }) {
+  const empty = !v;
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-border/60 last:border-0">
+      <div className="text-[11.5px] text-text-3">{k}</div>
+      <div
+        className={cn('text-[12.5px] font-bold text-right truncate max-w-[200px]', empty ? 'text-text-4' : 'text-text')}
+        title={v || undefined}
+      >
+        {v || fallback}
+      </div>
+    </div>
+  );
+}
+
+function AttrSection({
+  title, rows,
+}: {
+  title: string;
+  rows: [string, string | null, { link?: boolean }?][];
+}) {
+  const shown = rows.filter(([, v]) => v != null && v !== '');
+  if (!shown.length) return null;
+  const trunc = (u: string) => (u.length > 42 ? u.slice(0, 39) + '…' : u);
+  return (
+    <div className="mt-3">
+      <div className="text-[9px] tracking-[0.1em] uppercase text-accent-ink font-black border-b-2 border-accent pb-1 mb-1">
+        {title}
+      </div>
+      {shown.map(([k, v, opts]) => {
+        const isLink = !!opts?.link && !!v;
+        return (
+          <div key={k} className="flex items-baseline justify-between gap-3 py-1.5 border-b border-border/60 last:border-0 min-w-0">
+            <div className="text-[10px] tracking-widest uppercase text-text-3 font-bold flex-shrink-0">{k}</div>
+            <div className="text-[12px] text-right truncate max-w-[200px] min-w-0" title={v || undefined}>
+              {isLink ? (
+                <a href={v!} target="_blank" rel="noreferrer" className="text-accent-ink font-bold underline">
+                  {trunc(v!)}
+                </a>
+              ) : (
+                <span className="font-bold text-text">{v}</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
