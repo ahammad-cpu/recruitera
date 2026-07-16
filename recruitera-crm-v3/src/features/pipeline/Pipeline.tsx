@@ -1,16 +1,22 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Trophy, FileText, Gauge, Download, Flame, CheckCircle2, Filter } from 'lucide-react';
 import { useAccounts, type Account } from '@/hooks/useAccounts';
-import { useChangeStage } from '@/hooks/useAccountMutations';
+import { useMoveDeal, positionBetween } from '@/hooks/usePipelineMutations';
 import { useProfiles } from '@/hooks/useUsersData';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, initials, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { WonDialog } from './WonDialog';
+import { LostDialog } from './LostDialog';
+import {
+  PipelineFilters, EMPTY_FILTERS, filtersActiveCount, filtersFromParams, filtersToParams,
+  type PipelineFilterState,
+} from './PipelineFilters';
 
 type ColMeta = {
   key: string;
@@ -69,9 +75,27 @@ function temperature(a: Account): 'hot' | 'warm' | 'cold' {
 export default function Pipeline() {
   const { data, isLoading, error } = useAccounts();
   const profilesQ = useProfiles();
-  const changeStage = useChangeStage();
+  const moveDeal = useMoveDeal();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const [range, setRange] = useState<RangeKey>('all');
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [range, setRange] = useState<RangeKey>(() => (searchParams.get('range') as RangeKey) || 'all');
+  const [filters, setFilters] = useState<PipelineFilterState>(() => filtersFromParams(searchParams));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [pendingWon, setPendingWon] = useState<Account | null>(null);
+  const [pendingLost, setPendingLost] = useState<Account | null>(null);
+
+  // Sync range + filters into the URL so deep links restore the view.
+  useEffect(() => {
+    const p: Record<string, string> = { ...filtersToParams(filters) };
+    if (range !== 'all') p.range = range;
+    const next = new URLSearchParams(p);
+    // Only setSearchParams if actually changed to avoid render loops.
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, filters]);
 
   const profilesById = useMemo(() => {
     const m = new Map<string, import('@/hooks/useUsersData').Profile>();
@@ -79,7 +103,33 @@ export default function Pipeline() {
     return m;
   }, [profilesQ.data]);
 
-  const accounts = useMemo(() => (data ?? []).filter((a) => !a.merged_into), [data]);
+  const activeAccounts = useMemo(() => (data ?? []).filter((a) => !a.merged_into), [data]);
+
+  // Apply filter panel to the whole visible dataset. Everything downstream
+  // (KPIs, column groups, totals) reads from `accounts`.
+  const accounts = useMemo(() => {
+    const min = filters.minAcv ? Number(filters.minAcv) : null;
+    const max = filters.maxAcv ? Number(filters.maxAcv) : null;
+    const from = filters.closeFrom ? new Date(filters.closeFrom).getTime() : null;
+    const to = filters.closeTo ? new Date(filters.closeTo).getTime() + 86_400_000 - 1 : null;
+    const ownersSet = new Set(filters.owners);
+    const tempsSet = new Set(filters.temps);
+    return activeAccounts.filter((a) => {
+      if (ownersSet.size && !(a.owner_id && ownersSet.has(a.owner_id))) return false;
+      if (tempsSet.size && !tempsSet.has(temperature(a))) return false;
+      const v = a.deal_value || 0;
+      if (min != null && v < min) return false;
+      if (max != null && v > max) return false;
+      if (from != null || to != null) {
+        const closeIso = a.disqualified_at || null;
+        if (!closeIso) return false;
+        const t = new Date(closeIso).getTime();
+        if (from != null && t < from) return false;
+        if (to != null && t > to) return false;
+      }
+      return true;
+    });
+  }, [activeAccounts, filters]);
 
   // Range-scoped view for KPIs. Filters by created_at.
   const scoped = useMemo(() => {
@@ -89,7 +139,7 @@ export default function Pipeline() {
     return accounts.filter((a) => new Date(a.created_at).getTime() >= t);
   }, [accounts, range]);
 
-  // Kanban groups (unaffected by range; pipeline shows current state)
+  // Kanban groups — sorted by board_position (asc). Nulls go last, then id.
   const groups = useMemo(() => {
     const m = new Map<string, Account[]>();
     COLUMNS.forEach((c) => m.set(c.key, []));
@@ -97,13 +147,22 @@ export default function Pipeline() {
       const k = (a.stage || '').toLowerCase();
       if (m.has(k)) m.get(k)!.push(a);
     });
+    m.forEach((arr) =>
+      arr.sort((x, y) => {
+        const xp = x.board_position;
+        const yp = y.board_position;
+        if (xp == null && yp == null) return x.id.localeCompare(y.id);
+        if (xp == null) return 1;
+        if (yp == null) return -1;
+        return xp - yp;
+      }),
+    );
     return m;
   }, [accounts]);
 
   const openStages = new Set(['mql', 'sql', 'demo', 'proposal']);
   const openDeals = accounts.filter((a) => openStages.has((a.stage || '').toLowerCase()));
   const openPipeline = openDeals.reduce((s, a) => s + (a.deal_value || 0), 0);
-  // Denominator for per-column % — sum across every column so percentages add to 100.
   const boardTotal = accounts.reduce((s, a) => s + (a.deal_value || 0), 0);
   const wonQtd = scoped.filter((a) => (a.stage || '').toLowerCase() === 'won').reduce((s, a) => s + (a.deal_value || 0), 0);
   const proposalsLive = accounts.filter((a) => (a.stage || '').toLowerCase() === 'proposal').length;
@@ -115,9 +174,22 @@ export default function Pipeline() {
     const id = String(e.active.id);
     const nextStage = e.over?.id ? String(e.over.id) : null;
     if (!nextStage) return;
-    const acct = accounts.find((a) => a.id === id);
-    if (!acct || (acct.stage || '').toLowerCase() === nextStage) return;
-    changeStage.mutate({ id, stage: nextStage });
+    const acct = activeAccounts.find((a) => a.id === id);
+    if (!acct) return;
+    const curr = (acct.stage || '').toLowerCase();
+    if (curr === nextStage) return;
+
+    // Won / Lost drops require the confirmation dialog — the mutation runs
+    // from inside the dialog, so we short-circuit here without moving.
+    if (nextStage === 'won') { setPendingWon(acct); return; }
+    if (nextStage === 'lost') { setPendingLost(acct); return; }
+
+    // Regular move: place at the top of the target column (before the
+    // current first card). Fractional positioning so we never renumber.
+    const targetRows = groups.get(nextStage) ?? [];
+    const firstPos = targetRows[0]?.board_position ?? null;
+    const position = positionBetween(null, firstPos);
+    moveDeal.mutate({ id, stage: nextStage, position });
   }
 
   function exportCsv() {
@@ -154,6 +226,22 @@ export default function Pipeline() {
           {isLoading ? '…' : `${fmtInt(totalLeads)} leads`}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setFiltersOpen(true)}
+            className={cn(
+              'inline-flex items-center gap-1.5 h-10 px-3.5 rounded-lg border text-[13px] font-bold',
+              filtersActiveCount(filters) > 0
+                ? 'bg-accent-soft text-accent-ink border-accent-strong'
+                : 'bg-surface border-border text-text hover:bg-surface-2',
+            )}
+          >
+            <Filter size={13} /> Filters
+            {filtersActiveCount(filters) > 0 && (
+              <span className="ml-1 tnum inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent-strong text-cg-900 text-[10px] font-black">
+                {filtersActiveCount(filters)}
+              </span>
+            )}
+          </button>
           <label className="sr-only" htmlFor="pipeline-range">Time range</label>
           <select
             id="pipeline-range"
@@ -213,6 +301,17 @@ export default function Pipeline() {
           </div>
         </div>
       </DndContext>
+
+      <PipelineFilters
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        value={filters}
+        onChange={setFilters}
+        profiles={profilesQ.data ?? []}
+      />
+
+      {pendingWon && <WonDialog account={pendingWon} onClose={() => setPendingWon(null)} />}
+      {pendingLost && <LostDialog account={pendingLost} onClose={() => setPendingLost(null)} />}
     </div>
   );
 }
@@ -269,20 +368,11 @@ function Column({
         </span>
       </div>
 
-      <div className="p-3 space-y-2.5 max-h-[calc(100vh-410px)] overflow-y-auto sc flex-1">
-        {isLoading && [...Array(2)].map((_, i) => (
-          <div key={i} className="h-32 bg-surface-2 rounded-xl animate-pulse" />
-        ))}
-        {!isLoading && rows.length === 0 && (
-          <div className="py-8 text-center text-[11.5px] text-text-4">No deals</div>
-        )}
-        {rows.slice(0, 60).map((a) => (
-          <Card key={a.id} a={a} owner={a.owner_id ? profilesById.get(a.owner_id) : undefined} />
-        ))}
-        {rows.length > 60 && (
-          <div className="text-[10.5px] text-text-4 text-center py-1">+{rows.length - 60} more</div>
-        )}
-      </div>
+      <ColumnBody
+        rows={rows}
+        profilesById={profilesById}
+        isLoading={isLoading}
+      />
 
       {/* TOTAL / AVG footer — matches v2 layout */}
       <div className="px-4 py-3 border-t border-border bg-surface-2/60 rounded-b-2xl">
@@ -299,6 +389,53 @@ function Column({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+const PAGE = 30;
+function ColumnBody({
+  rows, profilesById, isLoading,
+}: {
+  rows: Account[];
+  profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
+  isLoading: boolean;
+}) {
+  // Lightweight windowing — render PAGE cards at a time and let the user
+  // reveal more. Auto-loads-more when they scroll near the bottom, so it
+  // feels virtualized without pulling in react-window.
+  const [visible, setVisible] = useState(PAGE);
+  useEffect(() => { setVisible(PAGE); }, [rows.length]);
+
+  function onScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200 && visible < rows.length) {
+      setVisible((v) => Math.min(v + PAGE, rows.length));
+    }
+  }
+
+  return (
+    <div
+      onScroll={onScroll}
+      className="p-3 space-y-2.5 max-h-[calc(100vh-410px)] overflow-y-auto sc flex-1"
+    >
+      {isLoading && [...Array(2)].map((_, i) => (
+        <div key={i} className="h-32 bg-surface-2 rounded-xl animate-pulse" />
+      ))}
+      {!isLoading && rows.length === 0 && (
+        <div className="py-8 text-center text-[11.5px] text-text-4">No deals</div>
+      )}
+      {rows.slice(0, visible).map((a) => (
+        <Card key={a.id} a={a} owner={a.owner_id ? profilesById.get(a.owner_id) : undefined} />
+      ))}
+      {visible < rows.length && (
+        <button
+          onClick={() => setVisible((v) => Math.min(v + PAGE, rows.length))}
+          className="w-full text-[11.5px] font-bold text-text-3 hover:text-accent-ink py-2 rounded-md hover:bg-surface-2"
+        >
+          Load {Math.min(PAGE, rows.length - visible)} more · {rows.length - visible} remaining
+        </button>
+      )}
     </div>
   );
 }

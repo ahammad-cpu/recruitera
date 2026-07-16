@@ -6,7 +6,7 @@ const base: Account = {
   am_mail: null, paid_status: null, activation_status: null, has_trial: null,
   deal_value: null, deal_currency: null, owner_id: null, disq_stage: null,
   disqualified_reason: null, disqualified_notes: null, disqualified_at: null,
-  cs_email: null, merged_into: null, funnel_score: 0,
+  cs_email: null, merged_into: null, funnel_score: 0, board_position: null,
   created_at: '2026-01-01', bubble_created_at: null,
 };
 
