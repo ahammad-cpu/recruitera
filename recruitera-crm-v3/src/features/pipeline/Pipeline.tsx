@@ -174,19 +174,22 @@ export default function Pipeline() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
           icon={<Briefcase size={18} />} iconBg="bg-accent-soft" iconColor="text-accent-ink"
+          barColor="bg-accent-strong"
           label="Open pipeline" value={fmtEgpCompact(openPipeline)} sub="Active new-business"
         />
         <KpiCard
           icon={<Trophy size={18} />} iconBg="bg-warn-bg" iconColor="text-warn"
-          label={`Won ${range === 'all' ? '' : `· ${RANGES.find((r) => r.key === range)?.label}`}`.trim()}
-          value={fmtEgpCompact(wonQtd)} sub="Closed revenue"
+          barColor="bg-warn"
+          label="Won QTD" value={fmtEgpCompact(wonQtd)} sub="Closed revenue"
         />
         <KpiCard
           icon={<FileText size={18} />} iconBg="bg-info-bg" iconColor="text-info"
+          barColor="bg-info"
           label="Proposals live" value={fmtInt(proposalsLive)} sub="Awaiting decision"
         />
         <KpiCard
           icon={<Gauge size={18} />} iconBg="bg-ok-bg" iconColor="text-ok"
+          barColor="bg-ok"
           label="Avg deal size" value={fmtEgpCompact(avgDeal)} sub="Open pipeline"
         />
       </div>
@@ -213,13 +216,14 @@ export default function Pipeline() {
 }
 
 function KpiCard({
-  icon, iconBg, iconColor, label, value, sub,
+  icon, iconBg, iconColor, barColor, label, value, sub,
 }: {
-  icon: React.ReactNode; iconBg: string; iconColor: string;
+  icon: React.ReactNode; iconBg: string; iconColor: string; barColor: string;
   label: string; value: string; sub: string;
 }) {
   return (
-    <div className="bg-surface border border-border rounded-2xl p-5 shadow-sh1">
+    <div className="relative bg-surface border border-border rounded-2xl p-5 pt-6 shadow-sh1 overflow-hidden">
+      <div className={cn('absolute top-0 left-0 right-0 h-1', barColor)} />
       <div className="flex items-center gap-3 mb-3.5">
         <div className={cn('w-10 h-10 rounded-xl grid place-items-center', iconBg, iconColor)}>{icon}</div>
         <div className="text-[10px] font-black tracking-[0.14em] uppercase text-text-3">{label}</div>
@@ -353,7 +357,7 @@ function TempPill({ kind }: { kind: 'hot' | 'warm' | 'cold' }) {
   }
   if (kind === 'warm') {
     return (
-      <span className="inline-flex items-center gap-1 h-[22px] pl-1.5 pr-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
+      <span className="inline-flex items-center gap-1 h-[22px] pl-1.5 pr-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-black tracking-wider">
         <CheckCircle2 size={11} /> Warm
       </span>
     );
