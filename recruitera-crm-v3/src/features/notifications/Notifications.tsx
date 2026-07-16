@@ -1,23 +1,38 @@
 import { Link } from 'react-router-dom';
 import { Bell, BellDot, Check } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
-import { useMarkNotificationRead } from '@/hooks/useActivityMutations';
+import { useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useActivityMutations';
+import { useMe } from '@/hooks/useMe';
 import { fmtDate } from '@/lib/format';
 
 export default function Notifications() {
   const { data, isLoading, error } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const me = useMe();
 
   if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
   const unread = (data ?? []).filter((n) => !n.read_at).length;
 
   return (
     <div className="p-6 space-y-4 max-w-3xl">
-      <div>
-        <h1 className="text-lg font-bold text-text">Notifications</h1>
-        <p className="text-[12.5px] text-text-3 mt-0.5">
-          {isLoading ? 'Loading…' : `${unread} unread of ${data?.length ?? 0}`}
-        </p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div>
+          <h1 className="text-lg font-bold text-text">Notifications</h1>
+          <p className="text-[12.5px] text-text-3 mt-0.5">
+            {isLoading ? 'Loading…' : `${unread} unread of ${data?.length ?? 0}`}
+          </p>
+        </div>
+        <div className="flex-1" />
+        {unread > 0 && me.data?.id && (
+          <button
+            onClick={() => markAllRead.mutate(me.data!.id)}
+            disabled={markAllRead.isPending}
+            className="h-[34px] px-4 rounded-lg border border-border bg-surface text-[13px] font-semibold text-text-2 hover:bg-surface-2 disabled:opacity-60"
+          >
+            Mark all read
+          </button>
+        )}
       </div>
 
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">

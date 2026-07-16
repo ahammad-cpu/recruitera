@@ -105,3 +105,19 @@ export function useMarkNotificationRead() {
     onError: (err) => toast.error(`Update failed: ${String(err)}`),
   });
 }
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (recipientId: string) => {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('recipient_id', recipientId)
+        .is('read_at', null);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onError: (err) => toast.error(`Update failed: ${String(err)}`),
+  });
+}
