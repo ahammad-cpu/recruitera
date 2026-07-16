@@ -1,7 +1,7 @@
 export function RecruiteraLogo({ size = 30 }: { size?: number }) {
   return (
     <img
-      src="/logo.webp"
+      src={`${import.meta.env.BASE_URL}logo.webp`}
       alt="Recruitera"
       width={size}
       height={size}
