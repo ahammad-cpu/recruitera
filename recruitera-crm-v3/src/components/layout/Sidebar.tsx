@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home, Building2, TrendingUp, RefreshCw, Bell, CheckSquare,
@@ -17,7 +17,12 @@ import { fmtInt, initials } from '@/lib/format';
 type NavItem = { to: string; icon: React.ComponentType<{ size?: number }>; label: string; badge?: string | number; badgeAccent?: 'bad' };
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('crm-v3.sidebar.collapsed') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('crm-v3.sidebar.collapsed', collapsed ? '1' : '0'); } catch {}
+  }, [collapsed]);
   const { session } = useSession();
   const me = useMe();
   const accounts = useAccounts();
@@ -90,9 +95,11 @@ export function Sidebar() {
         )}
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="flex items-center justify-center w-[26px] h-[26px] rounded-md border border-border bg-surface-2 text-text-3 flex-shrink-0"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="flex items-center justify-center w-[34px] h-[34px] rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-2 text-text-2 flex-shrink-0 transition-colors shadow-sh1"
         >
-          {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
     </aside>
