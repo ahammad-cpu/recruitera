@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useAccounts, isPaid } from '@/hooks/useAccounts';
 import { fmtInt } from '@/lib/format';
 import { useReportsOwner } from '../shared/reportsContext';
+import { ReportPanel, HeaderPill } from '../shared/ReportUI';
 
 export default function AMReport() {
   const { data, isLoading } = useAccounts();
@@ -25,32 +26,43 @@ export default function AMReport() {
     return Array.from(map.entries()).sort((a, b) => b[1].total - a[1].total);
   }, [rows, ownerId]);
 
+  const totalAms = perAM.length;
+
   return (
-    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
-      <div className="grid grid-cols-[1fr_repeat(5,80px)_100px] px-4 py-2.5 bg-surface-2 text-[11px] font-bold uppercase tracking-wider text-text-3">
-        <div>Account manager</div>
-        <div className="text-right">Total</div>
-        <div className="text-right">Open</div>
-        <div className="text-right">Won</div>
-        <div className="text-right">Paid</div>
-        <div className="text-right">Lost</div>
-        <div className="text-right">Win rate</div>
+    <ReportPanel
+      title="Account managers"
+      subtitle="Book breakdown by AM"
+      headerRight={<HeaderPill>{fmtInt(totalAms)} AMs</HeaderPill>}
+    >
+      <div className="border border-border rounded-xl overflow-hidden">
+        <div className="grid grid-cols-[1fr_repeat(5,80px)_100px] px-4 py-2.5 bg-surface-2 text-[11px] font-bold uppercase tracking-wider text-text-3">
+          <div>Account manager</div>
+          <div className="text-right">Total</div>
+          <div className="text-right">Open</div>
+          <div className="text-right">Won</div>
+          <div className="text-right">Paid</div>
+          <div className="text-right">Lost</div>
+          <div className="text-right">Win rate</div>
+        </div>
+        {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
+        {!isLoading && perAM.length === 0 && (
+          <div className="p-6 text-center text-[12.5px] text-text-3">No account managers in scope.</div>
+        )}
+        {perAM.map(([am, r]) => {
+          const wr = r.won + r.lost > 0 ? (r.won / (r.won + r.lost)) * 100 : 0;
+          return (
+            <div key={am} className="grid grid-cols-[1fr_repeat(5,80px)_100px] px-4 py-2.5 border-t border-border hover:bg-surface-2/60 text-[13px]">
+              <div className="text-text truncate font-semibold" title={am}>{am}</div>
+              <div className="text-right tnum font-bold">{fmtInt(r.total)}</div>
+              <div className="text-right tnum text-info">{fmtInt(r.open)}</div>
+              <div className="text-right tnum text-ok">{fmtInt(r.won)}</div>
+              <div className="text-right tnum text-accent-ink">{fmtInt(r.paid)}</div>
+              <div className="text-right tnum text-bad">{fmtInt(r.lost)}</div>
+              <div className="text-right tnum font-bold">{wr.toFixed(0)}%</div>
+            </div>
+          );
+        })}
       </div>
-      {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
-      {perAM.map(([am, r]) => {
-        const wr = r.won + r.lost > 0 ? (r.won / (r.won + r.lost)) * 100 : 0;
-        return (
-          <div key={am} className="grid grid-cols-[1fr_repeat(5,80px)_100px] px-4 py-2.5 border-t border-border hover:bg-surface-2 text-[13px]">
-            <div className="text-text truncate font-semibold" title={am}>{am}</div>
-            <div className="text-right tnum font-bold">{fmtInt(r.total)}</div>
-            <div className="text-right tnum text-info">{fmtInt(r.open)}</div>
-            <div className="text-right tnum text-ok">{fmtInt(r.won)}</div>
-            <div className="text-right tnum text-accent-ink">{fmtInt(r.paid)}</div>
-            <div className="text-right tnum text-bad">{fmtInt(r.lost)}</div>
-            <div className="text-right tnum font-bold">{wr.toFixed(0)}%</div>
-          </div>
-        );
-      })}
-    </div>
+    </ReportPanel>
   );
 }

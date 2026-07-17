@@ -3,8 +3,10 @@ import { useAccounts, isPaid } from '@/hooks/useAccounts';
 import { useDeals } from '@/hooks/useDeals';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { fmtEgp, fmtInt, toEgp } from '@/lib/format';
+import { cn } from '@/lib/cn';
 import { useReportsOwner } from '../shared/reportsContext';
 import { reconstructWonLostWeekly, reconstructRollingMrr } from '../shared/reportCalc';
+import { ReportPanel, ReportKpi, HeaderPill, BarList, type BarRow } from '../shared/ReportUI';
 
 export default function WinLossChurnedReport() {
   const accts = useAccounts();
@@ -26,7 +28,6 @@ export default function WinLossChurnedReport() {
   const winRate = wonCount + lostCount > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : 0;
   const arr = scopedAccts.filter(isPaid).reduce((s, a) => s + toEgp(a.deal_value ?? 0, a.deal_currency), 0);
 
-  // Renewal buckets — reuse existing lib/renewal semantics inline
   const now = Date.now();
   const bucket = (endMs: number) => {
     const days = (endMs - now) / 86_400_000;
@@ -50,7 +51,6 @@ export default function WinLossChurnedReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopedCycles]);
 
-  // Loss reasons — full
   const lossReasons = useMemo(() => {
     const m = new Map<string, number>();
     scopedDeals.filter((d) => d.stage === 'lost').forEach((d) => {
@@ -59,113 +59,116 @@ export default function WinLossChurnedReport() {
     });
     return Array.from(m.entries()).map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
   }, [scopedDeals]);
-  const maxReason = Math.max(1, ...lossReasons.map((r) => r.count));
 
-  // Won-vs-Lost weekly (8 weeks)
   const weekly = useMemo(() => reconstructWonLostWeekly(scopedDeals as Parameters<typeof reconstructWonLostWeekly>[0], 8, new Date()), [scopedDeals]);
   const weeklyMax = Math.max(1, ...weekly.flatMap((w) => [w.won, w.lost]));
 
-  // MRR + churn (6 months)
   const mrr = useMemo(() => reconstructRollingMrr(scopedCycles, 6, new Date()), [scopedCycles]);
   const mrrMax = Math.max(1, ...mrr.map((m) => m.mrr));
+
+  const lossBars: BarRow[] = lossReasons.map((r) => ({
+    key: r.reason,
+    label: r.reason,
+    value: r.count,
+    displayValue: fmtInt(r.count),
+    rightHint: `${Math.round((r.count / Math.max(1, lostCount)) * 100)}%`,
+    fillClass: 'bg-bad',
+  }));
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <Kpi label="Win rate" value={wonCount + lostCount > 0 ? `${winRate}%` : '—'} sub={`${wonCount} won · ${lostCount} lost`} />
-        <Kpi label="ARR" value={fmtEgp(arr)} sub="paying customers" />
-        <Kpi label="Renewed" value={fmtInt(buckets.renewed)} />
-        <Kpi label="Churned" value={fmtInt(buckets.churned)} />
+        <ReportKpi
+          label="Win rate"
+          value={wonCount + lostCount > 0 ? `${winRate}%` : '—'}
+          sub={`${wonCount} won · ${lostCount} lost`}
+          accent
+          tone={winRate >= 60 ? 'ok' : winRate >= 40 ? 'warn' : wonCount + lostCount > 0 ? 'bad' : undefined}
+        />
+        <ReportKpi label="ARR" value={fmtEgp(arr)} sub="paying customers" tone="ok" />
+        <ReportKpi label="Renewed" value={fmtInt(buckets.renewed)} tone="ok" />
+        <ReportKpi label="Churned" value={fmtInt(buckets.churned)} tone={buckets.churned > 0 ? 'bad' : undefined} />
       </div>
 
-      <Panel title="Renewal pipeline" hint="Buckets across all scoped cycles">
-        <div className="grid grid-cols-4 md:grid-cols-7 gap-3 p-5">
-          <BucketTile label="Overdue" count={buckets.overdue} color="text-bad" />
-          <BucketTile label="≤ 30d" count={buckets.d30} color="text-warn" />
-          <BucketTile label="≤ 60d" count={buckets.d60} color="text-warn" />
-          <BucketTile label="≤ 90d" count={buckets.d90} color="text-info" />
-          <BucketTile label="Active" count={buckets.active} color="text-ok" />
-          <BucketTile label="Renewed" count={buckets.renewed} color="text-ok" />
-          <BucketTile label="Churned" count={buckets.churned} color="text-text-3" />
+      <ReportPanel
+        title="Renewal pipeline"
+        subtitle="All contract cycles in scope"
+        headerRight={<HeaderPill tone={buckets.overdue > 0 ? 'bad' : 'muted'}>{fmtInt(buckets.overdue)} overdue</HeaderPill>}
+      >
+        <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
+          <BucketTile label="Overdue" count={buckets.overdue} tone="bad" />
+          <BucketTile label="≤ 30d" count={buckets.d30} tone="warn" />
+          <BucketTile label="≤ 60d" count={buckets.d60} tone="warn" />
+          <BucketTile label="≤ 90d" count={buckets.d90} tone="info" />
+          <BucketTile label="Active" count={buckets.active} tone="ok" />
+          <BucketTile label="Renewed" count={buckets.renewed} tone="ok" />
+          <BucketTile label="Churned" count={buckets.churned} tone="muted" />
         </div>
-      </Panel>
+      </ReportPanel>
 
-      <Panel title="Won vs Lost — last 8 weeks">
-        <div className="p-5 border-t border-border">
-          <div className="flex items-end gap-2 h-[120px]">
-            {weekly.map((w) => (
-              <div key={w.weekStartISO} className="flex-1 flex flex-col items-center gap-0.5" title={`${w.weekStartISO}\nWon: ${fmtEgp(w.won)}\nLost: ${fmtEgp(w.lost)}`}>
-                <div className="w-full flex items-end gap-0.5" style={{ height: 100 }}>
-                  <div className="flex-1 bg-ok rounded-t" style={{ height: `${(w.won / weeklyMax) * 100}%` }} />
-                  <div className="flex-1 bg-bad rounded-t" style={{ height: `${(w.lost / weeklyMax) * 100}%` }} />
-                </div>
-                <span className="text-[9px] text-text-4">{w.weekStartISO.slice(5)}</span>
+      <ReportPanel
+        title="Won vs Lost"
+        subtitle="Last 8 weeks — deal value"
+        headerRight={<HeaderPill tone="ok">{fmtEgp(weekly.reduce((s, w) => s + w.won, 0))} won</HeaderPill>}
+      >
+        <div className="flex items-end gap-2 h-[140px]">
+          {weekly.map((w) => (
+            <div key={w.weekStartISO} className="flex-1 flex flex-col items-center gap-1" title={`Week of ${w.weekStartISO}\nWon: ${fmtEgp(w.won)}\nLost: ${fmtEgp(w.lost)}`}>
+              <div className="w-full flex items-end justify-center gap-1" style={{ height: 110 }}>
+                <div className="w-1/2 bg-ok rounded-t-md" style={{ height: `${Math.max(2, (w.won / weeklyMax) * 100)}%` }} />
+                <div className="w-1/2 bg-bad rounded-t-md" style={{ height: `${Math.max(2, (w.lost / weeklyMax) * 100)}%` }} />
               </div>
-            ))}
-          </div>
-          <div className="flex gap-4 mt-2 text-[11.5px] font-semibold">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-ok" /> Won</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-bad" /> Lost</span>
-          </div>
-        </div>
-      </Panel>
-
-      <Panel title="Rolling MRR + churn rate — last 6 months">
-        <div className="p-5 border-t border-border space-y-2">
-          {mrr.map((m) => (
-            <div key={m.monthISO} className="flex items-center gap-3">
-              <span className="text-[12px] text-text-3 w-20 tnum">{m.monthISO.slice(0, 7)}</span>
-              <div className="flex-1 h-2 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full bg-ok" style={{ width: `${(m.mrr / mrrMax) * 100}%` }} />
-              </div>
-              <span className="text-[12px] text-text-2 tnum w-24 text-right">{fmtEgp(m.mrr)}</span>
-              <span className={`text-[11.5px] tnum w-16 text-right ${m.churnRate > 5 ? 'text-bad' : 'text-text-3'}`}>{Math.round(m.churnRate)}% churn</span>
+              <span className="text-[10px] text-text-3 tnum">{w.weekStartISO.slice(5)}</span>
             </div>
           ))}
         </div>
-      </Panel>
+        <div className="flex gap-4 mt-3 text-[11.5px] font-semibold">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-ok" /> Won</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-bad" /> Lost</span>
+        </div>
+      </ReportPanel>
 
-      <Panel title="Why deals were lost" hint="Full breakdown">
-        {lossReasons.length === 0 && <div className="p-8 text-center text-[12.5px] text-text-3 border-t border-border">No lost deals in scope.</div>}
-        {lossReasons.map((r) => (
-          <div key={r.reason} className="px-5 py-3 border-t border-border flex items-center gap-3">
-            <span className="text-[13px] font-semibold text-text flex-1 truncate">{r.reason}</span>
-            <div className="w-40 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-              <div className="h-full bg-bad" style={{ width: `${(r.count / maxReason) * 100}%` }} />
+      <ReportPanel
+        title="Rolling MRR + churn"
+        subtitle="Last 6 months"
+      >
+        <div className="space-y-4">
+          {mrr.map((m) => (
+            <div key={m.monthISO}>
+              <div className="flex items-baseline gap-3 mb-1.5">
+                <div className="text-[13.5px] font-extrabold text-text w-20">{m.monthISO.slice(0, 7)}</div>
+                <div className="flex-1" />
+                <div className="tnum text-[14px] font-black text-text">{fmtEgp(m.mrr)}</div>
+                <div className={cn('tnum text-[11.5px] font-bold w-24 text-right', m.churnRate > 5 ? 'text-bad' : 'text-text-3')}>
+                  {Math.round(m.churnRate)}% churn
+                </div>
+              </div>
+              <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden">
+                <div className="h-full rounded-full bg-ok" style={{ width: `${Math.max(2, (m.mrr / mrrMax) * 100)}%` }} />
+              </div>
             </div>
-            <span className="text-[11.5px] text-text-3 tnum w-10 text-right">{fmtInt(r.count)}</span>
-          </div>
-        ))}
-      </Panel>
+          ))}
+        </div>
+      </ReportPanel>
+
+      <ReportPanel
+        title="Loss reasons"
+        subtitle="Why deals were lost"
+        headerRight={<HeaderPill tone={lostCount > 0 ? 'bad' : 'muted'}>{fmtInt(lostCount)} lost</HeaderPill>}
+      >
+        <BarList rows={lossBars} variant="raw" emptyText="No lost deals in scope." />
+      </ReportPanel>
     </div>
   );
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function BucketTile({ label, count, tone }: { label: string; count: number; tone: 'bad' | 'warn' | 'info' | 'ok' | 'muted' }) {
+  const bgClass = tone === 'bad' ? 'bg-bad-bg' : tone === 'warn' ? 'bg-warn-bg' : tone === 'info' ? 'bg-info-bg' : tone === 'ok' ? 'bg-ok-bg' : 'bg-surface-2';
+  const textClass = tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : tone === 'info' ? 'text-info' : tone === 'ok' ? 'text-ok' : 'text-text-3';
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 shadow-sh1">
-      <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{label}</div>
-      <div className="tnum text-[22px] font-extrabold tracking-tight text-text mt-2">{value}</div>
-      {sub && <div className="text-[11.5px] text-text-3 font-medium mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-function Panel({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-surface border border-border rounded-2xl shadow-sh1 overflow-hidden">
-      <div className="flex items-baseline gap-2 px-5 pt-5 pb-3.5">
-        <span className="text-[15px] font-extrabold tracking-tight">{title}</span>
-        {hint && <span className="text-[12px] text-text-3">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-function BucketTile({ label, count, color }: { label: string; count: number; color: string }) {
-  return (
-    <div className="text-center">
-      <div className={`tnum text-[22px] font-black ${color}`}>{fmtInt(count)}</div>
-      <div className="text-[10px] text-text-3 uppercase tracking-widest mt-0.5">{label}</div>
+    <div className={cn('rounded-xl p-3 text-center', bgClass)}>
+      <div className={cn('tnum text-[24px] font-black leading-none', textClass)}>{fmtInt(count)}</div>
+      <div className="text-[10px] text-text-3 uppercase tracking-widest mt-1.5 font-bold">{label}</div>
     </div>
   );
 }

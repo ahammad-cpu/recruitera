@@ -8,6 +8,7 @@ import { DISQ_REASONS } from '@/hooks/useDisqualify';
 import { useReportsOwner } from '../shared/reportsContext';
 import { DateRangeFilter } from '../shared/DateRangeFilter';
 import { resolveDateRange, type DateRangeKey } from '../shared/dateRange';
+import { ReportPanel, ReportKpi, HeaderPill, BarList, type BarRow } from '../shared/ReportUI';
 
 export default function LeadGenerationReport() {
   const accts = useAccounts();
@@ -32,7 +33,6 @@ export default function LeadGenerationReport() {
     return list;
   }, [accts.data, ownerId, range]);
 
-  // Per-channel breakdown: leads count, disqualified count, revenue attributed
   const dealAmountByAccount = useMemo(() => {
     const m = new Map<string, number>();
     (deals.data ?? []).forEach((d) => {
@@ -57,7 +57,6 @@ export default function LeadGenerationReport() {
       .sort((a, b) => b.leads - a.leads);
   }, [rows, attribution.channelByAccountId, dealAmountByAccount]);
 
-  // Disqualify reason breakdown (full, not top-6)
   const reasonBreakdown = useMemo(() => {
     const m = new Map<string, number>();
     rows.forEach((a) => {
@@ -74,7 +73,6 @@ export default function LeadGenerationReport() {
       .sort((a, b) => b.count - a.count);
   }, [rows]);
 
-  // Campaign stats (utm campaigns + attributed accounts + revenue)
   const campaignStats = useMemo(() => {
     const byCampaign = new Map<string, { accounts: number; revenue: number }>();
     rows.forEach((a) => {
@@ -93,11 +91,34 @@ export default function LeadGenerationReport() {
   const totalLeads = rows.length;
   const totalDisq = rows.filter((a) => a.disqualified_at).length;
   const totalDropOff = totalLeads > 0 ? (totalDisq / totalLeads) * 100 : 0;
+  const totalRevenue = channelStats.reduce((s, c) => s + c.revenue, 0);
 
-  const maxLeadsByChannel = Math.max(1, ...channelStats.map((s) => s.leads));
-  const maxRevByChannel = Math.max(1, ...channelStats.map((s) => s.revenue));
-  const maxReason = Math.max(1, ...reasonBreakdown.map((r) => r.count));
-  const maxCampRev = Math.max(1, ...campaignStats.map((c) => c.revenue));
+  const channelBars: BarRow[] = channelStats.map((s) => ({
+    key: s.channel,
+    label: s.channel,
+    labelHint: `${fmtInt(s.leads)} leads · ${fmtEgp(s.revenue)}`,
+    value: s.leads,
+    displayValue: `${Math.round((s.leads / (totalLeads || 1)) * 100)}%`,
+    rightHint: s.disq > 0 ? `${Math.round(s.dropOffRate)}% dropped` : undefined,
+  }));
+
+  const reasonBars: BarRow[] = reasonBreakdown.map((r) => ({
+    key: r.reason,
+    label: r.label,
+    value: r.count,
+    displayValue: fmtInt(r.count),
+    rightHint: `${Math.round((r.count / (totalDisq || 1)) * 100)}%`,
+    fillClass: 'bg-bad',
+  }));
+
+  const campaignBars: BarRow[] = campaignStats.map((c) => ({
+    key: c.campaign,
+    label: c.campaign,
+    labelHint: `${fmtInt(c.accounts)} accounts`,
+    value: c.revenue,
+    displayValue: fmtEgp(c.revenue),
+    fillClass: 'bg-ok',
+  }));
 
   return (
     <div className="space-y-5">
@@ -106,89 +127,36 @@ export default function LeadGenerationReport() {
         <span className="text-[11px] text-text-3">{range.label}</span>
       </div>
 
-      {/* KPI STRIP */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <Kpi label="Leads in period" value={fmtInt(totalLeads)} />
-        <Kpi label="Disqualified" value={fmtInt(totalDisq)} />
-        <Kpi label="Drop-off rate" value={`${Math.round(totalDropOff)}%`} />
-        <Kpi label="Named campaigns" value={fmtInt(campaigns.data?.length ?? 0)} sub={`${fmtInt(links.data?.length ?? 0)} UTM links`} />
+        <ReportKpi label="Leads in period" value={fmtInt(totalLeads)} accent />
+        <ReportKpi label="Disqualified" value={fmtInt(totalDisq)} tone={totalDisq > 0 ? 'bad' : undefined} />
+        <ReportKpi label="Drop-off rate" value={`${Math.round(totalDropOff)}%`} sub="of leads in period" />
+        <ReportKpi label="Named campaigns" value={fmtInt(campaigns.data?.length ?? 0)} sub={`${fmtInt(links.data?.length ?? 0)} UTM links`} />
       </div>
 
-      {/* CHANNEL BREAKDOWN */}
-      <Panel title="Leads by channel" hint="MT-resolved attribution — falls back to accounts.source">
-        {channelStats.length === 0 && <Empty text="No leads in this range." />}
-        {channelStats.map((s) => (
-          <div key={s.channel} className="px-5 py-3 border-t border-border first:border-0">
-            <div className="flex items-center gap-3">
-              <span className="text-[13px] font-bold text-text flex-1 truncate">{s.channel}</span>
-              <span className="text-[11.5px] text-text-3 tnum">{fmtInt(s.leads)} leads</span>
-              <span className="text-[11.5px] text-text-3 tnum">{fmtEgp(s.revenue)}</span>
-              <span className="text-[11.5px] text-bad tnum">{Math.round(s.dropOffRate)}% dropped</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-1.5">
-              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full bg-accent-strong" style={{ width: `${(s.leads / maxLeadsByChannel) * 100}%` }} />
-              </div>
-              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full bg-ok" style={{ width: `${(s.revenue / maxRevByChannel) * 100}%` }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </Panel>
+      <ReportPanel
+        title="Sources"
+        subtitle="Where leads come from"
+        headerRight={<HeaderPill>{fmtInt(totalLeads)} leads</HeaderPill>}
+      >
+        <BarList rows={channelBars} variant="raw" emptyText="No leads in this range." autoColor />
+      </ReportPanel>
 
-      {/* DISQUALIFY REASONS */}
-      <Panel title="Why leads were disqualified" hint="Full breakdown">
-        {reasonBreakdown.length === 0 && <Empty text="No disqualifications in this range." />}
-        {reasonBreakdown.map((r) => (
-          <div key={r.reason} className="px-5 py-3 border-t border-border first:border-0 flex items-center gap-3">
-            <span className="text-[13px] font-semibold text-text flex-1 truncate">{r.label}</span>
-            <div className="w-40 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-              <div className="h-full bg-bad" style={{ width: `${(r.count / maxReason) * 100}%` }} />
-            </div>
-            <span className="text-[11.5px] text-text-3 tnum w-10 text-right">{fmtInt(r.count)}</span>
-          </div>
-        ))}
-      </Panel>
+      <ReportPanel
+        title="Disqualified reasons"
+        subtitle="Why leads dropped off"
+        headerRight={<HeaderPill tone={totalDisq > 0 ? 'bad' : 'muted'}>{fmtInt(totalDisq)} disqualified</HeaderPill>}
+      >
+        <BarList rows={reasonBars} variant="raw" emptyText="No disqualifications in this range." />
+      </ReportPanel>
 
-      {/* CAMPAIGNS */}
-      <Panel title="Campaigns" hint="Ranked by attributed revenue">
-        {campaignStats.length === 0 && <Empty text="No campaigns attributed in this range." />}
-        {campaignStats.map((c) => (
-          <div key={c.campaign} className="px-5 py-3 border-t border-border first:border-0 flex items-center gap-3">
-            <span className="text-[13px] font-semibold text-text flex-1 truncate">{c.campaign}</span>
-            <span className="text-[11.5px] text-text-3 tnum">{fmtInt(c.accounts)} accts</span>
-            <div className="w-40 h-1.5 rounded-full bg-surface-2 overflow-hidden">
-              <div className="h-full bg-ok" style={{ width: `${(c.revenue / maxCampRev) * 100}%` }} />
-            </div>
-            <span className="text-[11.5px] text-text-2 font-bold tnum w-24 text-right">{fmtEgp(c.revenue)}</span>
-          </div>
-        ))}
-      </Panel>
+      <ReportPanel
+        title="Campaigns"
+        subtitle="Ranked by attributed revenue"
+        headerRight={<HeaderPill tone="ok">{fmtEgp(totalRevenue)}</HeaderPill>}
+      >
+        <BarList rows={campaignBars} variant="raw" emptyText="No campaigns attributed in this range." />
+      </ReportPanel>
     </div>
   );
-}
-
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-surface border border-border rounded-xl p-4 shadow-sh1">
-      <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{label}</div>
-      <div className="tnum text-[22px] font-extrabold tracking-tight text-text mt-2">{value}</div>
-      {sub && <div className="text-[11.5px] text-text-3 font-medium mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-function Panel({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-surface border border-border rounded-2xl shadow-sh1 overflow-hidden">
-      <div className="flex items-baseline gap-2 px-5 pt-5 pb-3.5">
-        <span className="text-[15px] font-extrabold tracking-tight">{title}</span>
-        {hint && <span className="text-[12px] text-text-3">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-function Empty({ text }: { text: string }) {
-  return <div className="p-8 text-center text-[12.5px] text-text-3 border-t border-border">{text}</div>;
 }
