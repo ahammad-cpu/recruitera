@@ -10,16 +10,13 @@ import Tasks from '@/features/tasks/Tasks';
 import Notifications from '@/features/notifications/Notifications';
 import Logs from '@/features/logs/Logs';
 import ReportsShell from '@/features/reports/ReportsShell';
-import KeyMetrics from '@/features/reports/tabs/KeyMetrics';
+import LeadGenerationReport from '@/features/reports/tabs/LeadGenerationReport';
 import PipelineReport from '@/features/reports/tabs/PipelineReport';
-import AcquisitionReport from '@/features/reports/tabs/AcquisitionReport';
+import WinLossChurnedReport from '@/features/reports/tabs/WinLossChurnedReport';
 import AMReport from '@/features/reports/tabs/AMReport';
 import AMPerformance from '@/features/am-performance/AMPerformance';
 import Users from '@/features/users/Users';
 import Utm from '@/features/utm/Utm';
-import RevenueReport from '@/features/reports/tabs/RevenueReport';
-import RenewalReport from '@/features/reports/tabs/RenewalReport';
-import CampaignReport from '@/features/reports/tabs/CampaignReport';
 
 // Vite's BASE_URL matches the deploy path (/crm-v3/ on Vercel, / in dev).
 // Strip trailing slash so React Router accepts it as basename.
@@ -46,13 +43,10 @@ export const router = createBrowserRouter([
         path: 'reports',
         element: <ReportsShell />,
         children: [
-          { index: true, element: <KeyMetrics /> },
+          { index: true, element: <LeadGenerationReport /> },
           { path: 'pipeline', element: <PipelineReport /> },
-          { path: 'revenue', element: <RevenueReport /> },
-          { path: 'acquisition', element: <AcquisitionReport /> },
-          { path: 'renewal', element: <RenewalReport /> },
+          { path: 'win-loss', element: <WinLossChurnedReport /> },
           { path: 'am', element: <AMReport /> },
-          { path: 'campaign', element: <CampaignReport /> },
         ],
       },
       { path: 'logs', element: <Logs /> },
