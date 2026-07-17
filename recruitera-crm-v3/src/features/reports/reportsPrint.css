@@ -1,0 +1,11 @@
+/* recruitera-crm-v3/src/features/reports/reportsPrint.css */
+@media print {
+  body.reports-printing * { visibility: hidden !important; }
+  body.reports-printing #reports-print-root,
+  body.reports-printing #reports-print-root * { visibility: visible !important; }
+  body.reports-printing #reports-print-root {
+    position: absolute; left: 0; top: 0; width: 100%;
+    padding: 24px; background: white; color: black;
+  }
+  body.reports-printing .no-print { display: none !important; }
+}
