@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useCreateAccount, type NewAccountInput } from '@/hooks/useCreateAccount';
 import { useMe } from '@/hooks/useMe';
+import { useProfiles } from '@/hooks/useUsersData';
+import { cn } from '@/lib/cn';
 
 type Props = { onClose: () => void };
 
@@ -103,12 +105,18 @@ type ParsedRow = { row: Record<string, string>; input: NewAccountInput; error?: 
 
 export function BulkUploadModal({ onClose }: Props) {
   const me = useMe();
+  const profiles = useProfiles();
+  const isAdmin = me.data?.role === 'admin';
   const create = useCreateAccount();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('intro');
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>('');
   const [progress, setProgress] = useState({ done: 0, ok: 0, failed: 0 });
+  // Admins add companies on behalf of the team, so bulk uploads require an
+  // explicit "assign to" choice instead of silently defaulting every row
+  // to the admin's own email (same rule as the single Add Company form).
+  const [bulkOwnerId, setBulkOwnerId] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -121,6 +129,10 @@ export function BulkUploadModal({ onClose }: Props) {
     setFileName(file.name);
     const text = await file.text();
     const raw = parseCsv(text);
+    const fallbackOwner = isAdmin
+      ? (profiles.data ?? []).find((p) => p.id === bulkOwnerId)
+      : me.data;
+    const uploaderName = me.data?.full_name || me.data?.email || 'a user';
     const parsed: ParsedRow[] = raw.map((r) => {
       const err: string[] = [];
       if (!r.company_name) err.push('company_name missing');
@@ -128,12 +140,12 @@ export function BulkUploadModal({ onClose }: Props) {
       if (!r.contact_phone) err.push('contact_phone missing');
       const input: NewAccountInput = {
         name: r.company_name || '',
-        source: r.source || null,
+        source: r.source || `Manually added by ${uploaderName}`,
         stage: (r.stage || 'lead').toLowerCase(),
         campaign: r.campaign || null,
         medium: r.medium || null,
-        am_mail: r.am_email || me.data?.email || null,
-        owner_id: me.data?.id ?? null,
+        am_mail: r.am_email || fallbackOwner?.email || null,
+        owner_id: fallbackOwner?.id ?? null,
         cs_email: r.cs_email || null,
         industry: r.industry || null,
         company_size: r.company_size || null,
@@ -219,8 +231,30 @@ export function BulkUploadModal({ onClose }: Props) {
                 title="Fill in your data"
                 desc={`Required columns: company_name, contact_name, contact_phone. Everything else is optional.`}
               />
+              {isAdmin && (
+                <StepBox
+                  num={3}
+                  title="Assign to"
+                  desc="Rows without an am_email column fall back to this person. Required for admin uploads instead of silently defaulting to you."
+                  action={
+                    <select
+                      value={bulkOwnerId}
+                      onChange={(e) => setBulkOwnerId(e.target.value)}
+                      className={cn(
+                        'h-10 px-3 border-2 rounded-lg bg-surface text-[13px] font-semibold outline-none w-full max-w-xs',
+                        bulkOwnerId ? 'border-border-2' : 'border-bad/50',
+                      )}
+                    >
+                      <option value="">Select owner…</option>
+                      {(profiles.data ?? []).map((p) => (
+                        <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                      ))}
+                    </select>
+                  }
+                />
+              )}
               <StepBox
-                num={3}
+                num={isAdmin ? 4 : 3}
                 title="Upload the filled sheet"
                 desc="Drop the CSV below or click to browse. We'll preview before inserting."
                 action={
@@ -230,20 +264,29 @@ export function BulkUploadModal({ onClose }: Props) {
                       type="file"
                       accept=".csv,text/csv"
                       className="hidden"
+                      disabled={isAdmin && !bulkOwnerId}
                       onChange={(e) => e.target.files?.[0] && onPickFile(e.target.files[0])}
                     />
                     <div
-                      onClick={() => fileRef.current?.click()}
+                      onClick={() => { if (!isAdmin || bulkOwnerId) fileRef.current?.click(); }}
                       onDragOver={(e) => { e.preventDefault(); }}
                       onDrop={(e) => {
                         e.preventDefault();
+                        if (isAdmin && !bulkOwnerId) return;
                         const f = e.dataTransfer.files?.[0];
                         if (f) onPickFile(f);
                       }}
-                      className="mt-2 border-2 border-dashed border-border-2 hover:border-accent hover:bg-accent-soft/40 rounded-xl px-6 py-8 text-center cursor-pointer transition-colors"
+                      className={cn(
+                        'mt-2 border-2 border-dashed rounded-xl px-6 py-8 text-center transition-colors',
+                        isAdmin && !bulkOwnerId
+                          ? 'border-border-2 opacity-50 cursor-not-allowed'
+                          : 'border-border-2 hover:border-accent hover:bg-accent-soft/40 cursor-pointer',
+                      )}
                     >
                       <FileSpreadsheet size={28} className="mx-auto text-text-3 mb-2" />
-                      <div className="text-[13px] font-bold text-text">Drop CSV here or click to browse</div>
+                      <div className="text-[13px] font-bold text-text">
+                        {isAdmin && !bulkOwnerId ? 'Pick an owner above first' : 'Drop CSV here or click to browse'}
+                      </div>
                       <div className="text-[11px] text-text-3 mt-1">Max ~500 rows. .csv only.</div>
                     </div>
                   </>

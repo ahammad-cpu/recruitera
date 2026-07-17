@@ -3,6 +3,7 @@ import { X, Plus, Upload, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCreateAccount, type NewAccountInput } from '@/hooks/useCreateAccount';
 import { useMe } from '@/hooks/useMe';
+import { useProfiles } from '@/hooks/useUsersData';
 import { useEnum } from '@/hooks/useEnum';
 import { useUtmSources, useUtmMediums, useCreateUtmSource, useCreateUtmMedium } from '@/hooks/useUtmOptions';
 import { CreatableSelect } from '@/components/shared/CreatableSelect';
@@ -18,6 +19,8 @@ type Props = {
 export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
   const create = useCreateAccount();
   const me = useMe();
+  const profiles = useProfiles();
+  const isAdmin = me.data?.role === 'admin';
   const stages = useEnum('pipeline_stage');
   const sources = useUtmSources();
   const mediums = useUtmMediums();
@@ -41,9 +44,11 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // Default AM email + owner once profile loads. Keeps owner_id and am_mail
-    // in sync so the account team panel resolves the owner correctly.
-    if (!me.data) return;
+    // Non-admins: default AM email + owner to themselves once the profile
+    // loads (most reps are adding their own leads). Admins are NOT defaulted
+    // — they add companies on behalf of the team, so they're required to
+    // explicitly pick an owner below instead of silently self-assigning.
+    if (!me.data || me.data.role === 'admin') return;
     setForm((f) => {
       if (f.am_mail) return f;
       return { ...f, am_mail: me.data!.email ?? '', owner_id: me.data!.id };
@@ -58,8 +63,17 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
 
   async function submit() {
     setErr(null);
+    if (isAdmin && !form.owner_id) { setErr('Pick who this company is assigned to'); return; }
+    // Manually-created leads default to a "Manually added by <you>" source
+    // tag when no real marketing source was picked — distinguishes them
+    // from Bubble-synced / ad-attributed leads without forcing a choice
+    // from a dropdown meant for actual UTM channels.
+    const input: NewAccountInput = {
+      ...form,
+      source: form.source || (me.data ? `Manually added by ${me.data.full_name || me.data.email}` : form.source),
+    };
     try {
-      const res = await create.mutateAsync(form);
+      const res = await create.mutateAsync(input);
       onClose();
       // Open the newly created company profile
       navigate(`/companies/${res.id}`);
@@ -152,13 +166,37 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
 
           {/* AM / RC EMAIL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FieldText
-              label={<>AM email (owner) <span className="text-text-4 font-medium normal-case tracking-normal">— defaults to you</span></>}
-              value={form.am_mail ?? ''}
-              onChange={(v) => set('am_mail', v)}
-              placeholder="a.hammad@icareer.ai"
-              type="email"
-            />
+            {isAdmin ? (
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-widest text-text-3">
+                  Assign to <span className="text-bad">*</span>
+                </span>
+                <select
+                  value={form.owner_id ?? ''}
+                  onChange={(e) => {
+                    const p = (profiles.data ?? []).find((pr) => pr.id === e.target.value);
+                    setForm((f) => ({ ...f, owner_id: p?.id ?? null, am_mail: p?.email ?? '' }));
+                  }}
+                  className={cn(
+                    'mt-1 w-full h-10 px-3 border-2 rounded-lg bg-surface text-[13px] font-semibold outline-none',
+                    form.owner_id ? 'border-border-2' : 'border-bad/50',
+                  )}
+                >
+                  <option value="">Select owner…</option>
+                  {(profiles.data ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <FieldText
+                label={<>AM email (owner) <span className="text-text-4 font-medium normal-case tracking-normal">— defaults to you</span></>}
+                value={form.am_mail ?? ''}
+                onChange={(v) => set('am_mail', v)}
+                placeholder="a.hammad@icareer.ai"
+                type="email"
+              />
+            )}
             <FieldText
               label={<>CS email <span className="text-text-4 font-medium normal-case tracking-normal">— customer success</span></>}
               value={form.cs_email ?? ''}
@@ -228,7 +266,7 @@ export function AddCompanyModal({ onClose, onBulkUpload }: Props) {
           <button onClick={onClose} className="h-10 px-5 rounded-lg border border-border bg-surface text-[13px] font-bold text-text-2 hover:bg-surface">Cancel</button>
           <button
             onClick={submit}
-            disabled={create.isPending}
+            disabled={create.isPending || (isAdmin && !form.owner_id)}
             className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-accent text-cg-900 text-[13px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-60"
           >
             <Check size={14} strokeWidth={3} /> {create.isPending ? 'Creating…' : 'Create lead'}
