@@ -1,14 +1,17 @@
 import { useMemo } from 'react';
 import { useAccounts, isPaid } from '@/hooks/useAccounts';
 import { fmtInt } from '@/lib/format';
+import { useReportsOwner } from '../shared/reportsContext';
 
 export default function AMReport() {
   const { data, isLoading } = useAccounts();
+  const { ownerId } = useReportsOwner();
   const rows = data ?? [];
 
   const perAM = useMemo(() => {
     const map = new Map<string, { total: number; open: number; won: number; paid: number; lost: number }>();
-    rows.forEach((a) => {
+    const scoped = ownerId ? rows.filter((a) => a.owner_id === ownerId) : rows;
+    scoped.forEach((a) => {
       const k = a.am_mail || '— unassigned';
       const rec = map.get(k) ?? { total: 0, open: 0, won: 0, paid: 0, lost: 0 };
       rec.total++;
@@ -20,7 +23,7 @@ export default function AMReport() {
       map.set(k, rec);
     });
     return Array.from(map.entries()).sort((a, b) => b[1].total - a[1].total);
-  }, [rows]);
+  }, [rows, ownerId]);
 
   return (
     <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
