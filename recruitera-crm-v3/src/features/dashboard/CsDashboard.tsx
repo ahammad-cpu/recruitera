@@ -10,7 +10,7 @@ import { useMe } from '@/hooks/useMe';
 import { useProfiles } from '@/hooks/useUsersData';
 import { fmtEgp, fmtInt, initials, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { BannerStat, Kpi, Panel } from './shared';
+import { BannerStat, Kpi, Panel, PeriodToggle, getPeriodRange, type PeriodKind } from './shared';
 
 const HEALTH_ACTION: Record<string, string> = {
   healthy: 'Continue normal engagement and look for expansion opportunities.',
@@ -41,15 +41,14 @@ export default function CsDashboard() {
   const me = useMe();
   const profiles = useProfiles();
   const [ownerId, setOwnerId] = useState<string>('');
+  const [periodKind, setPeriodKind] = useState<PeriodKind>('month');
 
   useEffect(() => {
     if (!ownerId && me.data?.id) setOwnerId(me.data.id);
   }, [me.data?.id, ownerId]);
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const monthStartISO = monthStart.toISOString().slice(0, 10);
+  const period = getPeriodRange(periodKind, now);
   const meId = me.data?.id;
   const scopeId = ownerId || meId;
   const isTeam = scopeId === 'all';
@@ -86,16 +85,16 @@ export default function CsDashboard() {
     const list = targets.data ?? [];
     if (isTeam) {
       return list
-        .filter((t) => t.category === 'renewal' && t.period_kind === 'month' && t.period_start === monthStartISO)
+        .filter((t) => t.category === 'renewal' && t.period_kind === periodKind && t.period_start === period.startISO)
         .reduce((s, t) => s + (t.amount_egp || 0), 0);
     }
     if (!scopeId) return 0;
     const row = list.find(
       (t) => t.category === 'renewal' && t.owner_kind === 'user' && t.owner_id === scopeId
-        && t.period_kind === 'month' && t.period_start === monthStartISO,
+        && t.period_kind === periodKind && t.period_start === period.startISO,
     );
     return row?.amount_egp ?? 0;
-  }, [targets.data, scopeId, isTeam, monthStartISO]);
+  }, [targets.data, scopeId, isTeam, periodKind, period.startISO]);
 
   const attain = renewalTarget > 0 ? Math.round((renewedValue / renewalTarget) * 100) : 0;
   const remaining = Math.max(0, renewalTarget - renewedValue);
@@ -141,8 +140,9 @@ export default function CsDashboard() {
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">
             {isTeam ? 'Team renewal target' : 'My renewal target'}
           </span>
-          <span className="text-[12px] text-text-3 font-medium">· {monthLabel} · {displayName}</span>
+          <span className="text-[12px] text-text-3 font-medium">· {period.label} · {displayName}</span>
           <div className="flex-1" />
+          <PeriodToggle value={periodKind} onChange={setPeriodKind} />
           {isAdmin && (
             <select
               value={scopeId ?? ''}
@@ -161,7 +161,7 @@ export default function CsDashboard() {
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_2fr] gap-7 items-center">
-          <BannerStat label="Renewal target" value={renewalTarget ? fmtEgp(renewalTarget) : '—'} hint={monthLabel} />
+          <BannerStat label="Renewal target" value={renewalTarget ? fmtEgp(renewalTarget) : '—'} hint={period.label} />
           <BannerStat label="Renewed" value={fmtEgp(renewedValue)} hint={`${fmtInt(renewedRows.length)} companies`} colorClass="text-ok" />
           <BannerStat label="Remaining" value={renewalTarget ? fmtEgp(remaining) : '—'} hint="to hit target" muted />
           <div>

@@ -1,6 +1,60 @@
 import { cn } from '@/lib/cn';
 import { Sparkline } from '@/components/shared/Sparkline';
 
+export type PeriodKind = 'month' | 'quarter' | 'year';
+const PERIOD_OPTIONS: { key: PeriodKind; label: string }[] = [
+  { key: 'month', label: 'Month' },
+  { key: 'quarter', label: 'Quarter' },
+  { key: 'year', label: 'Year' },
+];
+
+/**
+ * Matches targets.period_kind ('month'|'quarter'|'year', already supported
+ * server-side) so a target row keyed to any of the three granularities can
+ * be looked up directly by (period_kind, period_start) without a migration.
+ */
+export function getPeriodRange(kind: PeriodKind, now: Date) {
+  const year = now.getFullYear();
+  let start: Date;
+  let end: Date;
+  let label: string;
+  if (kind === 'quarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    start = new Date(year, q * 3, 1);
+    end = new Date(year, q * 3 + 3, 0);
+    label = `Q${q + 1} ${year}`;
+  } else if (kind === 'year') {
+    start = new Date(year, 0, 1);
+    end = new Date(year, 11, 31);
+    label = String(year);
+  } else {
+    start = new Date(year, now.getMonth(), 1);
+    end = new Date(year, now.getMonth() + 1, 0);
+    label = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+  const daysLeft = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86_400_000));
+  return { startISO: start.toISOString().slice(0, 10), endISO: end.toISOString().slice(0, 10), label, daysLeft };
+}
+
+export function PeriodToggle({ value, onChange }: { value: PeriodKind; onChange: (k: PeriodKind) => void }) {
+  return (
+    <div className="flex gap-0.5 bg-surface-2 border border-border rounded-md p-0.5">
+      {PERIOD_OPTIONS.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          className={cn(
+            'px-2.5 py-1 rounded text-[12px] font-semibold',
+            value === o.key ? 'bg-surface text-text shadow-sh1' : 'text-text-3',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function BannerStat({ label, value, hint, colorClass, muted }: { label: string; value: React.ReactNode; hint?: string; colorClass?: string; muted?: boolean }) {
   return (
     <div>

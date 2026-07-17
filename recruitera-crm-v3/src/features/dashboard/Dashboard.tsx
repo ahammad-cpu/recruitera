@@ -11,7 +11,7 @@ import { useProfiles } from '@/hooks/useUsersData';
 import { fmtEgp, fmtInt, toEgp, initials, fmtDate } from '@/lib/format';
 import { StagePill } from '@/components/shared/StagePill';
 import { cn } from '@/lib/cn';
-import { BannerStat, Kpi, Panel } from './shared';
+import { BannerStat, Kpi, Panel, PeriodToggle, getPeriodRange, type PeriodKind } from './shared';
 
 const OPEN = new Set(['mql', 'sql', 'demo', 'proposal']);
 
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const me = useMe();
   const profiles = useProfiles();
   const [ownerId, setOwnerId] = useState<string>('');
+  const [periodKind, setPeriodKind] = useState<PeriodKind>('month');
 
   // default owner = signed-in user, once me loads
   useEffect(() => {
@@ -30,12 +31,7 @@ export default function Dashboard() {
   }, [me.data?.id, ownerId]);
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const monthEndT = monthEnd.getTime();
-  const daysLeft = Math.max(0, Math.ceil((monthEndT - now.getTime()) / 86400000));
-  const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const monthStartISO = monthStart.toISOString().slice(0, 10);
+  const period = getPeriodRange(periodKind, now);
   const meId = me.data?.id;
   const scopeId = ownerId || meId;
   const isTeam = scopeId === 'all';
@@ -74,18 +70,18 @@ export default function Dashboard() {
     const list = targets.data ?? [];
     if (isTeam) {
       return list
-        .filter((t) => t.period_kind === 'month' && t.period_start === monthStartISO)
+        .filter((t) => t.period_kind === periodKind && t.period_start === period.startISO)
         .reduce((s, t) => s + (t.amount_egp || 0), 0);
     }
     if (!scopeId) return 0;
     const row = list.find(
-      (t) => t.owner_kind === 'user' && t.owner_id === scopeId && t.period_kind === 'month' && t.period_start === monthStartISO,
+      (t) => t.owner_kind === 'user' && t.owner_id === scopeId && t.period_kind === periodKind && t.period_start === period.startISO,
     );
     return row?.amount_egp ?? 0;
-  }, [targets.data, scopeId, isTeam, monthStartISO]);
+  }, [targets.data, scopeId, isTeam, periodKind, period.startISO]);
 
   const wonThisMonth = myCycles
-    .filter((c) => c.started_at && c.started_at >= monthStartISO && c.started_at <= monthEnd.toISOString().slice(0, 10))
+    .filter((c) => c.started_at && c.started_at >= period.startISO && c.started_at <= period.endISO)
     .reduce((s, c) => s + toEgp(c.value ?? 0, c.currency), 0);
 
   const attain = myTarget > 0 ? Math.round((wonThisMonth / myTarget) * 100) : 0;
@@ -129,8 +125,9 @@ export default function Dashboard() {
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-ok to-accent-strong" />
         <div className="flex items-center gap-2 flex-wrap mb-5">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">{bannerLabel}</span>
-          <span className="text-[12px] text-text-3 font-medium">· {monthLabel} · {displayName}</span>
+          <span className="text-[12px] text-text-3 font-medium">· {period.label} · {displayName}</span>
           <div className="flex-1" />
+          <PeriodToggle value={periodKind} onChange={setPeriodKind} />
           {isAdmin && (
             <select
               value={scopeId ?? ''}
@@ -149,9 +146,9 @@ export default function Dashboard() {
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_2fr] gap-7 items-center">
-          <BannerStat label="Target" value={myTarget ? fmtEgp(myTarget) : '—'} hint={monthLabel} />
-          <BannerStat label="Won" value={fmtEgp(wonThisMonth)} hint="own book · this month" colorClass="text-ok" />
-          <BannerStat label="Remaining" value={myTarget ? fmtEgp(remaining) : '—'} hint={`${daysLeft} day${daysLeft === 1 ? '' : 's'} left`} muted />
+          <BannerStat label="Target" value={myTarget ? fmtEgp(myTarget) : '—'} hint={period.label} />
+          <BannerStat label="Won" value={fmtEgp(wonThisMonth)} hint="own book · this period" colorClass="text-ok" />
+          <BannerStat label="Remaining" value={myTarget ? fmtEgp(remaining) : '—'} hint={`${period.daysLeft} day${period.daysLeft === 1 ? '' : 's'} left`} muted />
           <div>
             <div className="flex items-center gap-2.5 mb-2.5">
               <div className="flex-1 h-3.5 rounded-full bg-surface-2 overflow-hidden">
