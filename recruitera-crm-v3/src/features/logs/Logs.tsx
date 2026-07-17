@@ -191,9 +191,9 @@ function LogRow({ activity: a, author, companyName }: { activity: ActivityRow; a
             {a.type}
           </span>
           {companyName && a.account_id && (
-            <Link to={`/companies/${a.account_id}`} className="text-[12px] font-semibold text-text-3 hover:text-accent-ink">
-              on {companyName}
-            </Link>
+            <span className="text-[12.5px] text-text-3">
+              on <Link to={`/companies/${a.account_id}`} className="font-extrabold text-text hover:text-accent-ink hover:underline">{companyName}</Link>
+            </span>
           )}
           <span className="ml-auto text-[11px] text-text-4 whitespace-nowrap">{fmtDate(a.created_at)}</span>
         </div>
