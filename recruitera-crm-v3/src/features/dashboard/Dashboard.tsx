@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { CheckSquare, Square, Phone } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useTargets } from '@/hooks/useTargets';
-import { useTasks, type Task } from '@/hooks/useTasks';
+import { useTasks } from '@/hooks/useTasks';
 import { useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { useMe } from '@/hooks/useMe';
@@ -42,12 +42,17 @@ export default function Dashboard() {
 
   const rows: Account[] = accounts ?? [];
   const myAccts = isTeam ? rows : scopeId ? rows.filter((a) => a.owner_id === scopeId) : rows;
+  const scopedAcctIds = new Set(myAccts.map((a) => a.id));
+  // Contract cycles don't carry an owner directly — scope them via their
+  // account so every cycle-derived KPI (collected, renewals, won) actually
+  // reflects whoever is picked, not the whole company's book.
+  const myCycles = (cycles.data ?? []).filter((c) => isTeam || scopedAcctIds.has(c.account_id));
 
   const pipelineVal = myAccts
     .filter((a) => OPEN.has((a.stage || '').toLowerCase()))
     .reduce((s, a) => s + toEgp(a.deal_value ?? 0, a.deal_currency), 0);
 
-  const collectedVal = (cycles.data ?? [])
+  const collectedVal = myCycles
     .filter((c) => c.status === 'active' || !c.status)
     .reduce((s, c) => s + toEgp(c.value ?? 0, c.currency), 0);
 
@@ -57,7 +62,7 @@ export default function Dashboard() {
   const lostRows = myAccts.filter((a) => a.stage === 'lost').length;
   const winRate = wonRows + lostRows > 0 ? Math.round((wonRows / (wonRows + lostRows)) * 100) : 0;
 
-  const renewals30 = (cycles.data ?? []).filter((c) => {
+  const renewals30 = myCycles.filter((c) => {
     const end = c.renewal_due_date || c.ends_at;
     if (!end) return false;
     const diff = (new Date(end).getTime() - now.getTime()) / 86400000;
@@ -79,7 +84,7 @@ export default function Dashboard() {
     return row?.amount_egp ?? 0;
   }, [targets.data, scopeId, isTeam, monthStartISO]);
 
-  const wonThisMonth = (cycles.data ?? [])
+  const wonThisMonth = myCycles
     .filter((c) => c.started_at && c.started_at >= monthStartISO && c.started_at <= monthEnd.toISOString().slice(0, 10))
     .reduce((s, c) => s + toEgp(c.value ?? 0, c.currency), 0);
 
@@ -98,21 +103,17 @@ export default function Dashboard() {
 
   const myCompanies = myAccts.slice(0, 5);
   const myCoOpen = myAccts.filter((a) => OPEN.has((a.stage || '').toLowerCase())).length;
-  const scopedAcctIds = new Set(myAccts.map((a) => a.id));
   const openTasksAll = (tasks.data ?? []).filter((t) => {
     if (t.task_done) return false;
     if (isTeam) return true;
-    // Task is in scope if assigned to the picked owner OR the task's account
-    // belongs to the picked owner.
+    // Task is in scope if assigned to the picked owner, created by them, or
+    // the task's account belongs to the picked owner.
     if (t.assigned_to && t.assigned_to === scopeId) return true;
+    if (t.author_id && t.author_id === scopeId) return true;
     if (t.account_id && scopedAcctIds.has(t.account_id)) return true;
     return false;
   });
-  const myOpenTasks = openTasksAll.slice(0, 5);
-  const createdTasksAll = (tasks.data ?? []).filter((t) => !t.task_done && t.author_id && t.author_id === meId);
-  const [taskTab, setTaskTab] = useState<'assigned' | 'created'>('assigned');
-  const taskListShown = (taskTab === 'assigned' ? openTasksAll : createdTasksAll).slice(0, 5);
-  const taskBadgeCount = taskTab === 'assigned' ? openTasksAll.length : createdTasksAll.length;
+  const taskListShown = openTasksAll.slice(0, 5);
   const toggleTaskDone = useToggleTaskDone();
   const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
   const currentOwner = isTeam
@@ -212,24 +213,10 @@ export default function Dashboard() {
 
         <Panel
           title="My Open Tasks"
-          badge={taskBadgeCount ? String(taskBadgeCount) : '0'}
+          badge={openTasksAll.length ? String(openTasksAll.length) : '0'}
           badgeAccent="warn"
           action={<Link to="/tasks" className="text-[13px] text-accent-ink font-bold">View all</Link>}
         >
-          <div className="flex gap-0.5 mx-5 mb-1 bg-surface-2 border border-border rounded-md p-0.5 w-fit">
-            {(['assigned', 'created'] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setTaskTab(k)}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[12px] font-semibold',
-                  taskTab === k ? 'bg-surface text-text shadow-sh1' : 'text-text-3',
-                )}
-              >
-                {k === 'assigned' ? 'Assigned to Me' : 'Created by Me'}
-              </button>
-            ))}
-          </div>
           {tasks.isLoading && <div className="p-5 text-[12.5px] text-text-3">Loading…</div>}
           {!tasks.isLoading && taskListShown.length === 0 && (
             <div className="p-8 text-center text-[12.5px] text-text-3 border-t border-border">Inbox zero.</div>
