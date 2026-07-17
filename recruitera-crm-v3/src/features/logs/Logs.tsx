@@ -17,6 +17,22 @@ const TYPE_ICON: Record<string, React.ComponentType<{ size?: number; className?:
   stage: GitBranch, task: CheckSquare, escalation: AlertTriangle, demo: Video,
 };
 
+// Solid = icon-badge circle (bg-X text-white); soft = the TYPE label pill
+// (bg-X-bg text-X). Each activity type gets its own color so the feed reads
+// at a glance instead of everything but escalations looking the same.
+const TYPE_COLOR: Record<string, { solid: string; soft: string }> = {
+  call: { solid: 'bg-info text-white', soft: 'bg-info-bg text-info' },
+  email: { solid: 'bg-violet text-white', soft: 'bg-violet-bg text-violet' },
+  note: { solid: 'bg-warn text-white', soft: 'bg-warn-bg text-warn' },
+  meeting: { solid: 'bg-purple text-white', soft: 'bg-purple-bg text-purple' },
+  file: { solid: 'bg-cyan text-white', soft: 'bg-cyan/15 text-cyan' },
+  stage: { solid: 'bg-accent-strong text-accent-ink', soft: 'bg-accent-soft text-accent-ink' },
+  task: { solid: 'bg-ok text-white', soft: 'bg-ok-bg text-ok' },
+  escalation: { solid: 'bg-bad text-white', soft: 'bg-bad-bg text-bad' },
+  demo: { solid: 'bg-flame text-white', soft: 'bg-flame/15 text-flame' },
+};
+const DEFAULT_TYPE_COLOR = { solid: 'bg-cg-800 text-white', soft: 'bg-surface-2 text-text-2' };
+
 const DAY = 86_400_000;
 type DateRangeKey = 'all' | 'today' | 'week' | 'month';
 const DATE_RANGES: { key: DateRangeKey; label: string }[] = [
@@ -145,6 +161,7 @@ export default function Logs() {
 function LogRow({ activity: a, author, companyName }: { activity: ActivityRow; author: Profile | undefined; companyName: string | undefined }) {
   const isSystem = !a.author_id;
   const Icon = TYPE_ICON[a.type];
+  const color = TYPE_COLOR[a.type] ?? DEFAULT_TYPE_COLOR;
   const name = author?.full_name || author?.email || 'System';
 
   return (
@@ -160,7 +177,7 @@ function LogRow({ activity: a, author, companyName }: { activity: ActivityRow; a
         {Icon && (
           <div className={cn(
             'absolute -bottom-1 -right-1 w-[18px] h-[18px] rounded-full border-2 border-surface flex items-center justify-center',
-            a.type === 'escalation' ? 'bg-bad text-white' : 'bg-cg-800 text-white',
+            color.solid,
           )}>
             <Icon size={10} />
           </div>
@@ -170,10 +187,7 @@ function LogRow({ activity: a, author, companyName }: { activity: ActivityRow; a
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={cn('font-extrabold text-[13.5px]', isSystem ? 'text-text-2' : 'text-text')}>{name}</span>
-          <span className={cn(
-            'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded',
-            a.type === 'escalation' ? 'text-bad bg-bad-bg' : 'text-accent-ink bg-accent-soft',
-          )}>
+          <span className={cn('text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded', color.soft)}>
             {a.type}
           </span>
           {companyName && a.account_id && (
