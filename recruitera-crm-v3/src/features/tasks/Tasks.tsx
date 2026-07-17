@@ -80,7 +80,7 @@ export default function Tasks() {
     return ids;
   }, [isTeamLead, myId, profiles.data]);
 
-  const rows = useMemo(() => {
+  const roleScoped = useMemo(() => {
     const all = data ?? [];
     if (isAdmin || !myId) return all;
     if (isTeamLead && teamIds) {
@@ -88,6 +88,25 @@ export default function Tasks() {
     }
     return all.filter((t) => t.assigned_to === myId || t.author_id === myId);
   }, [data, isAdmin, isTeamLead, teamIds, myId]);
+
+  // Only worth showing a person filter when the role-scoped set can contain
+  // more than one person's tasks (admins, team leads) — a plain member's
+  // list is already just their own.
+  const [personId, setPersonId] = useState('all');
+  const responsibleOptions = useMemo(() => {
+    const ids = new Set<string>();
+    roleScoped.forEach((t) => { if (t.assigned_to) ids.add(t.assigned_to); });
+    return Array.from(ids)
+      .map((id) => profileById.get(id))
+      .filter((p): p is Profile => !!p)
+      .sort((a, b) => (a.full_name || a.email || '').localeCompare(b.full_name || b.email || ''));
+  }, [roleScoped, profileById]);
+  const showPersonFilter = isAdmin || isTeamLead;
+
+  const rows = useMemo(() => {
+    if (personId === 'all') return roleScoped;
+    return roleScoped.filter((t) => t.assigned_to === personId);
+  }, [roleScoped, personId]);
   const now = Date.now();
 
   const byTab = useMemo(() => {
@@ -173,6 +192,18 @@ export default function Tasks() {
         </div>
 
         <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-wrap">
+          {showPersonFilter && (
+            <select
+              value={personId}
+              onChange={(e) => setPersonId(e.target.value)}
+              className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
+            >
+              <option value="all">Everyone</option>
+              {responsibleOptions.map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+              ))}
+            </select>
+          )}
           {RANGES.map((r) => {
             const active = range === r.key;
             return (
