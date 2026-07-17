@@ -90,6 +90,25 @@ export function useBulkAssignOwner() {
   });
 }
 
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // RLS gates this on abac_check('delete', ...) — admins bypass ABAC
+      // entirely, everyone else is denied server-side regardless of what
+      // the UI shows. Cascades to activities/contacts/deals/contract_cycles/
+      // notifications/onboarding_plans/etc. via FK ON DELETE CASCADE.
+      const { error } = await supabase.from('accounts').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Company deleted');
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+    },
+    onError: (err) => toast.error(`Delete failed: ${String((err as Error).message || err)}`),
+  });
+}
+
 export function useChangeStage() {
   const qc = useQueryClient();
   return useMutation({

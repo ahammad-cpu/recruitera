@@ -14,6 +14,7 @@ import { useRenameAccount, useChangeStage, useChangeOwner, useUpdateAccountDetai
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
 import { DisqualifyModal } from '@/features/companies/DisqualifyModal';
+import { DeleteAccountModal } from '@/features/companies/DeleteAccountModal';
 import { useMe } from '@/hooks/useMe';
 import { useTags, useAccountTags, useAttachTag, useDetachTag, useCreateTag } from '@/hooks/useTags';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -50,6 +51,7 @@ export default function CompanyProfile() {
   const createTag = useCreateTag();
   const [tagOpen, setTagOpen] = useState(false);
   const [disqOpen, setDisqOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
 
@@ -159,16 +161,12 @@ export default function CompanyProfile() {
               disabled={!(contacts?.[0]?.email)}
               href={contacts?.[0]?.email ? `mailto:${contacts[0].email}` : undefined}
             />
-            {/* Disqualify only makes sense while the company is still a LEAD.
-                Once it enters the funnel (MQL+), losing it goes through the
-                deal-Lost flow on the pipeline (drag → LostDialog), not
-                account-level disqualification. */}
-            {isAdmin && (lead.stage || '').toLowerCase() === 'lead' && (
+            {isAdmin && (
               <button
-                onClick={() => setDisqOpen(true)}
+                onClick={() => setDeleteOpen(true)}
                 className="h-9 w-9 rounded-lg border border-bad/40 bg-bad-bg text-bad hover:bg-bad hover:text-white flex items-center justify-center"
-                title="Disqualify lead (admin only) — captures reason + notes"
-                aria-label="Disqualify lead"
+                title="Delete company (admin only) — permanent"
+                aria-label="Delete company"
               ><Trash2 size={14} /></button>
             )}
           </div>
@@ -220,6 +218,7 @@ export default function CompanyProfile() {
         </div>
 
         {disqOpen && <DisqualifyModal account={lead} onClose={() => setDisqOpen(false)} />}
+        {deleteOpen && <DeleteAccountModal account={lead} onClose={() => setDeleteOpen(false)} />}
 
         {/* STAT STRIP */}
         <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
