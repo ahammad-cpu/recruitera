@@ -10,6 +10,7 @@ import { useLogActivity, useToggleTaskDone, useUpdateActivity, useDeleteActivity
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
+import { useDealsForCompany } from '@/hooks/useDeals';
 import { useRenameAccount, useChangeStage, useChangeOwner, useUpdateAccountDetails } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
@@ -38,6 +39,7 @@ export default function CompanyProfile() {
   const { data: activities, isLoading: loadingActs } = useActivities(id);
   const marketing = useMarketingTracking(id);
   const attribution = useAccountAttribution(id);
+  const deals = useDealsForCompany(id);
   const profiles = useProfiles();
   const stagesEnum = useEnum('pipeline_stage');
   const rename = useRenameAccount();
@@ -231,7 +233,12 @@ export default function CompanyProfile() {
             hint={lead.has_trial ? 'free trial running' : 'no trial'}
           />
           <Stat label="Created" value={fmtDate(lead.created_at)} hint={isPaid(lead) ? 'active customer' : 'no close date'} />
-          <StageStat lead={lead} stages={stagesEnum.data ?? []} onChange={(stage) => changeStage.mutate({ id: lead.id, stage })} />
+          <StageStat
+            lead={lead}
+            stages={stagesEnum.data ?? []}
+            hasLiveDeal={(deals.data ?? []).some((d) => !d.is_archived)}
+            onChange={(stage) => changeStage.mutate({ id: lead.id, stage })}
+          />
         </div>
       </div>
 
@@ -357,22 +364,31 @@ function OwnerStat({
   );
 }
 
-function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]; onChange: (s: string) => void }) {
+function StageStat({ lead, stages, hasLiveDeal, onChange }: { lead: Account; stages: string[]; hasLiveDeal: boolean; onChange: (s: string) => void }) {
   const current = (lead.stage || 'lead').toLowerCase();
-  // A company in "lead" state doesn't have a deal yet — stage changes only
-  // make sense on real deals. Show the pill read-only + guide the user to
-  // create a deal via the Deals panel.
-  const isLead = current === 'lead';
+  // Once a real deal exists, its stage is what's authoritative — a DB
+  // trigger mirrors deals.stage -> accounts.stage on every deal change.
+  // Editing accounts.stage manually here would silently desync from the
+  // deal on the next deal update (this happened in production: an account
+  // got hand-set back to "lead" while its deal was still at MQL). So once
+  // a live deal exists, stage is read-only here and only changes via the
+  // Deals panel / pipeline board.
   return (
     <div className="bg-surface-2/60 rounded-xl p-3.5">
       <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
       <div className="mt-1 flex items-center gap-2 flex-wrap">
         <StagePill stage={lead.stage} />
-        {isLead ? (
+        {!hasLiveDeal && current === 'lead' && (
           <span className="text-[11px] text-text-3 font-semibold">
             No deal yet — create one to set a stage
           </span>
-        ) : (
+        )}
+        {hasLiveDeal && (
+          <span className="text-[11px] text-text-3 font-semibold">
+            Follows the deal below
+          </span>
+        )}
+        {!hasLiveDeal && current !== 'lead' && (
           <select
             value={current}
             onChange={(e) => onChange(e.target.value)}

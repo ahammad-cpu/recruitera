@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Plus, Check } from 'lucide-react';
 import { useCreateDeal, type NewDealInput } from '@/hooks/useDealMutations';
 import { useMe } from '@/hooks/useMe';
-import { DEAL_TYPES, BANT_PILLARS, type BantAnswer, type DealType } from '@/hooks/useDeals';
+import { DEAL_TYPES, BANT_PILLARS, OPEN_STAGES, type BantAnswer, type DealStage, type DealType } from '@/hooks/useDeals';
 import { cn } from '@/lib/cn';
 
 type Props = {
@@ -30,6 +30,7 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
   const create = useCreateDeal();
   const me = useMe();
   const [dealType, setDealType] = useState<DealType | ''>('');
+  const [stage, setStage] = useState<DealStage>('mql');
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState<string>('');
   const [expectedClose, setExpectedClose] = useState('');
@@ -51,7 +52,7 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
     if (!dealType) { setErr('Pick a deal type'); return; }
     const input: NewDealInput = {
       account_id: accountId,
-      stage: 'mql',
+      stage,
       deal_type: dealType,
       title: title.trim() || null,
       amount: amount ? Number(amount) : null,
@@ -88,7 +89,7 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
           <div className="flex-1 min-w-0">
             <div className="text-[16px] font-black tracking-tight text-text">New deal</div>
             <div className="text-[11.5px] text-text-3 mt-0.5">
-              For <span className="font-bold text-text-2">{companyName}</span> — starts in MQL until you qualify it.
+              For <span className="font-bold text-text-2">{companyName}</span>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-md text-text-3 hover:bg-surface-2"><X size={16} /></button>
@@ -110,6 +111,17 @@ export function NewDealModal({ accountId, companyName, onClose, onCreated }: Pro
               >
                 <option value="">Select…</option>
                 {DEAL_TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Starting stage</span>
+              <select
+                value={stage}
+                onChange={(e) => setStage(e.target.value as DealStage)}
+                className="mt-1 w-full h-10 px-3 border border-border-2 rounded-lg bg-surface text-[13px] font-semibold outline-none focus:border-accent-strong"
+              >
+                {OPEN_STAGES.map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
               </select>
             </label>
 
