@@ -57,6 +57,36 @@ export function useLoseAccount() {
   });
 }
 
+/**
+ * Disqualify a Lead / MQL account. Unlike lose_account (which sets
+ * stage='lost'), this keeps the account at its current stage — the
+ * loss_reason + lost_at flags alone signal "disqualified". Tab filters
+ * (Leads / Disqualified) sort them out.
+ */
+export function useDisqualifyAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { accountId: string; reason: string; notes: string | null }) => {
+      if (args.reason === 'other' && (args.notes ?? '').trim().length < 5) {
+        throw new Error('When reason is "other", the note must be at least 5 characters.');
+      }
+      const { error } = await supabase.rpc('disqualify_account', {
+        p_account_id:  args.accountId,
+        p_reason_code: args.reason,
+        p_notes:       args.notes,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Lead disqualified');
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['activities'] });
+      qc.invalidateQueries({ queryKey: ['company_history'] });
+    },
+    onError: (err) => toast.error(`Disqualify failed: ${String((err as Error).message || err)}`),
+  });
+}
+
 export function useRequalifyAccount() {
   const qc = useQueryClient();
   return useMutation({

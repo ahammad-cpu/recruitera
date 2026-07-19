@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { XCircle, X } from 'lucide-react';
 import type { Account } from '@/hooks/useAccounts';
-import { useLoseAccount } from '@/hooks/useLoseAccount';
+import { useDisqualifyAccount } from '@/hooks/useLoseAccount';
 import { cn } from '@/lib/cn';
 
 /**
@@ -23,7 +23,7 @@ const DISQ_REASONS = [
 type DisqKey = typeof DISQ_REASONS[number]['key'];
 
 export function DisqualifyModal({ account, onClose }: { account: Account; onClose: () => void }) {
-  const lose = useLoseAccount();
+  const disq = useDisqualifyAccount();
   const [reason, setReason] = useState<DisqKey | ''>('');
   const [notes, setNotes] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function DisqualifyModal({ account, onClose }: { account: Account; onClos
       return;
     }
     try {
-      await lose.mutateAsync({ accountId: account.id, reason: reason as any, notes: notes.trim() || null });
+      await disq.mutateAsync({ accountId: account.id, reason: reason as any, notes: notes.trim() || null });
       onClose();
     } catch (e) {
       setErr(String((e as Error).message || e));
@@ -132,10 +132,10 @@ export function DisqualifyModal({ account, onClose }: { account: Account; onClos
           >Cancel</button>
           <button
             onClick={submit}
-            disabled={lose.isPending || !reason}
+            disabled={disq.isPending || !reason}
             className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-warn text-white text-[13px] font-black hover:opacity-90 disabled:opacity-50"
           >
-            <X size={14} strokeWidth={3} /> {lose.isPending ? 'Disqualifying…' : 'Disqualify'}
+            <X size={14} strokeWidth={3} /> {disq.isPending ? 'Disqualifying…' : 'Disqualify'}
           </button>
         </footer>
       </div>

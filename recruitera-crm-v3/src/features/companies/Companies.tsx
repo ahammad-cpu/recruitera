@@ -40,14 +40,21 @@ function makeTabTests(planByAcct: Map<string, string>) {
     return false;
   };
   const isDisqualified = (a: Account): boolean => {
-    if ((a.stage || '').toLowerCase() !== 'lost') return false;
     if (everWasARealProspect(a)) return false;
-    const from = (a.lost_from_stage || '').toLowerCase();
-    if (from === 'lead' || from === 'mql') return true;
-    if (!from && a.loss_reason && DISQ_REASONS.has(a.loss_reason)) return true;
+    const stage = (a.stage || '').toLowerCase();
+    // New model: stage stays at lead / mql, loss_reason flags disqualification.
+    if ((stage === 'lead' || stage === 'mql') && a.loss_reason) return true;
+    // Legacy rows (pre-split): stage = lost with lost_from_stage in (lead, mql)
+    if (stage === 'lost') {
+      const from = (a.lost_from_stage || '').toLowerCase();
+      if (from === 'lead' || from === 'mql') return true;
+      if (!from && a.loss_reason && DISQ_REASONS.has(a.loss_reason)) return true;
+    }
     return false;
   };
   const isRealLoss = (a: Account): boolean => {
+    // A "real loss" is stage=lost that isn't classified as a legacy disqualify.
+    // New-model disqualifications keep their original stage (lead/mql).
     if ((a.stage || '').toLowerCase() !== 'lost') return false;
     return !isDisqualified(a);
   };
@@ -58,8 +65,8 @@ function buildTabs(planByAcct: Map<string, string>): Array<{ key: TabKey; label:
   const { isDisqualified, isRealLoss } = makeTabTests(planByAcct);
   return [
     { key: 'all', label: 'All', test: () => true },
-    { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' },
-    { key: 'pipeline', label: 'Pipeline', test: (a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase()) },
+    { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' && !isDisqualified(a) },
+    { key: 'pipeline', label: 'Pipeline', test: (a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase()) && !isDisqualified(a) },
     { key: 'collected', label: 'Collected', test: (a) => (a.stage || '').toLowerCase() === 'paid' },
     { key: 'trial', label: 'Trial', test: (a) => !!a.has_trial && a.activation_status === 'Active' },
     { key: 'expired', label: 'Expired', test: (a) => !!a.has_trial && a.activation_status === 'Expired' },

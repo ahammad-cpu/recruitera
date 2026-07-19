@@ -227,12 +227,18 @@ export default function CompanyProfile() {
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-ok/30 bg-ok-bg text-ok text-[12px] font-bold hover:bg-ok/10"
             ><RotateCcw size={12} /> Reopen</button>
           )}
-          {(['lead', 'mql'].includes((lead.stage || '').toLowerCase())) && (
+          {(['lead', 'mql'].includes((lead.stage || '').toLowerCase())) && !lead.loss_reason && (
             <button
               onClick={() => setDisqOpen(true)}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-warn/40 bg-warn-bg text-warn text-[12px] font-bold hover:bg-warn/10"
               title="Disqualify — lead was never a real prospect (fake, ICP mismatch, duplicate, spam, …)"
             ><X size={12} /> Disqualify</button>
+          )}
+          {(['lead', 'mql'].includes((lead.stage || '').toLowerCase())) && lead.loss_reason && (
+            <span
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-warn/40 bg-warn-bg text-warn text-[12px] font-black uppercase tracking-wide"
+              title={`Disqualified: ${lead.loss_reason}${lead.loss_notes ? ' — ' + lead.loss_notes : ''}`}
+            >⚠ Disqualified · {lead.loss_reason}</span>
           )}
           {(['sql', 'demo', 'proposal'].includes((lead.stage || '').toLowerCase())) && (
             <button
