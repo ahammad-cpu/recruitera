@@ -31,6 +31,7 @@ import { DocumentsTab } from './DocumentsTab';
 import { DealsSection } from './DealsSection';
 import { ReopenModal } from './ReopenModal';
 import { STAGE_ORDER as SHARED_STAGE_ORDER, stageLabel } from '@/lib/stageLabels';
+import { useRequalifyAccount } from '@/hooks/useLoseAccount';
 import { HistoryTab } from './HistoryTab';
 import { ActivityComposer } from './ActivityComposer';
 import { useFeatureFlag } from '@/lib/flags';
@@ -416,6 +417,7 @@ const STAGE_LABEL: Record<string, string> = SHARED_STAGE_ORDER.reduce(
 function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]; onChange: (s: string) => void }) {
   const current = (lead.stage || 'lead').toLowerCase();
   const [confirming, setConfirming] = useState<string | null>(null);
+  const requalify = useRequalifyAccount();
 
   // At lost, the Reopen button in the header handles re-entry — dropdown hidden.
   if (current === 'lost') {
@@ -425,6 +427,30 @@ function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]
         <div className="mt-1 flex items-center gap-2 flex-wrap">
           <StagePill stage={lead.stage} />
           <span className="text-[11px] text-text-3 font-semibold">Use Reopen to move back</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Disqualified while at Lead/MQL — dropdown locked; Requalify first.
+  if (lead.loss_reason && (current === 'lead' || current === 'mql')) {
+    return (
+      <div className="bg-surface-2/60 rounded-xl p-3.5">
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
+        <div className="mt-1 flex items-center gap-2 flex-wrap">
+          <StagePill stage={lead.stage} />
+          <span className="text-[11px] text-warn font-bold uppercase tracking-wider">Disqualified · {lead.loss_reason}</span>
+          <button
+            onClick={() => requalify.mutate({ id: lead.id, stage: current })}
+            disabled={requalify.isPending}
+            className="ml-1 inline-flex items-center h-6 px-2 rounded-md border border-ok/40 bg-ok-bg text-ok text-[11px] font-black hover:bg-ok/10 disabled:opacity-50"
+            title="Requalify — clear the disqualified flag so the stage can be changed again"
+          >
+            {requalify.isPending ? 'Requalifying…' : '↺ Requalify'}
+          </button>
+        </div>
+        <div className="text-[10.5px] text-text-3 mt-1.5">
+          Change stage is locked. Requalify first to move this account through the pipeline.
         </div>
       </div>
     );
