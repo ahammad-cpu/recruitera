@@ -1379,6 +1379,33 @@ function Panel({ title, hint, icon, action, children }: { title: string; hint?: 
   );
 }
 
+/**
+ * For each activity, derive the account's stage at the moment that activity
+ * was created. Walks the timeline once: activities of `type='stage'` carry
+ * a `to_stage` transition — the effective stage before that entry is the
+ * previous to_stage. Non-stage activities inherit whatever the most-recent
+ * prior stage transition set. Missing/unknown → `'lead'` (the funnel entry).
+ * Result: Map<activityId, stage> that every note/call/email/meeting can
+ * badge with a StagePill to answer "which stage were we in when this
+ * happened?".
+ */
+function buildStageAtTime(activities: import('@/hooks/useAccountDetail').Activity[]): Map<string, string> {
+  const chronological = [...activities].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  const out = new Map<string, string>();
+  let current = 'lead';
+  for (const a of chronological) {
+    if (a.type === 'stage' && a.to_stage) {
+      out.set(a.id, a.to_stage);
+      current = a.to_stage;
+    } else {
+      out.set(a.id, current);
+    }
+  }
+  return out;
+}
+
 function ActivityFeed({
   activities, profiles, loading,
 }: {
@@ -1387,6 +1414,7 @@ function ActivityFeed({
   loading: boolean;
 }) {
   const byId = new Map(profiles.map((p) => [p.id, p]));
+  const stageAtTime = useMemo(() => buildStageAtTime(activities), [activities]);
   return (
     <div className="bg-surface border border-border rounded-2xl px-5 py-2 shadow-sh1">
       {loading && <div className="text-[12.5px] text-text-3 py-3">Loading…</div>}
@@ -1400,6 +1428,7 @@ function ActivityFeed({
             activity={a}
             author={a.author_id ? byId.get(a.author_id) : undefined}
             profiles={profiles}
+            stageAtTime={stageAtTime.get(a.id)}
           />
         ))}
       </div>
@@ -1408,14 +1437,18 @@ function ActivityFeed({
 }
 
 function ActivityRow({
-  activity, author, profiles,
+  activity, author, profiles, stageAtTime,
 }: {
   activity: import('@/hooks/useAccountDetail').Activity;
   author: import('@/hooks/useUsersData').Profile | undefined;
   profiles: import('@/hooks/useUsersData').Profile[];
+  stageAtTime?: string;
 }) {
   const name = author?.full_name || author?.email || 'System';
   const sentence = activityToSentence(activity);
+  // Don't show a stage pill on the stage-transition entries themselves —
+  // they already say "moved stage from X to Y" in the sentence.
+  const showStagePill = activity.type !== 'stage' && stageAtTime;
   return (
     <div className="flex items-center gap-3 py-3 px-1 border-b border-border last:border-0">
       <OwnerAvatar profile={author} size={32} />
@@ -1427,6 +1460,11 @@ function ActivityRow({
         {sentence.suffix && <> <span className="font-extrabold text-text">{renderWithMentions(sentence.suffix, profiles)}</span></>}
         <span className="text-text-3">.</span>
       </div>
+      {showStagePill && (
+        <div className="flex-shrink-0" title={`Stage at the time of this activity: ${stageAtTime}`}>
+          <StagePill stage={stageAtTime} />
+        </div>
+      )}
       <div className="text-[12px] text-text-3 flex-shrink-0 whitespace-nowrap">
         {fmtDateTime(activity.created_at)}
       </div>
