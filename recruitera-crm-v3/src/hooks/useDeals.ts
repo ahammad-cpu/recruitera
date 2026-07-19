@@ -44,9 +44,9 @@ export type Deal = {
   source: string | null;
   expected_close_date: string | null;
   closed_at: string | null;
-  loss_reason: string | null;
-  loss_notes: string | null;
-  lost_by: string | null;
+  disqualified_reason: string | null;
+  disqualified_notes: string | null;
+  disqualified_by: string | null;
   reopened_at: string | null;
   reopened_by: string | null;
   board_position: number | null;
@@ -76,7 +76,7 @@ export type Deal = {
 
 const DEAL_SELECT =
   'id,account_id,title,stage,deal_type,amount,currency,owner_id,temperature,source,expected_close_date,closed_at,' +
-  'loss_reason,loss_notes,lost_by,reopened_at,reopened_by,board_position,is_archived,' +
+  'disqualified_reason,disqualified_notes,disqualified_by,reopened_at,reopened_by,board_position,is_archived,' +
   'last_activity_at,version,created_at,created_by,updated_at,' +
   'bant_budget,bant_authority,bant_need,bant_timing,' +
   'bant_budget_note,bant_authority_note,bant_need_note,bant_timing_note,' +
