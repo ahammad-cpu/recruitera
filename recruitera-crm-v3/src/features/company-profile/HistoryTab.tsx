@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useCompanyHistory, type HistoryEvent } from '@/hooks/useCompanyHistory';
 import { useProfiles } from '@/hooks/useUsersData';
+import { useMe } from '@/hooks/useMe';
 import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { ActivityComposer } from './ActivityComposer';
 import type { Profile } from '@/hooks/useUsersData';
-import { useDeleteActivity } from '@/hooks/useActivityMutations';
+import { useDeleteActivity, useUpdateActivity } from '@/hooks/useActivityMutations';
 
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -94,17 +95,35 @@ export function HistoryTab({ accountId }: { accountId: string }) {
 
 function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: Profile[]; accountId: string }) {
   const del = useDeleteActivity(accountId);
+  const update = useUpdateActivity(accountId);
+  const me = useMe();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(ev.body ?? '');
 
   const actor = ev.actor_id ? profiles.find((p) => p.id === ev.actor_id) : undefined;
   const actorName = actor?.full_name || actor?.email || ev.actor_name || 'System';
   const reason = typeof ev.meta?.reason_code === 'string' ? ev.meta.reason_code : null;
 
   // Activities from the RPC come with id "act:<uuid>" — extract the raw id
-  // so useDeleteActivity can target the row directly.
+  // so useDeleteActivity / useUpdateActivity can target the row directly.
   const activityId = ev.id.startsWith('act:') ? ev.id.slice(4) : null;
-  const canDelete = DELETABLE.has(ev.kind) && activityId;
+  const isDeletableKind = DELETABLE.has(ev.kind) && !!activityId;
+  const isAdmin = (me.data?.role || '').toLowerCase() === 'admin';
+  const isAuthor = !!ev.actor_id && me.data?.id === ev.actor_id;
+  const canMutate = isDeletableKind && (isAdmin || isAuthor);
 
   const kindLabel = KIND_PILL[ev.kind] ?? ev.kind.toUpperCase().replace(/_/g, ' ');
+
+  async function saveEdit() {
+    if (!activityId) return;
+    await update.mutateAsync({ id: activityId, text: draft });
+    setEditing(false);
+  }
+
+  function confirmDelete() {
+    if (!activityId) return;
+    if (window.confirm('Delete this comment?')) del.mutate(activityId);
+  }
 
   return (
     <li className="flex gap-3 border border-border rounded-xl p-4">
@@ -120,24 +139,51 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
           {reason && (
             <span className="text-[11.5px] text-text-3">· reason: <span className="font-bold text-text-2">{reason}</span></span>
           )}
-          {canDelete && (
-            <button
-              onClick={() => del.mutate(activityId!)}
-              disabled={del.isPending}
-              className="ml-auto text-[11.5px] font-bold text-text-3 hover:text-bad disabled:opacity-50"
-            >
-              {del.isPending ? 'Deleting…' : 'Delete'}
-            </button>
+          {canMutate && !editing && (
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                onClick={() => { setDraft(ev.body ?? ''); setEditing(true); }}
+                className="text-[11.5px] font-bold text-text-3 hover:text-text"
+              >Edit</button>
+              <button
+                onClick={confirmDelete}
+                disabled={del.isPending}
+                className="text-[11.5px] font-bold text-text-3 hover:text-bad disabled:opacity-50"
+              >
+                {del.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
           )}
         </div>
-        {ev.body && (
+
+        {editing ? (
+          <div className="mt-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              autoFocus
+              className="w-full p-2.5 border-2 border-border-2 rounded-lg bg-surface text-[13.5px] outline-none focus:border-accent-strong resize-vertical"
+            />
+            <div className="flex justify-end gap-2 mt-1.5">
+              <button
+                onClick={() => setEditing(false)}
+                className="h-7 px-3 rounded-md border border-border text-[11.5px] font-bold text-text-2 hover:bg-surface-2"
+              >Cancel</button>
+              <button
+                onClick={saveEdit}
+                disabled={update.isPending || draft.trim() === (ev.body ?? '').trim()}
+                className="h-7 px-3 rounded-md bg-accent text-cg-900 text-[11.5px] font-black border border-accent-strong disabled:opacity-50"
+              >{update.isPending ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        ) : ev.body ? (
           <div className="text-[13.5px] text-text mt-1.5 whitespace-pre-wrap leading-relaxed">
             {ev.body}
           </div>
-        )}
-        {!ev.body && ev.title !== actorName && (
+        ) : ev.title !== actorName ? (
           <div className="text-[12px] text-text-3 mt-1">{ev.title}</div>
-        )}
+        ) : null}
       </div>
     </li>
   );
