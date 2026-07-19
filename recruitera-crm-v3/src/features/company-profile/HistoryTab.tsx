@@ -127,8 +127,13 @@ export function HistoryTab({ accountId }: { accountId: string }) {
   );
 }
 
+const DEFAULT_KIND_STYLE = { icon: FileText, tone: 'text-text-3' } as const;
+
 function HistoryRow({ ev }: { ev: HistoryEvent }) {
-  const { icon: Icon, tone } = KIND_STYLE[ev.kind];
+  // Fallback to a neutral icon when the RPC emits a kind we haven't mapped —
+  // never crash the whole tab because of one unknown event.
+  const style = KIND_STYLE[ev.kind] ?? DEFAULT_KIND_STYLE;
+  const { icon: Icon, tone } = style;
   return (
     <li className="flex gap-3 border border-border rounded-xl p-4">
       <Icon size={14} className={cn('mt-0.5 shrink-0', tone)} />
