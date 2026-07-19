@@ -36,7 +36,7 @@ import { HistoryTab } from './HistoryTab';
 import { ActivityComposer } from './ActivityComposer';
 import { useFeatureFlag } from '@/lib/flags';
 
-type Tab = 'overview' | 'history' | 'plans' | 'team' | 'documents';
+type Tab = 'overview' | 'plans' | 'team' | 'documents';
 
 const OPEN_STAGES = ['lead', 'mql', 'sql', 'demo', 'proposal'];
 
@@ -284,7 +284,7 @@ export default function CompanyProfile() {
 
       {/* TABS */}
       <div role="tablist" aria-label="Company sections" className="flex items-center gap-6 border-b border-border">
-        {(['overview', 'history', 'plans', 'team', 'documents'] as Tab[]).map((t) => (
+        {(['overview', 'plans', 'team', 'documents'] as Tab[]).map((t) => (
           <button
             key={t}
             role="tab"
@@ -306,7 +306,7 @@ export default function CompanyProfile() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
           <div className="space-y-4">
             <ContactPersonCard accountId={lead.id} contact={contacts?.[0]} loading={loadingContacts} />
-            <InternalNotesCard accountId={lead.id} activities={activities ?? []} loading={loadingActs} />
+            <HistoryTab accountId={lead.id} />
           </div>
 
           <aside className="space-y-4">
@@ -323,7 +323,6 @@ export default function CompanyProfile() {
         </div>
       )}
 
-      {tab === 'history' && <HistoryTab accountId={lead.id} />}
       {tab === 'plans' && <PlansTab accountId={lead.id} />}
       {tab === 'team' && <TeamTab accountId={lead.id} />}
       {tab === 'documents' && <DocumentsTab accountId={lead.id} />}
