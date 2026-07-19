@@ -15,6 +15,7 @@ import { useRenameAccount, useChangeStage, useChangeOwner, useUpdateAccountDetai
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
 import { LossModal } from '@/features/companies/LossModal';
+import { DisqualifyModal } from '@/features/companies/DisqualifyModal';
 import { DeleteAccountModal } from '@/features/companies/DeleteAccountModal';
 import { useMe } from '@/hooks/useMe';
 import { useTags, useAccountTags, useAttachTag, useDetachTag, useCreateTag } from '@/hooks/useTags';
@@ -60,6 +61,7 @@ export default function CompanyProfile() {
   const createTag = useCreateTag();
   const [tagOpen, setTagOpen] = useState(false);
   const [disqOpen, setDisqOpen] = useState(false);
+  const [loseOpen, setLoseOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -224,15 +226,27 @@ export default function CompanyProfile() {
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-ok/30 bg-ok-bg text-ok text-[12px] font-bold hover:bg-ok/10"
             ><RotateCcw size={12} /> Reopen</button>
           )}
-          {OPEN_STAGES.includes((lead.stage || '').toLowerCase()) && (
+          {(['lead', 'mql'].includes((lead.stage || '').toLowerCase())) && (
             <button
               onClick={() => setDisqOpen(true)}
-              className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-warn/40 bg-warn-bg text-warn text-[12px] font-bold hover:bg-warn/10"
+              title="Disqualify — lead was never a real prospect (fake, ICP mismatch, duplicate, spam, ...)"
+            ><X size={12} /> Disqualify</button>
+          )}
+          {OPEN_STAGES.includes((lead.stage || '').toLowerCase()) && (
+            <button
+              onClick={() => setLoseOpen(true)}
+              className={
+                (['lead', 'mql'].includes((lead.stage || '').toLowerCase()) ? '' : 'ml-auto ') +
+                'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10'
+              }
+              title="Lose — real sales attempt that didn't close (no budget, competitor, wrong timing, ...)"
             ><X size={12} /> Lose</button>
           )}
         </div>
 
-        {disqOpen && <LossModal account={lead} onClose={() => setDisqOpen(false)} />}
+        {disqOpen && <DisqualifyModal account={lead} onClose={() => setDisqOpen(false)} />}
+        {loseOpen && <LossModal account={lead} onClose={() => setLoseOpen(false)} />}
         {reopenOpen && (
           <ReopenModal
             accountId={lead.id}
