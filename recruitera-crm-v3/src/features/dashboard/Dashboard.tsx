@@ -6,6 +6,7 @@ import { useTargets } from '@/hooks/useTargets';
 import { useTasks } from '@/hooks/useTasks';
 import { useToggleTaskDone } from '@/hooks/useActivityMutations';
 import { useContractCycles } from '@/hooks/useContractCycles';
+import { useReopenEvents } from '@/hooks/useReopenEvents';
 import { useMe } from '@/hooks/useMe';
 import { useProfiles } from '@/hooks/useUsersData';
 import { fmtEgp, fmtInt, toEgp, initials, fmtDate } from '@/lib/format';
@@ -32,6 +33,10 @@ export default function Dashboard() {
 
   const now = new Date();
   const period = getPeriodRange(periodKind, now);
+  // "Reopens this month" is always calendar-month scoped (not tied to the
+  // Month/Quarter/Year period toggle above), so compute its own range.
+  const reopenMonth = getPeriodRange('month', now);
+  const reopens = useReopenEvents(reopenMonth.startISO, reopenMonth.endISO);
   const meId = me.data?.id;
   const scopeId = ownerId || meId;
   const isTeam = scopeId === 'all';
@@ -57,6 +62,10 @@ export default function Dashboard() {
   const wonRows = myAccts.filter((a) => a.stage === 'won').length;
   const lostRows = myAccts.filter((a) => a.stage === 'lost').length;
   const winRate = wonRows + lostRows > 0 ? Math.round((wonRows / (wonRows + lostRows)) * 100) : 0;
+
+  const reopensThisMonth = (reopens.data ?? []).filter(
+    (r) => isTeam || scopedAcctIds.has(r.account_id),
+  ).length;
 
   const renewals30 = myCycles.filter((c) => {
     const end = c.renewal_due_date || c.ends_at;
@@ -167,12 +176,13 @@ export default function Dashboard() {
       </div>
 
       {/* KPI STRIP with sparklines */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi label="Pipeline value" value={isLoading ? '…' : fmtEgp(pipelineVal)} sub={`${fmtInt(openLeads)} open · new business`} accent seed={7} />
         <Kpi label="Collected" value={cycles.isLoading ? '…' : fmtEgp(collectedVal)} sub="active cycles" seed={10} />
         <Kpi label="Active customers" value={isLoading ? '…' : fmtInt(activePaid)} sub="paying employers" seed={13} />
         <Kpi label="Renewals 30d" value={cycles.isLoading ? '…' : fmtInt(renewals30.length)} sub={renewals30.length ? `${fmtEgp(renewals30Val)} at risk` : 'no risk'} seed={16} />
         <Kpi label="Win rate" value={isLoading ? '…' : wonRows + lostRows > 0 ? `${winRate}%` : '—'} sub={wonRows + lostRows > 0 ? `${wonRows + lostRows} closes` : 'no closes yet'} seed={19} />
+        <Kpi label="Reopens this month" value={reopens.isLoading ? '…' : fmtInt(reopensThisMonth)} sub={reopenMonth.label} seed={23} />
       </div>
 
       {/* 2-COL: My companies + My tasks */}
