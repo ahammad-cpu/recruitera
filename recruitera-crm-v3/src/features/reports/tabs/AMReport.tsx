@@ -10,6 +10,7 @@ import { DateRangeFilter } from '../shared/DateRangeFilter';
 import { resolveDateRange, type DateRangeKey } from '../shared/dateRange';
 import { ReportPanel, HeaderPill } from '../shared/ReportUI';
 import { computeAmCrossAttribution, type AmCol, type SH } from './__parts/amCrossAttribution';
+import { RequalificationRulesPanel } from './__parts/RequalificationRulesPanel';
 
 const EMPTY_AM_COL: AmCol = {
   wins: 0, wonRev: 0, losses: 0, reopensAttempted: 0, reopensWon: 0, recoveredByOthers: 0,
@@ -120,6 +121,7 @@ export default function AMReport() {
   const totalAms = perAM.length;
 
   return (
+    <div className="space-y-6">
     <ReportPanel
       title="Account managers"
       subtitle="Book breakdown by AM"
@@ -165,5 +167,8 @@ export default function AMReport() {
         })}
       </div>
     </ReportPanel>
+
+    <RequalificationRulesPanel from={range.startISO} to={range.endISO} />
+    </div>
   );
 }
