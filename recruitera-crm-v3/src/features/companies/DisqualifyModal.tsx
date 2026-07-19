@@ -13,6 +13,7 @@ import { cn } from '@/lib/cn';
 const DISQ_REASONS = [
   { key: 'fake_lead',   label: 'Fake lead',    hint: 'Fake name / email / phone or bot submission', dot: 'bg-bad'     },
   { key: 'not_icp',     label: 'Not ICP',      hint: 'Does not fit size, industry, or region',       dot: 'bg-info'    },
+  { key: 'job_seeker',  label: 'Job seeker',   hint: 'Individual looking for a job, not an employer', dot: 'bg-warn'   },
   { key: 'duplicate',   label: 'Duplicate',    hint: 'Already exists in CRM',                        dot: 'bg-text-3'  },
   { key: 'spam',        label: 'Spam / junk',  hint: 'Junk submission',                              dot: 'bg-text-4'  },
   { key: 'competitor',  label: 'Competitor',   hint: 'Works for a competitor',                       dot: 'bg-bad'     },
