@@ -10,6 +10,7 @@ import { resolveDateRange, type DateRangeKey } from '../shared/dateRange';
 import { reconstructWonLostWeekly, reconstructRollingMrr } from '../shared/reportCalc';
 import { ReportPanel, ReportKpi, HeaderPill, BarList, type BarRow } from '../shared/ReportUI';
 import { LossBreakdownMatrix } from './__parts/LossBreakdownMatrix';
+import { ReopenRatePanel } from './__parts/ReopenRatePanel';
 
 export default function WinLossChurnedReport() {
   const accts = useAccounts();
@@ -141,6 +142,8 @@ export default function WinLossChurnedReport() {
       </ReportPanel>
 
       <LossBreakdownMatrix from={range.startISO} to={range.endISO} ownerId={ownerId} />
+
+      <ReopenRatePanel from={range.startISO} to={range.endISO} ownerId={ownerId} />
 
       <ReportPanel
         title="Rolling MRR + churn"
