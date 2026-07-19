@@ -21,7 +21,24 @@ import { fmtInt, fmtDate, initials } from '@/lib/format';
 import { isJunkAccount, buildDupeMap, type DupeEntry } from '@/lib/dedupe';
 import { cn } from '@/lib/cn';
 
-type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'lost';
+type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'lost' | 'disqualified';
+
+// Disqualify reasons (Lead/MQL early rejection) vs Loss reasons (SQL+ real
+// sales attempt) — split by lost_from_stage first, then by reason_code as
+// a fallback for legacy rows where the stage wasn't captured.
+const DISQ_REASONS = new Set(['fake_lead', 'not_icp', 'duplicate', 'spam']);
+function isDisqualified(a: Account): boolean {
+  if ((a.stage || '').toLowerCase() !== 'lost') return false;
+  const from = (a.lost_from_stage || '').toLowerCase();
+  if (from === 'lead' || from === 'mql') return true;
+  if (!from && a.loss_reason && DISQ_REASONS.has(a.loss_reason)) return true;
+  return false;
+}
+function isRealLoss(a: Account): boolean {
+  if ((a.stage || '').toLowerCase() !== 'lost') return false;
+  return !isDisqualified(a);
+}
+
 const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }> = [
   { key: 'all', label: 'All', test: () => true },
   { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' },
@@ -31,8 +48,9 @@ const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }>
   { key: 'expired', label: 'Expired', test: (a) => !!a.has_trial && a.activation_status === 'Expired' },
   { key: 'churned', label: 'Churned', test: (a) => (a.stage || '').toLowerCase() === 'paid' && a.activation_status === 'Expired' },
   { key: 'won', label: 'Won', test: (a) => (a.stage || '').toLowerCase() === 'won' },
-  // Lost is only ever set at Lead stage — never a funnel outcome.
-  { key: 'lost', label: 'Lost', test: (a) => !!a.loss_reason },
+  { key: 'disqualified', label: 'Disqualified', test: isDisqualified },
+  // Real sales-attempt losses (SQL / Demo / Proposal). Excludes disqualifications.
+  { key: 'lost', label: 'Lost', test: isRealLoss },
 ];
 
 type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';
