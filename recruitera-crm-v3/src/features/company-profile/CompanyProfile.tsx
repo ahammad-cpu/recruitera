@@ -29,8 +29,10 @@ import { TeamTab } from './TeamTab';
 import { DocumentsTab } from './DocumentsTab';
 import { DealsSection } from './DealsSection';
 import { ReopenModal } from './ReopenModal';
+import { HistoryTab } from './HistoryTab';
+import { ActivityComposer } from './ActivityComposer';
 
-type Tab = 'overview' | 'activity' | 'plans' | 'team' | 'documents';
+type Tab = 'overview' | 'history' | 'plans' | 'team' | 'documents';
 
 const OPEN_STAGES = ['lead', 'mql', 'sql', 'demo', 'proposal'];
 
@@ -262,7 +264,7 @@ export default function CompanyProfile() {
 
       {/* TABS */}
       <div role="tablist" aria-label="Company sections" className="flex items-center gap-6 border-b border-border">
-        {(['overview', 'activity', 'plans', 'team', 'documents'] as Tab[]).map((t) => (
+        {(['overview', 'history', 'plans', 'team', 'documents'] as Tab[]).map((t) => (
           <button
             key={t}
             role="tab"
@@ -301,7 +303,7 @@ export default function CompanyProfile() {
         </div>
       )}
 
-      {tab === 'activity' && <ActivityFeed activities={activities ?? []} profiles={profiles.data ?? []} loading={loadingActs} />}
+      {tab === 'history' && <HistoryTab accountId={lead.id} />}
       {tab === 'plans' && <PlansTab accountId={lead.id} />}
       {tab === 'team' && <TeamTab accountId={lead.id} />}
       {tab === 'documents' && <DocumentsTab accountId={lead.id} />}
@@ -504,156 +506,14 @@ function InternalNotesCard({ accountId, activities, loading }: { accountId: stri
     return m;
   }, [profileList]);
 
-  const [type, setType] = useState<'call' | 'email' | 'whatsapp' | 'note'>('call');
-  const [text, setText] = useState('');
-  const [mention, setMention] = useState<{ query: string; start: number; idx: number } | null>(null);
-  const taRef = useRef<HTMLTextAreaElement | null>(null);
-  const log = useLogActivity(accountId);
-
-  const mentionMatches = useMemo(() => {
-    if (!mention) return [];
-    const q = mention.query.toLowerCase();
-    return profileList
-      .filter((p) => (p.full_name || p.email || '').toLowerCase().includes(q))
-      .slice(0, 6);
-  }, [mention, profileList]);
-
-  function onTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const v = e.target.value;
-    setText(v);
-    const caret = e.target.selectionStart ?? v.length;
-    // find `@word` ending at caret with no whitespace between @ and caret
-    const before = v.slice(0, caret);
-    const m = before.match(/(^|\s)@([\p{L}\p{N}._-]*)$/u);
-    if (m) {
-      setMention({ query: m[2], start: caret - m[2].length - 1, idx: 0 });
-    } else {
-      setMention(null);
-    }
-  }
-
-  function insertMention(p: import('@/hooks/useUsersData').Profile) {
-    if (!mention) return;
-    const name = (p.full_name || p.email || '').replace(/\s+/g, ' ');
-    const insert = `@${name} `;
-    const before = text.slice(0, mention.start);
-    const after = text.slice(mention.start + 1 + mention.query.length);
-    const next = before + insert + after;
-    setText(next);
-    setMention(null);
-    // restore caret after the inserted mention
-    requestAnimationFrame(() => {
-      const pos = (before + insert).length;
-      taRef.current?.focus();
-      taRef.current?.setSelectionRange(pos, pos);
-    });
-  }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (mention && mentionMatches.length) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setMention({ ...mention, idx: (mention.idx + 1) % mentionMatches.length }); return; }
-      if (e.key === 'ArrowUp')   { e.preventDefault(); setMention({ ...mention, idx: (mention.idx - 1 + mentionMatches.length) % mentionMatches.length }); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionMatches[mention.idx]); return; }
-      if (e.key === 'Escape')    { e.preventDefault(); setMention(null); return; }
-    }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit();
-  }
-
-  function submit() {
-    const t = text.trim();
-    if (!t) return;
-    // The composer only highlights @mentions visually — resolve them here
-    // against the loaded profile list so the DB mention trigger (which reads
-    // activities.mentions, not the raw text) actually fires and emails the
-    // right people.
-    const lower = t.toLowerCase();
-    const handles = new Set<string>();
-    for (const p of profileList) {
-      const prefix = (p.email || '').split('@')[0].toLowerCase();
-      const fullName = (p.full_name || '').toLowerCase();
-      if (prefix && lower.includes(`@${prefix}`)) handles.add(prefix);
-      else if (fullName && lower.includes(`@${fullName}`)) handles.add(prefix || fullName.replace(/\s+/g, ''));
-    }
-    log.mutate({ type, text: t, mentions: [...handles] }, { onSuccess: () => setText('') });
-  }
-
   const filtered = activities.filter((a) => ['note', 'call', 'email', 'whatsapp', 'meeting'].includes(a.type));
-
-  const CHANNELS: { id: 'call' | 'email' | 'whatsapp'; label: string; Icon: React.ComponentType<{ size?: number }> }[] = [
-    { id: 'call',     label: 'Call',     Icon: PhoneIcon },
-    { id: 'email',    label: 'Email',    Icon: Mail },
-    { id: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
-  ];
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-6 shadow-sh1">
       <div className="text-[10px] font-black tracking-[0.14em] uppercase text-text-4 mb-1">Notes</div>
       <div className="text-[20px] font-black tracking-tight text-text mb-4">Internal notes</div>
 
-      {/* Composer */}
-      <div className="bg-surface-2/60 border border-border rounded-2xl p-4">
-        <div className="flex items-center gap-2">
-          {CHANNELS.map(({ id, label, Icon }) => {
-            const active = type === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setType(id)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-bold border transition-colors',
-                  active
-                    ? 'bg-accent-soft text-accent-ink border-accent-strong'
-                    : 'bg-surface text-text-2 border-border hover:border-border-2',
-                )}
-              >
-                <Icon size={13} /> {label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="relative mt-3">
-          <textarea
-            ref={taRef}
-            value={text}
-            onChange={onTextChange}
-            onKeyDown={onKeyDown}
-            rows={5}
-            placeholder="What happened? Use @ to mention or @name/task to assign…"
-            className="w-full bg-surface border border-border rounded-xl p-4 text-[14px] text-text placeholder:text-text-3 outline-none focus:border-accent-strong resize-vertical min-h-[130px]"
-          />
-          {mention && mentionMatches.length > 0 && (
-            <div className="absolute left-3 top-full mt-1 z-20 bg-surface border border-border rounded-xl shadow-sh3 w-[280px] overflow-hidden">
-              {mentionMatches.map((p, i) => (
-                <button
-                  key={p.id}
-                  onMouseDown={(e) => { e.preventDefault(); insertMention(p); }}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px]',
-                    i === mention.idx ? 'bg-accent-soft' : 'hover:bg-surface-2',
-                  )}
-                >
-                  <OwnerAvatar profile={p} size={26} />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-text truncate">{p.full_name || p.email}</div>
-                    {p.full_name && p.email && <div className="text-[11px] text-text-3 truncate">{p.email}</div>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end mt-3">
-          <button
-            onClick={submit}
-            disabled={!text.trim() || log.isPending}
-            className="h-11 px-6 rounded-xl bg-accent text-cg-900 text-[14px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
-          >
-            {log.isPending ? 'Adding…' : 'Add note'}
-          </button>
-        </div>
-      </div>
+      <ActivityComposer accountId={accountId} profiles={profileList} />
 
       {/* List */}
       {loading && <div className="mt-4 text-[12px] text-text-3">Loading…</div>}
@@ -1423,128 +1283,6 @@ function Panel({ title, hint, icon, action, children }: { title: string; hint?: 
       {children}
     </div>
   );
-}
-
-/**
- * For each activity, derive the account's stage at the moment that activity
- * was created. Walks the timeline once: activities of `type='stage'` carry
- * a `to_stage` transition — the effective stage before that entry is the
- * previous to_stage. Non-stage activities inherit whatever the most-recent
- * prior stage transition set. Missing/unknown → `'lead'` (the funnel entry).
- * Result: Map<activityId, stage> that every note/call/email/meeting can
- * badge with a StagePill to answer "which stage were we in when this
- * happened?".
- */
-function buildStageAtTime(activities: import('@/hooks/useAccountDetail').Activity[]): Map<string, string> {
-  const chronological = [...activities].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
-  const out = new Map<string, string>();
-  let current = 'lead';
-  for (const a of chronological) {
-    if (a.type === 'stage' && a.to_stage) {
-      out.set(a.id, a.to_stage);
-      current = a.to_stage;
-    } else {
-      out.set(a.id, current);
-    }
-  }
-  return out;
-}
-
-function ActivityFeed({
-  activities, profiles, loading,
-}: {
-  activities: import('@/hooks/useAccountDetail').Activity[];
-  profiles: import('@/hooks/useUsersData').Profile[];
-  loading: boolean;
-}) {
-  const byId = new Map(profiles.map((p) => [p.id, p]));
-  const stageAtTime = useMemo(() => buildStageAtTime(activities), [activities]);
-  return (
-    <div className="bg-surface border border-border rounded-2xl px-5 py-2 shadow-sh1">
-      {loading && <div className="text-[12.5px] text-text-3 py-3">Loading…</div>}
-      {!loading && activities.length === 0 && (
-        <div className="py-8 text-center text-[12.5px] text-text-3">No activity yet.</div>
-      )}
-      <div>
-        {activities.map((a) => (
-          <ActivityRow
-            key={a.id}
-            activity={a}
-            author={a.author_id ? byId.get(a.author_id) : undefined}
-            profiles={profiles}
-            stageAtTime={stageAtTime.get(a.id)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ActivityRow({
-  activity, author, profiles, stageAtTime,
-}: {
-  activity: import('@/hooks/useAccountDetail').Activity;
-  author: import('@/hooks/useUsersData').Profile | undefined;
-  profiles: import('@/hooks/useUsersData').Profile[];
-  stageAtTime?: string;
-}) {
-  const name = author?.full_name || author?.email || 'System';
-  const sentence = activityToSentence(activity);
-  // Don't show a stage pill on the stage-transition entries themselves —
-  // they already say "moved stage from X to Y" in the sentence.
-  const showStagePill = activity.type !== 'stage' && stageAtTime;
-  return (
-    <div className="flex items-center gap-3 py-3 px-1 border-b border-border last:border-0">
-      <OwnerAvatar profile={author} size={32} />
-      <div className="flex-1 min-w-0 text-[13.5px] text-text-2 leading-snug">
-        <span className="font-extrabold text-text">{name}</span>{' '}
-        {sentence.action}
-        {sentence.subject && <> <span className="font-extrabold text-text">{renderWithMentions(sentence.subject, profiles)}</span></>}
-        {sentence.trail}
-        {sentence.suffix && <> <span className="font-extrabold text-text">{renderWithMentions(sentence.suffix, profiles)}</span></>}
-        <span className="text-text-3">.</span>
-      </div>
-      {showStagePill && (
-        <div className="flex-shrink-0" title={`Stage at the time of this activity: ${stageAtTime}`}>
-          <StagePill stage={stageAtTime} />
-        </div>
-      )}
-      <div className="text-[12px] text-text-3 flex-shrink-0 whitespace-nowrap">
-        {fmtDateTime(activity.created_at)}
-      </div>
-    </div>
-  );
-}
-
-function fmtDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  });
-}
-
-function activityToSentence(a: import('@/hooks/useAccountDetail').Activity): {
-  action: string; subject?: string; trail?: string; suffix?: string;
-} {
-  const t = a.type;
-  const title = a.title || '';
-  const text = a.text || '';
-  if (t === 'task') {
-    if (a.parent_id) return { action: 'replied on task', subject: text.slice(0, 80) };
-    return { action: 'added a task', subject: title || text };
-  }
-  if (t === 'note')     return { action: 'left a note',   subject: text.slice(0, 120) };
-  if (t === 'call')     return { action: 'logged a call', subject: text.slice(0, 120) };
-  if (t === 'email')    return { action: 'sent an email', subject: a.email_subject || text.slice(0, 120) };
-  if (t === 'whatsapp') return { action: 'sent WhatsApp', subject: text.slice(0, 120) };
-  if (t === 'meeting')  return { action: 'held a meeting', subject: title || text.slice(0, 120) };
-  if (a.from_stage && a.to_stage) {
-    return { action: 'moved stage from', subject: a.from_stage.toUpperCase(), trail: ' to', suffix: a.to_stage.toUpperCase() };
-  }
-  return { action: t.replace(/_/g, ' '), subject: title || text.slice(0, 120) };
 }
 
 function NotFound() {

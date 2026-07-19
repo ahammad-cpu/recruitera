@@ -33,6 +33,10 @@ export function useLogActivity(accountId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['activities', accountId] });
       qc.invalidateQueries({ queryKey: ['activities', 'recent'] });
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      // HistoryTab (Task 17) reads from the merged `get_company_history` RPC,
+      // not the raw `activities` query — invalidate it too so a newly logged
+      // note/call/email shows up in the History feed immediately.
+      qc.invalidateQueries({ queryKey: ['company_history', accountId] });
     },
     onError: (err) => toast.error(`Log failed: ${String(err)}`),
   });
@@ -52,6 +56,7 @@ export function useUpdateActivity(accountId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['activities', accountId] });
       qc.invalidateQueries({ queryKey: ['activities', 'recent'] });
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['company_history', accountId] });
     },
     onError: (e) => toast.error(`Save failed: ${String((e as Error).message || e)}`),
   });
