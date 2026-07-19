@@ -230,17 +230,14 @@ export default function CompanyProfile() {
             <button
               onClick={() => setDisqOpen(true)}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-warn/40 bg-warn-bg text-warn text-[12px] font-bold hover:bg-warn/10"
-              title="Disqualify — lead was never a real prospect (fake, ICP mismatch, duplicate, spam, ...)"
+              title="Disqualify — lead was never a real prospect (fake, ICP mismatch, duplicate, spam, …)"
             ><X size={12} /> Disqualify</button>
           )}
-          {OPEN_STAGES.includes((lead.stage || '').toLowerCase()) && (
+          {(['sql', 'demo', 'proposal'].includes((lead.stage || '').toLowerCase())) && (
             <button
               onClick={() => setLoseOpen(true)}
-              className={
-                (['lead', 'mql'].includes((lead.stage || '').toLowerCase()) ? '' : 'ml-auto ') +
-                'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10'
-              }
-              title="Lose — real sales attempt that didn't close (no budget, competitor, wrong timing, ...)"
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
+              title="Lose — real sales attempt that didn't close (no budget, competitor, wrong timing, …)"
             ><X size={12} /> Lose</button>
           )}
         </div>
