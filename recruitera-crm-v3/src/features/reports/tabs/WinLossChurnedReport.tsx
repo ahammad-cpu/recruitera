@@ -1,18 +1,25 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAccounts, isPaid } from '@/hooks/useAccounts';
 import { useDeals } from '@/hooks/useDeals';
 import { useContractCycles } from '@/hooks/useContractCycles';
 import { fmtEgp, fmtInt, toEgp } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { useReportsOwner } from '../shared/reportsContext';
+import { DateRangeFilter } from '../shared/DateRangeFilter';
+import { resolveDateRange, type DateRangeKey } from '../shared/dateRange';
 import { reconstructWonLostWeekly, reconstructRollingMrr } from '../shared/reportCalc';
 import { ReportPanel, ReportKpi, HeaderPill, BarList, type BarRow } from '../shared/ReportUI';
+import { LossBreakdownMatrix } from './__parts/LossBreakdownMatrix';
 
 export default function WinLossChurnedReport() {
   const accts = useAccounts();
   const deals = useDeals();
   const cycles = useContractCycles();
   const { ownerId } = useReportsOwner();
+  const [rangeKey, setRangeKey] = useState<DateRangeKey>('90d');
+  const [from, setFrom] = useState<string | undefined>();
+  const [to, setTo] = useState<string | undefined>();
+  const range = useMemo(() => resolveDateRange(rangeKey, new Date(), from, to), [rangeKey, from, to]);
 
   const scopedAccts = useMemo(() => {
     let list = (accts.data ?? []).filter((a) => !a.merged_into);
@@ -77,6 +84,11 @@ export default function WinLossChurnedReport() {
 
   return (
     <div className="space-y-5">
+      <div className="flex items-center gap-3 flex-wrap no-print">
+        <DateRangeFilter value={rangeKey} customFrom={from} customTo={to} onChange={(k, f, t) => { setRangeKey(k); setFrom(f); setTo(t); }} />
+        <span className="text-[11px] text-text-3">{range.label}</span>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <ReportKpi
           label="Win rate"
@@ -127,6 +139,8 @@ export default function WinLossChurnedReport() {
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-bad" /> Lost</span>
         </div>
       </ReportPanel>
+
+      <LossBreakdownMatrix from={range.startISO} to={range.endISO} ownerId={ownerId} />
 
       <ReportPanel
         title="Rolling MRR + churn"
