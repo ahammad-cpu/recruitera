@@ -31,6 +31,7 @@ import { DealsSection } from './DealsSection';
 import { ReopenModal } from './ReopenModal';
 import { HistoryTab } from './HistoryTab';
 import { ActivityComposer } from './ActivityComposer';
+import { useFeatureFlag } from '@/lib/flags';
 
 type Tab = 'overview' | 'history' | 'plans' | 'team' | 'documents';
 
@@ -45,6 +46,7 @@ export default function CompanyProfile() {
   const marketing = useMarketingTracking(id);
   const attribution = useAccountAttribution(id);
   const deals = useDealsForCompany(id);
+  const dealsHidden = useFeatureFlag('deals_ui_hidden');
   const profiles = useProfiles();
   const stagesEnum = useEnum('pipeline_stage');
   const rename = useRenameAccount();
@@ -292,7 +294,7 @@ export default function CompanyProfile() {
           <aside className="space-y-4">
             <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
             <CompanyDetailsPanel lead={lead} attr={attribution.data ?? null} isAdmin={isAdmin} />
-            <DealsSection accountId={lead.id} />
+            {!dealsHidden && <DealsSection accountId={lead.id} />}
             <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
             <AttributionPanel
               tracking={marketing.data ?? null}
