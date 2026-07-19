@@ -111,6 +111,14 @@ export default function PipelineReport() {
   const acctById = useMemo(() => new Map(scopedAccts.map((a) => [a.id, { created_at: a.created_at }])), [scopedAccts]);
   const cycleTime = useMemo(() => averageCycleDays(wonDeals, acctById), [wonDeals, acctById]);
 
+  const reopenTeaser = useMemo(() => {
+    const cohort = scopedAccts.filter((a) => a.created_at >= range.startISO && a.created_at <= range.endISO);
+    const lostInCohort = cohort.filter((a) => a.stage === 'lost' || (a.reopen_count ?? 0) > 0);
+    const reopenedFromCohort = cohort.filter((a) => (a.reopen_count ?? 0) > 0);
+    const pct = Math.round((100 * reopenedFromCohort.length) / Math.max(lostInCohort.length, 1));
+    return { cohortSize: cohort.length, lostInCohort: lostInCohort.length, reopenedFromCohort: reopenedFromCohort.length, pct };
+  }, [scopedAccts, range]);
+
   const cycleBars: BarRow[] = useMemo(
     () => Array.from(cycleTime.byChannel.entries())
       .map(([channel, days]) => ({
@@ -126,6 +134,7 @@ export default function PipelineReport() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 flex-wrap no-print">
+        <span className="text-[12px] font-semibold text-text-2">Leads created</span>
         <DateRangeFilter value={rangeKey} customFrom={from} customTo={to} onChange={(k, f, t) => { setRangeKey(k); setFrom(f); setTo(t); }} />
         <span className="text-[11px] text-text-3">{range.label}</span>
       </div>
@@ -171,6 +180,12 @@ export default function PipelineReport() {
       >
         <BarList rows={cycleBars} variant="raw" emptyText="No won deals in scope." autoColor />
       </ReportPanel>
+
+      {reopenTeaser.cohortSize > 0 && (
+        <div className="text-[11.5px] text-text-3 px-1">
+          of {reopenTeaser.lostInCohort} lost cohort accounts, {reopenTeaser.reopenedFromCohort} were later reopened ({reopenTeaser.pct}%)
+        </div>
+      )}
     </div>
   );
 }
