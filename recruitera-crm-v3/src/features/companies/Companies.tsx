@@ -23,12 +23,21 @@ import { cn } from '@/lib/cn';
 
 type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'lost' | 'disqualified';
 
-// Disqualify reasons (Lead/MQL early rejection) vs Loss reasons (SQL+ real
-// sales attempt) — split by lost_from_stage first, then by reason_code as
-// a fallback for legacy rows where the stage wasn't captured.
+// Disqualify (Lead/MQL early rejection) vs Loss (SQL+ real sales attempt).
+// An account that ever had a trial or a plan was a real prospect — it can
+// never be "Disqualified" no matter what the legacy loss_reason says. Those
+// go to Lost. Otherwise: lost_from_stage in (lead, mql) → Disqualified;
+// legacy rows fall back to loss_reason.
 const DISQ_REASONS = new Set(['fake_lead', 'not_icp', 'duplicate', 'spam']);
+function everWasARealProspect(a: Account): boolean {
+  if (a.has_trial) return true;
+  if (a.paid_status && a.paid_status.trim() !== '') return true;
+  if (a.activation_status && a.activation_status.trim() !== '') return true;
+  return false;
+}
 function isDisqualified(a: Account): boolean {
   if ((a.stage || '').toLowerCase() !== 'lost') return false;
+  if (everWasARealProspect(a)) return false;
   const from = (a.lost_from_stage || '').toLowerCase();
   if (from === 'lead' || from === 'mql') return true;
   if (!from && a.loss_reason && DISQ_REASONS.has(a.loss_reason)) return true;
