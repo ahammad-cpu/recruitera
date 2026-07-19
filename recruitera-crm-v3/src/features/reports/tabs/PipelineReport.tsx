@@ -21,6 +21,18 @@ const STAGE_FILL: Record<string, string> = {
   paid:     'bg-ok/30',
 };
 
+/**
+ * "Reached" order — lower index = earlier stage. An account currently at a
+ * later stage is counted as also having reached every earlier stage.
+ * A Lead → SQL jump therefore still counts toward MQL, since logically it
+ * had to pass through it. Loss/disqualified stages aren't in this order —
+ * a lost account drops out of the funnel entirely.
+ */
+const STAGE_ORDER: readonly string[] = ['lead', 'mql', 'sql', 'demo', 'proposal', 'won', 'paid'];
+function stageRank(stage: string | null | undefined): number {
+  return STAGE_ORDER.indexOf((stage || '').toLowerCase());
+}
+
 export default function PipelineReport() {
   const accts = useAccounts();
   const deals = useDeals();
@@ -43,25 +55,31 @@ export default function PipelineReport() {
   const scopedCycles = useMemo(() => (cycles.data ?? []).filter((c) => scopedIds.has(c.account_id)), [cycles.data, scopedIds]);
 
   const funnelRows: FunnelRow[] = useMemo(() => {
-    const m = new Map<string, number>();
-    scopedAccts.forEach((a) => {
-      const s = (a.stage || '').toLowerCase();
-      m.set(s, (m.get(s) ?? 0) + 1);
+    // Cumulative counting: for each funnel stage, count every account that
+    // has reached it OR any downstream stage. So SQL includes SQL + Demo +
+    // Proposal + Won + Paid — capturing accounts that skipped stages on
+    // the way (e.g. Lead → SQL directly still counts toward MQL).
+    // Terminal negative stages (lost / disqualified) aren't in STAGE_ORDER,
+    // so they naturally drop out of the funnel.
+    const total = Math.max(1, scopedAccts.filter((a) => stageRank(a.stage) >= 0).length);
+    return STAGES.map((s) => {
+      const targetRank = stageRank(s);
+      const reached = scopedAccts.filter((a) => stageRank(a.stage) >= targetRank).length;
+      return {
+        key: s,
+        label: s.toUpperCase(),
+        count: reached,
+        pctOfTotal: (reached / total) * 100,
+        fillClass: STAGE_FILL[s],
+      };
     });
-    const total = Math.max(1, scopedAccts.length);
-    return STAGES.map((s) => ({
-      key: s,
-      label: s.toUpperCase(),
-      count: m.get(s) ?? 0,
-      pctOfTotal: ((m.get(s) ?? 0) / total) * 100,
-      fillClass: STAGE_FILL[s],
-    }));
   }, [scopedAccts]);
   const closeRate = useMemo(() => {
-    const start = funnelRows[0]?.count ?? 0;
-    const won = (funnelRows.find((r) => r.key === 'won')?.count ?? 0) + (funnelRows.find((r) => r.key === 'paid')?.count ?? 0);
+    // "Close rate" now = won-or-later ÷ ever-in-funnel, matching v1's semantics.
+    const start = scopedAccts.filter((a) => stageRank(a.stage) >= 0).length;
+    const won = scopedAccts.filter((a) => stageRank(a.stage) >= stageRank('won')).length;
     return start > 0 ? Math.round((won / start) * 100) : 0;
-  }, [funnelRows]);
+  }, [scopedAccts]);
 
   const targetForPeriod = useMemo(() => {
     const list = targets.data ?? [];
