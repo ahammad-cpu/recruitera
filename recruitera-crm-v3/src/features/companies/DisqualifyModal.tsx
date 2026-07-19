@@ -17,8 +17,9 @@ const DISQ_REASONS = [
   { key: 'duplicate',   label: 'Duplicate',    hint: 'Already exists in CRM',                        dot: 'bg-text-3'  },
   { key: 'spam',        label: 'Spam / junk',  hint: 'Junk submission',                              dot: 'bg-text-4'  },
   { key: 'competitor',  label: 'Competitor',   hint: 'Works for a competitor',                       dot: 'bg-bad'     },
-  { key: 'no_response', label: 'No response',  hint: 'Never replied to outreach',                    dot: 'bg-text-3'  },
-  { key: 'other',       label: 'Other',        hint: 'Requires a note',                              dot: 'bg-text-4'  },
+  { key: 'no_response',    label: 'No response',    hint: 'Never replied to outreach',                    dot: 'bg-text-3'  },
+  { key: 'not_needed_now', label: 'Not needed now', hint: 'No hiring need right now — nothing to sell yet', dot: 'bg-info'   },
+  { key: 'other',          label: 'Other',          hint: 'Requires a note',                              dot: 'bg-text-4'  },
 ] as const;
 
 type DisqKey = typeof DISQ_REASONS[number]['key'];
