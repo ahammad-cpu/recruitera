@@ -17,6 +17,7 @@ import AMReport from '@/features/reports/tabs/AMReport';
 import AMPerformance from '@/features/am-performance/AMPerformance';
 import Users from '@/features/users/Users';
 import Utm from '@/features/utm/Utm';
+import RequalificationSettings from '@/features/settings/RequalificationSettings';
 
 // Vite's BASE_URL matches the deploy path (/crm-v3/ on Vercel, / in dev).
 // Strip trailing slash so React Router accepts it as basename.
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
       { path: 'logs', element: <Logs /> },
       { path: 'users', element: <Users /> },
       { path: 'utm', element: <Utm /> },
+      { path: 'settings/requalification', element: <RequalificationSettings /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

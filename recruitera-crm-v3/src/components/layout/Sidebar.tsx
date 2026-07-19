@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home, Building2, TrendingUp, RefreshCw, Bell, CheckSquare,
   BarChart3, FileText, ScrollText, Users, Link as LinkIcon,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { RecruiteraLogo, RecruiteraFullLogo } from './RecruiteraLogo';
@@ -57,12 +57,15 @@ export function Sidebar() {
     { to: '/tasks', icon: CheckSquare, label: 'Tasks', badge: openTasks || undefined },
   ];
 
+  const isAdmin = (me.data?.role || '') === 'admin';
+
   const OPERATIONS: NavItem[] = [
     { to: '/am-performance', icon: BarChart3, label: 'AM Performance' },
     { to: '/reports', icon: FileText, label: 'Reports' },
     { to: '/logs', icon: ScrollText, label: 'Logs' },
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/utm', icon: LinkIcon, label: 'UTM Generator' },
+    ...(isAdmin ? [{ to: '/settings/requalification', icon: RotateCcw, label: 'Requalification' } as NavItem] : []),
   ];
 
   const profile = me.data;
