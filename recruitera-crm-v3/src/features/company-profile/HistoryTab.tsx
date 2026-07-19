@@ -1,16 +1,11 @@
 import { useMemo } from 'react';
-import type { LucideIcon } from 'lucide-react';
-import {
-  FileText, Phone, Mail, Users, CheckSquare, ArrowRightLeft, XCircle,
-  RotateCcw, UserCheck, DollarSign, Bot, Target, Star,
-} from 'lucide-react';
 import { useCompanyHistory, type HistoryEvent } from '@/hooks/useCompanyHistory';
 import { useProfiles } from '@/hooks/useUsersData';
 import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
-import { cn } from '@/lib/cn';
 import { ActivityComposer } from './ActivityComposer';
 import type { Profile } from '@/hooks/useUsersData';
+import { useDeleteActivity } from '@/hooks/useActivityMutations';
 
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -19,8 +14,9 @@ function relativeTime(iso: string): string {
   if (diffSec < 60) return 'just now';
   const diffMin = Math.round(diffSec / 60);
   if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffHr = Math.floor(diffSec / 3600);
+  const remMin = Math.round((diffSec % 3600) / 60);
+  if (diffHr < 24) return remMin > 0 ? `${diffHr}h ${remMin}m ago` : `${diffHr}h ago`;
   const diffDay = Math.round(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
   const diffWk = Math.round(diffDay / 7);
@@ -30,22 +26,25 @@ function relativeTime(iso: string): string {
   return `${Math.round(diffDay / 365)}y ago`;
 }
 
-const KIND_STYLE: Record<HistoryEvent['kind'], { icon: LucideIcon; tone: string }> = {
-  note:                  { icon: FileText,       tone: 'text-text-3' },
-  call:                  { icon: Phone,          tone: 'text-text-3' },
-  email:                 { icon: Mail,           tone: 'text-text-3' },
-  meeting:               { icon: Users,          tone: 'text-text-3' },
-  task_created:          { icon: CheckSquare,    tone: 'text-text-3' },
-  task_done:             { icon: CheckSquare,    tone: 'text-ok' },
-  stage_change:          { icon: ArrowRightLeft, tone: 'text-info' },
-  loss:                  { icon: XCircle,        tone: 'text-bad' },
-  reopen:                { icon: RotateCcw,      tone: 'text-ok' },
-  owner_change:          { icon: UserCheck,      tone: 'text-text-3' },
-  deal_value_change:     { icon: DollarSign,     tone: 'text-text-3' },
-  requalification_fire:  { icon: Bot,            tone: 'text-purple' },
-  meta_lead_attached:    { icon: Target,         tone: 'text-info' },
-  account_created:       { icon: Star,           tone: 'text-text-3' },
+const KIND_PILL: Partial<Record<HistoryEvent['kind'], string>> = {
+  note:                 'NOTE',
+  call:                 'CALL',
+  email:                'EMAIL',
+  meeting:              'MEETING',
+  task_created:         'TASK',
+  task_done:            'TASK DONE',
+  stage_change:         'STAGE',
+  loss:                 'LOST',
+  reopen:               'REOPEN',
+  owner_change:         'OWNER',
+  deal_value_change:    'DEAL VALUE',
+  requalification_fire: 'AUTO-TASK',
+  meta_lead_attached:   'META',
+  account_created:      'CREATED',
 };
+
+// Kinds a regular user can delete from the feed. System/audit events stay put.
+const DELETABLE = new Set<HistoryEvent['kind']>(['note', 'call', 'email', 'meeting']);
 
 export function HistoryTab({ accountId }: { accountId: string }) {
   const q = useCompanyHistory(accountId);
@@ -74,7 +73,7 @@ export function HistoryTab({ accountId }: { accountId: string }) {
           <section key={group.label}>
             <h4 className="text-[10px] font-black uppercase tracking-widest text-text-3 mt-4 mb-2">{group.label}</h4>
             <ul className="space-y-3">
-              {group.events.map((ev) => <HistoryRow key={ev.id} ev={ev} profiles={profiles.data ?? []} />)}
+              {group.events.map((ev) => <HistoryRow key={ev.id} ev={ev} profiles={profiles.data ?? []} accountId={accountId} />)}
             </ul>
           </section>
         ))}
@@ -93,36 +92,51 @@ export function HistoryTab({ accountId }: { accountId: string }) {
   );
 }
 
-const DEFAULT_KIND_STYLE = { icon: FileText, tone: 'text-text-3' } as const;
-
-function HistoryRow({ ev, profiles }: { ev: HistoryEvent; profiles: Profile[] }) {
-  // Fallback to a neutral icon when the RPC emits a kind we haven't mapped —
-  // never crash the whole tab because of one unknown event.
-  const style = KIND_STYLE[ev.kind] ?? DEFAULT_KIND_STYLE;
-  const { icon: Icon, tone } = style;
+function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: Profile[]; accountId: string }) {
+  const del = useDeleteActivity(accountId);
 
   const actor = ev.actor_id ? profiles.find((p) => p.id === ev.actor_id) : undefined;
   const actorName = actor?.full_name || actor?.email || ev.actor_name || 'System';
   const reason = typeof ev.meta?.reason_code === 'string' ? ev.meta.reason_code : null;
 
+  // Activities from the RPC come with id "act:<uuid>" — extract the raw id
+  // so useDeleteActivity can target the row directly.
+  const activityId = ev.id.startsWith('act:') ? ev.id.slice(4) : null;
+  const canDelete = DELETABLE.has(ev.kind) && activityId;
+
+  const kindLabel = KIND_PILL[ev.kind] ?? ev.kind.toUpperCase().replace(/_/g, ' ');
+
   return (
-    <li className="flex gap-3 bg-surface-2/60 border border-border rounded-xl p-4">
+    <li className="flex gap-3 border border-border rounded-xl p-4">
       <OwnerAvatar profile={actor} size={40} fallback={actorName} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[13px] font-black text-text">{actorName}</span>
-          <Icon size={12} className={cn('shrink-0', tone)} />
-          <span className="text-[12px] font-bold text-text-2">{ev.title}</span>
+          <span className="inline-flex items-center h-5 px-2 rounded-md bg-surface-2 text-text-3 text-[10px] font-black tracking-wider">
+            {kindLabel}
+          </span>
+          <span className="text-[11.5px] text-text-3">{relativeTime(ev.at)}</span>
           {ev.stage_at_time && <StagePill stage={ev.stage_at_time} />}
-        </div>
-        <div className="text-[11px] text-text-3 mt-0.5">
-          {relativeTime(ev.at)} · {new Date(ev.at).toLocaleString()}
-          {reason && <> · reason: <span className="font-semibold text-text-2">{reason}</span></>}
+          {reason && (
+            <span className="text-[11.5px] text-text-3">· reason: <span className="font-bold text-text-2">{reason}</span></span>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => del.mutate(activityId!)}
+              disabled={del.isPending}
+              className="ml-auto text-[11.5px] font-bold text-text-3 hover:text-bad disabled:opacity-50"
+            >
+              {del.isPending ? 'Deleting…' : 'Delete'}
+            </button>
+          )}
         </div>
         {ev.body && (
-          <div className="text-[13px] text-text mt-2 whitespace-pre-wrap leading-relaxed">
+          <div className="text-[13.5px] text-text mt-1.5 whitespace-pre-wrap leading-relaxed">
             {ev.body}
           </div>
+        )}
+        {!ev.body && ev.title !== actorName && (
+          <div className="text-[12px] text-text-3 mt-1">{ev.title}</div>
         )}
       </div>
     </li>
