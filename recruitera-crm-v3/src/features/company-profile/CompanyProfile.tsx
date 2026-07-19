@@ -269,7 +269,6 @@ export default function CompanyProfile() {
           <StageStat
             lead={lead}
             stages={stagesEnum.data ?? []}
-            hasLiveDeal={(deals.data ?? []).some((d) => !d.is_archived)}
             onChange={(stage) => changeStage.mutate({ id: lead.id, stage })}
           />
         </div>
@@ -397,41 +396,94 @@ function OwnerStat({
   );
 }
 
-function StageStat({ lead, stages, hasLiveDeal, onChange }: { lead: Account; stages: string[]; hasLiveDeal: boolean; onChange: (s: string) => void }) {
+// Pipeline order — used to render the dropdown in the right sequence and to
+// gate what looks like a plausible forward/backward move. `lost` is not in
+// this list on purpose: it's set via the Lose modal (with a reason), never
+// from a plain dropdown.
+const STAGE_ORDER = ['lead', 'mql', 'sql', 'demo', 'proposal', 'won', 'paid'] as const;
+const STAGE_LABEL: Record<string, string> = {
+  lead: 'Lead', mql: 'MQL', sql: 'SQL', demo: 'Demo',
+  proposal: 'Proposal', won: 'Won', paid: 'Paid',
+};
+
+function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]; onChange: (s: string) => void }) {
   const current = (lead.stage || 'lead').toLowerCase();
-  // Once a real deal exists, its stage is what's authoritative — a DB
-  // trigger mirrors deals.stage -> accounts.stage on every deal change.
-  // Editing accounts.stage manually here would silently desync from the
-  // deal on the next deal update (this happened in production: an account
-  // got hand-set back to "lead" while its deal was still at MQL). So once
-  // a live deal exists, stage is read-only here and only changes via the
-  // Deals panel / pipeline board.
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  // At lost, the Reopen button in the header handles re-entry — dropdown hidden.
+  if (current === 'lost') {
+    return (
+      <div className="bg-surface-2/60 rounded-xl p-3.5">
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
+        <div className="mt-1 flex items-center gap-2 flex-wrap">
+          <StagePill stage={lead.stage} />
+          <span className="text-[11px] text-text-3 font-semibold">Use Reopen to move back</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Build the ordered list of choices, filtered to what's in the live enum.
+  const enumSet = new Set(stages.map((s) => s.toLowerCase()));
+  const choices = STAGE_ORDER.filter((s) => enumSet.has(s));
+
+  const currentIdx = STAGE_ORDER.indexOf(current as any);
+
+  function classify(target: string): 'current' | 'forward' | 'backward' {
+    if (target === current) return 'current';
+    const tIdx = STAGE_ORDER.indexOf(target as any);
+    return tIdx > currentIdx ? 'forward' : 'backward';
+  }
+
+  function pick(target: string) {
+    if (target === current) return;
+    // Confirm any backward move so a slip on the picker can't silently
+    // regress a real prospect. Forward moves apply immediately.
+    if (classify(target) === 'backward') {
+      setConfirming(target);
+      return;
+    }
+    onChange(target);
+  }
+
   return (
     <div className="bg-surface-2/60 rounded-xl p-3.5">
       <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
       <div className="mt-1 flex items-center gap-2 flex-wrap">
         <StagePill stage={lead.stage} />
-        {!hasLiveDeal && current === 'lead' && (
-          <span className="text-[11px] text-text-3 font-semibold">
-            No deal yet — create one to set a stage
-          </span>
-        )}
-        {hasLiveDeal && (
-          <span className="text-[11px] text-text-3 font-semibold">
-            Follows the deal below
-          </span>
-        )}
-        {!hasLiveDeal && current !== 'lead' && (
-          <select
-            value={current}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-7 pl-2 pr-6 border border-border rounded-md bg-surface text-[11px] font-bold outline-none"
-            aria-label="Change stage"
-          >
-            {stages.filter((s) => s !== 'lead').map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
-          </select>
-        )}
+        <select
+          value={current}
+          onChange={(e) => pick(e.target.value)}
+          className="h-7 pl-2 pr-6 border border-border rounded-md bg-surface text-[11px] font-bold outline-none"
+          aria-label="Change stage"
+          title="Forward moves apply immediately. Backward moves ask for confirmation."
+        >
+          {choices.map((s) => (
+            <option key={s} value={s}>
+              {STAGE_LABEL[s]}
+              {s === current ? ' (current)' : classify(s) === 'backward' ? ' ↩︎' : ''}
+            </option>
+          ))}
+        </select>
       </div>
+      {confirming && (
+        <div className="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-6" onClick={() => setConfirming(null)}>
+          <div className="bg-surface rounded-2xl shadow-sh3 border border-border max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[15px] font-black text-text">Move backward?</div>
+            <div className="text-[12.5px] text-text-2 mt-1">
+              You're moving <span className="font-bold">{STAGE_LABEL[current]}</span> → <span className="font-bold">{STAGE_LABEL[confirming]}</span>.
+              This is a regression — history will show the step back.
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setConfirming(null)} className="h-9 px-4 rounded-lg border border-border text-[12.5px] font-bold">Cancel</button>
+              <button
+                onClick={() => { onChange(confirming); setConfirming(null); }}
+                className="h-9 px-4 rounded-lg bg-warn text-white text-[12.5px] font-black"
+              >Move back</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
