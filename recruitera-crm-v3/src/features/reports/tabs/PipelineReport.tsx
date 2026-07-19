@@ -10,6 +10,7 @@ import { DateRangeFilter } from '../shared/DateRangeFilter';
 import { resolveDateRange, type DateRangeKey } from '../shared/dateRange';
 import { reconstructArrPipeline, averageCycleDays } from '../shared/reportCalc';
 import { ReportPanel, ReportKpi, HeaderPill, FunnelChart, BarList, type BarRow, type FunnelRow } from '../shared/ReportUI';
+import { useFeatureFlag } from '@/lib/flags';
 
 const STAGES = ['mql', 'sql', 'demo', 'proposal', 'won', 'paid'] as const;
 const STAGE_FILL: Record<string, string> = {
@@ -40,6 +41,7 @@ export default function PipelineReport() {
   const targets = useTargets();
   const attribution = useResolvedAttribution();
   const { ownerId } = useReportsOwner();
+  const newReports = useFeatureFlag('use_new_reports');
   const [rangeKey, setRangeKey] = useState<DateRangeKey>('qtd');
   const [from, setFrom] = useState<string | undefined>();
   const [to, setTo] = useState<string | undefined>();
@@ -181,7 +183,7 @@ export default function PipelineReport() {
         <BarList rows={cycleBars} variant="raw" emptyText="No won deals in scope." autoColor />
       </ReportPanel>
 
-      {reopenTeaser.cohortSize > 0 && (
+      {newReports && reopenTeaser.cohortSize > 0 && (
         <div className="text-[11.5px] text-text-3 px-1">
           of {reopenTeaser.lostInCohort} lost cohort accounts, {reopenTeaser.reopenedFromCohort} were later reopened ({reopenTeaser.pct}%)
         </div>

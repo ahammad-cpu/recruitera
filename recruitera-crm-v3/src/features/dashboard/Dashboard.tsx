@@ -13,6 +13,7 @@ import { fmtEgp, fmtInt, toEgp, initials, fmtDate } from '@/lib/format';
 import { StagePill } from '@/components/shared/StagePill';
 import { cn } from '@/lib/cn';
 import { BannerStat, Kpi, Panel, PeriodToggle, getPeriodRange, type PeriodKind } from './shared';
+import { useFeatureFlag } from '@/lib/flags';
 
 const OPEN = new Set(['mql', 'sql', 'demo', 'proposal']);
 
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const cycles = useContractCycles();
   const me = useMe();
   const profiles = useProfiles();
+  const newReports = useFeatureFlag('use_new_reports');
   const [ownerId, setOwnerId] = useState<string>('');
   const [periodKind, setPeriodKind] = useState<PeriodKind>('month');
 
@@ -182,7 +184,9 @@ export default function Dashboard() {
         <Kpi label="Active customers" value={isLoading ? '…' : fmtInt(activePaid)} sub="paying employers" seed={13} />
         <Kpi label="Renewals 30d" value={cycles.isLoading ? '…' : fmtInt(renewals30.length)} sub={renewals30.length ? `${fmtEgp(renewals30Val)} at risk` : 'no risk'} seed={16} />
         <Kpi label="Win rate" value={isLoading ? '…' : wonRows + lostRows > 0 ? `${winRate}%` : '—'} sub={wonRows + lostRows > 0 ? `${wonRows + lostRows} closes` : 'no closes yet'} seed={19} />
-        <Kpi label="Reopens this month" value={reopens.isLoading ? '…' : fmtInt(reopensThisMonth)} sub={reopenMonth.label} seed={23} />
+        {newReports && (
+          <Kpi label="Reopens this month" value={reopens.isLoading ? '…' : fmtInt(reopensThisMonth)} sub={reopenMonth.label} seed={23} />
+        )}
       </div>
 
       {/* 2-COL: My companies + My tasks */}

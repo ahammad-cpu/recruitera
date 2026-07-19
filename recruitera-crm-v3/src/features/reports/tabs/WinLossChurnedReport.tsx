@@ -11,12 +11,14 @@ import { reconstructWonLostWeekly, reconstructRollingMrr } from '../shared/repor
 import { ReportPanel, ReportKpi, HeaderPill, BarList, type BarRow } from '../shared/ReportUI';
 import { LossBreakdownMatrix } from './__parts/LossBreakdownMatrix';
 import { ReopenRatePanel } from './__parts/ReopenRatePanel';
+import { useFeatureFlag } from '@/lib/flags';
 
 export default function WinLossChurnedReport() {
   const accts = useAccounts();
   const deals = useDeals();
   const cycles = useContractCycles();
   const { ownerId } = useReportsOwner();
+  const newReports = useFeatureFlag('use_new_reports');
   const [rangeKey, setRangeKey] = useState<DateRangeKey>('90d');
   const [from, setFrom] = useState<string | undefined>();
   const [to, setTo] = useState<string | undefined>();
@@ -141,9 +143,9 @@ export default function WinLossChurnedReport() {
         </div>
       </ReportPanel>
 
-      <LossBreakdownMatrix from={range.startISO} to={range.endISO} ownerId={ownerId} />
+      {newReports && <LossBreakdownMatrix from={range.startISO} to={range.endISO} ownerId={ownerId} />}
 
-      <ReopenRatePanel from={range.startISO} to={range.endISO} ownerId={ownerId} />
+      {newReports && <ReopenRatePanel from={range.startISO} to={range.endISO} ownerId={ownerId} />}
 
       <ReportPanel
         title="Rolling MRR + churn"
