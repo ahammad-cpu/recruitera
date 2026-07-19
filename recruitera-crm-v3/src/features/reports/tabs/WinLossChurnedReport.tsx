@@ -54,7 +54,7 @@ export default function WinLossChurnedReport() {
   const lossReasons = useMemo(() => {
     const m = new Map<string, number>();
     scopedDeals.filter((d) => d.stage === 'lost').forEach((d) => {
-      const key = d.disqualified_reason || '(no reason)';
+      const key = d.loss_reason || '(no reason)';
       m.set(key, (m.get(key) ?? 0) + 1);
     });
     return Array.from(m.entries()).map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);

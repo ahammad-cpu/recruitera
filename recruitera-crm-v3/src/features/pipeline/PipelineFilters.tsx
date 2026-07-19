@@ -170,7 +170,7 @@ export function PipelineFilters({ open, onClose, value, onChange, profiles }: Pr
             </div>
           </div>
 
-          {/* Close-date range — uses disqualified_at as proxy for closed deals */}
+          {/* Close-date range — uses lost_at as proxy for closed deals */}
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-text-3 mb-2">Close date</div>
             <div className="grid grid-cols-2 gap-2">

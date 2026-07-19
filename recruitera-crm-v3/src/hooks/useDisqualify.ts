@@ -26,10 +26,10 @@ export function useDisqualifyAccount() {
       const { data: session } = await supabase.auth.getSession();
       const { error } = await supabase.from('accounts').update({
         stage: 'lost',
-        disqualified_reason: reason,
-        disqualified_notes: notes?.trim() || null,
-        disqualified_by: session.session?.user?.id ?? null,
-        disqualified_at: new Date().toISOString(),
+        loss_reason: reason,
+        loss_notes: notes?.trim() || null,
+        lost_by: session.session?.user?.id ?? null,
+        lost_at: new Date().toISOString(),
       }).eq('id', id);
       if (error) throw error;
     },
@@ -37,7 +37,7 @@ export function useDisqualifyAccount() {
       await qc.cancelQueries({ queryKey: ['accounts'] });
       const prev = qc.getQueryData<Account[]>(['accounts']);
       qc.setQueryData<Account[]>(['accounts'], (old) =>
-        old?.map((a) => a.id === id ? { ...a, stage: 'lost', disqualified_reason: reason, disqualified_notes: notes ?? null, disqualified_at: new Date().toISOString() } : a) ?? old,
+        old?.map((a) => a.id === id ? { ...a, stage: 'lost', loss_reason: reason, loss_notes: notes ?? null, lost_at: new Date().toISOString() } : a) ?? old,
       );
       return { prev };
     },
@@ -55,10 +55,10 @@ export function useRequalifyAccount() {
     mutationFn: async ({ id, stage }: { id: string; stage: string }) => {
       const { error } = await supabase.from('accounts').update({
         stage,
-        disqualified_reason: null,
-        disqualified_notes: null,
-        disqualified_by: null,
-        disqualified_at: null,
+        loss_reason: null,
+        loss_notes: null,
+        lost_by: null,
+        lost_at: null,
       }).eq('id', id);
       if (error) throw error;
     },

@@ -32,7 +32,7 @@ const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }>
   { key: 'churned', label: 'Churned', test: (a) => (a.stage || '').toLowerCase() === 'paid' && a.activation_status === 'Expired' },
   { key: 'won', label: 'Won', test: (a) => (a.stage || '').toLowerCase() === 'won' },
   // Disqualified is only ever set at Lead stage — never a funnel outcome.
-  { key: 'disqualified', label: 'Disqualified', test: (a) => !!a.disqualified_reason },
+  { key: 'disqualified', label: 'Disqualified', test: (a) => !!a.loss_reason },
 ];
 
 type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';
@@ -443,11 +443,11 @@ export default function Companies() {
                     </td>
                     <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap border-r border-border/40">{fmtDate(a.created_at)}</td>
                     <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      {a.stage === 'lost' || a.disqualified_reason
+                      {a.stage === 'lost' || a.loss_reason
                         ? (
                           <button
                             onClick={() => requalify.mutate({ id: a.id, stage: 'lead' })}
-                            title={a.disqualified_reason ? `Disqualified: ${a.disqualified_reason}${a.disqualified_notes ? ' — ' + a.disqualified_notes : ''}. Click to requalify.` : 'Requalify'}
+                            title={a.loss_reason ? `Disqualified: ${a.loss_reason}${a.loss_notes ? ' — ' + a.loss_notes : ''}. Click to requalify.` : 'Requalify'}
                             className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-border bg-surface text-text-3 text-[11px] font-bold hover:bg-surface-2"
                           >
                             <RotateCcw size={11} /> Requalify

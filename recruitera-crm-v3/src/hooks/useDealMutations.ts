@@ -151,12 +151,12 @@ export function useMarkDealLost() {
       if (!reason || !reason.trim()) throw new Error('Lost reason is required');
       if (reason === 'other' && !(notes && notes.trim())) throw new Error('Notes required when reason is "other"');
       const { data: sess } = await supabase.auth.getSession();
-      const disqualified_by = sess.session?.user?.id ?? null;
+      const lost_by = sess.session?.user?.id ?? null;
       const { error } = await supabase.from('deals').update({
         stage: 'lost',
-        disqualified_reason: reason,
-        disqualified_notes: notes?.trim() || null,
-        disqualified_by,
+        loss_reason: reason,
+        loss_notes: notes?.trim() || null,
+        lost_by,
         closed_at: new Date().toISOString(),
         last_activity_at: new Date().toISOString(),
       }).eq('id', id);
@@ -186,9 +186,9 @@ export function useReopenDeal() {
       const { error } = await supabase.from('deals').update({
         stage: toStage,
         closed_at: null,
-        disqualified_reason: null,
-        disqualified_notes: null,
-        disqualified_by: null,
+        loss_reason: null,
+        loss_notes: null,
+        lost_by: null,
         reopened_at: new Date().toISOString(),
         reopened_by,
         last_activity_at: new Date().toISOString(),

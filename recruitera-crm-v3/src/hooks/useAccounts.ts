@@ -16,10 +16,15 @@ export type Account = {
   deal_currency: string | null;
   owner_id: string | null;
   customer_success_id: string | null;
-  disq_stage: string | null;
-  disqualified_reason: string | null;
-  disqualified_notes: string | null;
-  disqualified_at: string | null;
+  loss_reason: string | null;
+  loss_notes: string | null;
+  lost_by: string | null;
+  lost_at: string | null;
+  lost_from_stage: string | null;
+  first_won_at: string | null;
+  last_won_at: string | null;
+  reopened_at: string | null;
+  reopen_count: number;
   cs_email: string | null;
   company_ref: string | null;
   campaign: string | null;
@@ -44,7 +49,14 @@ export function useAccounts() {
       while (true) {
         const { data, error } = await supabase
           .from('accounts')
-          .select('id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,deal_value,deal_currency,owner_id,customer_success_id,disq_stage,disqualified_reason,disqualified_notes,disqualified_at,cs_email,company_ref,campaign,merged_into,funnel_score,board_position,created_at,bubble_created_at,health_score,health_status,health_factors')
+          .select(
+            'id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,' +
+            'deal_value,deal_currency,owner_id,customer_success_id,' +
+            'loss_reason,loss_notes,lost_by,lost_at,lost_from_stage,' +
+            'first_won_at,last_won_at,reopened_at,reopen_count,' +
+            'cs_email,company_ref,campaign,merged_into,funnel_score,board_position,' +
+            'created_at,bubble_created_at,health_score,health_status,health_factors'
+          )
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
