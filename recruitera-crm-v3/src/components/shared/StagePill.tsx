@@ -1,9 +1,5 @@
 import { cn } from '@/lib/cn';
-
-const STAGE_LABEL: Record<string, string> = {
-  lead: 'Lead', mql: 'MQL', sql: 'SQL', demo: 'Demo', proposal: 'Proposal',
-  won: 'Won', paid: 'Collected', lost: 'Lost',
-};
+import { stageLabel } from '@/lib/stageLabels';
 
 // Colors are theme tokens (tailwind.config.mjs / src/index.css) — sql/demo
 // match the Sales Pipeline board's own column colors exactly (they used to
@@ -24,7 +20,7 @@ export function StagePill({ stage }: { stage: string | null }) {
   const key = (stage ?? 'lead').toLowerCase();
   return (
     <span className={cn('inline-flex items-center h-[22px] px-2.5 rounded-full text-[11px] font-bold', STAGE_STYLE[key] ?? STAGE_STYLE.lead)}>
-      {STAGE_LABEL[key] ?? key}
+      {stageLabel(key)}
     </span>
   );
 }

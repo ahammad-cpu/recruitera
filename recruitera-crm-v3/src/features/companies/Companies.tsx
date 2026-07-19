@@ -9,6 +9,7 @@ import { useProfiles } from '@/hooks/useUsersData';
 import { useMe } from '@/hooks/useMe';
 import { useChangeOwner, useBulkAssignOwner } from '@/hooks/useAccountMutations';
 import { StagePill } from '@/components/shared/StagePill';
+import { stageLabel } from '@/lib/stageLabels';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { MergeConfirmation } from './MergeConfirmation';
@@ -284,7 +285,7 @@ export default function Companies() {
         <Select value={stage} onChange={setStage} label="Stage">
           <option value="all">All stages</option>
           {(stagesEnum.data ?? []).map((s) => (
-            <option key={s} value={s}>{s.toUpperCase()}</option>
+            <option key={s} value={s}>{stageLabel(s)}</option>
           ))}
         </Select>
         <Select value={source} onChange={setSource} label="Source">

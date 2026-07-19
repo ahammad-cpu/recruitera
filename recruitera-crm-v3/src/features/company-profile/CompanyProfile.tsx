@@ -30,6 +30,7 @@ import { TeamTab } from './TeamTab';
 import { DocumentsTab } from './DocumentsTab';
 import { DealsSection } from './DealsSection';
 import { ReopenModal } from './ReopenModal';
+import { STAGE_ORDER as SHARED_STAGE_ORDER, stageLabel } from '@/lib/stageLabels';
 import { HistoryTab } from './HistoryTab';
 import { ActivityComposer } from './ActivityComposer';
 import { useFeatureFlag } from '@/lib/flags';
@@ -400,11 +401,11 @@ function OwnerStat({
 // gate what looks like a plausible forward/backward move. `lost` is not in
 // this list on purpose: it's set via the Lose modal (with a reason), never
 // from a plain dropdown.
-const STAGE_ORDER = ['lead', 'mql', 'sql', 'demo', 'proposal', 'won', 'paid'] as const;
-const STAGE_LABEL: Record<string, string> = {
-  lead: 'Lead', mql: 'MQL', sql: 'SQL', demo: 'Demo',
-  proposal: 'Proposal', won: 'Won', paid: 'Collected',
-};
+const STAGE_ORDER = SHARED_STAGE_ORDER;
+const STAGE_LABEL: Record<string, string> = SHARED_STAGE_ORDER.reduce(
+  (acc, s) => ({ ...acc, [s]: stageLabel(s) }),
+  {} as Record<string, string>,
+);
 
 function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]; onChange: (s: string) => void }) {
   const current = (lead.stage || 'lead').toLowerCase();
