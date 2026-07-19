@@ -24,43 +24,51 @@ import { cn } from '@/lib/cn';
 type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'lost' | 'disqualified';
 
 // Disqualify (Lead/MQL early rejection) vs Loss (SQL+ real sales attempt).
-// An account that ever had a trial or a plan was a real prospect — it can
-// never be "Disqualified" no matter what the legacy loss_reason says. Those
-// go to Lost. Otherwise: lost_from_stage in (lead, mql) → Disqualified;
-// legacy rows fall back to loss_reason.
+// An account that ever had a trial, plan, or activation record was a real
+// prospect — it can never be "Disqualified" no matter what the legacy
+// loss_reason says. Those go to Lost. Otherwise:
+//   - lost_from_stage in (lead, mql) → Disqualified
+//   - legacy rows fall back to loss_reason
 const DISQ_REASONS = new Set(['fake_lead', 'not_icp', 'duplicate', 'spam']);
-function everWasARealProspect(a: Account): boolean {
-  if (a.has_trial) return true;
-  if (a.paid_status && a.paid_status.trim() !== '') return true;
-  if (a.activation_status && a.activation_status.trim() !== '') return true;
-  return false;
-}
-function isDisqualified(a: Account): boolean {
-  if ((a.stage || '').toLowerCase() !== 'lost') return false;
-  if (everWasARealProspect(a)) return false;
-  const from = (a.lost_from_stage || '').toLowerCase();
-  if (from === 'lead' || from === 'mql') return true;
-  if (!from && a.loss_reason && DISQ_REASONS.has(a.loss_reason)) return true;
-  return false;
-}
-function isRealLoss(a: Account): boolean {
-  if ((a.stage || '').toLowerCase() !== 'lost') return false;
-  return !isDisqualified(a);
+function makeTabTests(planByAcct: Map<string, string>) {
+  const everWasARealProspect = (a: Account): boolean => {
+    if (a.has_trial) return true;
+    if (a.paid_status && a.paid_status.trim() !== '') return true;
+    if (a.activation_status && a.activation_status.trim() !== '') return true;
+    if (planByAcct.has(a.id)) return true; // has a contract cycle with a plan
+    return false;
+  };
+  const isDisqualified = (a: Account): boolean => {
+    if ((a.stage || '').toLowerCase() !== 'lost') return false;
+    if (everWasARealProspect(a)) return false;
+    const from = (a.lost_from_stage || '').toLowerCase();
+    if (from === 'lead' || from === 'mql') return true;
+    if (!from && a.loss_reason && DISQ_REASONS.has(a.loss_reason)) return true;
+    return false;
+  };
+  const isRealLoss = (a: Account): boolean => {
+    if ((a.stage || '').toLowerCase() !== 'lost') return false;
+    return !isDisqualified(a);
+  };
+  return { isDisqualified, isRealLoss };
 }
 
-const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }> = [
-  { key: 'all', label: 'All', test: () => true },
-  { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' },
-  { key: 'pipeline', label: 'Pipeline', test: (a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase()) },
-  { key: 'collected', label: 'Collected', test: (a) => (a.stage || '').toLowerCase() === 'paid' },
-  { key: 'trial', label: 'Trial', test: (a) => !!a.has_trial && a.activation_status === 'Active' },
-  { key: 'expired', label: 'Expired', test: (a) => !!a.has_trial && a.activation_status === 'Expired' },
-  { key: 'churned', label: 'Churned', test: (a) => (a.stage || '').toLowerCase() === 'paid' && a.activation_status === 'Expired' },
-  { key: 'won', label: 'Won', test: (a) => (a.stage || '').toLowerCase() === 'won' },
-  { key: 'disqualified', label: 'Disqualified', test: isDisqualified },
-  // Real sales-attempt losses (SQL / Demo / Proposal). Excludes disqualifications.
-  { key: 'lost', label: 'Lost', test: isRealLoss },
-];
+function buildTabs(planByAcct: Map<string, string>): Array<{ key: TabKey; label: string; test: (a: Account) => boolean }> {
+  const { isDisqualified, isRealLoss } = makeTabTests(planByAcct);
+  return [
+    { key: 'all', label: 'All', test: () => true },
+    { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' },
+    { key: 'pipeline', label: 'Pipeline', test: (a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase()) },
+    { key: 'collected', label: 'Collected', test: (a) => (a.stage || '').toLowerCase() === 'paid' },
+    { key: 'trial', label: 'Trial', test: (a) => !!a.has_trial && a.activation_status === 'Active' },
+    { key: 'expired', label: 'Expired', test: (a) => !!a.has_trial && a.activation_status === 'Expired' },
+    { key: 'churned', label: 'Churned', test: (a) => (a.stage || '').toLowerCase() === 'paid' && a.activation_status === 'Expired' },
+    { key: 'won', label: 'Won', test: (a) => (a.stage || '').toLowerCase() === 'won' },
+    { key: 'disqualified', label: 'Disqualified', test: isDisqualified },
+    // Real sales-attempt losses (SQL / Demo / Proposal). Excludes disqualifications.
+    { key: 'lost', label: 'Lost', test: isRealLoss },
+  ];
+}
 
 type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';
 type SortDir = 'asc' | 'desc';
@@ -163,11 +171,13 @@ export default function Companies() {
     [rowsBase],
   );
 
+  const tabs = useMemo(() => buildTabs(planByAcct), [planByAcct]);
+
   const filtered = useMemo(() => {
     let rows = rowsBase.slice();
     if (!showJunk) rows = rows.filter((a) => !isJunkAccount(a));
     if (dupesOnly) rows = rows.filter((a) => dupeMap.has(a.id));
-    const tabTest = TABS.find((t) => t.key === tab)!.test;
+    const tabTest = tabs.find((t) => t.key === tab)!.test;
     rows = rows.filter(tabTest);
     if (stage !== 'all') rows = rows.filter((a) => (a.stage || '').toLowerCase() === stage);
     if (source !== 'all') rows = rows.filter((a) => a.source === source);
@@ -250,7 +260,7 @@ export default function Companies() {
 
       {/* TABS */}
       <div className="flex items-center gap-1.5 flex-wrap border-b border-border pb-3">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active = tab === t.key;
           const n = rowsBase.filter((a) => (!showJunk ? !isJunkAccount(a) : true)).filter(t.test).length;
           return (
