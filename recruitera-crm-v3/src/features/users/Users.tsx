@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2 } from 'lucide-react';
 import { useProfiles, useRoles, useTeams, type Role, type Profile } from '@/hooks/useUsersData';
-import { useToggleRoleModule, useCreateRole, MODULE_CATALOG } from '@/hooks/useRoleMutations';
+import { useToggleRoleModule, useCreateRole, MODULE_CATALOG, MODULE_SECTIONS } from '@/hooks/useRoleMutations';
 import { useUpdateProfileFields } from '@/hooks/useProfileMutations';
 import { useInviteUser } from '@/hooks/useInviteUser';
 import { initials } from '@/lib/format';
@@ -306,27 +306,47 @@ function RolesTab() {
           </div>
           <div className="text-[13px] text-text-2 font-medium leading-relaxed mb-5">{selRole.description || 'No description.'}</div>
           <div className="text-[10.5px] font-black tracking-widest uppercase text-text-3 mb-2.5">Module access</div>
-          <div className="grid grid-cols-2 gap-3">
-            {MODULE_CATALOG.map(({ key, label }) => {
-              const isOn = !!selRole.module_access?.[key];
-              return (
-                <button
-                  key={key}
-                  onClick={() => toggleModule.mutate({ role: selRole, key })}
-                  title={isOn ? 'Click to disable' : 'Click to enable'}
-                  className="flex items-center justify-between px-3.5 py-2.5 bg-surface-2 border border-border rounded-lg select-none"
-                >
-                  <span className="text-[12.5px] font-semibold text-text">{label}</span>
-                  <span className={cn('w-8 h-[18px] rounded-full relative transition-colors', isOn ? 'bg-accent' : 'bg-border-2')}>
-                    <span className={cn(
-                      'absolute w-3.5 h-3.5 rounded-full bg-white top-[2px] transition-all',
-                      isOn ? 'right-[2px]' : 'left-[2px]',
-                    )} />
+          {MODULE_SECTIONS.map((section) => {
+            const items = MODULE_CATALOG.filter((m) => m.section === section.key);
+            if (items.length === 0) return null;
+            return (
+              <div key={section.key} className="mb-5 last:mb-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] font-black tracking-widest uppercase text-text-2">{section.label}</span>
+                  <span className="tnum text-[10.5px] font-bold text-text-4">
+                    {items.filter((m) => selRole.module_access?.[m.key]).length}/{items.filter((m) => !m.legacy).length}
                   </span>
-                </button>
-              );
-            })}
-          </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {items.map(({ key, label, hint, legacy }) => {
+                    const isOn = !!selRole.module_access?.[key];
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleModule.mutate({ role: selRole, key })}
+                        title={hint ? `${hint} — click to ${isOn ? 'disable' : 'enable'}` : (isOn ? 'Click to disable' : 'Click to enable')}
+                        className={cn(
+                          'flex items-start gap-3 px-3.5 py-2.5 border rounded-lg select-none text-left transition-colors',
+                          legacy ? 'bg-surface border-border/60 opacity-70' : 'bg-surface-2 border-border hover:bg-surface-2/80',
+                        )}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12.5px] font-bold text-text truncate">{label}</div>
+                          {hint && <div className="text-[10.5px] text-text-3 mt-0.5 leading-snug line-clamp-2">{hint}</div>}
+                        </div>
+                        <span className={cn('w-8 h-[18px] rounded-full relative transition-colors flex-shrink-0 mt-0.5', isOn ? 'bg-accent' : 'bg-border-2')}>
+                          <span className={cn(
+                            'absolute w-3.5 h-3.5 rounded-full bg-white top-[2px] transition-all',
+                            isOn ? 'right-[2px]' : 'left-[2px]',
+                          )} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="bg-surface border border-border rounded-2xl p-12 text-center text-[13px] text-text-3 shadow-sh1">
