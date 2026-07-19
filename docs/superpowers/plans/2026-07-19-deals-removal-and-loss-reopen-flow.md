@@ -412,18 +412,40 @@ Expected: `seeded = 3`.
 
 ---
 
-## Task 7: reopen_account RPC
+## Task 7: log_stage_change trigger suppression + reopen_account + lose_account RPCs
 
 **Files:**
-- Migration: `20260722_reopen_account_rpc`
+- Migration: `20260722_stage_change_trigger_suppression_and_transition_rpcs`
 
 **Interfaces:**
-- Produces: `reopen_account(uuid, text, text, text) returns void`.
+- Produces: `reopen_account(uuid, text, text, text) returns void`; `lose_account(uuid, text, text) returns void`; modified `log_stage_change()` function.
 - Consumes: renamed loss_* columns from Task 2; reason_code column from Task 4; trigger from Task 5.
 
-- [ ] **Step 1: Apply migration**
+**Design note (why this exists):** The existing `log_stage_change` trigger inserts a `stage_history` row on every `UPDATE OF stage`. If our Loss/Reopen RPCs ALSO insert their own row (which they must, because only they know the reason_code), we get duplicates. Fix: make the trigger honor a transaction-local flag `sdd.suppress_stage_history_trigger`; the RPCs set it before UPDATE and insert their own row explicitly.
+
+- [ ] **Step 1: Apply migration — patch trigger, add both RPCs**
 
 ```sql
+-- 1) Patch log_stage_change() so it honors a suppression flag.
+--    Preserves current behavior for every other stage change.
+create or replace function log_stage_change() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if current_setting('sdd.suppress_stage_history_trigger', true) = 'true' then
+    return new;
+  end if;
+
+  insert into stage_history (account_id, from_stage, to_stage, changed_by, changed_at)
+  values (new.id, old.stage, new.stage, auth.uid(), now());
+
+  return new;
+end;
+$$;
+
+-- 2) reopen_account: sets flag, updates, inserts its own history row with reason.
 create or replace function reopen_account(
   p_account_id   uuid,
   p_target_stage text,
@@ -451,6 +473,8 @@ begin
     raise exception 'Invalid reopen reason_code: %', p_reason_code;
   end if;
 
+  perform set_config('sdd.suppress_stage_history_trigger', 'true', true);
+
   update accounts set
     stage           = p_target_stage,
     loss_reason     = null,
@@ -459,6 +483,8 @@ begin
     lost_by         = null,
     lost_from_stage = null
   where id = p_account_id;
+
+  perform set_config('sdd.suppress_stage_history_trigger', 'false', true);
 
   insert into stage_history (account_id, from_stage, to_stage, changed_by, changed_at, reason_code, notes)
   values (p_account_id, 'lost', p_target_stage, auth.uid(), now(), p_reason_code, p_notes);
@@ -472,28 +498,89 @@ end;
 $$;
 
 grant execute on function reopen_account(uuid, text, text, text) to authenticated;
+
+-- 3) lose_account: mirror of reopen_account for the Loss direction.
+create or replace function lose_account(
+  p_account_id  uuid,
+  p_reason_code text,
+  p_notes       text default null
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_stage text;
+  v_actor         uuid := auth.uid();
+begin
+  select stage into v_current_stage from accounts where id = p_account_id for update;
+  if v_current_stage is null then
+    raise exception 'Account % not found', p_account_id;
+  end if;
+  if v_current_stage not in ('lead','mql','sql','demo','proposal') then
+    raise exception 'Cannot lose from stage % (must be an open pipeline stage)', v_current_stage;
+  end if;
+  if p_reason_code not in ('no_budget','competitor','wrong_timing','no_response','chose_alternative','postponed','other') then
+    raise exception 'Invalid loss reason_code: %', p_reason_code;
+  end if;
+  if p_reason_code = 'other' and (p_notes is null or btrim(p_notes) = '') then
+    raise exception 'Notes are required when reason_code = other';
+  end if;
+
+  perform set_config('sdd.suppress_stage_history_trigger', 'true', true);
+
+  update accounts set
+    stage           = 'lost',
+    loss_reason     = p_reason_code,
+    loss_notes      = p_notes,
+    lost_by         = v_actor,
+    lost_from_stage = v_current_stage
+  where id = p_account_id;
+
+  perform set_config('sdd.suppress_stage_history_trigger', 'false', true);
+
+  insert into stage_history (account_id, from_stage, to_stage, changed_by, changed_at, reason_code, notes)
+  values (p_account_id, v_current_stage, 'lost', v_actor, now(), p_reason_code, p_notes);
+end;
+$$;
+
+grant execute on function lose_account(uuid, text, text) to authenticated;
 ```
 
-- [ ] **Step 2: Smoke test**
+- [ ] **Step 2: Smoke test — Loss then Reopen produces exactly ONE stage_history row each**
 
 ```sql
--- Pick a lost account
+-- Pick an open account
 with target as (
-  select id, stage from accounts where stage = 'lost' limit 1
+  select id, stage from accounts where stage in ('lead','mql','sql','demo','proposal') limit 1
 )
 select * from target;
 
--- Reopen it (replace <ID> below)
-select reopen_account('<ID>'::uuid, 'lead', 'wrong_call', 'test reopen');
-
--- Verify
-select stage, loss_reason, lost_at from accounts where id = '<ID>';
+-- Lose it (replace <ID>)
+select lose_account('<ID>'::uuid, 'no_budget', 'test');
+-- Expect exactly ONE new stage_history row (to_stage='lost', reason_code='no_budget')
 select * from stage_history where account_id = '<ID>' order by changed_at desc limit 3;
 
--- Roll back if this was a real account (change stage back to lost for testing)
+-- Reopen it
+select reopen_account('<ID>'::uuid, 'lead', 'wrong_call', 'test reopen');
+-- Expect exactly ONE new stage_history row (from_stage='lost', to_stage='lead', reason_code='wrong_call')
+select * from stage_history where account_id = '<ID>' order by changed_at desc limit 3;
+
+-- Verify denorm columns from Task 5 trigger updated correctly
+select stage, loss_reason, lost_at, reopened_at, reopen_count from accounts where id = '<ID>';
+-- Expect: stage='lead', loss_reason=null, lost_at=null, reopened_at≈now(), reopen_count>=1
+
+-- Verify a regular stage change (not via RPC) still emits its own history row
+update accounts set stage = 'mql' where id = '<ID>';
+select * from stage_history where account_id = '<ID>' order by changed_at desc limit 2;
+-- Expect: exactly ONE new row (from_stage='lead', to_stage='mql', reason_code=null)
+
+-- Roll back
+update accounts set stage = 'lost' where id = '<ID>';
+delete from stage_history where account_id = '<ID>' and notes in ('test','test reopen');
 ```
 
-Expected: account is now at 'lead', loss_reason is null, new stage_history row with `from_stage='lost'`, `to_stage='lead'`, `reason_code='wrong_call'`. Trigger from Task 5 has bumped `reopened_at` + `reopen_count`.
+Expected across all three checks: **exactly one** new stage_history row per action, and the plain-UPDATE path still works with reason_code null (backwards compatible for the existing pipeline drag-drop code).
 
 ---
 
@@ -836,7 +923,7 @@ git commit -m "refactor(crm-v3): rename Account.disqualified_* → loss_* / lost
 **Interfaces:**
 - Produces: `<LossModal accountId={...} onClose={...} />` — 7 loss reasons, requires notes only when `reason='other'`; writes `stage='lost' + loss_reason + loss_notes + lost_by + lost_at (via trigger) + lost_from_stage (captured before the update)`; also inserts a `stage_history` row with `reason_code = loss_reason`.
 
-- [ ] **Step 1: Rename hook and rewrite mutation body**
+- [ ] **Step 1: Rename hook and rewrite mutation body — call the `lose_account` RPC**
 
 ```typescript
 // src/hooks/useLoseAccount.ts (renamed from useDisqualify.ts)
@@ -848,40 +935,24 @@ export const LOSS_REASONS = [
 ] as const;
 export type LossReason = typeof LOSS_REASONS[number];
 
+/**
+ * Thin wrapper over the `lose_account` RPC (Task 7). The RPC:
+ *   1. reads current stage → writes lost_from_stage
+ *   2. writes stage='lost' + loss_reason + loss_notes + lost_by atomically
+ *   3. suppresses the log_stage_change trigger during the UPDATE so exactly
+ *      ONE stage_history row is written (with reason_code + notes)
+ * All that logic lives server-side to avoid dup rows and race conditions.
+ */
 export function useLoseAccount() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { accountId: string; reason: LossReason; notes: string | null }) => {
-      // Read current stage before flipping — that's what lost_from_stage records.
-      const { data: current, error: readErr } = await supabase
-        .from('accounts').select('stage').eq('id', args.accountId).maybeSingle();
-      if (readErr) throw readErr;
-      const lost_from = current?.stage ?? null;
-
-      const { data: user } = await supabase.auth.getUser();
-      const uid = user.user?.id ?? null;
-
-      // Update account. Existing stage-change trigger will emit stage_history row;
-      // we then patch that row with reason_code + notes in a follow-up.
-      const { error: updErr } = await supabase.from('accounts').update({
-        stage: 'lost',
-        loss_reason: args.reason,
-        loss_notes: args.notes,
-        lost_by: uid,
-        lost_from_stage: lost_from,
-      }).eq('id', args.accountId);
-      if (updErr) throw updErr;
-
-      // Insert an explicit stage_history row with the reason_code. This is idempotent
-      // because we key it by (account_id, changed_at) which is now() at insert time.
-      await supabase.from('stage_history').insert({
-        account_id: args.accountId,
-        from_stage: lost_from,
-        to_stage: 'lost',
-        changed_by: uid,
-        reason_code: args.reason,
-        notes: args.notes,
+      const { error } = await supabase.rpc('lose_account', {
+        p_account_id:  args.accountId,
+        p_reason_code: args.reason,
+        p_notes:       args.notes,
       });
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['accounts'] });
