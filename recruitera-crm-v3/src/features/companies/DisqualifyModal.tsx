@@ -37,7 +37,10 @@ export function DisqualifyModal({ account, onClose }: { account: Account; onClos
   async function submit() {
     setErr(null);
     if (!reason) { setErr('Pick a reason'); return; }
-    if (reason === 'other' && !notes.trim()) { setErr('Add a note when picking "Other"'); return; }
+    if (reason === 'other' && notes.trim().length < 5) {
+      setErr('When picking "Other", the note must be at least 5 characters.');
+      return;
+    }
     try {
       await lose.mutateAsync({ accountId: account.id, reason: reason as any, notes: notes.trim() || null });
       onClose();
