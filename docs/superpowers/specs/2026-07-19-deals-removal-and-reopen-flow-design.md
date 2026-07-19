@@ -7,9 +7,23 @@
 
 ## Loss vs Disqualification — scope statement
 
-This spec covers **Loss only** — a genuine sales attempt that didn't close (no_budget, competitor, wrong_timing, no_response, chose_alternative, postponed, other). Loss happens mid/late funnel (SQL / Demo / Proposal) and is expected to be revisitable.
+This spec covers **Loss only** — a genuine sales attempt that didn't close (no_budget, competitor, wrong_timing, no_response, chose_alternative, postponed, other). Loss can happen at **any pipeline stage** (Lead, MQL, SQL, Demo, Proposal) and is expected to be revisitable.
 
-**Disqualification is out of scope for this spec.** Disqualification means "this lead never should have been in the funnel" (not_icp, fake_lead, duplicate, spam) and is semantically distinct — different reasons, different reporting axis (lead-quality vs sales performance), different reopen semantics (rare, only wrong-calls). A future spec will introduce a proper `stage='disqualified'` state with its own `disqualified_*` columns. Until then the codebase's current `disqualified_*` field names are legacy — this migration renames them all to `loss_*` / `lost_*` to make room.
+**Disqualification is out of scope for this spec.** Disqualification means "this lead never should have been in the funnel" (not_icp, fake_lead, duplicate, spam) and is restricted to the earliest stages only (**Lead and MQL**). A future spec will introduce a proper `stage='disqualified'` state with its own `disqualified_*` columns. Until then the codebase's current `disqualified_*` field names are legacy — this migration renames them all to `loss_*` / `lost_*` to make room.
+
+### Stage-availability matrix
+
+| Current stage | Can **Lose** (this spec) | Can **Disqualify** (future spec) |
+|---|---|---|
+| Lead | ✅ | ✅ |
+| MQL | ✅ | ✅ |
+| SQL | ✅ | ❌ |
+| Demo | ✅ | ❌ |
+| Proposal | ✅ | ❌ |
+| Won / Paid | ❌ | ❌ |
+| Lost | — (already lost, use Reopen) | — |
+
+Under this model, `lost_from_stage` in the Loss × Stage report matrix can hold any of {Lead, MQL, SQL, Demo, Proposal}. AMs at Lead/MQL will see both buttons once the future disqualify spec ships; from SQL onwards, only **Lose** is available.
 
 ---
 
@@ -199,17 +213,27 @@ Every date filter uses a **stage-transition** date, not `accounts.created_at`. T
 
 ---
 
-## 3. Reopen flow
+## 3. Reopen + Lose flow
+
+### 3.0 Where the Lose button lives
+
+Available on **any open pipeline stage** — Lead / MQL / SQL / Demo / Proposal. Hidden on `won / paid / lost`. Gated by ABAC (owner + admin by default).
+
+| Surface | Placement |
+|---|---|
+| Company profile header | **✕ Lose** button, right side (paired with **Disqualify** at Lead/MQL only, once that future spec ships) |
+| Companies table row | Three-dot menu → "Mark as lost…" |
+| Pipeline kanban | Drag card into a **Lost** drop-zone at the bottom of the board (or right-click "Lose") |
 
 ### 3.1 Where the Reopen button lives
 
-Visible only when `accounts.stage='lost'`. Gated by the same ABAC permission as the Lose action (owner + admin by default).
+Visible only when `accounts.stage='lost'`. Gated by the same ABAC permission as the Lose action.
 
 | Surface | Placement |
 |---|---|
 | Company profile header | Replaces the "Lose" button in the same slot — becomes **↺ Reopen** |
 | Companies table row | Three-dot menu → "Reopen…" |
-| Disqualified Kanban view | Icon-button on card hover |
+| Lost Kanban view (existing "Disqualified" view will be renamed) | Icon-button on card hover |
 | Pipeline kanban | N/A — lost accounts don't appear |
 
 ### 3.2 ReopenModal
