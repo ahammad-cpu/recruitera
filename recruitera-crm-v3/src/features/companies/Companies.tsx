@@ -21,7 +21,7 @@ import { fmtInt, fmtDate, initials } from '@/lib/format';
 import { isJunkAccount, buildDupeMap, type DupeEntry } from '@/lib/dedupe';
 import { cn } from '@/lib/cn';
 
-type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'disqualified';
+type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' | 'churned' | 'won' | 'lost';
 const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }> = [
   { key: 'all', label: 'All', test: () => true },
   { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' },
@@ -31,8 +31,8 @@ const TABS: Array<{ key: TabKey; label: string; test: (a: Account) => boolean }>
   { key: 'expired', label: 'Expired', test: (a) => !!a.has_trial && a.activation_status === 'Expired' },
   { key: 'churned', label: 'Churned', test: (a) => (a.stage || '').toLowerCase() === 'paid' && a.activation_status === 'Expired' },
   { key: 'won', label: 'Won', test: (a) => (a.stage || '').toLowerCase() === 'won' },
-  // Disqualified is only ever set at Lead stage — never a funnel outcome.
-  { key: 'disqualified', label: 'Disqualified', test: (a) => !!a.loss_reason },
+  // Lost is only ever set at Lead stage — never a funnel outcome.
+  { key: 'lost', label: 'Lost', test: (a) => !!a.loss_reason },
 ];
 
 type SortKey = 'name' | 'stage' | 'owner' | 'source' | 'created';
@@ -106,7 +106,7 @@ export default function Companies() {
   const [trialF, setTrialF] = useState<'all' | 'on' | 'expired'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'created', dir: 'desc' });
   const [mergePair, setMergePair] = useState<{ a: Account; b: Account; reasons: Set<'name' | 'domain' | 'phone' | 'email'> } | null>(null);
-  const [disqTarget, setDisqTarget] = useState<Account | null>(null);
+  const [lossTarget, setLossTarget] = useState<Account | null>(null);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
   const requalify = useRequalifyAccount();
   const { widths, startResize, reset: resetWidths } = useResizableColumns('crm-v3.companies.colWidths.v2', COL_DEFAULTS);
@@ -447,7 +447,7 @@ export default function Companies() {
                         ? (
                           <button
                             onClick={() => requalify.mutate({ id: a.id, stage: 'lead' })}
-                            title={a.loss_reason ? `Disqualified: ${a.loss_reason}${a.loss_notes ? ' — ' + a.loss_notes : ''}. Click to requalify.` : 'Requalify'}
+                            title={a.loss_reason ? `Lost: ${a.loss_reason}${a.loss_notes ? ' — ' + a.loss_notes : ''}. Click to requalify.` : 'Requalify'}
                             className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-border bg-surface text-text-3 text-[11px] font-bold hover:bg-surface-2"
                           >
                             <RotateCcw size={11} /> Requalify
@@ -455,11 +455,11 @@ export default function Companies() {
                         )
                         : (
                           <button
-                            onClick={() => setDisqTarget(a)}
-                            title="Disqualify"
+                            onClick={() => setLossTarget(a)}
+                            title="Lose"
                             className="inline-flex items-center gap-1 h-7 px-2 rounded-md border border-bad/30 bg-bad-bg text-bad text-[11px] font-bold hover:bg-bad/10"
                           >
-                            <Ban size={11} /> Disqualify
+                            <Ban size={11} /> Lose
                           </button>
                         )}
                     </td>
@@ -486,7 +486,7 @@ export default function Companies() {
         />
       )}
 
-      {disqTarget && <LossModal account={disqTarget} onClose={() => setDisqTarget(null)} />}
+      {lossTarget && <LossModal account={lossTarget} onClose={() => setLossTarget(null)} />}
       {bulkEmailOpen && (
         <BulkEmailModal
           accounts={filtered.filter((a) => selected.has(a.id))}
