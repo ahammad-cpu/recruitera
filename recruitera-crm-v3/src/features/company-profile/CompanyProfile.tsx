@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
-  X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles, Clock,
+  X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles, Clock, RotateCcw,
 } from 'lucide-react';
 import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
 import { useContacts, useActivities } from '@/hooks/useAccountDetail';
@@ -28,8 +28,11 @@ import { PlansTab } from './PlansTab';
 import { TeamTab } from './TeamTab';
 import { DocumentsTab } from './DocumentsTab';
 import { DealsSection } from './DealsSection';
+import { ReopenModal } from './ReopenModal';
 
 type Tab = 'overview' | 'activity' | 'plans' | 'team' | 'documents';
+
+const OPEN_STAGES = ['lead', 'mql', 'sql', 'demo', 'proposal'];
 
 export default function CompanyProfile() {
   const { id } = useParams<{ id: string }>();
@@ -53,6 +56,7 @@ export default function CompanyProfile() {
   const createTag = useCreateTag();
   const [tagOpen, setTagOpen] = useState(false);
   const [disqOpen, setDisqOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -210,16 +214,30 @@ export default function CompanyProfile() {
             </span>
           ))}
 
-          {(lead.stage || '').toLowerCase() === 'lead' && (
+          {(lead.stage || '').toLowerCase() === 'lost' && (
+            <button
+              onClick={() => setReopenOpen(true)}
+              className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-ok/30 bg-ok-bg text-ok text-[12px] font-bold hover:bg-ok/10"
+            ><RotateCcw size={12} /> Reopen</button>
+          )}
+          {OPEN_STAGES.includes((lead.stage || '').toLowerCase()) && (
             <button
               onClick={() => setDisqOpen(true)}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
-              title="Only available while the company is still a Lead"
             ><X size={12} /> Lose</button>
           )}
         </div>
 
         {disqOpen && <LossModal account={lead} onClose={() => setDisqOpen(false)} />}
+        {reopenOpen && (
+          <ReopenModal
+            accountId={lead.id}
+            companyName={lead.name ?? ''}
+            lostFromStage={lead.lost_from_stage}
+            lossReason={lead.loss_reason}
+            onClose={() => setReopenOpen(false)}
+          />
+        )}
         {deleteOpen && <DeleteAccountModal account={lead} onClose={() => setDeleteOpen(false)} />}
 
         {/* STAT STRIP */}
