@@ -302,7 +302,7 @@ export default function CompanyProfile() {
           </div>
 
           <aside className="space-y-4">
-            <AccountTeamPanel primary={owner} csEmail={lead.cs_email} profiles={profiles.data ?? []} />
+            <AccountTeamPanel primary={owner} csEmail={lead.cs_email} collectionId={lead.collection_team_id} profiles={profiles.data ?? []} />
             <CompanyDetailsPanel lead={lead} attr={attribution.data ?? null} isAdmin={isAdmin} />
             {!dealsHidden && <DealsSection accountId={lead.id} />}
             <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
@@ -867,19 +867,22 @@ function LeadFormRows({ lf }: { lf: import('@/hooks/useAccountAttribution').Lead
 }
 
 function AccountTeamPanel({
-  primary, csEmail, profiles,
+  primary, csEmail, collectionId, profiles,
 }: {
   primary: import('@/hooks/useUsersData').Profile | undefined;
   csEmail: string | null;
+  collectionId: string | null;
   profiles: import('@/hooks/useUsersData').Profile[];
 }) {
   const cs = csEmail ? profiles.find((p) => p.email?.toLowerCase() === csEmail.toLowerCase()) : undefined;
+  const collection = collectionId ? profiles.find((p) => p.id === collectionId) : undefined;
   return (
     <Panel title="Account team">
-      {!primary && !csEmail && <div className="text-[12px] text-text-3">Unassigned.</div>}
+      {!primary && !csEmail && !collectionId && <div className="text-[12px] text-text-3">Unassigned.</div>}
       <div className="space-y-3">
         {primary && <TeamRow profile={primary} role="AC" roleTitle="Account Consultant" />}
         {csEmail && <TeamRow profile={cs} fallbackEmail={csEmail} role="CS" roleTitle="Customer Success" />}
+        {collectionId && <TeamRow profile={collection} role="COL" roleTitle="Collection team — invoice + payment tracking" />}
       </div>
     </Panel>
   );
@@ -890,7 +893,7 @@ function TeamRow({
 }: {
   profile: import('@/hooks/useUsersData').Profile | undefined;
   fallbackEmail?: string;
-  role: 'AC' | 'CS';
+  role: 'AC' | 'CS' | 'COL';
   roleTitle: string;
 }) {
   const name = profile?.full_name || profile?.email || fallbackEmail || '—';

@@ -114,7 +114,13 @@ export default function Companies() {
 
   const contactsMap = contacts.data ?? new Map();
   // Defensive: skip nulls/junk before any downstream .id access.
-  const rowsBase = (data ?? []).filter((a): a is Account => !!a && !!a.id && !a.merged_into);
+  // Collection role: only see accounts already at won or paid — that's the
+  // only stage where invoicing/collection is meaningful. Enforced client-
+  // side here + will be enforced by ABAC once the policy ships.
+  const isCollectionRole = (me.data?.role || '').toLowerCase() === 'collection';
+  const rowsBase = (data ?? [])
+    .filter((a): a is Account => !!a && !!a.id && !a.merged_into)
+    .filter((a) => !isCollectionRole || ['won', 'paid'].includes((a.stage || '').toLowerCase()));
 
   const dupeMap: Map<string, DupeEntry> = useMemo(
     () => buildDupeMap(rowsBase, contactsMap),

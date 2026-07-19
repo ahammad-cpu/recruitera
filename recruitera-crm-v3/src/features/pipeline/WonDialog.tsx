@@ -27,22 +27,35 @@ export function WonDialog({ deal, onClose, onDone }: Props) {
     if (!Number.isFinite(n) || n <= 0) { setErr('Deal value must be greater than 0'); return; }
     try {
       await mark.mutateAsync({ id: deal.id, amount: n, currency });
-      // Fire follow-up tasks best-effort so a failure doesn't block the win.
+      // Fire follow-up tasks best-effort. Assign to the account's
+      // collection_team_id (auto-set by the DB trigger on stage=won/paid).
       const tasks: Array<Record<string, unknown>> = [];
+      let collectionOwnerId: string | null = null;
+      if (deal.account_id) {
+        const { data } = await supabase
+          .from('accounts').select('collection_team_id').eq('id', deal.account_id).maybeSingle();
+        collectionOwnerId = (data as { collection_team_id: string | null } | null)?.collection_team_id ?? null;
+      }
+      const dueInDays = (days: number) => {
+        const d = new Date(); d.setDate(d.getDate() + days);
+        return d.toISOString().slice(0, 10);
+      };
       if (requestInvoice && deal.account_id) {
         tasks.push({
           account_id: deal.account_id, type: 'task',
-          title: 'Request invoice from finance',
-          text: 'Auto-created on WON — routes to finance for issuance.',
+          title: `Request invoice — ${name} — ${currency} ${n.toLocaleString()}`,
+          text: 'Auto-created on WON — draft invoice, route to finance for issuance.',
+          owner_id: collectionOwnerId,
+          task_due_date: dueInDays(3),
         });
       }
       if (createCollectionTask && deal.account_id) {
-        const due = new Date(); due.setDate(due.getDate() + 14);
         tasks.push({
           account_id: deal.account_id, type: 'task',
-          title: 'Track payment (14-day window)',
+          title: `Track payment — ${name}`,
           text: 'Auto-created on WON — collection team follow-up; flag overdue after 14 days.',
-          task_due_date: due.toISOString().slice(0, 10),
+          owner_id: collectionOwnerId,
+          task_due_date: dueInDays(14),
         });
       }
       if (tasks.length) {

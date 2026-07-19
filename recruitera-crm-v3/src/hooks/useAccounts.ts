@@ -26,6 +26,7 @@ export type Account = {
   reopened_at: string | null;
   reopen_count: number;
   cs_email: string | null;
+  collection_team_id: string | null;
   company_ref: string | null;
   campaign: string | null;
   merged_into: string | null;
@@ -54,7 +55,7 @@ export function useAccounts() {
             'deal_value,deal_currency,owner_id,customer_success_id,' +
             'loss_reason,loss_notes,lost_by,lost_at,lost_from_stage,' +
             'first_won_at,last_won_at,reopened_at,reopen_count,' +
-            'cs_email,company_ref,campaign,merged_into,funnel_score,board_position,' +
+            'cs_email,collection_team_id,company_ref,campaign,merged_into,funnel_score,board_position,' +
             'created_at,bubble_created_at,health_score,health_status,health_factors'
           )
           .order('created_at', { ascending: false })
