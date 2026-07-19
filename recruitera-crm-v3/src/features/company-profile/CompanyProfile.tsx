@@ -911,11 +911,14 @@ function CompanyDetailsPanel({
  */
 function LeadFormRows({ lf }: { lf: import('@/hooks/useAccountAttribution').LeadForm | null }) {
   if (!lf || (!lf.headcount && !lf.vacancies && !lf.challenge)) return null;
+  // Meta Lead Ads return option-picker values as snake_case tokens
+  // (e.g. "sourcing_candidates_from_multiple_channels_at_once"). Humanize.
+  const humanize = (s: string) => s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
   return (
     <>
       {lf.headcount && <Row k="Current headcount" v={lf.headcount} />}
       {lf.vacancies && <Row k="Vacancies (12 mo)" v={lf.vacancies} />}
-      {lf.challenge && <Row k="Biggest challenge" v={lf.challenge} />}
+      {lf.challenge && <Row k="Biggest challenge" v={humanize(lf.challenge)} wrap />}
     </>
   );
 }
@@ -1372,7 +1375,15 @@ function AttrSection({
   );
 }
 
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
+function Row({ k, v, wrap }: { k: string; v: React.ReactNode; wrap?: boolean }) {
+  if (wrap) {
+    return (
+      <div className="py-1.5 border-b border-border/60 last:border-0">
+        <div className="text-[11.5px] text-text-3">{k}</div>
+        <div className="text-[12.5px] font-bold text-text mt-0.5 whitespace-pre-wrap break-words">{v}</div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-border/60 last:border-0">
       <div className="text-[11.5px] text-text-3">{k}</div>
