@@ -4,6 +4,16 @@ import { supabase } from '@/lib/supabase';
 // Attribution fields that live on the accounts row itself (populated by the
 // trial signup form / Bubble sync). Kept in a per-account hook so we don't
 // bloat the main useAccounts payload for every list view.
+// Lead-form answers captured at signup — normalized shape for both Meta Lead
+// Ads (edge fn writes raw_data.lead_form) and Bubble (SQL backfill mirrors
+// WP_Company_Headcount / WP_Vacancies / WP_Rec_Challenge into the same key).
+export type LeadForm = {
+  headcount?: string | null;
+  vacancies?: string | null;
+  challenge?: string | null;
+  source?: 'meta' | 'bubble' | null;
+};
+
 export type AccountAttribution = {
   source: string | null;
   campaign: string | null;
@@ -22,6 +32,7 @@ export type AccountAttribution = {
   size: string | null;
   bubble_created_at: string | null;
   created_at: string | null;
+  lead_form: LeadForm | null;
 };
 
 const COLUMNS =
@@ -30,7 +41,8 @@ const COLUMNS =
   'referrer_url,landing_page,cta_clicked,' +
   'wp_marketing_channel,wp_rec_challenge,' +
   'industry,size,' +
-  'bubble_created_at,created_at';
+  'bubble_created_at,created_at,' +
+  'raw_data';
 
 export function useAccountAttribution(accountId: string | undefined) {
   return useQuery({
@@ -43,7 +55,9 @@ export function useAccountAttribution(accountId: string | undefined) {
         .eq('id', accountId!)
         .maybeSingle();
       if (error) throw error;
-      return (data as unknown as AccountAttribution) ?? null;
+      if (!data) return null;
+      const row = data as unknown as (AccountAttribution & { raw_data?: { lead_form?: LeadForm } | null });
+      return { ...row, lead_form: row.raw_data?.lead_form ?? null } satisfies AccountAttribution;
     },
   });
 }

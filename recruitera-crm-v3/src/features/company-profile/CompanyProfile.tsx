@@ -856,6 +856,7 @@ function CompanyDetailsPanel({
           <Row k="Industry"     v={attr?.industry || '—'} />
           <Row k="Company size" v={attr?.size || '—'} />
           <Row k="Domain"       v={lead.domain || '—'} />
+          <LeadFormRows lf={attr?.lead_form ?? null} />
         </>
       )}
       {editing && (
@@ -900,6 +901,22 @@ function CompanyDetailsPanel({
         </div>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Lead-form answers captured at signup (Meta Lead Ads or Bubble webform).
+ * Both sources normalize into raw_data.lead_form; useAccountAttribution lifts
+ * that to attr.lead_form. Renders nothing when no fields are present.
+ */
+function LeadFormRows({ lf }: { lf: import('@/hooks/useAccountAttribution').LeadForm | null }) {
+  if (!lf || (!lf.headcount && !lf.vacancies && !lf.challenge)) return null;
+  return (
+    <>
+      {lf.headcount && <Row k="Current headcount" v={lf.headcount} />}
+      {lf.vacancies && <Row k="Vacancies (12 mo)" v={lf.vacancies} />}
+      {lf.challenge && <Row k="Biggest challenge" v={lf.challenge} />}
+    </>
   );
 }
 
