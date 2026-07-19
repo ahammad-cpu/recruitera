@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import type { Account } from './useAccounts';
 
+// Reasons shown in the deal-level "Mark as lost" picker (LostDialog) and used
+// for lost-reason reporting (LeadGenerationReport). Unrelated to the
+// account-level Lose flow below — kept as-is, not in scope for this rename.
 export const DISQ_REASONS = [
   { key: 'not_icp',       label: 'Not ICP',       hint: 'Does not fit size, industry, or region' },
   { key: 'fake_lead',     label: 'Fake lead',     hint: 'Fake name / email / phone or bot submission' },
@@ -16,36 +18,42 @@ export const DISQ_REASONS = [
 
 export type DisqReason = typeof DISQ_REASONS[number]['key'];
 
-export function useDisqualifyAccount() {
+// Reasons for the account-level "Lose" flow (LossModal), backed by the
+// `lose_account` RPC (Task 7).
+export const LOSS_REASONS = [
+  'no_budget', 'competitor', 'wrong_timing', 'no_response', 'chose_alternative', 'postponed', 'other',
+] as const;
+export type LossReason = typeof LOSS_REASONS[number];
+
+/**
+ * Thin wrapper over the `lose_account` RPC (Task 7). The RPC:
+ *   1. reads current stage → writes lost_from_stage
+ *   2. writes stage='lost' + loss_reason + loss_notes + lost_by atomically
+ *   3. suppresses the log_stage_change trigger during the UPDATE so exactly
+ *      ONE stage_history row is written (with reason_code + notes)
+ * All that logic lives server-side to avoid dup rows and race conditions.
+ */
+export function useLoseAccount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, reason, notes }: { id: string; reason: DisqReason; notes?: string | null }) => {
-      if (reason === 'other' && !(notes && notes.trim())) {
+    mutationFn: async (args: { accountId: string; reason: LossReason; notes: string | null }) => {
+      if (args.reason === 'other' && !(args.notes && args.notes.trim())) {
         throw new Error('Notes required when reason is "other"');
       }
-      const { data: session } = await supabase.auth.getSession();
-      const { error } = await supabase.from('accounts').update({
-        stage: 'lost',
-        loss_reason: reason,
-        loss_notes: notes?.trim() || null,
-        lost_by: session.session?.user?.id ?? null,
-        lost_at: new Date().toISOString(),
-      }).eq('id', id);
+      const { error } = await supabase.rpc('lose_account', {
+        p_account_id:  args.accountId,
+        p_reason_code: args.reason,
+        p_notes:       args.notes,
+      });
       if (error) throw error;
     },
-    onMutate: async ({ id, reason, notes }) => {
-      await qc.cancelQueries({ queryKey: ['accounts'] });
-      const prev = qc.getQueryData<Account[]>(['accounts']);
-      qc.setQueryData<Account[]>(['accounts'], (old) =>
-        old?.map((a) => a.id === id ? { ...a, stage: 'lost', loss_reason: reason, loss_notes: notes ?? null, lost_at: new Date().toISOString() } : a) ?? old,
-      );
-      return { prev };
+    onSuccess: () => {
+      toast.success('Account marked as lost');
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['activities'] });
+      qc.invalidateQueries({ queryKey: ['company_history'] });
     },
-    onError: (err, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
-      toast.error(`Disqualify failed: ${String((err as Error).message || err)}`);
-    },
-    onSuccess: () => toast.success('Account disqualified'),
+    onError: (err) => toast.error(`Mark lost failed: ${String((err as Error).message || err)}`),
   });
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { XCircle, X } from 'lucide-react';
 import type { Deal } from '@/hooks/useDeals';
 import { useMarkDealLost } from '@/hooks/useDealMutations';
-import { DISQ_REASONS, type DisqReason } from '@/hooks/useDisqualify';
+import { DISQ_REASONS, type DisqReason } from '@/hooks/useLoseAccount';
 import { cn } from '@/lib/cn';
 
 type Props = { deal: Deal; onClose: () => void; onDone?: () => void };

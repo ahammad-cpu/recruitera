@@ -14,7 +14,7 @@ import { useDealsForCompany } from '@/hooks/useDeals';
 import { useRenameAccount, useChangeStage, useChangeOwner, useUpdateAccountDetails } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
-import { DisqualifyModal } from '@/features/companies/DisqualifyModal';
+import { LossModal } from '@/features/companies/LossModal';
 import { DeleteAccountModal } from '@/features/companies/DeleteAccountModal';
 import { useMe } from '@/hooks/useMe';
 import { useTags, useAccountTags, useAttachTag, useDetachTag, useCreateTag } from '@/hooks/useTags';
@@ -215,11 +215,11 @@ export default function CompanyProfile() {
               onClick={() => setDisqOpen(true)}
               className="ml-auto inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bad/30 bg-bad-bg text-bad text-[12px] font-bold hover:bg-bad/10"
               title="Only available while the company is still a Lead"
-            ><X size={12} /> Disqualify</button>
+            ><X size={12} /> Lose</button>
           )}
         </div>
 
-        {disqOpen && <DisqualifyModal account={lead} onClose={() => setDisqOpen(false)} />}
+        {disqOpen && <LossModal account={lead} onClose={() => setDisqOpen(false)} />}
         {deleteOpen && <DeleteAccountModal account={lead} onClose={() => setDeleteOpen(false)} />}
 
         {/* STAT STRIP */}

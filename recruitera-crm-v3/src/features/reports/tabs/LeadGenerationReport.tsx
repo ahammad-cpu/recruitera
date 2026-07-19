@@ -4,7 +4,7 @@ import { useDeals } from '@/hooks/useDeals';
 import { useResolvedAttribution } from '@/hooks/useResolvedAttribution';
 import { useUtmLinks, useUtmCampaigns } from '@/hooks/useUtmData';
 import { fmtEgp, fmtInt, toEgp } from '@/lib/format';
-import { DISQ_REASONS } from '@/hooks/useDisqualify';
+import { DISQ_REASONS } from '@/hooks/useLoseAccount';
 import { useReportsOwner } from '../shared/reportsContext';
 import { DateRangeFilter } from '../shared/DateRangeFilter';
 import { resolveDateRange, type DateRangeKey } from '../shared/dateRange';

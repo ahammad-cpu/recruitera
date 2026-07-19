@@ -1,14 +1,34 @@
 import { useEffect, useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import type { Account } from '@/hooks/useAccounts';
-import { DISQ_REASONS, useDisqualifyAccount, type DisqReason } from '@/hooks/useDisqualify';
+import { LOSS_REASONS, useLoseAccount, type LossReason } from '@/hooks/useLoseAccount';
 import { cn } from '@/lib/cn';
 
 type Props = { account: Account; onClose: () => void };
 
-export function DisqualifyModal({ account, onClose }: Props) {
-  const disq = useDisqualifyAccount();
-  const [reason, setReason] = useState<DisqReason | ''>('');
+const REASON_LABEL: Record<LossReason, string> = {
+  no_budget:          'No budget',
+  competitor:         'Competitor',
+  wrong_timing:       'Wrong timing',
+  no_response:        'No response',
+  chose_alternative:  'Chose alternative',
+  postponed:          'Postponed',
+  other:              'Other',
+};
+
+const REASON_HINT: Record<LossReason, string> = {
+  no_budget:          'Cannot afford',
+  competitor:         'Went with a competitor',
+  wrong_timing:       'Interested but not now',
+  no_response:        'Reached out, no reply after X attempts',
+  chose_alternative:  'Chose a different solution / in-house',
+  postponed:          'Decision postponed indefinitely',
+  other:              'Requires free-text explanation below',
+};
+
+export function LossModal({ account, onClose }: Props) {
+  const lose = useLoseAccount();
+  const [reason, setReason] = useState<LossReason | ''>('');
   const [notes, setNotes] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
@@ -22,7 +42,7 @@ export function DisqualifyModal({ account, onClose }: Props) {
     setErr(null);
     if (!reason) { setErr('Pick a reason'); return; }
     try {
-      await disq.mutateAsync({ id: account.id, reason, notes });
+      await lose.mutateAsync({ accountId: account.id, reason, notes: notes.trim() || null });
       onClose();
     } catch (e) {
       setErr(String((e as Error).message || e));
@@ -39,7 +59,7 @@ export function DisqualifyModal({ account, onClose }: Props) {
             <AlertTriangle size={16} />
           </div>
           <div className="flex-1">
-            <div className="text-[15px] font-extrabold text-text">Disqualify {account.name || account.domain || 'account'}</div>
+            <div className="text-[15px] font-extrabold text-text">Mark as lost — {account.name || account.domain || 'account'}</div>
             <div className="text-[11.5px] text-text-3 mt-0.5">Sets stage → lost and stamps who / why / when</div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-md text-text-3 hover:bg-surface-2"><X size={16} /></button>
@@ -49,20 +69,20 @@ export function DisqualifyModal({ account, onClose }: Props) {
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-text-3 mb-2">Reason</div>
             <div className="grid grid-cols-2 gap-2">
-              {DISQ_REASONS.map((r) => (
+              {LOSS_REASONS.map((r) => (
                 <button
-                  key={r.key}
+                  key={r}
                   type="button"
-                  onClick={() => setReason(r.key)}
+                  onClick={() => setReason(r)}
                   className={cn(
                     'text-left rounded-xl p-3 border transition-colors',
-                    reason === r.key
+                    reason === r
                       ? 'border-bad bg-bad-bg/40'
                       : 'border-border bg-surface hover:bg-surface-2',
                   )}
                 >
-                  <div className="text-[13px] font-bold text-text">{r.label}</div>
-                  <div className="text-[11px] text-text-3 mt-0.5 leading-snug">{r.hint}</div>
+                  <div className="text-[13px] font-bold text-text">{REASON_LABEL[r]}</div>
+                  <div className="text-[11px] text-text-3 mt-0.5 leading-snug">{REASON_HINT[r]}</div>
                 </button>
               ))}
             </div>
@@ -88,10 +108,10 @@ export function DisqualifyModal({ account, onClose }: Props) {
           <button onClick={onClose} className="h-9 px-4 rounded-lg border border-border bg-surface text-[12.5px] font-bold text-text-2 hover:bg-surface">Cancel</button>
           <button
             onClick={submit}
-            disabled={disq.isPending || !reason}
+            disabled={lose.isPending || !reason}
             className="h-9 px-4 rounded-lg bg-bad text-white text-[12.5px] font-black hover:opacity-90 disabled:opacity-60"
           >
-            {disq.isPending ? 'Disqualifying…' : 'Disqualify'}
+            {lose.isPending ? 'Marking…' : 'Mark lost'}
           </button>
         </footer>
       </div>

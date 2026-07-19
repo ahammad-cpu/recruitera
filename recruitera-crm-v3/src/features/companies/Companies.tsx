@@ -12,9 +12,9 @@ import { StagePill } from '@/components/shared/StagePill';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { MergeConfirmation } from './MergeConfirmation';
-import { DisqualifyModal } from './DisqualifyModal';
+import { LossModal } from './LossModal';
 import { BulkEmailModal } from './BulkEmailModal';
-import { useRequalifyAccount } from '@/hooks/useDisqualify';
+import { useRequalifyAccount } from '@/hooks/useLoseAccount';
 import { ResizeHandle } from '@/components/shared/ResizeHandle';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { fmtInt, fmtDate, initials } from '@/lib/format';
@@ -486,7 +486,7 @@ export default function Companies() {
         />
       )}
 
-      {disqTarget && <DisqualifyModal account={disqTarget} onClose={() => setDisqTarget(null)} />}
+      {disqTarget && <LossModal account={disqTarget} onClose={() => setDisqTarget(null)} />}
       {bulkEmailOpen && (
         <BulkEmailModal
           accounts={filtered.filter((a) => selected.has(a.id))}
