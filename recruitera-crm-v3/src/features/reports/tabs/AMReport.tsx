@@ -147,7 +147,7 @@ export default function AMReport() {
           <div className="text-right">Total</div>
           <div className="text-right">Open</div>
           <div className="text-right">Won</div>
-          <div className="text-right">Paid</div>
+          <div className="text-right">Collected</div>
           <div className="text-right">Lost</div>
           <div className="text-right">Win rate</div>
           {newReports && (

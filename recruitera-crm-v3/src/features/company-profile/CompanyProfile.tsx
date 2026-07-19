@@ -403,7 +403,7 @@ function OwnerStat({
 const STAGE_ORDER = ['lead', 'mql', 'sql', 'demo', 'proposal', 'won', 'paid'] as const;
 const STAGE_LABEL: Record<string, string> = {
   lead: 'Lead', mql: 'MQL', sql: 'SQL', demo: 'Demo',
-  proposal: 'Proposal', won: 'Won', paid: 'Paid',
+  proposal: 'Proposal', won: 'Won', paid: 'Collected',
 };
 
 function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]; onChange: (s: string) => void }) {

@@ -2,7 +2,7 @@ import { cn } from '@/lib/cn';
 
 const STAGE_LABEL: Record<string, string> = {
   lead: 'Lead', mql: 'MQL', sql: 'SQL', demo: 'Demo', proposal: 'Proposal',
-  won: 'Won', paid: 'Paid', lost: 'Lost',
+  won: 'Won', paid: 'Collected', lost: 'Lost',
 };
 
 // Colors are theme tokens (tailwind.config.mjs / src/index.css) — sql/demo
