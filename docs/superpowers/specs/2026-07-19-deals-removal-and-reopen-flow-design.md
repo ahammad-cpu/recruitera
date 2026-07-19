@@ -1,9 +1,15 @@
-# Deals Removal + Reopen Flow — Design Spec
+# Deals Removal + Loss / Reopen Flow — Design Spec
 
 **Date:** 2026-07-19
 **Author:** Amr Hammad + Claude
 **Status:** Ready for user review
-**Trigger:** GM feedback — remove the standalone Deals panel from the company profile; make stage live on the account only; lost accounts must be reopenable to any stage; every action must remain reportable.
+**Trigger:** GM feedback — remove the standalone Deals panel from the company profile; make stage live on the account only; **lost** accounts must be reopenable to any stage; every action must remain reportable.
+
+## Loss vs Disqualification — scope statement
+
+This spec covers **Loss only** — a genuine sales attempt that didn't close (no_budget, competitor, wrong_timing, no_response, chose_alternative, postponed, other). Loss happens mid/late funnel (SQL / Demo / Proposal) and is expected to be revisitable.
+
+**Disqualification is out of scope for this spec.** Disqualification means "this lead never should have been in the funnel" (not_icp, fake_lead, duplicate, spam) and is semantically distinct — different reasons, different reporting axis (lead-quality vs sales performance), different reopen semantics (rare, only wrong-calls). A future spec will introduce a proper `stage='disqualified'` state with its own `disqualified_*` columns. Until then the codebase's current `disqualified_*` field names are legacy — this migration renames them all to `loss_*` / `lost_*` to make room.
 
 ---
 
@@ -26,7 +32,7 @@
 
 ### Current state
 
-The company profile shows a **Deals** panel with stat tiles (Open / Won / Lifetime Rev) and a **New deal** button. Behind the scenes, a `deals` table holds one row per opportunity per account, and a DB trigger keeps `accounts.stage` in sync with the current deal's stage. AMs create deals to move stages; disqualification writes reason fields to `accounts` but the deals table is largely redundant.
+The company profile shows a **Deals** panel with stat tiles (Open / Won / Lifetime Rev) and a **New deal** button. Behind the scenes, a `deals` table holds one row per opportunity per account, and a DB trigger keeps `accounts.stage` in sync with the current deal's stage. AMs create deals to move stages. Loss handling writes reason fields to `accounts` under the legacy name `disqualified_*` but the deals table is largely redundant.
 
 ### GM feedback
 
@@ -35,30 +41,45 @@ Remove the Deals panel. Stage lives on the account. Lost accounts must be reopen
 ### Goals
 
 - **G1** — Company profile has no Deals section; stage is edited directly on the account.
-- **G2** — Any lost account can be reopened to any pre-lost stage (Lead / MQL / SQL / Demo / Proposal), with reason captured.
-- **G3** — The company profile has one unified **History** log showing every event (comms, stage changes, disqualify, reopen, ownership, meta-lead syncs).
-- **G4** — Four reports keep working with equivalent numbers: **Won revenue**, **Loss/disqualification breakdown**, **Reopen rate (new)**, **Sales cycle time**.
-- **G5** — Follow-up tasks after disqualification are configurable per reason in a Settings module, not hardcoded — with control over delay, assignee, and title template.
-- **G6** — AM Performance surfaces cross-attribution: if AC1 disqualifies X and AC2 reopens+wins X, both are visible in the report without double-counting revenue.
+- **G2** — Any lost account can be reopened to any pre-lost stage (Lead / MQL / SQL / Demo / Proposal), with a loss reason captured at loss-time and a reopen reason captured at reopen-time.
+- **G3** — The company profile has one unified **History** log showing every event (comms, stage changes, loss, reopen, ownership, meta-lead syncs).
+- **G4** — Four reports keep working with equivalent numbers: **Won revenue**, **Loss breakdown**, **Reopen rate (new)**, **Sales cycle time**.
+- **G5** — Follow-up tasks after loss are configurable per loss reason in a Settings module, not hardcoded — with control over delay, assignee, and title template.
+- **G6** — AM Performance surfaces cross-attribution: if AC1 loses X and AC2 reopens+wins X, both are visible in the report without double-counting revenue.
+- **G7** — Rename the legacy `accounts.disqualified_*` columns to `loss_*` / `lost_*` to free the disqualification namespace for a future spec.
 
 ### Non-goals
 
-- BANT reporting (E in the report survey) — dropped.
-- Forecast / probability-weighted pipeline (F) — dropped.
-- One-cycle-per-account model (Approach 3 in brainstorming) — rejected; too invasive.
+- **Disqualification handling** (not_icp / fake_lead / duplicate / spam / etc.). Deferred to a separate future spec. This spec's terminology never uses "disqualify" or "disqualification" going forward.
+- BANT reporting — dropped.
+- Forecast / probability-weighted pipeline — dropped.
+- One-cycle-per-account model — rejected; too invasive.
 
 ---
 
 ## 2. Data model
 
-### 2.1 Additive changes to `accounts`
+### 2.1 Column renames on `accounts` (part of Phase 0)
 
-Denormalize stage-transition timestamps so date filters don't have to join `stage_history` on every dashboard query.
+Free the disqualification namespace. All current `disqualified_*` fields hold loss data — rename them to say so.
+
+```sql
+alter table accounts rename column disqualified_reason to loss_reason;
+alter table accounts rename column disqualified_notes  to loss_notes;
+alter table accounts rename column disqualified_by     to lost_by;
+alter table accounts rename column disqualified_at     to lost_at;   -- becomes the denorm for loss timestamp
+alter table accounts rename column disq_stage          to lost_from_stage;
+```
+
+The renamed `lost_at` doubles as the denormalized timestamp for fast "lost in period" filters — no need for a separate new column.
+
+### 2.2 Additive columns on `accounts`
+
+Denormalize the remaining stage-transition timestamps so date filters don't have to join `stage_history` on every dashboard query.
 
 ```sql
 alter table accounts add column first_won_at   timestamptz;
 alter table accounts add column last_won_at    timestamptz;
-alter table accounts add column lost_at        timestamptz;
 alter table accounts add column reopened_at    timestamptz;
 alter table accounts add column reopen_count   int not null default 0;
 
@@ -66,11 +87,11 @@ create index accounts_last_won_at_idx on accounts(last_won_at) where last_won_at
 create index accounts_lost_at_idx     on accounts(lost_at)     where lost_at is not null;
 ```
 
-Kept in sync by a single trigger on `stage_history` INSERT (see §2.4). No app code needs to remember to update them.
+Kept in sync by a single trigger on `stage_history` INSERT (see §2.5). No app code needs to remember to update them.
 
-### 2.2 Additive changes to `stage_history`
+### 2.3 Additive changes to `stage_history`
 
-Capture the reason on every disqualify **and** every reopen — so reports can answer "which reasons had the highest reopen rate" and "why did AMs bring accounts back."
+Capture the reason on every loss **and** every reopen — so reports can answer "which loss reasons had the highest reopen rate" and "why did AMs bring accounts back."
 
 ```sql
 alter table stage_history add column reason_code text;
@@ -80,11 +101,37 @@ create index stage_history_reopen_idx on stage_history(account_id, changed_at)
   where from_stage='lost';
 ```
 
-### 2.3 New `requalification_*` tables
+### 2.4 Reason vocabularies
+
+**Loss reasons** (used when `to_stage='lost'`):
+
+| Code | Meaning |
+|---|---|
+| `no_budget` | prospect can't afford / budget frozen |
+| `competitor` | went with a competitor's product |
+| `wrong_timing` | not the right moment; check back later |
+| `no_response` | went silent after real engagement |
+| `chose_alternative` | picked a non-competing internal / manual solution |
+| `postponed` | project delayed; specific timing captured in notes |
+| `other` | free text required in notes |
+
+**Reopen reasons** (used when `from_stage='lost'`, `to_stage != 'lost'`):
+
+| Code | Meaning |
+|---|---|
+| `customer_returned` | they reached out again |
+| `budget_approved` | previously lost on budget, now funded |
+| `timing_changed` | previously lost on timing, now ready |
+| `wrong_call` | shouldn't have been lost; AM's mistake |
+| `other` | free text required in notes |
+
+Both lists live in enums / seed rows so admins can extend without code changes.
+
+### 2.5 New `requalification_*` tables
 
 See §4 for column list and behavior.
 
-### 2.4 `_sync_account_transition_stamps()` trigger
+### 2.6 `_sync_account_transition_stamps()` trigger
 
 ```sql
 create function _sync_account_transition_stamps() returns trigger as $$
@@ -118,20 +165,20 @@ create trigger stage_history_sync_account_transitions
   for each row execute function _sync_account_transition_stamps();
 ```
 
-### 2.5 `disq_stage` capture
+### 2.7 `lost_from_stage` capture
 
-`accounts.disq_stage` is what powers the Loss × Stage matrix in Report B. It's not set by the current `DisqualifyModal`, so the field is empty on today's data. Two things fix this:
+`accounts.lost_from_stage` (renamed from `disq_stage`) powers the Loss × Stage matrix in Report B. It's not consistently set on today's data. Two things fix this:
 
-- **Backfill (one-time, Phase 0):** for each account currently at `stage='lost'`, set `disq_stage` = the `from_stage` on the most recent `stage_history` row with `to_stage='lost'` for that account.
-- **Going forward:** `DisqualifyModal` reads `accounts.stage` immediately before writing `stage='lost'` and stores that value in `disq_stage`. Simpler than a trigger; keeps write logic in one place.
+- **Backfill (Phase 0):** for each account currently at `stage='lost'`, set `lost_from_stage` = the `from_stage` on the most recent `stage_history` row with `to_stage='lost'` for that account.
+- **Going forward:** `LossModal` (renamed from `LossModal`) reads `accounts.stage` immediately before writing `stage='lost'` and stores that value in `lost_from_stage`. Simpler than a trigger; keeps write logic in one place.
 
-### 2.6 Deletions (Phase 5)
+### 2.8 Deletions (Phase 5)
 
 - Table `deals` — legacy rows archived to `accounts.raw_data.legacy_deals[]` first
 - Trigger `accounts_safety_deal_trg` + function `accounts_stage_to_deal_safety` — the old "Make a deal → SQL" auto-promotion
 - All React/TS: `DealsSection.tsx`, `NewDealModal.tsx`, `useDeals.ts`, `useDealsForCompany.ts`, `useDealMutations.ts`
 
-### 2.7 Which date drives each filter
+### 2.9 Which date drives each filter
 
 Every date filter uses a **stage-transition** date, not `accounts.created_at`. The one exception is the Sales Funnel report, which is a cohort report by definition.
 
@@ -156,11 +203,11 @@ Every date filter uses a **stage-transition** date, not `accounts.created_at`. T
 
 ### 3.1 Where the Reopen button lives
 
-Visible only when `accounts.stage='lost'`. Gated by the same ABAC permission as Disqualify (owner + admin by default).
+Visible only when `accounts.stage='lost'`. Gated by the same ABAC permission as the Lose action (owner + admin by default).
 
 | Surface | Placement |
 |---|---|
-| Company profile header | Replaces the "Disqualify" button in the same slot — becomes **↺ Reopen** |
+| Company profile header | Replaces the "Lose" button in the same slot — becomes **↺ Reopen** |
 | Companies table row | Three-dot menu → "Reopen…" |
 | Disqualified Kanban view | Icon-button on card hover |
 | Pipeline kanban | N/A — lost accounts don't appear |
@@ -171,7 +218,7 @@ Fields:
 - **Target stage** — dropdown: Lead / MQL / SQL / Demo / Proposal (never Won/Paid)
 - **Reason** (required, radio) — `customer_returned` / `budget_approved` / `timing_changed` / `wrong_call` / `other`
 - **Note** (optional textarea)
-- **Context strip** at the bottom — read-only, shows original `disq_stage · disqualified_reason`
+- **Context strip** at the bottom — read-only, shows original `lost_from_stage · loss_reason`
 
 ### 3.3 `reopen_account` RPC
 
@@ -198,14 +245,14 @@ begin
     raise exception 'Invalid reason_code';
   end if;
 
-  -- 1. Move the account. Nulls the disqualified_* fields — the event is preserved in stage_history.
+  -- 1. Move the account. Nulls the loss_* fields — the event is preserved in stage_history.
   update accounts set
-    stage               = p_target_stage,
-    disqualified_reason = null,
-    disqualified_notes  = null,
-    disqualified_at     = null,
-    disqualified_by     = null,
-    disq_stage          = null
+    stage           = p_target_stage,
+    loss_reason     = null,
+    loss_notes      = null,
+    lost_at         = null,
+    lost_by         = null,
+    lost_from_stage = null
   where id = p_account_id;
 
   -- 2. Log the transition WITH reason. The generic stage-change trigger would insert a bare row;
@@ -257,7 +304,7 @@ create table requalification_rules (
   reason_code       text,                  -- null = any reason
   from_stages       text[],                -- null = any stage
   delay_days        int not null check (delay_days > 0),
-  task_title_tpl    text not null,         -- supports {{company_name}}, {{disq_stage}}, {{original_owner}}, {{days_ago}}, {{original_reason_notes}}
+  task_title_tpl    text not null,         -- supports {{company_name}}, {{lost_from_stage}}, {{original_owner}}, {{days_ago}}, {{original_loss_notes}}
   task_priority     text not null default 'medium',
   assignment_mode   text not null,         -- same_owner | original_owner | round_robin_pool | round_robin_excluding_original_owner | specific_user
   assignee_pool     uuid[],                -- required when mode is a round-robin variant
@@ -295,8 +342,8 @@ for each enabled rule R:
     A.stage = 'lost'
     and A.lost_at <= now() - R.delay_days::interval
     and A.lost_at >  now() - (R.delay_days + 1)::interval
-    and (R.reason_code is null or A.disqualified_reason = R.reason_code)
-    and (R.from_stages is null or A.disq_stage = any(R.from_stages))
+    and (R.reason_code is null or A.loss_reason = R.reason_code)
+    and (R.from_stages is null or A.lost_from_stage = any(R.from_stages))
     and (not R.fires_once or not exists (
       select 1 from requalification_fires
       where rule_id = R.id and account_id = A.id
@@ -316,9 +363,9 @@ for each enabled rule R:
 | Mode | Config | Behavior |
 |---|---|---|
 | `same_owner` | none | `accounts.owner_id` at fire time |
-| `original_owner` | none | Owner at moment of disqualify — read from `stage_history` |
+| `original_owner` | none | Owner at moment of loss — read from `stage_history` |
 | `round_robin_pool` | `assignee_pool` | Rotates through pool via `rr_pointer` |
-| `round_robin_excluding_original_owner` | `assignee_pool` | Round-robin skipping the disqualifier |
+| `round_robin_excluding_original_owner` | `assignee_pool` | Round-robin skipping the AM who lost it |
 | `specific_user` | `specific_assignee` | Always this profile |
 
 ### 4.6 Reopen interaction
@@ -389,7 +436,7 @@ create function get_company_history(
 
 Body unions:
 1. `activities`
-2. `stage_history` (mapped to `stage_change` / `disqualify` / `reopen` based on to_stage + from_stage + reason_code)
+2. `stage_history` (mapped to `stage_change` / `loss` / `reopen` based on to_stage + from_stage + reason_code)
 3. `accounts_audit` filtered to interesting field changes (`owner_id`, `deal_value`, `deal_currency`, `customer_success_id`, `raw_data.meta_leads` growth)
 4. `system_logs` where `module='requalification' and account_id = p_account_id`
 5. Synthetic row for account creation
@@ -454,7 +501,7 @@ Total EGP + count + avg cycle days. Breakdowns by source and by AM. Cycle-time b
 Reason × Stage matrix.
 
 ```sql
-select disqualified_reason as reason, disq_stage as lost_from, count(*)
+select loss_reason as reason, lost_from_stage as lost_from, count(*)
 from accounts
 where stage = 'lost' and lost_at between :from and :to
 group by 1, 2;
@@ -467,13 +514,13 @@ New column: **"later reopened %"** — of accounts in each cell, how many were l
 Headline: reopened this quarter (count + % of period losses); multi-reopens count.
 
 Breakdown 1 — reopen reasons (from `stage_history.reason_code` for reopen rows).
-Breakdown 2 — original disqualify reason × reopen % (see below).
+Breakdown 2 — original loss reason × reopen % (see below).
 Breakdown 3 — where reopened accounts ended up (Won / Still open / Re-lost).
 
 ```sql
 -- Original-reason × reopen %
 with lost_events as (
-  select account_id, changed_at as lost_at, reason_code as disq_reason
+  select account_id, changed_at as lost_at, reason_code as loss_reason
   from stage_history
   where to_stage='lost' and changed_at between :from and :to
 ),
@@ -484,7 +531,7 @@ reopens as (
   where sh.from_stage='lost' and sh.to_stage <> 'lost'
     and sh.changed_at > le.lost_at
 )
-select le.disq_reason,
+select le.loss_reason,
        count(*) as lost,
        count(*) filter (where r.account_id is not null) as reopened,
        round(100.0 * count(*) filter (where r.account_id is not null) / nullif(count(*),0), 0) as reopen_pct
@@ -542,20 +589,20 @@ Whoever owns the account at `to_stage='won'` gets the revenue credit — that's 
 ### 7.3 Query for Recovered-by-Others
 
 ```sql
-select disq.changed_by as ac_who_disqualified,
-       count(distinct disq.account_id) as recovered_count
-from stage_history disq
+select loss.changed_by as ac_who_lost,
+       count(distinct loss.account_id) as recovered_count
+from stage_history loss
 join stage_history win
-     on win.account_id = disq.account_id
+     on win.account_id = loss.account_id
     and win.to_stage = 'won'
-    and win.changed_at > disq.changed_at
-    and win.changed_by <> disq.changed_by
-where disq.to_stage = 'lost'
+    and win.changed_at > loss.changed_at
+    and win.changed_by <> loss.changed_by
+where loss.to_stage = 'lost'
   and win.changed_at between :from and :to
 group by 1;
 ```
 
-### 7.4 Example — AC1 disqualifies X, AC2 reopens and wins X
+### 7.4 Example — AC1 loses X, AC2 reopens and wins X
 
 | AC1 | AC2 |
 |---|---|
@@ -573,7 +620,7 @@ Click any cell → modal lists the actual accounts.
 ### 7.6 Anti-gaming
 
 - Credit follows `to_stage='won'` — reassigning after a win doesn't move credit.
-- Loss credit is on `changed_by` (whoever clicked Disqualify), not `owner_id` — you can't hand off an about-to-lose account to dodge the loss count.
+- Loss credit is on `changed_by` (whoever clicked Lose), not `owner_id` — you can't hand off an about-to-lose account to dodge the loss count.
 
 ---
 
@@ -610,7 +657,7 @@ Click any cell → modal lists the actual accounts.
 - Add `deals_ui_hidden = false` flag
 - New components: `ReopenModal`, `HistoryTab`, `RequalificationSettings`
 - New hooks: `useCompanyHistory`, `useReopenAccount`
-- Update `DisqualifyModal` to write `reason_code` to `stage_history`
+- Update `LossModal` to write `reason_code` to `stage_history`
 - Update `WinLossChurnedReport` + `AMPerformanceReport` for new columns
 - Seed requalification rules (disabled)
 
@@ -656,7 +703,7 @@ Click any cell → modal lists the actual accounts.
 - `src/hooks/useCompanyHistory.ts` — new
 - `src/hooks/useReopenAccount.ts` — new
 - `src/features/settings/RequalificationSettings.tsx` — new
-- `src/features/companies/DisqualifyModal.tsx` — writes `reason_code` to `stage_history`
+- `src/features/companies/LossModal.tsx` — writes `reason_code` to `stage_history`
 - `src/features/reports/tabs/WinLossChurnedReport.tsx` — three sub-sections + Reopen Rate panel
 - `src/features/reports/tabs/AMPerformanceReport.tsx` — new columns + drill-in
 - `src/lib/flags.ts` — new flag reader
