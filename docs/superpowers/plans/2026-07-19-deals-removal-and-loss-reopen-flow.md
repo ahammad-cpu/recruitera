@@ -625,43 +625,50 @@ with stage_windows as (
   where account_id = p_account_id
 ),
 merged as (
-  -- Activities
+  -- Activities. Filter out type='stage' rows — those are audit-trail duplicates
+  -- of stage_history entries (written by the log_stage_change trigger), and
+  -- stage_history carries the richer data (reason_code). Keeping both would
+  -- render every stage transition twice in HistoryTab.
+  -- Also filter type='deal' — deals are being removed and their events don't belong here.
   select
     'act:' || a.id::text                       as id,
-    a.kind                                     as kind,
-    a.happened_at                              as at,
+    a.type::text                               as kind,
+    a.created_at                               as at,
     a.author_id                                as actor_id,
     p.full_name                                as actor_name,
-    (select to_stage from stage_windows
-      where changed_at <= a.happened_at
-      order by changed_at desc limit 1)         as stage_at_time,
-    coalesce(a.title, initcap(a.kind))         as title,
+    (select to_stage::text from stage_windows
+      where changed_at <= a.created_at
+      order by changed_at desc limit 1)        as stage_at_time,
+    coalesce(a.title, initcap(a.type::text))   as title,
     a.text                                     as body,
-    jsonb_build_object('completed_at', a.completed_at, 'due_at', a.due_at, 'duration_min', a.duration_min) as meta
+    jsonb_build_object('task_done', a.task_done, 'task_due_date', a.task_due_date,
+                       'call_duration_minutes', a.call_duration_minutes) as meta
   from activities a
   left join profiles p on p.id = a.author_id
   where a.account_id = p_account_id
+    and a.type not in ('stage','deal')
+    and a.is_archived is not true
 
   union all
   -- Stage transitions
   select
     'sh:' || sh.id::text,
     case
-      when sh.to_stage = 'lost'                                       then 'loss'
-      when sh.from_stage = 'lost' and sh.to_stage is distinct from 'lost' then 'reopen'
+      when sh.to_stage::text = 'lost'                                            then 'loss'
+      when sh.from_stage::text = 'lost' and sh.to_stage::text is distinct from 'lost' then 'reopen'
       else 'stage_change'
     end,
     sh.changed_at,
     sh.changed_by,
     p.full_name,
-    sh.to_stage,
+    sh.to_stage::text,
     case
-      when sh.to_stage = 'lost'                                       then 'Marked as lost'
-      when sh.from_stage = 'lost' and sh.to_stage is distinct from 'lost' then 'Reopened to ' || upper(sh.to_stage)
-      else 'Moved to ' || upper(sh.to_stage)
+      when sh.to_stage::text = 'lost'                                            then 'Marked as lost'
+      when sh.from_stage::text = 'lost' and sh.to_stage::text is distinct from 'lost' then 'Reopened to ' || upper(sh.to_stage::text)
+      else 'Moved to ' || upper(sh.to_stage::text)
     end,
     sh.notes,
-    jsonb_build_object('from', sh.from_stage, 'to', sh.to_stage, 'reason_code', sh.reason_code)
+    jsonb_build_object('from', sh.from_stage::text, 'to', sh.to_stage::text, 'reason_code', sh.reason_code)
   from stage_history sh
   left join profiles p on p.id = sh.changed_by
   where sh.account_id = p_account_id
