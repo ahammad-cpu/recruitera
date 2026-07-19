@@ -103,6 +103,14 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
   const actor = ev.actor_id ? profiles.find((p) => p.id === ev.actor_id) : undefined;
   const actorName = actor?.full_name || actor?.email || ev.actor_name || 'System';
   const reason = typeof ev.meta?.reason_code === 'string' ? ev.meta.reason_code : null;
+  const metaFrom = typeof ev.meta?.from === 'string' ? ev.meta.from : null;
+  const metaTo   = typeof ev.meta?.to   === 'string' ? ev.meta.to   : null;
+
+  // A disqualify writes a self-transition to stage_history (from_stage ===
+  // to_stage) with a reason_code — the RPC still classifies that as
+  // "stage_change" so we rewrite the kind here for correct styling + title.
+  const isDisqualify = ev.kind === 'stage_change' && !!metaFrom && metaFrom === metaTo && !!reason;
+  const effectiveKind = isDisqualify ? 'disqualify' : ev.kind;
 
   // Activities from the RPC come with id "act:<uuid>" — extract the raw id
   // so useDeleteActivity / useUpdateActivity can target the row directly.
@@ -112,7 +120,18 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
   const isAuthor = !!ev.actor_id && me.data?.id === ev.actor_id;
   const canMutate = isDeletableKind && (isAdmin || isAuthor);
 
-  const kindLabel = KIND_PILL[ev.kind] ?? ev.kind.toUpperCase().replace(/_/g, ' ');
+  const kindLabel = isDisqualify
+    ? 'DISQUALIFIED'
+    : (KIND_PILL[ev.kind] ?? ev.kind.toUpperCase().replace(/_/g, ' '));
+
+  // Amber-tinted pill + subtle amber card border when disqualified so it
+  // reads as a state-change event, not a neutral stage move.
+  const pillClass = isDisqualify
+    ? 'inline-flex items-center h-5 px-2 rounded-md bg-warn-bg text-warn text-[10px] font-black tracking-wider'
+    : 'inline-flex items-center h-5 px-2 rounded-md bg-surface-2 text-text-3 text-[10px] font-black tracking-wider';
+  const cardClass = isDisqualify
+    ? 'flex gap-3 border border-warn/40 bg-warn-bg/30 rounded-xl p-4'
+    : 'flex gap-3 border border-border rounded-xl p-4';
 
   async function saveEdit() {
     if (!activityId) return;
@@ -126,18 +145,18 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
   }
 
   return (
-    <li className="flex gap-3 border border-border rounded-xl p-4">
+    <li className={cardClass}>
       <OwnerAvatar profile={actor} size={40} fallback={actorName} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[13px] font-black text-text">{actorName}</span>
-          <span className="inline-flex items-center h-5 px-2 rounded-md bg-surface-2 text-text-3 text-[10px] font-black tracking-wider">
+          <span className={pillClass}>
             {kindLabel}
           </span>
           <span className="text-[11.5px] text-text-3">{relativeTime(ev.at)}</span>
           {ev.stage_at_time && <StagePill stage={ev.stage_at_time} />}
           {reason && (
-            <span className="text-[11.5px] text-text-3">· reason: <span className="font-bold text-text-2">{reason}</span></span>
+            <span className="text-[11.5px] text-text-3">· reason: <span className={isDisqualify ? 'font-black text-warn' : 'font-bold text-text-2'}>{reason}</span></span>
           )}
           {canMutate && !editing && (
             <div className="ml-auto flex items-center gap-3">
@@ -181,6 +200,8 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
           <div className="text-[13.5px] text-text mt-1.5 whitespace-pre-wrap leading-relaxed">
             {ev.body}
           </div>
+        ) : isDisqualify ? (
+          <div className="text-[13px] font-bold text-warn mt-1">Disqualified at {(metaFrom ?? '').toUpperCase()}</div>
         ) : ev.title !== actorName ? (
           <div className="text-[12px] text-text-3 mt-1">{ev.title}</div>
         ) : null}
