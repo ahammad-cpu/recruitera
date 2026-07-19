@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   FileText, Phone, Mail, Users, CheckSquare, ArrowRightLeft, XCircle,
@@ -27,76 +27,22 @@ const KIND_STYLE: Record<HistoryEvent['kind'], { icon: LucideIcon; tone: string 
   account_created:       { icon: Star,           tone: 'text-text-3' },
 };
 
-type Filter = 'all' | 'comms' | 'tasks' | 'stage' | 'system';
-
-const FILTERS: Filter[] = ['all', 'comms', 'tasks', 'stage', 'system'];
-
 export function HistoryTab({ accountId }: { accountId: string }) {
   const q = useCompanyHistory(accountId);
   const profiles = useProfiles();
-  const [filter, setFilter] = useState<Filter>('all');
-  const [search, setSearch] = useState('');
 
   const events = useMemo(() => (q.data?.pages ?? []).flat(), [q.data]);
 
-  const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: events.length, comms: 0, tasks: 0, stage: 0, system: 0 };
-    for (const e of events) {
-      if (['note', 'call', 'email', 'meeting'].includes(e.kind)) c.comms += 1;
-      else if (['task_created', 'task_done'].includes(e.kind)) c.tasks += 1;
-      else if (['stage_change', 'loss', 'reopen'].includes(e.kind)) c.stage += 1;
-      else if (['owner_change', 'deal_value_change', 'requalification_fire', 'meta_lead_attached', 'account_created'].includes(e.kind)) c.system += 1;
-    }
-    return c;
-  }, [events]);
-
-  const filtered = useMemo(() => events.filter((e) => {
-    if (filter === 'comms'  && !['note', 'call', 'email', 'meeting'].includes(e.kind)) return false;
-    if (filter === 'tasks'  && !['task_created', 'task_done'].includes(e.kind)) return false;
-    if (filter === 'stage'  && !['stage_change', 'loss', 'reopen'].includes(e.kind)) return false;
-    if (filter === 'system' && !['owner_change', 'deal_value_change', 'requalification_fire', 'meta_lead_attached', 'account_created'].includes(e.kind)) return false;
-    if (search) {
-      const s = search.toLowerCase();
-      return !!(e.title?.toLowerCase().includes(s) || e.body?.toLowerCase().includes(s));
-    }
-    return true;
-  }), [events, filter, search]);
-
-  const grouped = useMemo(() => groupByDate(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDate(events), [events]);
 
   return (
     <div className="space-y-4">
       <div className="bg-surface border border-border rounded-2xl p-6 shadow-sh1">
-        <div className="text-[10px] font-black tracking-[0.14em] uppercase text-text-4 mb-1">History</div>
-        <div className="text-[20px] font-black tracking-tight text-text mb-4">Company history</div>
+        <div className="text-[10px] font-black tracking-[0.14em] uppercase text-text-4 mb-1">Notes</div>
+        <div className="text-[20px] font-black tracking-tight text-text mb-4">Internal notes</div>
 
         <ActivityComposer accountId={accountId} profiles={profiles.data ?? []} />
 
-        {/* Filter chips + search */}
-        <div className="flex flex-wrap items-center gap-2 mt-5 mb-1">
-          {FILTERS.map((k) => (
-            <button
-              key={k}
-              onClick={() => setFilter(k)}
-              className={cn(
-                'h-7 px-3 rounded-full text-[11.5px] font-bold border transition-colors',
-                filter === k
-                  ? 'bg-accent text-cg-900 border-accent-strong'
-                  : 'bg-surface-2 text-text-3 border-border hover:border-border-2',
-              )}
-            >
-              {k[0].toUpperCase() + k.slice(1)} <span className="opacity-70">{counts[k]}</span>
-            </button>
-          ))}
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search history…"
-            className="ml-auto h-7 px-2 text-[12px] border border-border rounded-lg bg-surface w-64 outline-none focus:border-accent-strong"
-          />
-        </div>
-
-        {/* Grouped list */}
         {q.isLoading && <div className="mt-4 text-[12px] text-text-3">Loading…</div>}
         {!q.isLoading && grouped.length === 0 && (
           <div className="mt-4 py-10 text-center text-[12.5px] text-text-3 border border-dashed border-border rounded-xl">
