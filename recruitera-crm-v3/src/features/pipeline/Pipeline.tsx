@@ -4,7 +4,7 @@ import {
   DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Briefcase, Trophy, FileText, Gauge, Download, Clock, RotateCcw, AlertTriangle, GripVertical } from 'lucide-react';
 import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -21,16 +21,18 @@ import {
 } from './PipelineFilters';
 import { PipelineFilterBar } from './PipelineFilterBar';
 
-type ColMeta = { key: DealStage; label: string; dot: string; bar: string };
+type ColMeta = { key: DealStage; label: string; dot: string; bar: string; slim?: boolean };
 
+// Lost + Collected render slim (240px) as end-of-funnel storage — reps rarely
+// browse them, but they must remain drop targets. Active columns stay 320px.
 const COLUMNS: ColMeta[] = [
   { key: 'mql',       label: 'MQL',       dot: 'bg-accent-strong', bar: 'border-accent-strong' },
   { key: 'sql',       label: 'SQL',       dot: 'bg-violet',        bar: 'border-violet' },
   { key: 'demo',      label: 'DEMO',      dot: 'bg-purple',        bar: 'border-purple' },
   { key: 'proposal',  label: 'PROPOSAL',  dot: 'bg-warn',          bar: 'border-warn' },
   { key: 'won',       label: 'WON',       dot: 'bg-ok',            bar: 'border-ok' },
-  { key: 'collected', label: 'COLLECTED', dot: 'bg-accent',        bar: 'border-accent' },
-  { key: 'lost',      label: 'LOST',      dot: 'bg-bad',           bar: 'border-bad' },
+  { key: 'collected', label: 'COLLECTED', dot: 'bg-accent',        bar: 'border-accent', slim: true },
+  { key: 'lost',      label: 'LOST',      dot: 'bg-bad',           bar: 'border-bad',    slim: true },
 ];
 
 
@@ -126,7 +128,6 @@ export default function Pipeline() {
   const openStages = new Set<DealStage>(['mql', 'sql', 'demo', 'proposal']);
   const openDeals = deals.filter((d) => openStages.has(d.stage));
   const openPipeline = openDeals.reduce((s, d) => s + (d.amount || 0), 0);
-  const boardTotal = deals.reduce((s, d) => s + (d.amount || 0), 0);
   const wonQtd = deals.filter((d) => d.stage === 'won' || d.stage === 'collected').reduce((s, d) => s + (d.amount || 0), 0);
   const proposalsLive = deals.filter((d) => d.stage === 'proposal').length;
   const dealsWithValue = openDeals.filter((d) => (d.amount || 0) > 0);
@@ -215,7 +216,10 @@ export default function Pipeline() {
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="overflow-x-auto sc pb-4 -mx-6 px-6">
-          <div className="flex gap-4" style={{ minWidth: `${COLUMNS.length * 300}px` }}>
+          <div
+            className="flex gap-4"
+            style={{ minWidth: `${COLUMNS.reduce((s, c) => s + (c.slim ? 240 : 320) + 16, -16)}px` }}
+          >
             {COLUMNS.map((col) => (
               <Column
                 key={col.key}
@@ -223,7 +227,7 @@ export default function Pipeline() {
                 rows={groups.get(col.key) ?? []}
                 profilesById={profilesById}
                 isLoading={isLoading}
-                boardTotal={boardTotal}
+                pctDenom={openPipeline}
                 onReopen={(id) => reopen.mutate({ id })}
               />
             ))}
@@ -273,59 +277,58 @@ function KpiCard({
 }
 
 function Column({
-  col, rows, profilesById, isLoading, boardTotal, onReopen,
+  col, rows, profilesById, isLoading, pctDenom, onReopen,
 }: {
   col: ColMeta;
   rows: Deal[];
   profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
   isLoading: boolean;
-  boardTotal: number;
+  // Denominator for the stage-share %. Open pipeline (not board total) so
+  // MQL/SQL/etc. read as "share of active work", not diluted by Lost.
+  pctDenom: number;
   onReopen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
-  const total = rows.reduce((s, d) => s + (d.amount || 0), 0);
-  const withValue = rows.filter((d) => (d.amount || 0) > 0);
-  const avg = withValue.length ? Math.round(total / withValue.length) : 0;
-  const pct = boardTotal > 0 ? Math.round((total / boardTotal) * 100) : 0;
+  const total = useMemo(() => rows.reduce((s, d) => s + (d.amount || 0), 0), [rows]);
+  const avg = useMemo(() => {
+    const withValue = rows.filter((d) => (d.amount || 0) > 0);
+    return withValue.length ? Math.round(total / withValue.length) : 0;
+  }, [rows, total]);
+  const pct = pctDenom > 0 ? Math.round((total / pctDenom) * 100) : 0;
+  const isOpenStage = col.key === 'mql' || col.key === 'sql' || col.key === 'demo' || col.key === 'proposal';
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'w-[320px] flex-shrink-0 bg-surface rounded-2xl border-t-[3px] border border-border shadow-sh1 flex flex-col transition-colors',
+        'flex-shrink-0 bg-surface rounded-2xl border-t-[3px] border border-border shadow-sh1 flex flex-col transition-colors',
+        col.slim ? 'w-[240px]' : 'w-[320px]',
         col.bar,
         isOver && 'ring-2 ring-accent',
       )}
     >
-      <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+      <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-border/60">
         <span className={cn('w-2 h-2 rounded-full flex-shrink-0', col.dot)} />
-        <span className="text-[11px] font-black tracking-widest uppercase text-text">{col.label}</span>
-        <span className="tnum text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
+        <span className="text-[11px] font-black tracking-widest uppercase text-text truncate">{col.label}</span>
+        <span className="tnum ml-auto text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
           {isLoading ? '…' : fmtInt(rows.length)}
         </span>
-        <span className="tnum ml-auto text-[11.5px] font-bold text-text-3">
-          {total > 0 ? fmtEgpCompact(total) : '0 EGP'}
-        </span>
       </div>
 
-      <div className="px-4 pb-3 border-b border-border/60 text-[11px] italic text-text-3">
-        Total Stage Amount:{' '}
-        <span className="tnum font-semibold text-text-2 not-italic">
-          {total > 0 ? fmtEgpShort(total) : '0 EGP'}
-        </span>{' '}
-        <span className="tnum">({pct}%)</span>
-      </div>
-
-      <ColumnBody rows={rows} profilesById={profilesById} isLoading={isLoading} isLost={col.key === 'lost'} onReopen={onReopen} />
+      <ColumnBody rows={rows} profilesById={profilesById} isLoading={isLoading} isLost={col.key === 'lost'} slim={!!col.slim} onReopen={onReopen} />
 
       <div className="px-4 py-3 border-t border-border bg-surface-2/60 rounded-b-2xl">
         <div className="flex items-baseline justify-between">
-          <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Total</div>
+          <div className="text-[10px] font-black tracking-widest uppercase text-text-3">
+            Total {isOpenStage && pct > 0 && <span className="tnum text-text-3/70 font-bold">· {pct}%</span>}
+          </div>
           <div className="tnum text-[12.5px] font-black text-text">{total > 0 ? fmtEgpShort(total) : '0 EGP'}</div>
         </div>
-        <div className="flex items-baseline justify-between mt-1">
-          <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Avg</div>
-          <div className="tnum text-[12.5px] font-bold text-text-2">{avg > 0 ? fmtEgpShort(avg) : '0 EGP'}</div>
-        </div>
+        {!col.slim && (
+          <div className="flex items-baseline justify-between mt-1">
+            <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Avg</div>
+            <div className="tnum text-[12.5px] font-bold text-text-2">{avg > 0 ? fmtEgpShort(avg) : '0 EGP'}</div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -333,12 +336,13 @@ function Column({
 
 const PAGE = 30;
 function ColumnBody({
-  rows, profilesById, isLoading, isLost, onReopen,
+  rows, profilesById, isLoading, isLost, slim, onReopen,
 }: {
   rows: Deal[];
   profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
   isLoading: boolean;
   isLost: boolean;
+  slim: boolean;
   onReopen: (id: string) => void;
 }) {
   const [visible, setVisible] = useState(PAGE);
@@ -350,6 +354,8 @@ function ColumnBody({
       setVisible((v) => Math.min(v + PAGE, rows.length));
     }
   }
+
+  const remaining = rows.length - visible;
 
   return (
     <div
@@ -368,27 +374,26 @@ function ColumnBody({
           d={d}
           owner={d.owner_id ? profilesById.get(d.owner_id) : undefined}
           isLost={isLost}
+          slim={slim}
           onReopen={onReopen}
         />
       ))}
-      {visible < rows.length && (
-        <button
-          onClick={() => setVisible((v) => Math.min(v + PAGE, rows.length))}
-          className="w-full text-[11.5px] font-bold text-text-3 hover:text-accent-ink py-2 rounded-md hover:bg-surface-2"
-        >
-          Load {Math.min(PAGE, rows.length - visible)} more · {rows.length - visible} remaining
-        </button>
+      {remaining > 0 && (
+        <div className="pt-1 pb-2 text-center text-[10.5px] font-bold text-text-4 tnum">
+          Scroll for {remaining} more
+        </div>
       )}
     </div>
   );
 }
 
 function Card({
-  d, owner, isLost, onReopen, isOverlay,
+  d, owner, isLost, slim, onReopen, isOverlay,
 }: {
   d: Deal;
   owner: import('@/hooks/useUsersData').Profile | undefined;
   isLost: boolean;
+  slim?: boolean;
   onReopen: (id: string) => void;
   isOverlay?: boolean;
 }) {
@@ -406,11 +411,21 @@ function Card({
       {...(isOverlay ? {} : attributes)}
       {...(isOverlay ? {} : listeners)}
       className={cn(
-        'relative bg-surface border border-border rounded-xl p-3.5 transition-shadow cursor-grab active:cursor-grabbing',
+        'group relative bg-surface border border-border rounded-xl transition-shadow cursor-grab active:cursor-grabbing',
+        slim ? 'p-2.5' : 'p-3.5',
         'hover:shadow-sh2 hover:border-border-2',
         isOverlay && 'shadow-sh3 scale-[1.03]',
       )}
     >
+      {/* Hover affordance so new reps discover cards are draggable.
+          Hidden while dragging (the ghost handles that visual). */}
+      {!isDragging && !isOverlay && (
+        <GripVertical
+          size={13}
+          aria-hidden
+          className="absolute top-2 right-2 text-text-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+        />
+      )}
       {/* While dragging, the source card becomes an empty dashed "ghost"
           slot (content hidden but space preserved) — the DragOverlay clone
           is what actually follows the pointer. This avoids the old bug
@@ -424,17 +439,19 @@ function Card({
           <Link
             to={`/companies/${d.account_id}`}
             onPointerDown={(e) => e.stopPropagation()}
-            className="min-w-0 flex-1 block"
+            className="min-w-0 flex-1 block pr-4"
           >
-            <div className="text-[15px] font-black text-text truncate leading-tight">{name}</div>
-            {d.company?.industry && (
+            <div className={cn('font-black text-text truncate leading-tight', slim ? 'text-[13px]' : 'text-[15px]')}>{name}</div>
+            {!slim && d.company?.industry && (
               <div className="text-[11.5px] text-text-3 truncate mt-0.5">{d.company.industry}</div>
             )}
           </Link>
         </div>
 
-        {/* Deal type + ACV (only when set) — helps reps eyeball the funnel */}
-        {(d.deal_type || (d.amount ?? 0) > 0 || stale || overdue) && (
+        {/* Deal type + ACV (only when set) — helps reps eyeball the funnel.
+            Slim columns (Lost/Collected) hide these — cards there are for
+            recognition + reopen, not scanning. */}
+        {!slim && (d.deal_type || (d.amount ?? 0) > 0 || stale || overdue) && (
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             {d.deal_type && (
               <span
@@ -462,7 +479,7 @@ function Card({
           </div>
         )}
 
-        <div className="mt-3 pt-2.5 border-t border-border/70 flex items-center gap-2 min-w-0">
+        <div className={cn('flex items-center gap-2 min-w-0', slim ? 'mt-2' : 'mt-3 pt-2.5 border-t border-border/70')}>
           <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
           <span className="text-[11.5px] font-bold text-text-2 truncate flex-1">
             {owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'}
