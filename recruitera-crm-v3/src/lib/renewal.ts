@@ -34,15 +34,19 @@ export function computeRenewalBucket(
 
   const days = (endMs - nowMs) / 86_400_000;
   const wasPaid = account.paid_status === 'Paid' || account.paid_status === 'Without Charge';
+  const isCurrentlyPaidActive = wasPaid && account.activation_status === 'Active';
 
   if (days < 0) {
     if (!wasPaid || account.activation_status === 'Expired') return 'churned';
     return 'overdue';
   }
+  // Active-side buckets (Healthy / 90 / 60 / 30) require the account to be
+  // currently paid + active. Otherwise a stale cycle with a far-future end
+  // date on an unpaid/cancelled account would balloon the Healthy column
+  // (we hit 322 accounts vs 19 truly paid — the "why 322" bug).
+  if (!isCurrentlyPaidActive) return null;
   if (days <= 30) return 'd30';
   if (days <= 60) return 'd60';
   if (days <= 90) return 'd90';
-  // Every active cycle > 90 days out belongs in the Healthy column so paid
-  // customers with a long runway are visible on the board, not invisible.
   return 'healthy';
 }
