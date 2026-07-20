@@ -28,6 +28,23 @@ const RANGES: { key: RangeKey; label: string }[] = [
   { key: 'done', label: 'Done' },
 ];
 
+type TaskSource = 'onboarding' | 'won_followup' | 'automation' | 'manual';
+
+function taskSource(task: Task): TaskSource {
+  if (task.onboarding_plan_id) return 'onboarding';
+  const t = (task.title || '').toLowerCase();
+  if (!task.author_id && (t.includes('invoice') || t.includes('payment'))) return 'won_followup';
+  if (!task.author_id) return 'automation';
+  return 'manual';
+}
+
+const SOURCE_PILL: Record<TaskSource, { label: string; cls: string }> = {
+  onboarding:   { label: 'Onboarding',    cls: 'bg-ok-bg text-ok' },
+  won_followup: { label: 'Won follow-up', cls: 'bg-info-bg text-info' },
+  automation:   { label: 'Automation',    cls: 'bg-warn-bg text-warn' },
+  manual:       { label: 'Manual',        cls: 'bg-surface-2 text-text-2 border border-border' },
+};
+
 function fmtWhen(iso: string | null, now: number): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -297,9 +314,14 @@ function TaskRow({
         )}
       </td>
       <td className="px-4 py-3 align-middle">
-        <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-accent-soft text-accent-ink text-[11px] font-bold">
-          {task.account_id ? 'Employer' : 'General'}
-        </span>
+        {(() => {
+          const s = SOURCE_PILL[taskSource(task)];
+          return (
+            <span className={cn('inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-black tracking-wide', s.cls)}>
+              {s.label}
+            </span>
+          );
+        })()}
       </td>
       <td className="px-4 py-3 align-middle text-[13px] text-text max-w-[320px] truncate" title={task.title || task.text || ''}>
         {task.title || task.text || '(untitled)'}
