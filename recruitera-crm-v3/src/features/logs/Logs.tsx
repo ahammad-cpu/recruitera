@@ -4,7 +4,7 @@ import {
   Phone, Mail, StickyNote, Users, Paperclip, GitBranch, CheckSquare,
   AlertTriangle, Video, Bot,
 } from 'lucide-react';
-import { useRecentActivities, type ActivityRow } from '@/hooks/useRecentActivities';
+import { useRecentActivitiesInfinite, type ActivityRow } from '@/hooks/useRecentActivities';
 import { useEnum } from '@/hooks/useEnum';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useProfiles, type Profile } from '@/hooks/useUsersData';
@@ -43,13 +43,17 @@ const DATE_RANGES: { key: DateRangeKey; label: string }[] = [
 ];
 
 export default function Logs() {
-  const { data, isLoading, error } = useRecentActivities(300);
+  const q = useRecentActivitiesInfinite();
   const activityTypes = useEnum('activity_type');
   const accounts = useAccounts();
   const profiles = useProfiles();
   const [kind, setKind] = useState('all');
   const [personId, setPersonId] = useState('all');
   const [dateRange, setDateRange] = useState<DateRangeKey>('all');
+
+  // Flatten every fetched page into one array. Order is preserved because
+  // getNextPageParam pages backwards through created_at.
+  const data = useMemo(() => (q.data?.pages ?? []).flat(), [q.data]);
 
   const accountNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -67,11 +71,11 @@ export default function Logs() {
   // so we never miss a kind if the DB adds one before the enum is repolled.
   const kinds = useMemo(() => {
     const set = new Set<string>(activityTypes.data ?? []);
-    (data ?? []).forEach((a) => set.add(a.type));
+    data.forEach((a) => set.add(a.type));
     return ['all', ...Array.from(set).sort()];
   }, [activityTypes.data, data]);
 
-  if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
+  if (q.error) return <div className="p-6 text-bad">Error: {String((q.error as Error).message)}</div>;
 
   const now = Date.now();
   const rangeStart = dateRange === 'today' ? now - (now % DAY)
@@ -79,70 +83,84 @@ export default function Logs() {
     : dateRange === 'month' ? now - 30 * DAY
     : null;
 
-  const rows = (data ?? []).filter((a) => {
-    if (kind !== 'all' && a.type !== kind) return false;
+  // People + date filter first — kind is a top-level tab and its count
+  // should reflect the currently narrowed slice, not the raw feed.
+  const scoped = data.filter((a) => {
     if (personId !== 'all') {
       if (personId === 'system' ? a.author_id !== null : a.author_id !== personId) return false;
     }
     if (rangeStart !== null && new Date(a.created_at).getTime() < rangeStart) return false;
     return true;
   });
+  const countByKind = new Map<string, number>();
+  scoped.forEach((a) => countByKind.set(a.type, (countByKind.get(a.type) || 0) + 1));
+  const rows = kind === 'all' ? scoped : scoped.filter((a) => a.type === kind);
 
   return (
     <div className="p-6 space-y-4">
       <div>
         <h1 className="text-lg font-bold text-text">System Logs</h1>
         <p className="text-[12.5px] text-text-3 mt-0.5">
-          {isLoading ? 'Loading…' : `${rows.length} entries`}
+          {q.isLoading
+            ? 'Loading…'
+            : `${rows.length} shown · ${data.length} loaded${q.hasNextPage ? ' (more available)' : ''}`}
         </p>
       </div>
 
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {kinds.map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            className={cn(
-              'h-8 px-3 rounded-lg text-[12px] font-semibold border',
-              kind === k ? 'bg-cg-900 text-white border-cg-900' : 'bg-surface text-text-2 border-border hover:bg-surface-2',
-            )}
-          >
-            {k}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <select
-          value={personId}
-          onChange={(e) => setPersonId(e.target.value)}
-          className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
-        >
-          <option value="all">Everyone</option>
-          <option value="system">System (automated)</option>
-          {(profiles.data ?? []).map((p) => (
-            <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-          ))}
-        </select>
-        <div className="flex gap-0.5 bg-surface-2 border border-border rounded-md p-0.5">
-          {DATE_RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setDateRange(r.key)}
-              className={cn(
-                'px-2.5 py-1 rounded text-[12px] font-semibold',
-                dateRange === r.key ? 'bg-surface text-text shadow-sh1' : 'text-text-3',
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
-        {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
-        {!isLoading && rows.length === 0 && (
+        {/* Kind tabs — same underline style as the Tasks page so both
+            log-like surfaces feel like siblings. Counts reflect the
+            currently-scoped set (after person + date filters). */}
+        <div className="flex items-center gap-0 px-5 border-b border-border overflow-x-auto sc">
+          {kinds.map((k) => {
+            const active = kind === k;
+            const count = k === 'all' ? scoped.length : (countByKind.get(k) || 0);
+            return (
+              <button
+                key={k}
+                onClick={() => setKind(k)}
+                className={cn(
+                  'text-[13px] font-bold py-3.5 mr-5 border-b-2 -mb-px transition-colors whitespace-nowrap capitalize',
+                  active ? 'text-text border-cg-900' : 'text-text-3 border-transparent hover:text-text-2',
+                )}
+              >
+                {k === 'all' ? 'All' : k} {count > 0 && <span className="tnum text-text-3 font-semibold">{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-wrap">
+          <select
+            value={personId}
+            onChange={(e) => setPersonId(e.target.value)}
+            className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
+          >
+            <option value="all">Everyone</option>
+            <option value="system">System (automated)</option>
+            {(profiles.data ?? []).map((p) => (
+              <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+            ))}
+          </select>
+          {DATE_RANGES.map((r) => {
+            const active = dateRange === r.key;
+            return (
+              <button
+                key={r.key}
+                onClick={() => setDateRange(r.key)}
+                className={cn(
+                  'h-8 px-3.5 rounded-lg text-[13px] font-semibold border transition-colors',
+                  active ? 'bg-cg-900 text-white border-cg-900' : 'bg-surface text-text-2 border-border hover:bg-surface-2',
+                )}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {q.isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
+        {!q.isLoading && rows.length === 0 && (
           <div className="p-8 text-center text-[12.5px] text-text-3">No entries.</div>
         )}
         {rows.map((a) => (
@@ -153,6 +171,16 @@ export default function Logs() {
             companyName={a.account_id ? accountNameById.get(a.account_id) : undefined}
           />
         ))}
+
+        {q.hasNextPage && (
+          <button
+            onClick={() => q.fetchNextPage()}
+            disabled={q.isFetchingNextPage}
+            className="w-full py-3 border-t border-border text-[12.5px] font-bold text-text-2 hover:bg-surface-2 disabled:opacity-50"
+          >
+            {q.isFetchingNextPage ? 'Loading older…' : 'Load older entries'}
+          </button>
+        )}
       </div>
     </div>
   );
