@@ -36,7 +36,9 @@ export default function ReportsShell() {
             <Download size={13} /> Export PDF
           </button>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap border-b border-border pb-3 no-print">
+        {/* Underline tab style — matches the Logs page so both analytics-y
+            surfaces feel like siblings instead of two different toolkits. */}
+        <div className="flex items-center gap-0 border-b border-border overflow-x-auto sc no-print">
           {TABS.map((t) => (
             <NavLink
               key={t.to}
@@ -44,10 +46,8 @@ export default function ReportsShell() {
               end={t.end}
               className={({ isActive }) =>
                 cn(
-                  'inline-flex items-center h-9 px-4 rounded-lg text-[12.5px] font-semibold border transition-colors',
-                  isActive
-                    ? 'bg-cg-900 text-white border-cg-900'
-                    : 'bg-surface text-text-2 border-border hover:bg-surface-2',
+                  'text-[13px] py-3.5 mr-5 border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  isActive ? 'font-black text-text border-cg-900' : 'font-semibold text-text-3 border-transparent hover:text-text-2',
                 )
               }
             >
