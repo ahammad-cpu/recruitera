@@ -77,3 +77,14 @@ button, input, select, textarea { font-family: inherit; }
   background-clip: content-box;
 }
 .sc::-webkit-scrollbar-track { background: transparent; }
+
+/* -------------------------------------------------------------------------
+ * a11y — keyboard focus. Every interactive element gets a visible ring on
+ * keyboard focus so tab navigation is legible. `:focus-visible` (not
+ * `:focus`) so click-focus on a button doesn't leave a lingering ring.
+ * ------------------------------------------------------------------------- */
+:where(button, [role="button"], [role="tab"], a, select, input, textarea, [contenteditable="true"], [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--surface)), 0 0 0 4px rgb(var(--accent-strong));
+  border-radius: 6px;
+}

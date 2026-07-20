@@ -98,6 +98,7 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
   const update = useUpdateActivity(accountId);
   const me = useMe();
   const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
   const [draft, setDraft] = useState(ev.body ?? '');
 
   const actor = ev.actor_id ? profiles.find((p) => p.id === ev.actor_id) : undefined;
@@ -139,9 +140,14 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
     setEditing(false);
   }
 
-  function confirmDelete() {
+  function requestDelete() {
     if (!activityId) return;
-    if (window.confirm('Delete this comment?')) del.mutate(activityId);
+    setConfirmDel(true);
+  }
+  function performDelete() {
+    if (!activityId) return;
+    del.mutate(activityId);
+    setConfirmDel(false);
   }
 
   return (
@@ -165,7 +171,7 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
                 className="text-[11.5px] font-bold text-text-3 hover:text-text"
               >Edit</button>
               <button
-                onClick={confirmDelete}
+                onClick={requestDelete}
                 disabled={del.isPending}
                 className="text-[11.5px] font-bold text-text-3 hover:text-bad disabled:opacity-50"
               >
@@ -206,6 +212,37 @@ function HistoryRow({ ev, profiles, accountId }: { ev: HistoryEvent; profiles: P
           <div className="text-[12px] text-text-3 mt-1">{ev.title}</div>
         ) : null}
       </div>
+
+      {confirmDel && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/50 flex items-center justify-center p-6"
+          onClick={() => setConfirmDel(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-comment-title"
+        >
+          <div
+            className="bg-surface rounded-2xl shadow-sh3 border border-border max-w-sm w-full p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div id="delete-comment-title" className="text-[15px] font-black text-text">Delete this comment?</div>
+            <div className="text-[12.5px] text-text-2 mt-1">
+              This can't be undone. The event log will show it as deleted by {actorName}.
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setConfirmDel(false)}
+                className="h-9 px-4 rounded-lg border border-border text-[12.5px] font-bold"
+              >Cancel</button>
+              <button
+                onClick={performDelete}
+                disabled={del.isPending}
+                className="h-9 px-4 rounded-lg bg-bad text-white text-[12.5px] font-black disabled:opacity-50"
+              >{del.isPending ? 'Deleting…' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </li>
   );
 }

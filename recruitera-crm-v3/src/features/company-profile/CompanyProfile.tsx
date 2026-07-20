@@ -77,7 +77,7 @@ export default function CompanyProfile() {
   const prev = currentIdx > 0 ? activeAccts[currentIdx - 1] : null;
   const next = currentIdx >= 0 && currentIdx < activeAccts.length - 1 ? activeAccts[currentIdx + 1] : null;
 
-  if (loadingAccts) return <div className="p-6"><div className="h-40 bg-surface-2 rounded-2xl animate-pulse" /></div>;
+  if (loadingAccts) return <ProfileSkeleton />;
   if (!lead) return <NotFound />;
 
   const name = lead.name || lead.domain || '—';
@@ -85,7 +85,7 @@ export default function CompanyProfile() {
   const customerSince = lead.created_at;
 
   return (
-    <div className="p-6 space-y-4 max-w-[1500px]">
+    <div className="p-6 space-y-4 max-w-[1500px]" role="region" aria-label={`Company profile: ${name}`} aria-live="polite">
       {/* BREADCRUMB + PAGINATION */}
       <div className="flex items-center gap-3 text-[12px] text-text-3">
         <Link to="/companies" className="hover:text-text-2 inline-flex items-center gap-1">
@@ -100,8 +100,9 @@ export default function CompanyProfile() {
             onClick={() => prev && navigate(`/companies/${prev.id}`)}
             className="h-8 w-8 flex items-center justify-center hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
             title={prev?.name || 'No previous'}
-          ><ChevronLeft size={14} /></button>
-          <div className="tnum text-[12px] font-bold px-3 border-x border-border">
+            aria-label={prev ? `Go to previous company: ${prev.name}` : 'No previous company'}
+          ><ChevronLeft size={14} aria-hidden="true" /></button>
+          <div className="tnum text-[12px] font-bold px-3 border-x border-border" aria-label={`Company ${currentIdx + 1} of ${activeAccts.length}`}>
             {currentIdx + 1} / {activeAccts.length}
           </div>
           <button
@@ -109,7 +110,8 @@ export default function CompanyProfile() {
             onClick={() => next && navigate(`/companies/${next.id}`)}
             className="h-8 w-8 flex items-center justify-center hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
             title={next?.name || 'No next'}
-          ><ChevronRight size={14} /></button>
+            aria-label={next ? `Go to next company: ${next.name}` : 'No next company'}
+          ><ChevronRight size={14} aria-hidden="true" /></button>
         </div>
       </div>
 
@@ -218,7 +220,8 @@ export default function CompanyProfile() {
                 onClick={() => detachTag.mutate(t.id)}
                 className="w-4 h-4 grid place-items-center rounded-full hover:bg-black/10"
                 title="Remove tag"
-              ><X size={10} /></button>
+                aria-label={`Remove tag ${t.label}`}
+              ><X size={10} aria-hidden="true" /></button>
             </span>
           ))}
 
@@ -264,7 +267,7 @@ export default function CompanyProfile() {
         {deleteOpen && <DeleteAccountModal account={lead} onClose={() => setDeleteOpen(false)} />}
 
         {/* STAT STRIP */}
-        <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           <Stat label="Deal value" value={lead.deal_value ? fmtEgp(toEgp(lead.deal_value, lead.deal_currency)) : '—'} hint={lead.deal_value ? '' : 'not set'} />
           <OwnerStat lead={lead} owner={owner} profiles={profiles.data ?? []} />
           <Stat
@@ -303,7 +306,7 @@ export default function CompanyProfile() {
 
       {/* OVERVIEW */}
       {tab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_380px] gap-4">
           <div className="space-y-4">
             <ContactPersonCard accountId={lead.id} contact={contacts?.[0]} loading={loadingContacts} />
             <HistoryTab accountId={lead.id} />
@@ -357,7 +360,7 @@ function Stat({ label, value, hint, truncate, valueClass }: { label: string; val
       <div className={cn('mt-1 text-[16px] font-extrabold tracking-tight', valueClass ?? 'text-text', truncate && 'truncate')} title={typeof value === 'string' ? value : undefined}>
         {value || '—'}
       </div>
-      {hint && <div className="text-[11px] text-text-3 mt-1">{hint}</div>}
+      {hint && <div className="text-[12px] text-text-3 mt-1">{hint}</div>}
     </div>
   );
 }
@@ -386,7 +389,7 @@ function OwnerStat({
           {label}
         </span>
       </button>
-      {owner?.email && <div className="text-[11px] text-text-3 mt-1 truncate">{owner.email}</div>}
+      {owner?.email && <div className="text-[12px] text-text-3 mt-1 truncate">{owner.email}</div>}
       {open && (
         <OwnerPickerPopover
           profiles={profiles}
@@ -425,7 +428,7 @@ function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]
         <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
         <div className="mt-1 flex items-center gap-2 flex-wrap">
           <StagePill stage={lead.stage} />
-          <span className="text-[11px] text-text-3 font-semibold">Use Reopen to move back</span>
+          <span className="text-[12px] text-text-3 font-semibold">Use Reopen to move back</span>
         </div>
       </div>
     );
@@ -438,11 +441,11 @@ function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]
         <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Stage</div>
         <div className="mt-1 flex items-center gap-2 flex-wrap">
           <StagePill stage={lead.stage} />
-          <span className="text-[11px] text-warn font-bold uppercase tracking-wider">Disqualified · {lead.loss_reason}</span>
+          <span className="text-[12px] text-warn font-bold uppercase tracking-wider">Disqualified · {lead.loss_reason}</span>
           <button
             onClick={() => requalify.mutate({ id: lead.id, stage: current })}
             disabled={requalify.isPending}
-            className="ml-1 inline-flex items-center h-6 px-2 rounded-md border border-ok/40 bg-ok-bg text-ok text-[11px] font-black hover:bg-ok/10 disabled:opacity-50"
+            className="ml-1 inline-flex items-center h-6 px-2 rounded-md border border-ok/40 bg-ok-bg text-ok text-[12px] font-black hover:bg-ok/10 disabled:opacity-50"
             title="Requalify — clear the disqualified flag so the stage can be changed again"
           >
             {requalify.isPending ? 'Requalifying…' : '↺ Requalify'}
@@ -486,7 +489,7 @@ function StageStat({ lead, stages, onChange }: { lead: Account; stages: string[]
         <select
           value={current}
           onChange={(e) => pick(e.target.value)}
-          className="h-7 pl-2 pr-6 border border-border rounded-md bg-surface text-[11px] font-bold outline-none"
+          className="h-7 pl-2 pr-6 border border-border rounded-md bg-surface text-[12px] font-bold outline-none"
           aria-label="Change stage"
           title="Forward moves apply immediately. Backward moves ask for confirmation."
         >
@@ -670,7 +673,7 @@ function NoteItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-extrabold text-text text-[14px]">{name}</span>
-          <span className={cn('inline-flex items-center h-[22px] px-2.5 rounded-full text-[11px] font-black uppercase tracking-wider', chip.cls)}>
+          <span className={cn('inline-flex items-center h-[22px] px-2.5 rounded-full text-[12px] font-black uppercase tracking-wider', chip.cls)}>
             {chip.label}
           </span>
           <span className="text-[12px] text-text-3">{fmtRelative(activity.created_at)}</span>
@@ -679,13 +682,13 @@ function NoteItem({
               {canEdit && (
                 <button
                   onClick={() => { setDraft(activity.text || ''); setEditing(true); }}
-                  className="text-[11px] font-bold text-text-3 hover:text-accent-ink px-1.5 py-0.5 rounded"
+                  className="text-[12px] font-bold text-text-3 hover:text-accent-ink px-1.5 py-0.5 rounded"
                 >Edit</button>
               )}
               {canDelete && (
                 <button
                   onClick={() => { if (confirm('Delete this note?')) del.mutate(activity.id); }}
-                  className="text-[11px] font-bold text-text-3 hover:text-bad px-1.5 py-0.5 rounded"
+                  className="text-[12px] font-bold text-text-3 hover:text-bad px-1.5 py-0.5 rounded"
                 >Delete</button>
               )}
             </div>
@@ -941,7 +944,7 @@ function TeamRow({
             title={roleTitle}
           >{role}</span>
         </div>
-        {email && <div className="text-[11px] text-text-3 truncate">{email}</div>}
+        {email && <div className="text-[12px] text-text-3 truncate">{email}</div>}
       </div>
     </div>
   );
@@ -1148,14 +1151,14 @@ function TaskRow({
           </div>
           <div className="flex items-center gap-2 flex-wrap mt-1.5">
             {task.task_due_date && (
-              <span className={cn('inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[11px] font-bold', dueClass)}>
+              <span className={cn('inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[12px] font-bold', dueClass)}>
                 <Clock size={10} /> {fmtDate(task.task_due_date)}
               </span>
             )}
             {assignee && (
               <span className="inline-flex items-center gap-1.5 h-[20px] pl-0.5 pr-2 rounded-full bg-surface border border-border">
                 <OwnerAvatar profile={assignee} size={18} />
-                <span className="text-[11px] font-bold text-text-2 truncate max-w-[120px]">{assignee.full_name || assignee.email}</span>
+                <span className="text-[12px] font-bold text-text-2 truncate max-w-[120px]">{assignee.full_name || assignee.email}</span>
               </span>
             )}
             <button
@@ -1176,7 +1179,7 @@ function TaskRow({
               <div key={r.id} className="flex items-start gap-2">
                 <OwnerAvatar profile={who} size={22} />
                 <div className="flex-1 min-w-0 bg-surface border border-border rounded-lg px-2.5 py-1.5">
-                  <div className="flex items-center gap-1.5 text-[11px] text-text-3">
+                  <div className="flex items-center gap-1.5 text-[12px] text-text-3">
                     <span className="font-bold text-text">{who?.full_name || who?.email || 'Someone'}</span>
                     <span>·</span>
                     <span>{fmtRelative(r.created_at)}</span>
@@ -1273,12 +1276,12 @@ function AttributionPanel({
                   {tracking.first_source || '(direct)'}
                 </div>
                 {tracking.first_medium && (
-                  <div className="text-[11px] text-text-3">
+                  <div className="text-[12px] text-text-3">
                     {tracking.first_medium}
                     {tracking.first_campaign ? ` · ${tracking.first_campaign}` : ''}
                   </div>
                 )}
-                {tracking.first_date && <div className="text-[11px] text-text-4 mt-1">{fmtDate(tracking.first_date)}</div>}
+                {tracking.first_date && <div className="text-[12px] text-text-4 mt-1">{fmtDate(tracking.first_date)}</div>}
               </div>
             )}
             {tracking.device_type && (
@@ -1377,10 +1380,49 @@ function Panel({ title, hint, icon, action, children }: { title: string; hint?: 
         {icon && <span className="text-text-3">{icon}</span>}
         <span className="text-[10px] font-black uppercase tracking-widest text-text-3">{title}</span>
         <div className="flex-1" />
-        {hint && <span className="text-[11px] text-text-3">{hint}</span>}
+        {hint && <span className="text-[12px] text-text-3">{hint}</span>}
         {action}
       </div>
       {children}
+    </div>
+  );
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="p-6 space-y-4 max-w-[1500px]" role="status" aria-live="polite" aria-label="Loading company profile">
+      <div className="h-4 w-64 bg-surface-2 rounded animate-pulse" />
+      <div className="bg-surface border border-border rounded-2xl p-6 shadow-sh1 space-y-5">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-surface-2 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-6 w-72 bg-surface-2 rounded animate-pulse" />
+            <div className="h-3 w-40 bg-surface-2 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-20 bg-surface-2/60 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_380px] gap-4">
+        <div className="h-96 bg-surface-2/60 rounded-2xl animate-pulse" />
+        <div className="space-y-4">
+          <div className="h-40 bg-surface-2/60 rounded-2xl animate-pulse" />
+          <div className="h-40 bg-surface-2/60 rounded-2xl animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+  return (
+    <div className="py-10 text-center border border-dashed border-border rounded-xl">
+      <div className="text-[13px] font-bold text-text">{title}</div>
+      {hint && <div className="text-[12px] text-text-3 mt-1">{hint}</div>}
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }
