@@ -25,8 +25,9 @@ describe('computeRenewalBucket', () => {
     expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(75) }, {}, NOW)).toBe('d90');
   });
 
-  it('drops out of the pipeline past 90 days', () => {
-    expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(120) }, {}, NOW)).toBeNull();
+  it('buckets active cycles > 90 days out into Healthy', () => {
+    expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(120) }, {}, NOW)).toBe('healthy');
+    expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(400) }, {}, NOW)).toBe('healthy');
   });
 
   it('sends a still-paying customer past its end date to overdue', () => {

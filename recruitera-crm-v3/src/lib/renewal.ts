@@ -1,14 +1,15 @@
 import type { Cycle } from '@/hooks/useContractCycles';
 
-export type RenewalBucket = 'd90' | 'd60' | 'd30' | 'overdue' | 'renewed' | 'churned';
+export type RenewalBucket = 'healthy' | 'd90' | 'd60' | 'd30' | 'overdue' | 'renewed' | 'churned';
 
 export const RENEWAL_COLUMNS: Array<{ key: RenewalBucket; label: string; dot: string; chip: string }> = [
-  { key: 'd90',     label: '90 days', dot: 'bg-ok',     chip: 'bg-ok-bg text-ok' },
-  { key: 'd60',     label: '60 days', dot: 'bg-info',   chip: 'bg-info-bg text-info' },
-  { key: 'd30',     label: '30 days', dot: 'bg-warn',   chip: 'bg-warn-bg text-warn' },
-  { key: 'overdue', label: 'Overdue', dot: 'bg-bad',    chip: 'bg-bad-bg text-bad' },
-  { key: 'renewed', label: 'Renewed', dot: 'bg-accent-strong', chip: 'bg-accent-soft text-accent-ink' },
-  { key: 'churned', label: 'Churned', dot: 'bg-text-4', chip: 'bg-surface-2 text-text-3' },
+  { key: 'healthy', label: 'Healthy',  dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
+  { key: 'd90',     label: '90 days',  dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
+  { key: 'd60',     label: '60 days',  dot: 'bg-info',          chip: 'bg-info-bg text-info' },
+  { key: 'd30',     label: '30 days',  dot: 'bg-warn',          chip: 'bg-warn-bg text-warn' },
+  { key: 'overdue', label: 'Overdue',  dot: 'bg-bad',           chip: 'bg-bad-bg text-bad' },
+  { key: 'renewed', label: 'Renewed',  dot: 'bg-accent-strong', chip: 'bg-accent-soft text-accent-ink' },
+  { key: 'churned', label: 'Churned',  dot: 'bg-text-4',        chip: 'bg-surface-2 text-text-3' },
 ];
 
 /**
@@ -41,5 +42,7 @@ export function computeRenewalBucket(
   if (days <= 30) return 'd30';
   if (days <= 60) return 'd60';
   if (days <= 90) return 'd90';
-  return null;
+  // Every active cycle > 90 days out belongs in the Healthy column so paid
+  // customers with a long runway are visible on the board, not invisible.
+  return 'healthy';
 }

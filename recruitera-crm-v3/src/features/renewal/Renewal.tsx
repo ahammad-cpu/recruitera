@@ -7,7 +7,8 @@ import {
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { useRenewalBoard, type RenewalRow } from '@/hooks/useRenewals';
-import { useUpdateCycleStatus } from '@/hooks/useCycleMutations';
+import { useRenewCycle } from '@/hooks/useCycleMutations';
+import { ChurnReasonModal } from './ChurnReasonModal';
 import { RENEWAL_COLUMNS, type RenewalBucket } from '@/lib/renewal';
 import { fmtInt, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -19,8 +20,11 @@ const SETTABLE_COLUMNS = new Set<RenewalBucket>(['renewed', 'churned']);
 
 export default function Renewal() {
   const { rowsByBucket, isLoading, error, refetch } = useRenewalBoard();
-  const updateStatus = useUpdateCycleStatus();
+  const renewCycle = useRenewCycle();
   const [activeRow, setActiveRow] = useState<RenewalRow | null>(null);
+  // When a card is dropped on Churned we open a reason modal instead of
+  // silently flipping status — Reports needs to differentiate the why.
+  const [pendingChurn, setPendingChurn] = useState<RenewalRow | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   function handleDragStart(e: DragStartEvent) {
@@ -44,7 +48,13 @@ export default function Renewal() {
       toast.info('That column is automatic — drag to Renewed or Churned to update status.');
       return;
     }
-    updateStatus.mutate({ id: cycleId, status: target as 'renewed' | 'churned' });
+    if (target === 'churned') {
+      setPendingChurn(row);
+      return;
+    }
+    // Renewed: close the old cycle AND spin up the next term so the customer
+    // instantly reappears in Healthy with a real end date.
+    renewCycle.mutate({ id: cycleId });
   }
 
   if (error) return <div className="p-6 text-bad">Error: {String((error as Error).message)}</div>;
@@ -88,6 +98,14 @@ export default function Renewal() {
           )}
         </DragOverlay>
       </DndContext>
+
+      {pendingChurn && (
+        <ChurnReasonModal
+          cycleId={pendingChurn.cycle.id}
+          accountName={pendingChurn.account.name || pendingChurn.account.domain || 'Untitled account'}
+          onClose={() => setPendingChurn(null)}
+        />
+      )}
     </div>
   );
 }

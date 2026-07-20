@@ -59,18 +59,95 @@ export function useSaveCycle(accountId: string | undefined) {
   });
 }
 
-/** Used by the Renewal board's drag-and-drop: Renewed/Churned are the only
- * two columns backed by a real, settable status — the day-count buckets
- * (90/60/30/Overdue) are always derived from ends_at, never draggable-into. */
-export function useUpdateCycleStatus() {
+/**
+ * Renewing a cycle from the board isn't just a status flip — the sales
+ * cycle has actually turned over. We close the old cycle (status='renewed')
+ * AND insert a fresh cycle for the next term so the customer immediately
+ * reappears in the Healthy column with a real end date. Term length
+ * mirrors the old term when known, else defaults to 365 days.
+ */
+export function useRenewCycle() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: 'renewed' | 'churned' }) => {
-      const { error } = await supabase.from('contract_cycles').update({ status }).eq('id', id);
+    mutationFn: async ({ id }: { id: string }) => {
+      const { data: old, error: readErr } = await supabase
+        .from('contract_cycles')
+        .select('id, account_id, cycle_number, plan_tier, value, currency, started_at, ends_at, payment_type, auto_renew')
+        .eq('id', id)
+        .single();
+      if (readErr) throw readErr;
+      if (!old?.account_id || !old?.ends_at) throw new Error('Cycle missing account or end date');
+
+      const oldStart = old.started_at ? Date.parse(old.started_at) : NaN;
+      const oldEnd = Date.parse(old.ends_at);
+      const termDays = !Number.isNaN(oldStart) && !Number.isNaN(oldEnd)
+        ? Math.max(30, Math.round((oldEnd - oldStart) / 86_400_000))
+        : 365;
+
+      const nextStart = old.ends_at;
+      const nextEndMs = oldEnd + termDays * 86_400_000;
+      const nextEnd = new Date(nextEndMs).toISOString().slice(0, 10);
+
+      const { error: updErr } = await supabase
+        .from('contract_cycles')
+        .update({ status: 'renewed' })
+        .eq('id', id);
+      if (updErr) throw updErr;
+
+      const { error: insErr } = await supabase.from('contract_cycles').insert({
+        account_id: old.account_id,
+        cycle_number: (old.cycle_number ?? 0) + 1,
+        plan_tier: old.plan_tier,
+        value: old.value,
+        currency: old.currency || 'EGP',
+        started_at: nextStart,
+        ends_at: nextEnd,
+        status: 'active',
+        auto_renew: old.auto_renew ?? false,
+        payment_type: old.payment_type ?? null,
+      });
+      if (insErr) throw insErr;
+    },
+    onSuccess: () => {
+      toast.success('Renewed — new cycle created');
+      qc.invalidateQueries({ queryKey: ['contract_cycles'] });
+    },
+    onError: (e) => toast.error(`Renewal failed: ${String((e as Error).message || e)}`),
+  });
+}
+
+export const CHURN_REASONS = [
+  { key: 'competitor',        label: 'Went to competitor' },
+  { key: 'feature_gap',       label: 'Missing features' },
+  { key: 'performance',       label: 'Performance / quality' },
+  { key: 'pricing',           label: 'Pricing too high' },
+  { key: 'no_longer_needed',  label: 'No longer needed' },
+  { key: 'budget_cut',        label: 'Budget cut' },
+  { key: 'poor_support',      label: 'Poor support experience' },
+  { key: 'product_bug',       label: 'Product bugs / instability' },
+  { key: 'other',             label: 'Other' },
+] as const;
+
+export type ChurnReason = typeof CHURN_REASONS[number]['key'];
+
+/** Mark a cycle as churned with a reason code + optional notes. */
+export function useMarkChurned() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason, notes }: { id: string; reason: ChurnReason; notes?: string | null }) => {
+      const { error } = await supabase
+        .from('contract_cycles')
+        .update({
+          status: 'churned',
+          churn_reason: reason,
+          churn_notes: notes || null,
+          churned_at: new Date().toISOString(),
+        })
+        .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: (_r, { status }) => {
-      toast.success(status === 'renewed' ? 'Marked as renewed' : 'Marked as churned');
+    onSuccess: () => {
+      toast.success('Marked as churned');
       qc.invalidateQueries({ queryKey: ['contract_cycles'] });
     },
     onError: (e) => toast.error(`Update failed: ${String((e as Error).message || e)}`),
