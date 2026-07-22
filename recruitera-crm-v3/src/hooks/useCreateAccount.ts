@@ -47,6 +47,7 @@ export function useCreateAccount() {
 
       const { data: session } = await supabase.auth.getSession();
       const userId = session.session?.user?.id ?? null;
+      const userEmail = session.session?.user?.email?.toLowerCase() ?? null;
 
       const raw_data: Record<string, unknown> = {
         created_via: 'crm-v3.add-company',
@@ -56,6 +57,13 @@ export function useCreateAccount() {
 
       const domain = deriveDomain(input.contact.email, input.domain);
 
+      // Default owner + am_mail to the creator when the form didn't set them.
+      // The DB-side round-robin trigger (assign_account_manager_trg) also
+      // skips crm-v3.* manual creates now, so together the "Sayed adds a
+      // company, Mariam gets it" round-robin surprise can't happen.
+      const effectiveOwnerId = input.owner_id || userId;
+      const effectiveAmMail  = input.am_mail  || userEmail;
+
       // INSERT account
       const { data: acct, error: accErr } = await supabase
         .from('accounts')
@@ -64,8 +72,8 @@ export function useCreateAccount() {
           domain,
           source: input.source || null,
           stage: (input.stage ?? 'lead') as 'lead' | 'mql' | 'sql' | 'demo' | 'proposal' | 'won' | 'paid' | 'lost',
-          am_mail: input.am_mail || null,
-          owner_id: input.owner_id || null,
+          am_mail: effectiveAmMail,
+          owner_id: effectiveOwnerId,
           cs_email: input.cs_email?.trim().toLowerCase() || null,
           industry: input.industry?.trim() || null,
           size: input.company_size || null,
