@@ -4,7 +4,7 @@ import {
   DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Clock, RotateCcw, AlertTriangle, GripVertical } from 'lucide-react';
+import { Briefcase, Trophy, FileText, Gauge, Download, Clock, RotateCcw, AlertTriangle, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -68,6 +68,23 @@ export default function Pipeline() {
   const [pendingLost, setPendingLost] = useState<Deal | null>(null);
   const [pendingProposal, setPendingProposal] = useState<Deal | null>(null);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+
+  // Which stage columns are collapsed to a narrow strip. Persisted in
+  // localStorage so a rep's board layout survives page refreshes.
+  const [collapsed, setCollapsed] = useState<Set<DealStage>>(() => {
+    try {
+      const raw = localStorage.getItem('pipeline.collapsed');
+      return raw ? new Set(JSON.parse(raw) as DealStage[]) : new Set();
+    } catch { return new Set(); }
+  });
+  const toggleCollapsed = (k: DealStage) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      try { localStorage.setItem('pipeline.collapsed', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const p: Record<string, string> = { ...filtersToParams(filters) };
@@ -215,10 +232,17 @@ export default function Pipeline() {
       <PipelineFilterBar value={filters} onChange={setFilters} profiles={profilesQ.data ?? []} />
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="overflow-x-auto sc pb-4 -mx-6 px-6">
+        <div className="overflow-x-auto sc pb-4 -mx-6 px-6" style={{ overflowY: 'hidden' }}>
           <div
-            className="flex gap-4"
-            style={{ minWidth: `${COLUMNS.reduce((s, c) => s + (c.slim ? 240 : 320) + 16, -16)}px` }}
+            className="flex"
+            style={{
+              gap: 16,
+              alignItems: 'stretch',
+              minWidth: `${COLUMNS.reduce((s, c) => {
+                const w = collapsed.has(c.key) ? 52 : (c.slim ? 240 : 288);
+                return s + w + 16;
+              }, -16)}px`,
+            }}
           >
             {COLUMNS.map((col) => (
               <Column
@@ -229,13 +253,15 @@ export default function Pipeline() {
                 isLoading={isLoading}
                 pctDenom={openPipeline}
                 onReopen={(id) => reopen.mutate({ id })}
+                isCollapsed={collapsed.has(col.key)}
+                onToggleCollapsed={() => toggleCollapsed(col.key)}
               />
             ))}
           </div>
         </div>
         <DragOverlay dropAnimation={null}>
           {activeDeal && (
-            <div className="w-[292px] rotate-2 shadow-sh3">
+            <div className="rotate-2" style={{ width: 264 }}>
               <Card
                 d={activeDeal}
                 owner={activeDeal.owner_id ? profilesById.get(activeDeal.owner_id) : undefined}
@@ -277,7 +303,7 @@ function KpiCard({
 }
 
 function Column({
-  col, rows, profilesById, isLoading, pctDenom, onReopen,
+  col, rows, profilesById, isLoading, pctDenom, onReopen, isCollapsed, onToggleCollapsed,
 }: {
   col: ColMeta;
   rows: Deal[];
@@ -287,6 +313,8 @@ function Column({
   // MQL/SQL/etc. read as "share of active work", not diluted by Lost.
   pctDenom: number;
   onReopen: (id: string) => void;
+  isCollapsed: boolean;
+  onToggleCollapsed: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   const total = useMemo(() => rows.reduce((s, d) => s + (d.amount || 0), 0), [rows]);
@@ -296,37 +324,129 @@ function Column({
   }, [rows, total]);
   const pct = pctDenom > 0 ? Math.round((total / pctDenom) * 100) : 0;
   const isOpenStage = col.key === 'mql' || col.key === 'sql' || col.key === 'demo' || col.key === 'proposal';
+
+  // Collapsed rail — narrow vertical strip with count + rotated label, click
+  // anywhere to expand. Still a drop target so reps can drag cards into a
+  // collapsed stage without expanding it first.
+  if (isCollapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        onClick={onToggleCollapsed}
+        title={`Expand ${col.label}`}
+        className={cn('flex-shrink-0 cursor-pointer transition-colors', isOver && 'ring-2 ring-accent')}
+        style={{
+          width: 52,
+          background: 'linear-gradient(rgb(247, 248, 249) 0%, rgba(247, 248, 249, 0) 95%)',
+          border: '1px solid rgb(230, 233, 225)',
+          borderRadius: 14,
+          padding: '14px 0 16px',
+          minHeight: 420,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <ChevronRight size={15} color="rgb(107, 122, 116)" />
+        <span
+          className="tnum"
+          style={{
+            fontSize: 12, fontWeight: 700,
+            color: 'rgb(91, 107, 95)', background: 'rgb(238, 241, 234)',
+            borderRadius: 6, minWidth: 24, height: 20,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px',
+          }}
+        >{isLoading ? '…' : fmtInt(rows.length)}</span>
+        <span
+          style={{
+            writingMode: 'vertical-rl',
+            transform: 'rotate(180deg)',
+            fontSize: 14, fontWeight: 600,
+            color: 'rgb(26, 43, 40)',
+            whiteSpace: 'nowrap',
+            marginTop: 4,
+          }}
+        >{col.label}</span>
+        <span className={cn('flex-shrink-0', col.dot)} style={{ width: 9, height: 9, borderRadius: 999 }} />
+      </div>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'flex-shrink-0 bg-surface rounded-2xl border-t-[3px] border border-border shadow-sh1 flex flex-col transition-colors',
-        col.slim ? 'w-[240px]' : 'w-[320px]',
-        col.bar,
+        'group/col flex-shrink-0 flex flex-col transition-colors',
+        col.slim ? 'w-[240px]' : 'w-[288px]',
         isOver && 'ring-2 ring-accent',
       )}
+      style={{
+        // Framed column shell — subtle border + gradient top-fade so each
+        // stage reads as its own container instead of a loose card stack.
+        background: 'linear-gradient(rgb(247, 248, 249) 0%, rgba(247, 248, 249, 0) 95%)',
+        border: '1px solid rgb(230, 233, 225)',
+        borderRadius: 14,
+        padding: '14px 12px 12px',
+        minHeight: 420,
+      }}
     >
-      <div className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-border/60">
-        <span className={cn('w-2 h-2 rounded-full flex-shrink-0', col.dot)} />
-        <span className="text-[11px] font-black tracking-widest uppercase text-text truncate">{col.label}</span>
-        <span className="tnum ml-auto text-[11px] font-bold text-text-3 bg-surface-2 border border-border px-2 py-0.5 rounded-full">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 4px 12px' }}>
+        <span
+          className={cn('flex-shrink-0', col.dot)}
+          style={{ width: 9, height: 9, borderRadius: 999, display: 'inline-block' }}
+        />
+        <span
+          className="truncate"
+          style={{ fontSize: 14, fontWeight: 600, color: 'rgb(26, 43, 40)' }}
+        >{col.label}</span>
+        <span
+          className="tnum"
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: 'rgb(91, 107, 95)',
+            background: 'rgb(238, 241, 234)',
+            borderRadius: 6,
+            height: 19,
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '0 8px',
+            marginLeft: 'auto',
+          }}
+        >
           {isLoading ? '…' : fmtInt(rows.length)}
         </span>
+        <button
+          onClick={onToggleCollapsed}
+          title={`Collapse ${col.label}`}
+          className="opacity-0 group-hover/col:opacity-100 focus:opacity-100 transition-opacity"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, borderRadius: 6,
+            color: 'rgb(107, 122, 116)', background: 'transparent', border: 'none', cursor: 'pointer',
+          }}
+        >
+          <ChevronLeft size={15} />
+        </button>
       </div>
 
       <ColumnBody rows={rows} profilesById={profilesById} isLoading={isLoading} isLost={col.key === 'lost'} slim={!!col.slim} onReopen={onReopen} />
 
-      <div className="px-4 py-3 border-t border-border bg-surface-2/60 rounded-b-2xl">
+      {/* Column footer — kept from the original layout (Total + Avg) but
+          restyled to sit lightly inside the gradient column rather than
+          the old bordered strip. Same data, muted chrome. */}
+      <div style={{ padding: '10px 6px 2px' }}>
         <div className="flex items-baseline justify-between">
-          <div className="text-[10px] font-black tracking-widest uppercase text-text-3">
-            Total {isOpenStage && pct > 0 && <span className="tnum text-text-3/70 font-bold">· {pct}%</span>}
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgb(138, 151, 143)' }}>
+            Total {isOpenStage && pct > 0 && <span className="tnum" style={{ fontWeight: 700, color: 'rgb(138, 151, 143)' }}>· {pct}%</span>}
           </div>
-          <div className="tnum text-[12.5px] font-black text-text">{total > 0 ? fmtEgpShort(total) : '0 EGP'}</div>
+          <div className="tnum" style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(26, 43, 40)' }}>{total > 0 ? fmtEgpShort(total) : '0 EGP'}</div>
         </div>
         {!col.slim && (
-          <div className="flex items-baseline justify-between mt-1">
-            <div className="text-[10px] font-black tracking-widest uppercase text-text-3">Avg</div>
-            <div className="tnum text-[12.5px] font-bold text-text-2">{avg > 0 ? fmtEgpShort(avg) : '0 EGP'}</div>
+          <div className="flex items-baseline justify-between" style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgb(138, 151, 143)' }}>Avg</div>
+            <div className="tnum" style={{ fontSize: 12.5, fontWeight: 600, color: 'rgb(91, 107, 95)' }}>{avg > 0 ? fmtEgpShort(avg) : '0 EGP'}</div>
           </div>
         )}
       </div>
@@ -360,7 +480,8 @@ function ColumnBody({
   return (
     <div
       onScroll={onScroll}
-      className="p-3 space-y-2.5 max-h-[calc(100vh-410px)] overflow-y-auto sc flex-1"
+      className="max-h-[calc(100vh-410px)] overflow-y-auto sc flex-1"
+      style={{ padding: '0 0 2px', minHeight: 0 }}
     >
       {isLoading && [...Array(2)].map((_, i) => (
         <div key={i} className="h-32 bg-surface-2 rounded-xl animate-pulse" />
@@ -405,17 +526,30 @@ function Card({
   const overdue = isOverdue(d);
   const name = d.company?.name || d.title || '—';
 
+  // Company initials for the reference-style avatar chip in the card top.
+  const initials = (name || '—')
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '—';
+
   return (
     <div
       ref={isOverlay ? undefined : setNodeRef}
       {...(isOverlay ? {} : attributes)}
       {...(isOverlay ? {} : listeners)}
-      className={cn(
-        'group relative bg-surface border border-border rounded-xl transition-shadow cursor-grab active:cursor-grabbing',
-        slim ? 'p-2.5' : 'p-3.5',
-        'hover:shadow-sh2 hover:border-border-2',
-        isOverlay && 'shadow-sh3 scale-[1.03]',
-      )}
+      className={cn('group relative cursor-grab active:cursor-grabbing', isOverlay && 'scale-[1.03]')}
+      style={{
+        background: 'rgb(255, 255, 255)',
+        border: '1px solid rgb(230, 233, 225)',
+        borderRadius: 12,
+        marginBottom: 12,
+        overflow: 'hidden',
+        transition: 'background 0.12s, border-color 0.12s',
+        boxShadow: isOverlay ? '0 8px 24px rgba(0,0,0,0.12)' : undefined,
+      }}
     >
       {/* Hover affordance so new reps discover cards are draggable.
           Hidden while dragging (the ghost handles that visual). */}
@@ -428,67 +562,125 @@ function Card({
       )}
       {/* While dragging, the source card becomes an empty dashed "ghost"
           slot (content hidden but space preserved) — the DragOverlay clone
-          is what actually follows the pointer. This avoids the old bug
-          where a CSS-translated card floated free of its column and
-          overlapped unrelated UI (KPI cards, other columns). */}
+          is what actually follows the pointer. */}
       {isDragging && !isOverlay && (
-        <div className="absolute inset-0 rounded-xl border-2 border-dashed border-border-2 bg-surface-2/40" />
+        <div
+          className="absolute inset-0"
+          style={{ border: '2px dashed rgb(230, 233, 225)', background: 'rgba(238, 241, 234, 0.4)', borderRadius: 12 }}
+        />
       )}
       <div className={cn(isDragging && !isOverlay && 'invisible')}>
-        <div className="flex items-start gap-2">
-          <Link
-            to={`/companies/${d.account_id}`}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="min-w-0 flex-1 block pr-4"
-          >
-            <div className={cn('font-black text-text truncate leading-tight', slim ? 'text-[13px]' : 'text-[15px]')}>{name}</div>
-            {!slim && d.company?.industry && (
-              <div className="text-[11.5px] text-text-3 truncate mt-0.5">{d.company.industry}</div>
-            )}
-          </Link>
+        {/* Card top — mirrors the reference: initials-avatar + name + a
+            metadata row of small pastel chips. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '13px 14px 11px' }}>
+          <span
+            className="tnum"
+            style={{
+              width: 24, height: 24, borderRadius: 999,
+              background: 'rgb(0, 36, 39)', color: 'rgb(255, 255, 255)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: 10, flex: '0 0 auto',
+            }}
+          >{initials}</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingRight: 16 }}>
+              <Link
+                to={`/companies/${d.account_id}`}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="truncate"
+                style={{ fontWeight: 600, fontSize: 14, color: 'rgb(26, 43, 40)' }}
+              >{name}</Link>
+              {overdue && (
+                <span
+                  className="tnum"
+                  style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.02em',
+                    color: 'rgb(196, 61, 61)',
+                    border: '1px solid rgb(240, 205, 205)',
+                    background: 'rgb(251, 237, 237)',
+                    borderRadius: 5, padding: '2px 6px', flex: '0 0 auto',
+                  }}
+                >Overdue</span>
+              )}
+              {!overdue && stale && (
+                <span
+                  className="tnum"
+                  style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.02em',
+                    color: 'rgb(163, 121, 27)',
+                    border: '1px solid rgb(238, 220, 178)',
+                    background: 'rgb(253, 246, 227)',
+                    borderRadius: 5, padding: '2px 6px', flex: '0 0 auto',
+                  }}
+                >Stale</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
+              {(d.amount ?? 0) > 0 && (
+                <span
+                  className="tnum"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                    color: 'rgb(91, 107, 95)', background: 'rgb(238, 241, 234)',
+                    borderRadius: 4, padding: '2px 6px',
+                  }}
+                >
+                  VALUE
+                  <span style={{ color: 'rgb(26, 43, 40)', fontSize: 10 }}>
+                    {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(d.amount!)} {d.currency || 'EGP'}
+                  </span>
+                </span>
+              )}
+              {d.deal_type && (
+                <span
+                  style={{
+                    display: 'inline-flex', alignItems: 'center',
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                    color: 'rgb(91, 107, 95)', background: 'rgb(238, 241, 234)',
+                    borderRadius: 4, padding: '2px 6px',
+                  }}
+                  title="Deal type"
+                >
+                  {DEAL_TYPES.find((t) => t.key === d.deal_type)?.label ?? d.deal_type}
+                </span>
+              )}
+              {d.company?.industry && !slim && (
+                <span style={{ fontSize: 12.5, color: 'rgb(138, 151, 143)' }} className="truncate">
+                  {d.company.industry}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Deal type + ACV (only when set) — helps reps eyeball the funnel.
-            Slim columns (Lost/Collected) hide these — cards there are for
-            recognition + reopen, not scanning. */}
-        {!slim && (d.deal_type || (d.amount ?? 0) > 0 || stale || overdue) && (
-          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            {d.deal_type && (
-              <span
-                className="inline-flex items-center h-[20px] px-2 rounded-full bg-surface-2 border border-border text-text-2 text-[10.5px] font-bold"
-                title="Deal type"
-              >
-                {DEAL_TYPES.find((t) => t.key === d.deal_type)?.label ?? d.deal_type}
-              </span>
-            )}
-            {(d.amount ?? 0) > 0 && (
-              <span className="tnum inline-flex items-center h-[20px] px-2 rounded-full bg-accent-soft text-accent-ink text-[10.5px] font-black">
-                {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(d.amount!)} {d.currency || 'EGP'}
-              </span>
-            )}
-            {overdue && (
-              <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-bad-bg text-bad text-[10.5px] font-black tracking-wider">
-                <AlertTriangle size={10} /> Overdue
-              </span>
-            )}
-            {stale && (
-              <span className="inline-flex items-center gap-1 h-[20px] px-2 rounded-full bg-warn-bg text-warn text-[10.5px] font-black tracking-wider">
-                <Clock size={10} /> Stale
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className={cn('flex items-center gap-2 min-w-0', slim ? 'mt-2' : 'mt-3 pt-2.5 border-t border-border/70')}>
-          <OwnerAvatar profile={owner} size={22} fallback={d.company?.am_mail ?? undefined} />
-          <span className="text-[11.5px] font-bold text-text-2 truncate flex-1">
+        {/* Card footer — owner + optional Reopen action, styled like the
+            reference "location" footer strip. */}
+        <div
+          style={{
+            borderTop: '1px solid rgb(241, 243, 236)',
+            padding: '9px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 12.5,
+            color: 'rgb(91, 107, 95)',
+          }}
+        >
+          <OwnerAvatar profile={owner} size={18} fallback={d.company?.am_mail ?? undefined} />
+          <span className="truncate" style={{ color: 'rgb(138, 151, 143)', flex: 1 }}>
             {owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'}
           </span>
           {isLost && (
             <button
               onClick={(e) => { e.stopPropagation(); onReopen(d.id); }}
               title="Reopen deal — sends it back to MQL"
-              className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-border bg-surface text-text-3 hover:text-accent-ink hover:border-accent-strong text-[10.5px] font-black"
+              className="inline-flex items-center gap-1"
+              style={{
+                height: 22, padding: '0 8px', borderRadius: 6,
+                border: '1px solid rgb(230, 233, 225)', background: 'rgb(255, 255, 255)',
+                color: 'rgb(91, 107, 95)', fontSize: 10.5, fontWeight: 700,
+              }}
             >
               <RotateCcw size={11} /> Reopen
             </button>
