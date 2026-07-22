@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Check } from 'lucide-react';
-import { LOSS_REASONS, type LossReason } from '@/hooks/useLoseAccount';
+import { LOSS_REASONS, LOSS_REASON_LABEL, type LossReason } from '@/hooks/useLoseAccount';
 import { useProfiles } from '@/hooks/useUsersData';
 import {
   ASSIGNMENT_MODES, REQUAL_STAGES, TASK_PRIORITIES, useUpsertRule,
@@ -10,15 +10,7 @@ import { cn } from '@/lib/cn';
 
 type Props = { rule: RequalificationRule | null; onClose: () => void };
 
-const REASON_LABEL: Record<LossReason, string> = {
-  no_budget: 'No budget',
-  competitor: 'Competitor',
-  wrong_timing: 'Wrong timing',
-  no_response: 'No response',
-  chose_alternative: 'Chose alternative',
-  postponed: 'Postponed',
-  other: 'Other',
-};
+const REASON_LABEL: Record<LossReason, string> = LOSS_REASON_LABEL;
 
 const STAGE_LABEL: Record<RequalStage, string> = {
   lead: 'Lead', mql: 'MQL', sql: 'SQL', demo: 'Demo', proposal: 'Proposal',

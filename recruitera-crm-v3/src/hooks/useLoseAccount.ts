@@ -19,11 +19,39 @@ export const DISQ_REASONS = [
 export type DisqReason = typeof DISQ_REASONS[number]['key'];
 
 // Reasons for the account-level "Lose" flow (LossModal), backed by the
-// `lose_account` RPC (Task 7).
+// `lose_account` RPC (Task 7). Order here is the order shown in the UI.
 export const LOSS_REASONS = [
-  'no_budget', 'competitor', 'wrong_timing', 'no_response', 'chose_alternative', 'postponed', 'other',
+  'price_budget',
+  'competitor',
+  'no_decision',
+  'not_priority',
+  'missing_feature',
+  'tech_limitation',
+  'existing_solution',
+  'decision_maker_rejected',
+  'poor_timing',
+  'unresponsive',
+  'hiring_freeze',
+  'contract_terms',
+  'other',
 ] as const;
 export type LossReason = typeof LOSS_REASONS[number];
+
+export const LOSS_REASON_LABEL: Record<LossReason, string> = {
+  price_budget:            'Price / Budget Constraints',
+  competitor:              'Chose a Competitor',
+  no_decision:             'No Decision / Project on Hold',
+  not_priority:            'Not a Priority',
+  missing_feature:         'Missing Required Feature',
+  tech_limitation:         'Integration or Technical Limitation',
+  existing_solution:       'Using an Existing Solution',
+  decision_maker_rejected: 'Decision-Maker Rejected',
+  poor_timing:             'Poor Timing',
+  unresponsive:            'Unresponsive / Lost Contact',
+  hiring_freeze:           'Hiring Freeze or Company Changes',
+  contract_terms:          'Contract or Payment Terms',
+  other:                   'Other',
+};
 
 /**
  * Thin wrapper over the `lose_account` RPC (Task 7). The RPC:

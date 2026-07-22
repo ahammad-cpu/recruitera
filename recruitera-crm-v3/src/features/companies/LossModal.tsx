@@ -1,29 +1,28 @@
 import { useEffect, useState } from 'react';
 import { XCircle, X } from 'lucide-react';
 import type { Account } from '@/hooks/useAccounts';
-import { LOSS_REASONS, useLoseAccount, type LossReason } from '@/hooks/useLoseAccount';
+import { LOSS_REASONS, LOSS_REASON_LABEL, useLoseAccount, type LossReason } from '@/hooks/useLoseAccount';
 import { cn } from '@/lib/cn';
 
 type Props = { account: Account; onClose: () => void };
 
-const REASON_LABEL: Record<LossReason, string> = {
-  no_budget:          'No budget',
-  competitor:         'Competitor',
-  wrong_timing:       'Wrong timing',
-  no_response:        'No response',
-  chose_alternative:  'Chose alternative',
-  postponed:          'Postponed',
-  other:              'Other',
-};
-
+// Small color-code per reason so the grid isn't a wall of grey. Grouped
+// roughly: money = warn, competitive/rejection = bad, timing/holds = info,
+// people/comms = neutral grey, other = subtle.
 const REASON_DOT: Record<LossReason, string> = {
-  no_budget:          'bg-warn',
-  competitor:         'bg-bad',
-  wrong_timing:       'bg-info',
-  no_response:        'bg-text-3',
-  chose_alternative:  'bg-warn',
-  postponed:          'bg-info',
-  other:              'bg-text-4',
+  price_budget:            'bg-warn',
+  competitor:              'bg-bad',
+  no_decision:             'bg-info',
+  not_priority:            'bg-info',
+  missing_feature:         'bg-bad',
+  tech_limitation:         'bg-bad',
+  existing_solution:       'bg-warn',
+  decision_maker_rejected: 'bg-bad',
+  poor_timing:             'bg-info',
+  unresponsive:            'bg-text-3',
+  hiring_freeze:           'bg-info',
+  contract_terms:          'bg-warn',
+  other:                   'bg-text-4',
 };
 
 /**
@@ -36,6 +35,10 @@ export function LossModal({ account, onClose }: Props) {
   const lose = useLoseAccount();
   const [reason, setReason] = useState<LossReason | ''>('');
   const [notes, setNotes] = useState('');
+  // Free-text competitor name — only shown + required when reason='competitor'.
+  // Prepended to `notes` on submit so the loss_notes column carries it without
+  // a new DB column. Reports can grep "Competitor: <name>" out of loss_notes.
+  const [competitorName, setCompetitorName] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,8 +54,19 @@ export function LossModal({ account, onClose }: Props) {
       setErr('When picking "Other", the note must be at least 5 characters.');
       return;
     }
+    if (reason === 'competitor' && competitorName.trim().length < 2) {
+      setErr('Enter the competitor name (at least 2 characters).');
+      return;
+    }
+    // Fold the competitor name into notes so the reports pipeline can pull
+    // "who we lost to" without a new column. Format is stable.
+    const trimmedNotes = notes.trim();
+    const combinedNotes =
+      reason === 'competitor'
+        ? `Competitor: ${competitorName.trim()}${trimmedNotes ? ` — ${trimmedNotes}` : ''}`
+        : (trimmedNotes || null);
     try {
-      await lose.mutateAsync({ accountId: account.id, reason, notes: notes.trim() || null });
+      await lose.mutateAsync({ accountId: account.id, reason, notes: combinedNotes || null });
       onClose();
     } catch (e) {
       setErr(String((e as Error).message || e));
@@ -106,12 +120,28 @@ export function LossModal({ account, onClose }: Props) {
                     )}
                   >
                     <span className={cn('w-2 h-2 rounded-full flex-shrink-0', REASON_DOT[r])} />
-                    <span className="truncate">{REASON_LABEL[r]}</span>
+                    <span className="truncate">{LOSS_REASON_LABEL[r]}</span>
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {reason === 'competitor' && (
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-text-3">
+                Which competitor? <span className="text-bad">*</span>
+              </span>
+              <input
+                autoFocus
+                type="text"
+                value={competitorName}
+                onChange={(e) => setCompetitorName(e.target.value)}
+                placeholder="e.g. Wuzzuf, LinkedIn, in-house tool…"
+                className="mt-1.5 w-full h-10 px-3 border-2 border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-bad"
+              />
+            </label>
+          )}
 
           <label className="block">
             <span className="text-[10px] font-black uppercase tracking-widest text-text-3">

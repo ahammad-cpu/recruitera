@@ -2,37 +2,35 @@ import { useEffect, useState } from 'react';
 import { XCircle, X } from 'lucide-react';
 import type { Deal } from '@/hooks/useDeals';
 import { useMarkDealLost } from '@/hooks/useDealMutations';
-import { DISQ_REASONS, type DisqReason } from '@/hooks/useLoseAccount';
+import { LOSS_REASONS, LOSS_REASON_LABEL, type LossReason } from '@/hooks/useLoseAccount';
 import { cn } from '@/lib/cn';
 
 type Props = { deal: Deal; onClose: () => void; onDone?: () => void };
 
-const REASON_DOT: Record<DisqReason, string> = {
-  not_icp:      'bg-info',
-  fake_lead:    'bg-bad',
-  duplicate:    'bg-text-3',
-  no_response:  'bg-text-3',
-  wrong_timing: 'bg-info',
-  competitor:   'bg-bad',
-  no_budget:    'bg-warn',
-  other:        'bg-text-4',
-};
-
-const REASON_LABEL_OVERRIDE: Partial<Record<DisqReason, string>> = {
-  not_icp:      'No need',
-  fake_lead:    'Wrong contact',
-  duplicate:    'Duplicate',
-  no_response:  'Unresponsive',
-  wrong_timing: 'Timing',
-  competitor:   'Competitor',
-  no_budget:    'Price',
-  other:        'No decision',
+// Same colour grouping as LossModal — money = warn, competitive/rejection =
+// bad, timing/holds = info, comms = neutral. Kept in sync so both surfaces
+// read as one system.
+const REASON_DOT: Record<LossReason, string> = {
+  price_budget:            'bg-warn',
+  competitor:              'bg-bad',
+  no_decision:             'bg-info',
+  not_priority:            'bg-info',
+  missing_feature:         'bg-bad',
+  tech_limitation:         'bg-bad',
+  existing_solution:       'bg-warn',
+  decision_maker_rejected: 'bg-bad',
+  poor_timing:             'bg-info',
+  unresponsive:            'bg-text-3',
+  hiring_freeze:           'bg-info',
+  contract_terms:          'bg-warn',
+  other:                   'bg-text-4',
 };
 
 export function LostDialog({ deal, onClose, onDone }: Props) {
   const mark = useMarkDealLost();
-  const [reason, setReason] = useState<DisqReason | ''>('');
+  const [reason, setReason] = useState<LossReason | ''>('');
   const [notes, setNotes] = useState('');
+  const [competitorName, setCompetitorName] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,8 +42,24 @@ export function LostDialog({ deal, onClose, onDone }: Props) {
   async function submit() {
     setErr(null);
     if (!reason) { setErr('Pick a reason'); return; }
+    if (reason === 'other' && notes.trim().length < 5) {
+      setErr('When picking "Other", the note must be at least 5 characters.');
+      return;
+    }
+    if (reason === 'competitor' && competitorName.trim().length < 2) {
+      setErr('Enter the competitor name (at least 2 characters).');
+      return;
+    }
+    // Same folding rule as LossModal — competitor name gets stitched into
+    // notes so downstream reports can grep "Competitor: X" without a new
+    // column.
+    const trimmedNotes = notes.trim();
+    const combinedNotes =
+      reason === 'competitor'
+        ? `Competitor: ${competitorName.trim()}${trimmedNotes ? ` — ${trimmedNotes}` : ''}`
+        : (trimmedNotes || undefined);
     try {
-      await mark.mutateAsync({ id: deal.id, reason, notes });
+      await mark.mutateAsync({ id: deal.id, reason, notes: combinedNotes ?? null });
       onDone?.();
       onClose();
     } catch (e) {
@@ -83,28 +97,43 @@ export function LostDialog({ deal, onClose, onDone }: Props) {
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-text-3 mb-2">Reason <span className="text-bad">*</span></div>
             <div className="grid grid-cols-2 gap-2.5">
-              {DISQ_REASONS.map((r) => {
-                const active = reason === r.key;
+              {LOSS_REASONS.map((r) => {
+                const active = reason === r;
                 return (
                   <button
-                    key={r.key}
+                    key={r}
                     type="button"
-                    onClick={() => setReason(r.key)}
+                    onClick={() => setReason(r)}
                     className={cn(
                       'flex items-center gap-2 h-11 px-3.5 rounded-xl border-2 text-left text-[13px] font-bold transition-colors',
                       active
                         ? 'border-bad bg-bad-bg/40 text-text'
                         : 'border-border bg-surface text-text-2 hover:border-border-2',
                     )}
-                    title={r.hint}
                   >
-                    <span className={cn('w-2 h-2 rounded-full flex-shrink-0', REASON_DOT[r.key])} />
-                    <span className="truncate">{REASON_LABEL_OVERRIDE[r.key] ?? r.label}</span>
+                    <span className={cn('w-2 h-2 rounded-full flex-shrink-0', REASON_DOT[r])} />
+                    <span className="truncate">{LOSS_REASON_LABEL[r]}</span>
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {reason === 'competitor' && (
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-text-3">
+                Which competitor? <span className="text-bad">*</span>
+              </span>
+              <input
+                autoFocus
+                type="text"
+                value={competitorName}
+                onChange={(e) => setCompetitorName(e.target.value)}
+                placeholder="e.g. Wuzzuf, LinkedIn, in-house tool…"
+                className="mt-1.5 w-full h-10 px-3 border-2 border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-bad"
+              />
+            </label>
+          )}
 
           <label className="block">
             <span className="text-[10px] font-black uppercase tracking-widest text-text-3">
@@ -114,7 +143,7 @@ export function LostDialog({ deal, onClose, onDone }: Props) {
               rows={4}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="What happened? Who did we lose to? Anything to learn."
+              placeholder="What happened? Anything to learn."
               className="mt-1.5 w-full p-3.5 border-2 border-border-2 rounded-xl bg-surface text-[13px] outline-none focus:border-bad resize-vertical"
             />
           </label>
