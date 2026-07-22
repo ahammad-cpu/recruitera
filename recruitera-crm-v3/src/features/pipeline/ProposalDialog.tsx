@@ -4,8 +4,18 @@ import type { Deal } from '@/hooks/useDeals';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/cn';
 
 type Props = { deal: Deal; onClose: () => void; onDone?: () => void };
+
+// Product tiers — kept lowercase in the DB so filters/reports stay simple.
+// If the pricing catalog expands, add here and the picker updates.
+const TIERS = [
+  { key: 'basic',      label: 'Basic',      hint: 'Starter plan' },
+  { key: 'pro',        label: 'Pro',        hint: 'Team plan' },
+  { key: 'enterprise', label: 'Enterprise', hint: 'Custom / large org' },
+] as const;
+type Tier = typeof TIERS[number]['key'];
 
 /**
  * Moving a deal to PROPOSAL is the moment the deal value becomes real.
@@ -18,6 +28,7 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
   const [amount, setAmount] = useState<string>(String(deal.amount ?? ''));
   const [close, setClose] = useState<string>(deal.expected_close_date ?? '');
   const [currency, setCurrency] = useState<string>(deal.currency || 'EGP');
+  const [tier, setTier] = useState<Tier | ''>((deal.plan_tier as Tier) || '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -32,6 +43,7 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
     const n = Number(amount);
     if (!Number.isFinite(n) || n <= 0) { setErr('Deal value must be greater than 0'); return; }
     if (!close) { setErr('Expected close date is required'); return; }
+    if (!tier) { setErr('Pick a plan tier'); return; }
     try {
       setSaving(true);
       const { error } = await supabase.from('deals').update({
@@ -39,6 +51,7 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
         amount: n,
         currency,
         expected_close_date: close,
+        plan_tier: tier,
         last_activity_at: new Date().toISOString(),
       }).eq('id', deal.id);
       if (error) throw error;
@@ -101,6 +114,29 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
               />
             </div>
           </label>
+
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Plan tier <span className="text-bad">*</span></span>
+            <div className="mt-1.5 grid grid-cols-3 gap-2">
+              {TIERS.map((t) => {
+                const active = tier === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTier(t.key)}
+                    title={t.hint}
+                    className={cn(
+                      'h-11 rounded-lg border-2 text-[13px] font-black transition-colors',
+                      active
+                        ? 'border-warn bg-warn-bg/40 text-text'
+                        : 'border-border bg-surface text-text-2 hover:border-border-2',
+                    )}
+                  >{t.label}</button>
+                );
+              })}
+            </div>
+          </div>
 
           <label className="block">
             <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Expected close date <span className="text-bad">*</span></span>

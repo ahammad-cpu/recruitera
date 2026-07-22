@@ -43,6 +43,7 @@ export type Deal = {
   temperature: 'hot' | 'warm' | 'cold' | null;
   source: string | null;
   expected_close_date: string | null;
+  plan_tier: string | null;
   closed_at: string | null;
   disqualified_reason: string | null;
   disqualified_notes: string | null;
@@ -75,7 +76,7 @@ export type Deal = {
 };
 
 const DEAL_SELECT =
-  'id,account_id,title,stage,deal_type,amount,currency,owner_id,temperature,source,expected_close_date,closed_at,' +
+  'id,account_id,title,stage,deal_type,amount,currency,owner_id,temperature,source,expected_close_date,plan_tier,closed_at,' +
   'disqualified_reason,disqualified_notes,disqualified_by,reopened_at,reopened_by,board_position,is_archived,' +
   'last_activity_at,version,created_at,created_by,updated_at,' +
   'bant_budget,bant_authority,bant_need,bant_timing,' +

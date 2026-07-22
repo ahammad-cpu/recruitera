@@ -17,6 +17,11 @@ import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
 import { LossModal } from '@/features/companies/LossModal';
 import { DisqualifyModal } from '@/features/companies/DisqualifyModal';
 import { DeleteAccountModal } from '@/features/companies/DeleteAccountModal';
+import { ProposalDialog } from '@/features/pipeline/ProposalDialog';
+import { WonDialog } from '@/features/pipeline/WonDialog';
+import type { Deal } from '@/hooks/useDeals';
+import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMe } from '@/hooks/useMe';
 import { useTags, useAccountTags, useAttachTag, useDetachTag, useCreateTag } from '@/hooks/useTags';
 import { useProfiles } from '@/hooks/useUsersData';
@@ -64,6 +69,9 @@ export default function CompanyProfile() {
   const [tagOpen, setTagOpen] = useState(false);
   const [disqOpen, setDisqOpen] = useState(false);
   const [loseOpen, setLoseOpen] = useState(false);
+  const [pendingProposal, setPendingProposal] = useState<Deal | null>(null);
+  const [pendingWon, setPendingWon] = useState<Deal | null>(null);
+  const qc = useQueryClient();
   const [reopenOpen, setReopenOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -265,6 +273,12 @@ export default function CompanyProfile() {
           />
         )}
         {deleteOpen && <DeleteAccountModal account={lead} onClose={() => setDeleteOpen(false)} />}
+        {pendingProposal && (
+          <ProposalDialog deal={pendingProposal} onClose={() => setPendingProposal(null)} />
+        )}
+        {pendingWon && (
+          <WonDialog deal={pendingWon} onClose={() => setPendingWon(null)} />
+        )}
 
         {/* STAT STRIP */}
         <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -280,7 +294,31 @@ export default function CompanyProfile() {
           <StageStat
             lead={lead}
             stages={stagesEnum.data ?? []}
-            onChange={(stage) => changeStage.mutate({ id: lead.id, stage })}
+            onChange={async (stage) => {
+              // proposal / won / lost need extra data (value, tier, close,
+              // loss reason). Route each to its dialog instead of silently
+              // flipping the stage. The mirror trigger will have created
+              // the matching deals row by the time the dialog fetches.
+              if (stage === 'lost') { setLoseOpen(true); return; }
+              if (stage === 'proposal' || stage === 'won') {
+                await changeStage.mutateAsync({ id: lead.id, stage });
+                const { data: freshDeal } = await supabase
+                  .from('deals')
+                  .select('*, company:accounts!deals_account_id_fkey(id,name,domain,industry,am_mail)')
+                  .eq('account_id', lead.id)
+                  .eq('is_archived', false)
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (freshDeal) {
+                  qc.invalidateQueries({ queryKey: ['deals'] });
+                  if (stage === 'proposal') setPendingProposal(freshDeal as Deal);
+                  else setPendingWon(freshDeal as Deal);
+                }
+                return;
+              }
+              changeStage.mutate({ id: lead.id, stage });
+            }}
           />
         </div>
       </div>
