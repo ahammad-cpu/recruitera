@@ -36,6 +36,13 @@ export function useMoveDeal() {
       if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
       toast.error(`Move failed: ${String((err as Error).message || err)}`);
     },
+    // Same deals-cache poke as useChangeStage: the DB mirror trigger writes
+    // to `deals`, so the Pipeline board (which reads deals) needs a refetch
+    // for the drop to stick visually across refreshes.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+    },
   });
 }
 

@@ -128,6 +128,14 @@ export function useChangeStage() {
       if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
       toast.error(`Stage change failed: ${String(err)}`);
     },
-    onSuccess: (_d, v) => toast.success(`Stage → ${v.stage.toUpperCase()}`),
+    onSuccess: (_d, v) => {
+      toast.success(`Stage → ${v.stage.toUpperCase()}`);
+      // The DB-side trg_mirror_account_stage_to_deal upserts a matching
+      // `deals` row on every accounts.stage change, so we must poke the
+      // deals cache too — otherwise the Sales Pipeline board still shows
+      // the old placement until the user refreshes.
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+    },
   });
 }
