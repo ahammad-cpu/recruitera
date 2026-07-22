@@ -48,7 +48,7 @@ export default function LeadGenerationReport() {
       const ch = attribution.channelByAccountId.get(a.id) ?? '(unknown)';
       const cur = stats.get(ch) ?? { leads: 0, disq: 0, revenue: 0 };
       cur.leads += 1;
-      if (a.lost_at) cur.disq += 1;
+      if (a.lost_at && (a.stage || '').toLowerCase() !== 'lost') cur.disq += 1;
       cur.revenue += dealAmountByAccount.get(a.id) ?? toEgp(a.deal_value ?? 0, a.deal_currency);
       stats.set(ch, cur);
     });
@@ -57,10 +57,16 @@ export default function LeadGenerationReport() {
       .sort((a, b) => b.leads - a.leads);
   }, [rows, attribution.channelByAccountId, dealAmountByAccount]);
 
+  // "Why leads dropped off" is the DISQUALIFIED-only breakdown — a
+  // disqualify keeps the account at Lead/MQL (only loss_reason is set),
+  // while a real Loss flips stage to 'lost'. Filtering on stage !== 'lost'
+  // scopes this chart to disqualifications only, so LOSS reasons like
+  // price_budget don't leak in.
   const reasonBreakdown = useMemo(() => {
     const m = new Map<string, number>();
     rows.forEach((a) => {
       if (!a.lost_at) return;
+      if ((a.stage || '').toLowerCase() === 'lost') return;
       const key = a.loss_reason || '(no reason)';
       m.set(key, (m.get(key) ?? 0) + 1);
     });
@@ -89,7 +95,8 @@ export default function LeadGenerationReport() {
   }, [rows, dealAmountByAccount]);
 
   const totalLeads = rows.length;
-  const totalDisq = rows.filter((a) => a.lost_at).length;
+  // Disqualified = lost_at set AND stage still at Lead/MQL (not a real Loss).
+  const totalDisq = rows.filter((a) => a.lost_at && (a.stage || '').toLowerCase() !== 'lost').length;
   const totalDropOff = totalLeads > 0 ? (totalDisq / totalLeads) * 100 : 0;
   const totalRevenue = channelStats.reduce((s, c) => s + c.revenue, 0);
 
