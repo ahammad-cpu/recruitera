@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, Phone, Mail, MessageCircle, ArrowLeftRight, DollarSign, Building2, AlertTriangle } from 'lucide-react';
+import { Download, Phone, Mail, MessageCircle, ArrowLeftRight, DollarSign, Building2, AlertTriangle, X, Pencil } from 'lucide-react';
 import { useAccounts, type Account } from '@/hooks/useAccounts';
 import { useProfiles, type Profile } from '@/hooks/useUsersData';
 import { useDeals, isOpen, isStale } from '@/hooks/useDeals';
-import { useTargets } from '@/hooks/useTargets';
+import { useTargets, useSaveTarget, periodEndOf, periodStartDefault, type PeriodKind, type Target } from '@/hooks/useTargets';
 import { useRecentActivities } from '@/hooks/useRecentActivities';
 import { useCommsActivity } from '@/hooks/useCommsActivity';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
-import { fmtInt, fmtEgp, fmtDate } from '@/lib/format';
+import { fmtInt, fmtEgp, fmtDate, toEgp } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 type TabKey = 'team' | 'activities' | 'targets' | 'leaderboard' | 'gaps';
@@ -42,7 +42,6 @@ export default function AMPerformance() {
   const accountsQ = useAccounts();
   const profilesQ = useProfiles();
   const dealsQ = useDeals();
-  const targetsQ = useTargets();
   const activitiesQ = useRecentActivities(150);
   const commsQ = useCommsActivity();
   const [tab, setTab] = useState<TabKey>('team');
@@ -194,7 +193,13 @@ export default function AMPerformance() {
       )}
       {tab === 'leaderboard' && <Leaderboard rows={filteredRows} />}
       {tab === 'activities' && <ActivitiesFeed data={activitiesQ.data} isLoading={activitiesQ.isLoading} profiles={profiles} accounts={accounts} />}
-      {tab === 'targets' && <TargetsTab targets={targetsQ.data} profiles={profiles} isLoading={targetsQ.isLoading} />}
+      {tab === 'targets' && (
+        <TargetsTab
+          profiles={profiles}
+          accounts={accounts}
+          ownerIdByAccount={ownerIdByAccount}
+        />
+      )}
       {tab === 'gaps' && <GapsTab deals={gapDeals} isLoading={dealsQ.isLoading} />}
     </div>
   );
@@ -381,40 +386,371 @@ function ActivitiesFeed({
   );
 }
 
+type TargetRow = {
+  profile: Profile;
+  target: Target | undefined;
+  targetVal: number;
+  actualVal: number;
+  pct: number;
+  hasTarget: boolean;
+};
+
+function statusFromPct(hasTarget: boolean, pct: number) {
+  if (!hasTarget) return { label: 'No target', tone: 'neutral' as const };
+  if (pct >= 100) return { label: 'Achieved', tone: 'ok' as const };
+  if (pct >= 70) return { label: 'On track', tone: 'info' as const };
+  if (pct >= 40) return { label: 'At risk', tone: 'warn' as const };
+  return { label: 'Behind', tone: 'bad' as const };
+}
+
+const TONE_TEXT: Record<'ok' | 'info' | 'warn' | 'bad' | 'neutral', string> = {
+  ok: 'text-ok',
+  info: 'text-accent-ink',
+  warn: 'text-warn',
+  bad: 'text-bad',
+  neutral: 'text-text-4',
+};
+const TONE_BAR: Record<'ok' | 'info' | 'warn' | 'bad' | 'neutral', string> = {
+  ok: 'bg-ok',
+  info: 'bg-accent',
+  warn: 'bg-warn',
+  bad: 'bg-bad',
+  neutral: 'bg-surface-2',
+};
+
 function TargetsTab({
-  targets, profiles, isLoading,
+  profiles, accounts, ownerIdByAccount,
 }: {
-  targets: ReturnType<typeof useTargets>['data'];
   profiles: Profile[];
-  isLoading: boolean;
+  accounts: Account[];
+  ownerIdByAccount: Map<string, string | null>;
 }) {
-  const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
-  const rows = targets ?? [];
+  const [periodKind, setPeriodKind] = useState<PeriodKind>('month');
+  const [periodStart, setPeriodStart] = useState<string>(() => periodStartDefault('month'));
+  const targetsQ = useTargets({ periodKind, periodStart });
+  const saveTarget = useSaveTarget();
+  const [modal, setModal] = useState<{ ownerId: string | null; amount: number; existingId: string | null; bulk: boolean } | null>(null);
+
+  const periodEnd = useMemo(() => periodEndOf(periodKind, periodStart), [periodKind, periodStart]);
+
+  function onPeriodKind(k: PeriodKind) {
+    setPeriodKind(k);
+    setPeriodStart(periodStartDefault(k));
+  }
+
+  const targetsByOwner = useMemo(() => {
+    const m = new Map<string, Target>();
+    for (const t of targetsQ.data ?? []) if (t.owner_id) m.set(t.owner_id, t);
+    return m;
+  }, [targetsQ.data]);
+
+  const rows: TargetRow[] = useMemo(() => {
+    const startT = Date.parse(periodStart);
+    const endT = Date.parse(periodEnd) + 86_400_000;
+    return profiles.map((p) => {
+      const owned = accounts.filter((a) => ownerIdByAccount.get(a.id) === p.id);
+      const paid = owned.filter((a) => (a.stage || '').toLowerCase() === 'paid');
+      const inPeriod = paid.filter((a) => {
+        const iso = a.first_won_at || a.last_won_at || a.bubble_created_at || a.created_at;
+        if (!iso) return false;
+        const t = Date.parse(iso);
+        return !isNaN(t) && t >= startT && t <= endT;
+      });
+      const pool = inPeriod.length ? inPeriod : paid;
+      const actualVal = pool.reduce((s, a) => s + toEgp(a.deal_value, a.deal_currency), 0);
+      const target = targetsByOwner.get(p.id);
+      const targetVal = target ? target.amount_egp : 0;
+      const pct = targetVal > 0 ? Math.min(999, Math.round((actualVal / targetVal) * 100)) : 0;
+      return { profile: p, target, targetVal, actualVal, pct, hasTarget: !!target };
+    });
+  }, [profiles, accounts, ownerIdByAccount, targetsByOwner, periodStart, periodEnd]);
+
+  const teamTarget = rows.reduce((s, r) => s + r.targetVal, 0);
+  const teamActual = rows.reduce((s, r) => s + r.actualVal, 0);
+  const teamPct = teamTarget > 0 ? Math.round((teamActual / teamTarget) * 100) : 0;
+  const teamStatus = teamPct >= 100 ? 'Achieved' : teamPct >= 70 ? 'On track' : teamPct >= 40 ? 'At risk' : 'Behind';
+  const teamTone = teamPct >= 100 ? 'ok' : teamPct >= 70 ? 'info' : teamPct >= 40 ? 'warn' : 'bad';
+  const withTargets = rows.filter((r) => r.hasTarget).length;
+
+  const isLoading = targetsQ.isLoading;
+
+  async function submitModal(amount: number) {
+    if (!modal) return;
+    if (modal.bulk) {
+      const jobs = rows.map((r) =>
+        saveTarget.mutateAsync({
+          owner_kind: 'profile',
+          owner_id: r.profile.id,
+          period_kind: periodKind,
+          period_start: periodStart,
+          period_end: periodEnd,
+          amount_egp: amount,
+          existingId: r.target?.id ?? null,
+        }),
+      );
+      await Promise.allSettled(jobs);
+    } else {
+      await saveTarget.mutateAsync({
+        owner_kind: 'profile',
+        owner_id: modal.ownerId,
+        period_kind: periodKind,
+        period_start: periodStart,
+        period_end: periodEnd,
+        amount_egp: amount,
+        existingId: modal.existingId,
+      });
+    }
+    setModal(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Period bar */}
+      <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-surface border border-border rounded-xl shadow-sh1">
+        <span className="text-[11px] font-black uppercase tracking-widest text-text-3">Period</span>
+        <div className="inline-flex bg-surface-2 border border-border rounded-lg p-[3px]">
+          {(['month', 'quarter', 'year'] as PeriodKind[]).map((k) => (
+            <button
+              key={k}
+              onClick={() => onPeriodKind(k)}
+              className={cn(
+                'h-[30px] px-3.5 rounded-md text-[12px] transition-colors',
+                periodKind === k ? 'bg-cg-900 text-white font-black' : 'text-text-2 font-semibold hover:text-text',
+              )}
+            >
+              {k === 'month' ? 'Monthly' : k === 'quarter' ? 'Quarterly' : 'Yearly'}
+            </button>
+          ))}
+        </div>
+        <input
+          type="date"
+          value={periodStart}
+          onChange={(e) => setPeriodStart(e.target.value)}
+          className="h-[34px] px-2.5 border border-border rounded-lg bg-surface text-[13px] font-semibold text-text outline-none focus:border-accent-strong"
+        />
+        <div className="flex-1" />
+        <button
+          onClick={() => setModal({ ownerId: null, amount: 0, existingId: null, bulk: true })}
+          className="h-9 px-3.5 rounded-lg bg-surface border border-border-2 text-[13px] font-bold text-text-2 hover:bg-surface-2"
+        >
+          Bulk set
+        </button>
+      </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        <TargetKpi label="Team total target" value={fmtEgp(teamTarget)} sub={`${withTargets} of ${rows.length} AMs have targets`} topColor="bg-accent" />
+        <TargetKpi label="Team total actual" value={fmtEgp(teamActual)} sub="From accounts closed in period" topColor="bg-accent-ink" />
+        <TargetKpi
+          label="Team achievement"
+          value={teamTarget > 0 ? `${teamPct}%` : '—'}
+          sub={teamTarget > 0 ? teamStatus : 'no target'}
+          topColor={TONE_BAR[teamTone]}
+          bar={teamTarget > 0 ? Math.min(100, teamPct) : undefined}
+          barColor={TONE_BAR[teamTone]}
+        />
+      </div>
+
+      {/* Table */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
+        <div className="overflow-x-auto sc">
+          <div style={{ minWidth: 1000 }}>
+            <div className="grid grid-cols-[2fr_130px_130px_80px_1.4fr_130px_140px] gap-3 px-4 py-2.5 bg-surface-2 text-[10.5px] font-black uppercase tracking-wider text-text-3 border-b border-border">
+              <div>Account manager</div>
+              <div>Target</div>
+              <div>Actual</div>
+              <div>%</div>
+              <div>Progress</div>
+              <div>Status</div>
+              <div>Action</div>
+            </div>
+            {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
+            {!isLoading && rows.length === 0 && (
+              <div className="p-8 text-center text-[12.5px] text-text-3">No account managers found.</div>
+            )}
+            {!isLoading && rows.map((r) => {
+              const status = statusFromPct(r.hasTarget, r.pct);
+              const barTone = r.hasTarget ? (r.pct >= 100 ? 'ok' : r.pct >= 70 ? 'info' : r.pct >= 40 ? 'warn' : 'bad') : 'neutral';
+              return (
+                <div
+                  key={r.profile.id}
+                  className="grid grid-cols-[2fr_130px_130px_80px_1.4fr_130px_140px] gap-3 px-4 py-3 border-b border-border items-center hover:bg-surface-2/60"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <OwnerAvatar profile={r.profile} size={30} />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-black text-text truncate">{r.profile.full_name || r.profile.email}</div>
+                      <div className="text-[11px] text-text-3 font-semibold truncate">{r.profile.email || ''}</div>
+                    </div>
+                  </div>
+                  <div className="tnum text-[13px] font-bold text-text">{r.hasTarget ? fmtEgp(r.targetVal) : '—'}</div>
+                  <div className="tnum text-[13px] font-bold text-text">{fmtEgp(r.actualVal)}</div>
+                  <div className={cn('tnum text-[13px] font-black', TONE_TEXT[barTone])}>{r.hasTarget ? `${r.pct}%` : '—'}</div>
+                  <div className="h-2 rounded-full bg-surface-2 overflow-hidden border border-border">
+                    <div className={cn('h-full', TONE_BAR[barTone])} style={{ width: `${r.hasTarget ? Math.min(100, r.pct) : 0}%` }} />
+                  </div>
+                  <div>
+                    <span className={cn('inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-bold bg-surface-2 border border-border', TONE_TEXT[status.tone])}>
+                      {status.label}
+                    </span>
+                  </div>
+                  <div>
+                    {r.hasTarget ? (
+                      <button
+                        onClick={() => setModal({ ownerId: r.profile.id, amount: r.targetVal, existingId: r.target?.id ?? null, bulk: false })}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-surface border border-border-2 text-text-2 text-[12px] font-bold hover:bg-surface-2"
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setModal({ ownerId: r.profile.id, amount: 0, existingId: null, bulk: false })}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-accent border border-accent-strong text-cg-900 text-[12px] font-black hover:bg-accent-strong"
+                      >
+                        + Set target
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {modal && (
+        <TargetModal
+          ownerName={
+            modal.bulk
+              ? 'All AMs'
+              : (profiles.find((p) => p.id === modal.ownerId)?.full_name || profiles.find((p) => p.id === modal.ownerId)?.email || '—')
+          }
+          bulk={modal.bulk}
+          initial={modal.amount}
+          periodKind={periodKind}
+          periodStart={periodStart}
+          periodEnd={periodEnd}
+          saving={saveTarget.isPending}
+          onClose={() => setModal(null)}
+          onSave={submitModal}
+        />
+      )}
+    </div>
+  );
+}
+
+function TargetKpi({
+  label, value, sub, topColor, bar, barColor,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  topColor: string;
+  bar?: number;
+  barColor?: string;
+}) {
   return (
     <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1">
-      <div className="grid grid-cols-[1fr_120px_120px_140px_120px] px-4 py-2.5 bg-surface-2 text-[11px] font-black uppercase tracking-wider text-text-3">
-        <div>Owner</div>
-        <div className="text-right">Category</div>
-        <div className="text-right">Period</div>
-        <div className="text-right">Amount</div>
-        <div className="text-right">Range</div>
-      </div>
-      {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
-      {!isLoading && rows.length === 0 && (
-        <div className="p-8 text-center text-[12.5px] text-text-3">No targets set yet.</div>
-      )}
-      {rows.map((t) => {
-        const owner = t.owner_id ? profileById.get(t.owner_id) : undefined;
-        return (
-          <div key={t.id} className="grid grid-cols-[1fr_120px_120px_140px_120px] px-4 py-2.5 border-t border-border text-[13px]">
-            <div className="font-semibold text-text truncate">{t.owner_kind === 'team' ? 'Whole team' : (owner?.full_name || owner?.email || '—')}</div>
-            <div className="text-right text-text-2 capitalize">{t.category}</div>
-            <div className="text-right text-text-2 capitalize">{t.period_kind}</div>
-            <div className="text-right tnum font-bold">{fmtEgp(t.amount_egp)}</div>
-            <div className="text-right text-text-3 text-[11.5px]">{fmtDate(t.period_start)} → {fmtDate(t.period_end)}</div>
+      <div className={cn('h-[3px]', topColor)} />
+      <div className="p-4">
+        <div className="text-[10.5px] font-black uppercase tracking-widest text-text-3">{label}</div>
+        <div className="tnum text-[26px] font-black tracking-tight text-text leading-none mt-1.5">{value}</div>
+        <div className="text-[11.5px] text-text-3 font-semibold mt-1">{sub}</div>
+        {bar != null && (
+          <div className="mt-2.5 h-1.5 rounded-full bg-surface-2 overflow-hidden">
+            <div className={cn('h-full rounded-full', barColor || 'bg-accent')} style={{ width: `${Math.min(100, bar)}%` }} />
           </div>
-        );
-      })}
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TargetModal({
+  ownerName, bulk, initial, periodKind, periodStart, periodEnd, saving, onClose, onSave,
+}: {
+  ownerName: string;
+  bulk: boolean;
+  initial: number;
+  periodKind: PeriodKind;
+  periodStart: string;
+  periodEnd: string;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (amount: number) => void | Promise<void>;
+}) {
+  const [amount, setAmount] = useState<string>(initial ? String(initial) : '');
+  useEffect(() => { setAmount(initial ? String(initial) : ''); }, [initial]);
+  const n = Number(amount.replace(/[^\d.]/g, ''));
+  const valid = isFinite(n) && n >= 0;
+  const periodLabel = periodKind === 'month' ? 'Monthly' : periodKind === 'quarter' ? 'Quarterly' : 'Yearly';
+
+  return (
+    <div
+      className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 overflow-y-auto"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-md overflow-hidden flex flex-col my-8 border border-border">
+        <header className="flex items-start gap-3 px-5 py-4 bg-gradient-to-r from-accent-soft via-accent-soft/50 to-surface border-b border-border relative">
+          <div className="w-11 h-11 rounded-xl bg-accent text-cg-900 grid place-items-center flex-shrink-0 shadow-sh2">
+            <DollarSign size={18} strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-black tracking-[0.18em] uppercase text-accent-ink">
+              {bulk ? 'Bulk set targets' : 'Set target'}
+            </div>
+            <div className="text-[18px] font-black tracking-tight text-text mt-0.5 truncate">{ownerName}</div>
+            <div className="text-[11.5px] text-text-2 mt-0.5">
+              {periodLabel} · {fmtDate(periodStart)} → {fmtDate(periodEnd)}
+            </div>
+          </div>
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-md text-text-3 hover:bg-surface-2" aria-label="Close">
+            <X size={15} />
+          </button>
+        </header>
+
+        <div className="p-5 space-y-4">
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Target (EGP) <span className="text-bad">*</span></span>
+            <div className="mt-1.5 flex items-stretch border-2 border-border-2 rounded-lg overflow-hidden focus-within:border-accent-strong bg-surface">
+              <span className="px-3 flex items-center bg-surface-2 border-r-2 border-border-2 text-[12px] font-black text-text-2">EGP</span>
+              <input
+                autoFocus
+                type="number"
+                min={0}
+                step={1000}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && valid) onSave(n); }}
+                placeholder="0"
+                className="tnum flex-1 px-3 py-2.5 text-[15px] font-black text-text outline-none bg-transparent"
+              />
+            </div>
+          </label>
+          {bulk && (
+            <p className="text-[11.5px] text-text-3">
+              This will set the same target for every AM on the roster for the selected period. Existing targets are updated in place.
+            </p>
+          )}
+        </div>
+
+        <footer className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-surface-2/40">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="h-9 px-3.5 rounded-lg bg-surface border border-border-2 text-[13px] font-bold text-text-2 hover:bg-surface-2 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(n)}
+            disabled={!valid || saving}
+            className="h-9 px-4 rounded-lg bg-accent border border-accent-strong text-cg-900 text-[13px] font-black hover:bg-accent-strong disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : bulk ? 'Apply to all' : 'Save target'}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
