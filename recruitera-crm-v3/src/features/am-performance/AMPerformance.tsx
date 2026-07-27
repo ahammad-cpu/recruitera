@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, Phone, Mail, MessageCircle, ArrowLeftRight, DollarSign, Building2, AlertTriangle } from 'lucide-react';
+import { Download, Phone, Mail, MessageCircle, ArrowLeftRight, DollarSign, Building2, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAccounts, type Account } from '@/hooks/useAccounts';
 import { useProfiles, useRoles, type Profile, type Role } from '@/hooks/useUsersData';
 import { useDeals, isOpen, isStale, type Deal } from '@/hooks/useDeals';
@@ -353,6 +353,31 @@ function isProfileTarget(t: Target): boolean {
   return (t.owner_kind === 'profile' || t.owner_kind === 'user') && !!t.owner_id;
 }
 
+// Human label for the currently selected period — "Jul 2026", "Q3 2026",
+// or just "2026" — so a rep glancing at the tab can tell what window
+// they're looking at without decoding the date input.
+function periodLabel(kind: PeriodKind, asOf: Date): string {
+  const y = asOf.getFullYear();
+  const m = asOf.getMonth();
+  if (kind === 'yearly') return String(y);
+  if (kind === 'quarterly') return `Q${Math.floor(m / 3) + 1} ${y}`;
+  return asOf.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+// Step the as-of date one period backwards or forwards. Anchor to the
+// FIRST day of the resulting period so subsequent bounds/label lookups
+// are stable regardless of how the user picked the initial date.
+function stepPeriod(kind: PeriodKind, asOf: Date, direction: -1 | 1): Date {
+  const y = asOf.getFullYear();
+  const m = asOf.getMonth();
+  if (kind === 'yearly')   return new Date(y + direction, 0, 1);
+  if (kind === 'quarterly') {
+    const qStart = Math.floor(m / 3) * 3;
+    return new Date(y, qStart + direction * 3, 1);
+  }
+  return new Date(y, m + direction, 1);
+}
+
 function periodBounds(kind: PeriodKind, asOf: Date): { start: string; end: string } {
   const y = asOf.getFullYear();
   const m = asOf.getMonth();
@@ -485,12 +510,35 @@ function TargetsTab({
             );
           })}
         </div>
+        {/* Prev / label / next stepper — one click walks to Q1, Q2, next
+            month, next year, etc. The date input is still there for
+            jumping to an arbitrary point in time. */}
+        <div className="inline-flex items-center h-9 border border-border rounded-lg bg-surface overflow-hidden">
+          <button
+            onClick={() => setAsOfISO(periodBounds(periodKind, stepPeriod(periodKind, asOfDate, -1)).start)}
+            className="h-full w-8 grid place-items-center text-text-3 hover:bg-surface-2"
+            title="Previous period"
+          ><ChevronLeft size={15} /></button>
+          <span className="px-3 text-[13px] font-black text-text tnum whitespace-nowrap border-x border-border">
+            {periodLabel(periodKind, asOfDate)}
+          </span>
+          <button
+            onClick={() => setAsOfISO(periodBounds(periodKind, stepPeriod(periodKind, asOfDate, 1)).start)}
+            className="h-full w-8 grid place-items-center text-text-3 hover:bg-surface-2"
+            title="Next period"
+          ><ChevronRight size={15} /></button>
+        </div>
         <input
           type="date"
           value={asOfISO}
           onChange={(e) => setAsOfISO(e.target.value)}
           className="h-9 px-2.5 border border-border rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
         />
+        <button
+          onClick={() => setAsOfISO(new Date().toISOString().slice(0, 10))}
+          className="h-9 px-3 rounded-lg border border-border bg-surface text-[12.5px] font-bold text-text-2 hover:bg-surface-2"
+          title="Jump to the current period"
+        >Today</button>
         <div className="flex-1" />
         <button
           onClick={() => setBulkOpen(true)}
