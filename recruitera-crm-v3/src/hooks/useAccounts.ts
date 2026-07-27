@@ -23,6 +23,7 @@ export type Account = {
   lost_from_stage: string | null;
   first_won_at: string | null;
   last_won_at: string | null;
+  paid_since: string | null;
   reopened_at: string | null;
   reopen_count: number;
   cs_email: string | null;
@@ -54,7 +55,7 @@ export function useAccounts() {
             'id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,' +
             'deal_value,deal_currency,owner_id,customer_success_id,' +
             'loss_reason,loss_notes,lost_by,lost_at,lost_from_stage,' +
-            'first_won_at,last_won_at,reopened_at,reopen_count,' +
+            'first_won_at,last_won_at,paid_since,reopened_at,reopen_count,' +
             'cs_email,collection_team_id,company_ref,campaign,merged_into,funnel_score,board_position,' +
             'created_at,bubble_created_at,health_score,health_status,health_factors'
           )

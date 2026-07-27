@@ -211,7 +211,8 @@ export default function AMPerformance() {
           targets={targetsQ.data}
           profiles={profiles}
           deals={dealsQ.data ?? []}
-          isLoading={targetsQ.isLoading || dealsQ.isLoading}
+          accounts={accounts}
+          isLoading={targetsQ.isLoading || dealsQ.isLoading || accountsQ.isLoading}
         />
       )}
       {tab === 'gaps' && <GapsTab deals={gapDeals} isLoading={dealsQ.isLoading} />}
@@ -404,11 +405,12 @@ function statusFromPct(pct: number, hasTarget: boolean): { label: string; cls: s
 }
 
 function TargetsTab({
-  targets, profiles, deals, isLoading,
+  targets, profiles, deals, accounts, isLoading,
 }: {
   targets: Target[] | undefined;
   profiles: Profile[];
   deals: Deal[];
+  accounts: Account[];
   isLoading: boolean;
 }) {
   const [periodKind, setPeriodKind] = useState<PeriodKind>('monthly');
@@ -449,15 +451,26 @@ function TargetsTab({
     return m;
   }, [targets, periodKind, start, end]);
 
+  // account_id → paid_since ISO date. Used to attribute collected deals to
+  // the exact period in which the account transitioned to Paid — deal
+  // rows have closed_at NULL and last_activity_at bumps on every touch,
+  // so falling back to those inflates the current period with old wins.
+  const paidSinceByAccount = useMemo(() => {
+    const m = new Map<string, string>();
+    accounts.forEach((a) => { if (a.paid_since) m.set(a.id, a.paid_since.slice(0, 10)); });
+    return m;
+  }, [accounts]);
+
   const actualByOwner = useMemo(() => {
     const m = new Map<string, number>();
-    // Achievement counts revenue that HIT COLLECTION, not just Won. A Won
-    // deal that never gets paid shouldn't inflate an AM's target hit-rate.
+    // Achievement counts revenue that HIT COLLECTION inside the selected
+    // window. A Won deal that never gets paid shouldn't inflate hit-rate.
     const wins = deals.filter((d) => {
       if (!d.owner_id) return false;
       if (d.stage !== 'collected') return false;
-      const iso = (d.closed_at ?? d.last_activity_at ?? '').slice(0, 10);
-      return iso >= start && iso <= end;
+      const paidISO = paidSinceByAccount.get(d.account_id);
+      if (!paidISO) return false; // no attribution timestamp → skip, don't guess
+      return paidISO >= start && paidISO <= end;
     });
     wins.forEach((d) => {
       const v = d.amount ?? 0;
