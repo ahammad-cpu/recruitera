@@ -59,11 +59,14 @@ export function Sidebar() {
 
   const isAdmin = (me.data?.role || '') === 'admin';
 
+  // Users is an admin-only page (roles + module toggles + team members).
+  // Non-admins shouldn't even see the tab; the /users route itself already
+  // enforces this — hiding the entry keeps the nav clean.
   const OPERATIONS: NavItem[] = [
     { to: '/am-performance', icon: BarChart3, label: 'AM Performance' },
     { to: '/reports', icon: FileText, label: 'Reports' },
     { to: '/logs', icon: ScrollText, label: 'Logs' },
-    { to: '/users', icon: Users, label: 'Users' },
+    ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Users' } as NavItem] : []),
     { to: '/utm', icon: LinkIcon, label: 'UTM Generator' },
     ...(isAdmin ? [{ to: '/settings/requalification', icon: RotateCcw, label: 'Requalification' } as NavItem] : []),
   ];

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2 } from 'lucide-react';
 import { useProfiles, useRoles, useTeams, type Role, type Profile } from '@/hooks/useUsersData';
 import { useToggleRoleModule, useCreateRole, MODULE_CATALOG, MODULE_SECTIONS } from '@/hooks/useRoleMutations';
 import { useUpdateProfileFields } from '@/hooks/useProfileMutations';
 import { useInviteUser } from '@/hooks/useInviteUser';
+import { useMe } from '@/hooks/useMe';
 import { initials } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -15,6 +17,13 @@ export default function Users() {
   const profiles = useProfiles();
   const roles = useRoles();
   const teams = useTeams();
+  const me = useMe();
+
+  // Admin-only page. The sidebar already hides the entry for non-admins;
+  // this gate covers the direct-URL case (someone bookmarks /users or
+  // pastes the link) so RLS isn't the only defence.
+  if (me.isLoading) return null;
+  if ((me.data?.role || '') !== 'admin') return <Navigate to="/" replace />;
 
   return (
     <div className="p-6 space-y-4">
