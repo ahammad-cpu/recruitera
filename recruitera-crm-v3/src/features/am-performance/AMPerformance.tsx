@@ -383,7 +383,10 @@ function isProfileTarget(t: Target): boolean {
 function periodBounds(kind: PeriodKind, asOf: Date): { start: string; end: string } {
   const y = asOf.getFullYear();
   const m = asOf.getMonth();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  // Format in LOCAL time — toISOString() converts to UTC and shifts Jan 1
+  // in Egypt (UTC+2/+3) back to Dec 31, breaking overlap math + display.
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   if (kind === 'yearly') {
     return { start: iso(new Date(y, 0, 1)), end: iso(new Date(y, 11, 31)) };
   }
@@ -450,9 +453,11 @@ function TargetsTab({
 
   const actualByOwner = useMemo(() => {
     const m = new Map<string, number>();
+    // Achievement counts revenue that HIT COLLECTION, not just Won. A Won
+    // deal that never gets paid shouldn't inflate an AM's target hit-rate.
     const wins = deals.filter((d) => {
       if (!d.owner_id) return false;
-      if (d.stage !== 'won' && d.stage !== 'collected') return false;
+      if (d.stage !== 'collected') return false;
       const iso = (d.closed_at ?? d.last_activity_at ?? '').slice(0, 10);
       return iso >= start && iso <= end;
     });
@@ -531,7 +536,7 @@ function TargetsTab({
         <TargetHero
           label="Team total actual"
           value={fmtEgp(teamActual)}
-          sub="From accounts closed in period"
+          sub="From accounts collected in period"
           bar="bg-info"
         />
         <TargetHero
@@ -657,14 +662,17 @@ function SetTargetModal({
     if (!Number.isFinite(n) || n < 0) { setErr('Enter a valid amount'); return; }
     try {
       await save.mutateAsync({
-        owner_kind: 'profile',
+        // When editing an existing row, pass its id so the mutation UPDATEs
+        // instead of inserting a duplicate.
+        id: existing?.id,
+        owner_kind: existing?.owner_kind ?? 'profile',
         owner_id: profile.id,
-        category: 'new_sales',
-        period_kind: UI_TO_DB_PERIOD[periodKind],
-        period_start: periodStart,
-        period_end: periodEnd,
+        category: existing?.category ?? 'new_sales',
+        period_kind: existing?.period_kind ?? UI_TO_DB_PERIOD[periodKind],
+        period_start: existing?.period_start ?? periodStart,
+        period_end: existing?.period_end ?? periodEnd,
         amount_egp: n,
-        notes: null,
+        notes: existing?.notes ?? null,
       });
       onClose();
     } catch (e) {

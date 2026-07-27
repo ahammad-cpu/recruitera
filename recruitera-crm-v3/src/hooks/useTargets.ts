@@ -26,15 +26,31 @@ export function useTargets() {
   });
 }
 
+// Upsert semantics — when an id is passed, UPDATE that row instead of
+// inserting. Editing an AM's target for a period should replace the
+// existing row, not duplicate it, otherwise the sum-over-overlap logic
+// in AM Performance double-counts.
 export function useSaveTarget() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (t: Omit<Target, 'id' | 'created_at'>) => {
+    mutationFn: async (t: Omit<Target, 'created_at'> & { id?: string }) => {
       const { data: session } = await supabase.auth.getSession();
-      const { error } = await supabase.from('targets').insert({ ...t, set_by: session.session?.user?.id ?? null });
-      if (error) throw error;
+      const set_by = session.session?.user?.id ?? null;
+      if (t.id) {
+        const { id, ...patch } = t;
+        const { error } = await supabase.from('targets').update({ ...patch, set_by }).eq('id', id);
+        if (error) throw error;
+      } else {
+        const { id: _drop, ...insertPayload } = t;
+        void _drop;
+        const { error } = await supabase.from('targets').insert({ ...insertPayload, set_by });
+        if (error) throw error;
+      }
     },
-    onSuccess: () => { toast.success('Target saved'); qc.invalidateQueries({ queryKey: ['targets'] }); },
-    onError: (e) => toast.error(`Save failed: ${String(e)}`),
+    onSuccess: (_r, v) => {
+      toast.success(v.id ? 'Target updated' : 'Target saved');
+      qc.invalidateQueries({ queryKey: ['targets'] });
+    },
+    onError: (e) => toast.error(`Save failed: ${String((e as Error).message || e)}`),
   });
 }
