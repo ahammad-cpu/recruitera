@@ -32,11 +32,14 @@ type TabKey = 'all' | 'leads' | 'pipeline' | 'collected' | 'trial' | 'expired' |
 //   - legacy rows fall back to loss_reason
 const DISQ_REASONS = new Set(['fake_lead', 'not_icp', 'duplicate', 'spam']);
 function makeTabTests(planByAcct: Map<string, string>) {
+  // Only a GENUINE paying customer is exempt from being disqualified — on a
+  // contract plan, or actually Paid / Without-Charge. A trial flag or a
+  // "Free Trial" paid_status is NOT enough: almost every Meta lead carries
+  // those, so counting them as "real prospects" let disqualified trial
+  // leads (loss_reason set, Requalify button showing) leak into every tab.
   const everWasARealProspect = (a: Account): boolean => {
-    if (a.has_trial) return true;
-    if (a.paid_status && a.paid_status.trim() !== '') return true;
-    if (a.activation_status && a.activation_status.trim() !== '') return true;
     if (planByAcct.has(a.id)) return true; // has a contract cycle with a plan
+    if (a.paid_status === 'Paid' || a.paid_status === 'Without Charge') return true;
     return false;
   };
   const isDisqualified = (a: Account): boolean => {
