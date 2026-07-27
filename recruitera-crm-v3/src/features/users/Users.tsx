@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2 } from 'lucide-react';
+import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useImpersonation } from '@/lib/impersonation';
+import { useRealMe } from '@/hooks/useMe';
 import { useProfiles, useRoles, useTeams, type Role, type Profile } from '@/hooks/useUsersData';
 import { useToggleRoleModule, useCreateRole, MODULE_CATALOG, MODULE_SECTIONS } from '@/hooks/useRoleMutations';
 import { useUpdateProfileFields } from '@/hooks/useProfileMutations';
@@ -78,6 +81,9 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
   const { data: roles } = useRoles();
   const { data: teams } = useTeams();
   const updateFields = useUpdateProfileFields();
+  const { startImpersonation } = useImpersonation();
+  const realMe = useRealMe();
+  const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const roleName = (id: string | null) => roles?.find((r) => r.id === id)?.name ?? '—';
@@ -182,7 +188,18 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
                   {data?.filter((x) => x.id !== p.id).map((x) => <option key={x.id} value={x.id}>{x.full_name || x.email}</option>)}
                 </select>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end items-center gap-1">
+                  {/* View-as: admins only, never yourself. Swaps the app's
+                      effective identity so you see this user's nav + gating. */}
+                  {realMe.data?.id !== p.id && (
+                    <button
+                      onClick={() => { startImpersonation(p.id); navigate('/'); }}
+                      title={`View the app as ${p.full_name || p.email}`}
+                      className="w-8 h-8 grid place-items-center rounded-md text-text-3 hover:text-accent-ink hover:bg-surface-2"
+                    >
+                      <Eye size={15} />
+                    </button>
+                  )}
                   {reports.length > 0 ? (
                     <button
                       onClick={() => toggleExpand(p.id)}
