@@ -64,7 +64,9 @@ function makeTabTests(planByAcct: Map<string, string>) {
 function buildTabs(planByAcct: Map<string, string>): Array<{ key: TabKey; label: string; test: (a: Account) => boolean }> {
   const { isDisqualified, isRealLoss } = makeTabTests(planByAcct);
   return [
-    { key: 'all', label: 'All', test: () => true },
+    // "All" = every qualified company. Disqualified leads have their own
+    // tab and are excluded here so the default view isn't polluted by junk.
+    { key: 'all', label: 'All', test: (a) => !isDisqualified(a) },
     { key: 'leads', label: 'Leads', test: (a) => (a.stage || '').toLowerCase() === 'lead' && !isDisqualified(a) },
     { key: 'pipeline', label: 'Pipeline', test: (a) => ['mql', 'sql', 'demo', 'proposal'].includes((a.stage || '').toLowerCase()) && !isDisqualified(a) },
     { key: 'collected', label: 'Collected', test: (a) => (a.stage || '').toLowerCase() === 'paid' },
