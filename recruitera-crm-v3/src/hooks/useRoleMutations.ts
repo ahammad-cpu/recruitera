@@ -64,8 +64,19 @@ export function useToggleRoleModule() {
   return useMutation({
     mutationFn: async ({ role, key }: { role: Role; key: string }) => {
       const next = { ...(role.module_access || {}), [key]: !role.module_access?.[key] };
-      const { error } = await supabase.from('roles').update({ module_access: next }).eq('id', role.id);
+      // .select() so PostgREST returns the updated row. If RLS filters it
+      // (or the row-id doesn't match), we get [] and throw instead of
+      // silently "succeeding" — that silent 0-row case is what made the
+      // toggle bounce back on cache invalidation.
+      const { data, error } = await supabase
+        .from('roles')
+        .update({ module_access: next })
+        .eq('id', role.id)
+        .select('id, module_access');
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Update returned no rows — likely blocked by RLS. Are you signed in as an Admin?');
+      }
       return next;
     },
     onMutate: async ({ role, key }) => {
