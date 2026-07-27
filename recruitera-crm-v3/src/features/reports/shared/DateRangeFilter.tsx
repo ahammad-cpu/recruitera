@@ -7,6 +7,7 @@ const OPTIONS: { key: DateRangeKey; label: string }[] = [
   { key: '90d', label: '90d' },
   { key: 'qtd', label: 'QTD' },
   { key: 'ytd', label: 'YTD' },
+  { key: 'all', label: 'All time' },
   { key: 'custom', label: 'Custom' },
 ];
 
