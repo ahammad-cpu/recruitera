@@ -50,6 +50,7 @@ export const MODULE_CATALOG: ModuleEntry[] = [
 
   // Scope flags — not a page, an override on the AM-owns-what rule
   { key: 'all_accounts', label: 'See all accounts', section: 'scope', hint: 'Bypass owner scoping and view every company. Grants read-only visibility outside the AM’s own book.' },
+  { key: 'list_only',    label: 'List only — no profile', section: 'scope', hint: 'Restrict this role to the Companies list view. Clicking a row does nothing and /companies/:id redirects away — useful for read-only marketing / reporting roles.' },
 ];
 
 export const MODULE_SECTIONS: { key: ModuleSection; label: string }[] = [

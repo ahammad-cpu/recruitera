@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
   X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles, Clock, RotateCcw,
@@ -40,6 +40,7 @@ import { useRequalifyAccount } from '@/hooks/useLoseAccount';
 import { HistoryTab } from './HistoryTab';
 import { ActivityComposer } from './ActivityComposer';
 import { useFeatureFlag } from '@/lib/flags';
+import { useListOnly } from '@/hooks/useListOnly';
 
 type Tab = 'overview' | 'plans' | 'team' | 'documents';
 
@@ -84,6 +85,12 @@ export default function CompanyProfile() {
   const currentIdx = activeAccts.findIndex((a) => a.id === id);
   const prev = currentIdx > 0 ? activeAccts[currentIdx - 1] : null;
   const next = currentIdx >= 0 && currentIdx < activeAccts.length - 1 ? activeAccts[currentIdx + 1] : null;
+
+  // Roles with module_access.list_only=true (e.g. Marketing) see the
+  // Companies list but cannot open a profile. Bounce them back to /companies.
+  const { listOnly, isLoading: listOnlyLoading } = useListOnly();
+  if (listOnlyLoading) return null;
+  if (listOnly) return <Navigate to="/companies" replace />;
 
   if (loadingAccts) return <ProfileSkeleton />;
   if (!lead) return <NotFound />;
