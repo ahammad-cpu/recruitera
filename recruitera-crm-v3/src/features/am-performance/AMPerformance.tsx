@@ -10,11 +10,10 @@ import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, fmtEgp, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
-type TabKey = 'team' | 'targets' | 'leaderboard' | 'gaps';
+type TabKey = 'team' | 'targets' | 'gaps';
 const TABS: { key: TabKey; label: string; tone?: 'bad' }[] = [
   { key: 'team', label: 'Team Performance' },
   { key: 'targets', label: 'Targets' },
-  { key: 'leaderboard', label: 'Leaderboard' },
   { key: 'gaps', label: 'Gaps', tone: 'bad' },
 ];
 
@@ -188,7 +187,7 @@ export default function AMPerformance() {
         })}
       </div>
 
-      {(tab === 'team' || tab === 'leaderboard') && (
+      {tab === 'team' && (
         <div className="flex items-center gap-3 flex-wrap px-4 py-3 bg-surface border border-border rounded-xl">
           <span className="text-[11px] font-black uppercase tracking-widest text-text-3">Filter</span>
           <select
@@ -207,7 +206,6 @@ export default function AMPerformance() {
       {tab === 'team' && (
         <TeamPerformance rows={filteredRows} kpis={kpis} isLoading={isLoading} />
       )}
-      {tab === 'leaderboard' && <Leaderboard rows={filteredRows} />}
       {tab === 'targets' && (
         <TargetsTab
           targets={targetsQ.data}
@@ -333,31 +331,6 @@ function Cell({ v, warn }: { v: number | '—'; warn?: boolean }) {
         {v === '—' ? '—' : fmtInt(v)}
       </span>
     </td>
-  );
-}
-
-function Leaderboard({ rows }: { rows: AMRow[] }) {
-  return (
-    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1 divide-y divide-border">
-      {rows.length === 0 && <div className="p-8 text-center text-[12.5px] text-text-3">No AMs with owned accounts.</div>}
-      {rows.map((r, i) => (
-        <div key={r.profile.id} className="flex items-center gap-3 px-4 py-3.5">
-          <span className={cn(
-            'tnum w-7 h-7 rounded-full grid place-items-center text-[12px] font-black flex-shrink-0',
-            i === 0 ? 'bg-accent text-cg-900' : 'bg-surface-2 text-text-3',
-          )}>
-            {i + 1}
-          </span>
-          <OwnerAvatar profile={r.profile} size={30} />
-          <div className="flex-1 min-w-0">
-            <div className="text-[13.5px] font-black text-text truncate">{r.profile.full_name || r.profile.email}</div>
-            <div className="tnum text-[11px] text-text-3 font-semibold">{fmtInt(r.owned)} owned</div>
-          </div>
-          <span className={cn('inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-bold', r.status.cls)}>{r.status.label}</span>
-          <span className="tnum text-[15px] font-black text-text w-10 text-right">{r.score}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
