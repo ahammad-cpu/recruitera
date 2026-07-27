@@ -6,6 +6,8 @@ export type Account = {
   bubble_id: string | null;
   name: string | null;
   domain: string | null;
+  linkedin_url: string | null;
+  wuzzuf_url: string | null;
   stage: string | null;
   source: string | null;
   am_mail: string | null;
@@ -52,7 +54,7 @@ export function useAccounts() {
         const { data, error } = await supabase
           .from('accounts')
           .select(
-            'id,bubble_id,name,domain,stage,source,am_mail,paid_status,activation_status,has_trial,' +
+            'id,bubble_id,name,domain,linkedin_url,wuzzuf_url,stage,source,am_mail,paid_status,activation_status,has_trial,' +
             'deal_value,deal_currency,owner_id,customer_success_id,' +
             'loss_reason,loss_notes,lost_by,lost_at,lost_from_stage,' +
             'first_won_at,last_won_at,paid_since,reopened_at,reopen_count,' +

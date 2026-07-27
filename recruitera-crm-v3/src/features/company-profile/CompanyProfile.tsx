@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
   X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles, Clock, RotateCcw,
@@ -49,6 +49,13 @@ const OPEN_STAGES = ['lead', 'mql', 'sql', 'demo', 'proposal'];
 export default function CompanyProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Remember where the profile was opened from so "back" returns there.
+  // Pipeline cards + Companies rows pass state.from; it rides along through
+  // prev/next navigation too. Deep links (no state) fall back to Companies.
+  const origin = (location.state as { from?: string } | null)?.from === 'pipeline' ? 'pipeline' : 'companies';
+  const backTo = origin === 'pipeline' ? '/pipeline' : '/companies';
+  const backLabel = origin === 'pipeline' ? 'Pipeline' : 'Companies';
   const { data: accounts, isLoading: loadingAccts } = useAccounts();
   const { data: contacts, isLoading: loadingContacts } = useContacts(id);
   const { data: activities, isLoading: loadingActs } = useActivities(id);
@@ -103,8 +110,8 @@ export default function CompanyProfile() {
     <div className="p-6 space-y-4 max-w-[1500px]" role="region" aria-label={`Company profile: ${name}`} aria-live="polite">
       {/* BREADCRUMB + PAGINATION */}
       <div className="flex items-center gap-3 text-[12px] text-text-3">
-        <Link to="/companies" className="hover:text-text-2 inline-flex items-center gap-1">
-          <ArrowLeft size={12} /> Companies
+        <Link to={backTo} className="hover:text-text-2 inline-flex items-center gap-1">
+          <ArrowLeft size={12} /> {backLabel}
         </Link>
         <span className="text-text-4">›</span>
         <span className="text-text font-semibold">{name}</span>
@@ -112,7 +119,7 @@ export default function CompanyProfile() {
         <div className="inline-flex items-center h-8 rounded-lg border border-border overflow-hidden bg-surface">
           <button
             disabled={!prev}
-            onClick={() => prev && navigate(`/companies/${prev.id}`)}
+            onClick={() => prev && navigate(`/companies/${prev.id}`, { state: { from: origin } })}
             className="h-8 w-8 flex items-center justify-center hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
             title={prev?.name || 'No previous'}
             aria-label={prev ? `Go to previous company: ${prev.name}` : 'No previous company'}
@@ -122,7 +129,7 @@ export default function CompanyProfile() {
           </div>
           <button
             disabled={!next}
-            onClick={() => next && navigate(`/companies/${next.id}`)}
+            onClick={() => next && navigate(`/companies/${next.id}`, { state: { from: origin } })}
             className="h-8 w-8 flex items-center justify-center hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
             title={next?.name || 'No next'}
             aria-label={next ? `Go to next company: ${next.name}` : 'No next company'}
@@ -841,12 +848,24 @@ function CompanyDetailsPanel({
     industry: attr?.industry ?? '',
     size: attr?.size ?? '',
     domain: lead.domain ?? '',
+    linkedin_url: lead.linkedin_url ?? '',
+    wuzzuf_url: lead.wuzzuf_url ?? '',
   });
 
   useEffect(() => {
     if (editing) return;
-    setForm({ industry: attr?.industry ?? '', size: attr?.size ?? '', domain: lead.domain ?? '' });
-  }, [attr?.industry, attr?.size, lead.domain, editing]);
+    setForm({
+      industry: attr?.industry ?? '', size: attr?.size ?? '', domain: lead.domain ?? '',
+      linkedin_url: lead.linkedin_url ?? '', wuzzuf_url: lead.wuzzuf_url ?? '',
+    });
+  }, [attr?.industry, attr?.size, lead.domain, lead.linkedin_url, lead.wuzzuf_url, editing]);
+
+  // Accept a bare handle or a full URL; store a clean https URL.
+  function normalizeUrl(raw: string): string | null {
+    const v = raw.trim();
+    if (!v) return null;
+    return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  }
 
   function save() {
     update.mutate(
@@ -855,6 +874,8 @@ function CompanyDetailsPanel({
         industry: form.industry.trim() || null,
         size: form.size || null,
         domain: form.domain.trim().toLowerCase() || null,
+        linkedin_url: normalizeUrl(form.linkedin_url),
+        wuzzuf_url: normalizeUrl(form.wuzzuf_url),
       },
       { onSuccess: () => setEditing(false) },
     );
@@ -879,6 +900,8 @@ function CompanyDetailsPanel({
           <Row k="Industry"     v={attr?.industry || '—'} />
           <Row k="Company size" v={attr?.size || '—'} />
           <Row k="Domain"       v={lead.domain || '—'} />
+          <LinkRow k="LinkedIn" url={lead.linkedin_url} />
+          <LinkRow k="Wuzzuf"   url={lead.wuzzuf_url} />
           <LeadFormRows lf={attr?.lead_form ?? null} />
         </>
       )}
@@ -910,6 +933,24 @@ function CompanyDetailsPanel({
               value={form.domain}
               onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
               placeholder="company.com"
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">LinkedIn</span>
+            <input
+              value={form.linkedin_url}
+              onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
+              placeholder="linkedin.com/company/…"
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Wuzzuf</span>
+            <input
+              value={form.wuzzuf_url}
+              onChange={(e) => setForm((f) => ({ ...f, wuzzuf_url: e.target.value }))}
+              placeholder="wuzzuf.net/company/…"
               className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
             />
           </label>
@@ -1414,6 +1455,26 @@ function Row({ k, v, wrap }: { k: string; v: React.ReactNode; wrap?: boolean }) 
     <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-border/60 last:border-0">
       <div className="text-[11.5px] text-text-3">{k}</div>
       <div className="text-[12.5px] font-bold text-text text-right truncate max-w-[180px]" title={typeof v === 'string' ? v : undefined}>{v}</div>
+    </div>
+  );
+}
+
+// A details row whose value is a clickable link when set, muted "—" when not.
+function LinkRow({ k, url }: { k: string; url: string | null }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-border/60 last:border-0">
+      <div className="text-[11.5px] text-text-3">{k}</div>
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12.5px] font-bold text-accent-ink hover:underline text-right truncate max-w-[180px]"
+          title={url}
+        >{url.replace(/^https?:\/\/(www\.)?/i, '')}</a>
+      ) : (
+        <div className="text-[12.5px] font-bold text-text-4 text-right">—</div>
+      )}
     </div>
   );
 }

@@ -417,7 +417,7 @@ export default function Companies() {
                       </td>
                     )}
                     <td className="px-4 py-2.5 overflow-hidden border-r border-border/40">
-                      <Link to={`/companies/${a.id}`} className="flex items-center gap-2.5 group min-w-0" title={a.name || a.domain || ''}>
+                      <Link to={`/companies/${a.id}`} state={{ from: 'companies' }} className="flex items-center gap-2.5 group min-w-0" title={a.name || a.domain || ''}>
                         <div className="w-7 h-7 rounded-lg bg-cg-800 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                           {initials(a.name || a.domain)}
                         </div>

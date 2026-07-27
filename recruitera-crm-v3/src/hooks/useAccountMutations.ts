@@ -29,7 +29,7 @@ export function useRenameAccount() {
 export function useUpdateAccountDetails() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...patch }: { id: string; industry?: string | null; size?: string | null; domain?: string | null }) => {
+    mutationFn: async ({ id, ...patch }: { id: string; industry?: string | null; size?: string | null; domain?: string | null; linkedin_url?: string | null; wuzzuf_url?: string | null }) => {
       const { error } = await supabase.from('accounts').update(patch).eq('id', id);
       if (error) throw error;
     },

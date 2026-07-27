@@ -586,6 +586,7 @@ function Card({
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingRight: 16 }}>
               <Link
                 to={`/companies/${d.account_id}`}
+                state={{ from: 'pipeline' }}
                 onPointerDown={(e) => e.stopPropagation()}
                 className="truncate"
                 style={{ fontWeight: 600, fontSize: 14, color: 'rgb(26, 43, 40)' }}
