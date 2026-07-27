@@ -10,13 +10,14 @@ import { RecruiteraLogo, RecruiteraFullLogo } from './RecruiteraLogo';
 import { useSession, signOut } from '@/lib/auth';
 import { useMe } from '@/hooks/useMe';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useModuleAccess } from '@/hooks/useModuleAccess';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks } from '@/hooks/useTasks';
 import { useRenewalBoard } from '@/hooks/useRenewals';
 import { fmtInt, initials } from '@/lib/format';
 
-type NavItem = { to: string; icon: React.ComponentType<{ size?: number }>; label: string; badge?: string | number; badgeAccent?: 'bad' };
+type NavItem = { to: string; icon: React.ComponentType<{ size?: number }>; label: string; badge?: string | number; badgeAccent?: 'bad'; module?: string };
 
 const COLLAPSE_KEY = 'crm-v3:sidebar-collapsed';
 
@@ -49,31 +50,33 @@ export function Sidebar() {
 
   const fmt = (n: number) => (accounts.isLoading ? '…' : fmtInt(n));
 
-  const WORKSPACE: NavItem[] = [
-    { to: '/', icon: Home, label: 'Dashboard' },
-    { to: '/companies', icon: Building2, label: 'Companies', badge: fmt(activeAccts) },
-    { to: '/pipeline', icon: TrendingUp, label: 'Pipeline', badge: fmt(openLeads) },
-    { to: '/renewal', icon: RefreshCw, label: 'Renewal', badge: fmt(renewalCount) },
-    { to: '/notifications', icon: Bell, label: 'Notifications', badge: unreadNotifs || undefined, badgeAccent: unreadNotifs ? 'bad' : undefined },
-    { to: '/tasks', icon: CheckSquare, label: 'Tasks', badge: openTasks || undefined },
-  ];
-
   // Canonical admin check — reads both legacy text role AND role_id →
   // roles.type, so a stale profiles.role can't sneak a non-admin past
   // sidebar-level gates (Users, Requalification).
   const { isAdmin } = useIsAdmin();
+  // Per-module visibility. Sidebar entries hide when the role lacks the
+  // module; the route guards (RequireModule) back this up server-of-truth.
+  const { can } = useModuleAccess();
+
+  const WORKSPACE: NavItem[] = ([
+    { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/companies', icon: Building2, label: 'Companies', badge: fmt(activeAccts), module: 'accounts' },
+    { to: '/pipeline', icon: TrendingUp, label: 'Pipeline', badge: fmt(openLeads), module: 'sales_pipeline' },
+    { to: '/renewal', icon: RefreshCw, label: 'Renewal', badge: fmt(renewalCount), module: 'renewal' },
+    { to: '/notifications', icon: Bell, label: 'Notifications', badge: unreadNotifs || undefined, badgeAccent: unreadNotifs ? 'bad' : undefined, module: 'notifications' },
+    { to: '/tasks', icon: CheckSquare, label: 'Tasks', badge: openTasks || undefined, module: 'tasks' },
+  ] as NavItem[]).filter((n) => !n.module || can(n.module));
 
   // Users is an admin-only page (roles + module toggles + team members).
-  // Non-admins shouldn't even see the tab; the /users route itself already
-  // enforces this — hiding the entry keeps the nav clean.
-  const OPERATIONS: NavItem[] = [
-    { to: '/am-performance', icon: BarChart3, label: 'AM Performance' },
-    { to: '/reports', icon: FileText, label: 'Reports' },
-    { to: '/logs', icon: ScrollText, label: 'Logs' },
+  // Everything else hides when the role lacks the matching module.
+  const OPERATIONS: NavItem[] = ([
+    { to: '/am-performance', icon: BarChart3, label: 'AM Performance', module: 'am_performance' },
+    { to: '/reports', icon: FileText, label: 'Reports', module: 'reports' },
+    { to: '/logs', icon: ScrollText, label: 'Logs', module: 'logs' },
     ...(isAdmin ? [{ to: '/users', icon: Users, label: 'Users' } as NavItem] : []),
-    { to: '/utm', icon: LinkIcon, label: 'UTM Generator' },
+    { to: '/utm', icon: LinkIcon, label: 'UTM Generator', module: 'utm_generator' },
     ...(isAdmin ? [{ to: '/settings/requalification', icon: RotateCcw, label: 'Requalification' } as NavItem] : []),
-  ];
+  ] as NavItem[]).filter((n) => !n.module || can(n.module));
 
   const profile = me.data;
   const displayName = profile?.full_name || session?.user?.email || '—';

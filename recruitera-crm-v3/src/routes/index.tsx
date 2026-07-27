@@ -18,6 +18,7 @@ import AMPerformance from '@/features/am-performance/AMPerformance';
 import Users from '@/features/users/Users';
 import Utm from '@/features/utm/Utm';
 import RequalificationSettings from '@/features/settings/RequalificationSettings';
+import { RequireModule } from './RequireModule';
 
 // Vite's BASE_URL matches the deploy path (/crm-v3/ on Vercel, / in dev).
 // Strip trailing slash so React Router accepts it as basename.
@@ -32,17 +33,19 @@ export const router = createBrowserRouter([
       </AuthGate>
     ),
     children: [
+      // Dashboard is the fallback landing for every role, so it's never
+      // module-gated — DashboardRouter itself picks sales vs CS view.
       { index: true, element: <DashboardRouter /> },
-      { path: 'companies', element: <Companies /> },
-      { path: 'companies/:id', element: <CompanyProfile /> },
-      { path: 'pipeline', element: <Pipeline /> },
-      { path: 'renewal', element: <Renewal /> },
-      { path: 'notifications', element: <Notifications /> },
-      { path: 'tasks', element: <Tasks /> },
-      { path: 'am-performance', element: <AMPerformance /> },
+      { path: 'companies', element: <RequireModule moduleKey="accounts"><Companies /></RequireModule> },
+      { path: 'companies/:id', element: <RequireModule moduleKey="accounts"><CompanyProfile /></RequireModule> },
+      { path: 'pipeline', element: <RequireModule moduleKey="sales_pipeline"><Pipeline /></RequireModule> },
+      { path: 'renewal', element: <RequireModule moduleKey="renewal"><Renewal /></RequireModule> },
+      { path: 'notifications', element: <RequireModule moduleKey="notifications"><Notifications /></RequireModule> },
+      { path: 'tasks', element: <RequireModule moduleKey="tasks"><Tasks /></RequireModule> },
+      { path: 'am-performance', element: <RequireModule moduleKey="am_performance"><AMPerformance /></RequireModule> },
       {
         path: 'reports',
-        element: <ReportsShell />,
+        element: <RequireModule moduleKey="reports"><ReportsShell /></RequireModule>,
         children: [
           { index: true, element: <LeadGenerationReport /> },
           { path: 'pipeline', element: <PipelineReport /> },
@@ -50,9 +53,10 @@ export const router = createBrowserRouter([
           { path: 'am', element: <AMReport /> },
         ],
       },
-      { path: 'logs', element: <Logs /> },
+      { path: 'logs', element: <RequireModule moduleKey="logs"><Logs /></RequireModule> },
+      // Users route enforces its own admin gate inside the component.
       { path: 'users', element: <Users /> },
-      { path: 'utm', element: <Utm /> },
+      { path: 'utm', element: <RequireModule moduleKey="utm_generator"><Utm /></RequireModule> },
       { path: 'settings/requalification', element: <RequalificationSettings /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
