@@ -2,23 +2,31 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, Phone, Mail, MessageCircle, ArrowLeftRight, DollarSign, Building2, AlertTriangle } from 'lucide-react';
 import { useAccounts, type Account } from '@/hooks/useAccounts';
-import { useProfiles, type Profile } from '@/hooks/useUsersData';
+import { useProfiles, useRoles, type Profile, type Role } from '@/hooks/useUsersData';
 import { useDeals, isOpen, isStale, type Deal } from '@/hooks/useDeals';
 import { useTargets, useSaveTarget, type Target } from '@/hooks/useTargets';
-import { useRecentActivities } from '@/hooks/useRecentActivities';
 import { useCommsActivity } from '@/hooks/useCommsActivity';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt, fmtEgp, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
-type TabKey = 'team' | 'activities' | 'targets' | 'leaderboard' | 'gaps';
+type TabKey = 'team' | 'targets' | 'leaderboard' | 'gaps';
 const TABS: { key: TabKey; label: string; tone?: 'bad' }[] = [
   { key: 'team', label: 'Team Performance' },
-  { key: 'activities', label: 'All Activities' },
   { key: 'targets', label: 'Targets' },
   { key: 'leaderboard', label: 'Leaderboard' },
   { key: 'gaps', label: 'Gaps', tone: 'bad' },
 ];
+
+// AM Performance is a Sales + CS view — admins/collection/marketing show
+// up in the profiles list but they don't own accounts or carry targets,
+// so filtering them out keeps the tables honest.
+function isSalesOrCsRole(role: Role | undefined): boolean {
+  if (!role) return false;
+  if (role.type === 'member' || role.type === 'team_lead') return true;
+  if ((role.name || '').toLowerCase().includes('customer success')) return true;
+  return false;
+}
 
 const OPEN_STAGES = ['proposal', 'won', 'paid'];
 const CLOSABLE_STAGES = ['won', 'paid', 'lost'];
@@ -41,15 +49,22 @@ function statusFor(closable: number, score: number) {
 export default function AMPerformance() {
   const accountsQ = useAccounts();
   const profilesQ = useProfiles();
+  const rolesQ = useRoles();
   const dealsQ = useDeals();
   const targetsQ = useTargets();
-  const activitiesQ = useRecentActivities(150);
   const commsQ = useCommsActivity();
   const [tab, setTab] = useState<TabKey>('team');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
 
   const accounts = useMemo(() => (accountsQ.data ?? []).filter((a) => !a.merged_into), [accountsQ.data]);
-  const profiles = profilesQ.data ?? [];
+  // Only Account Managers + Customer Success are relevant here — admins,
+  // collection, and marketing don't own deals or carry targets, so hiding
+  // them keeps the tables focused on the sales + retention frontline.
+  const profiles = useMemo(() => {
+    const roleById = new Map<string, Role>();
+    (rolesQ.data ?? []).forEach((r) => roleById.set(r.id, r));
+    return (profilesQ.data ?? []).filter((p) => isSalesOrCsRole(roleById.get(p.role_id ?? '')));
+  }, [profilesQ.data, rolesQ.data]);
 
   const ownerIdByAccount = useMemo(() => {
     const m = new Map<string, string | null>();
@@ -193,7 +208,6 @@ export default function AMPerformance() {
         <TeamPerformance rows={filteredRows} kpis={kpis} isLoading={isLoading} />
       )}
       {tab === 'leaderboard' && <Leaderboard rows={filteredRows} />}
-      {tab === 'activities' && <ActivitiesFeed data={activitiesQ.data} isLoading={activitiesQ.isLoading} profiles={profiles} accounts={accounts} />}
       {tab === 'targets' && (
         <TargetsTab
           targets={targetsQ.data}
@@ -343,47 +357,6 @@ function Leaderboard({ rows }: { rows: AMRow[] }) {
           <span className="tnum text-[15px] font-black text-text w-10 text-right">{r.score}</span>
         </div>
       ))}
-    </div>
-  );
-}
-
-function ActivitiesFeed({
-  data, isLoading, profiles, accounts,
-}: {
-  data: ReturnType<typeof useRecentActivities>['data'];
-  isLoading: boolean;
-  profiles: Profile[];
-  accounts: Account[];
-}) {
-  const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
-  const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
-  const rows = data ?? [];
-  return (
-    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sh1 divide-y divide-border">
-      {isLoading && <div className="p-4 text-[12.5px] text-text-3">Loading…</div>}
-      {!isLoading && rows.length === 0 && <div className="p-8 text-center text-[12.5px] text-text-3">No activity yet.</div>}
-      {!isLoading && rows.map((a) => {
-        const author = profileById.get(a.author_id || '');
-        const account = accountById.get(a.account_id);
-        return (
-          <div key={a.id} className="flex items-start gap-3 px-4 py-3">
-            <OwnerAvatar profile={author} size={26} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-wider text-text-3 bg-surface-2 px-1.5 py-0.5 rounded">{a.type}</span>
-                <span className="text-[13px] font-bold text-text">{author?.full_name || author?.email || 'System'}</span>
-                {account && (
-                  <Link to={`/companies/${a.account_id}`} className="text-[12px] text-accent-ink hover:underline">
-                    {account.name || account.domain}
-                  </Link>
-                )}
-                <span className="ml-auto text-[11px] text-text-4">{fmtDate(a.created_at)}</span>
-              </div>
-              {(a.title || a.text) && <div className="text-[12.5px] text-text-2 mt-0.5 line-clamp-2">{a.title || a.text}</div>}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
