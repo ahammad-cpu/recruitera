@@ -39,6 +39,13 @@ describe('computeRenewalBucket', () => {
     expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(45) }, { paid_status: 'Paid', activation_status: 'Expired' }, NOW)).toBeNull();
   });
 
+  it('buckets No-fees / Without-Charge companies into non-paid', () => {
+    expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(45), plan_tier: 'No fees' }, paidActive, NOW)).toBe('nonpaid');
+    expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(45) }, { paid_status: 'Without Charge', activation_status: 'Active' }, NOW)).toBe('nonpaid');
+    // A real paying customer with the same dates is NOT non-paid.
+    expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(45), plan_tier: 'Pro' }, paidActive, NOW)).toBe('d60');
+  });
+
   it('sends a still-paying customer past its end date to overdue', () => {
     const account = { paid_status: 'Paid', activation_status: 'Active' };
     expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(-5) }, account, NOW)).toBe('overdue');

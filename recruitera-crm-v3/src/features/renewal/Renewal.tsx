@@ -197,6 +197,20 @@ function RenewalCard({
           <span className="text-[12px] font-semibold text-text-2">{plan}</span>
           <span className="tnum text-[13px] font-black text-text">EGP {fmtInt(row.value)}</span>
         </div>
+        {/* Highlight the payment method — Credit stands out in amber since
+            it means money is still owed vs already-collected methods. */}
+        {cycle.payment_type && (
+          <div className="mt-2">
+            <span className={cn(
+              'inline-flex items-center h-5 px-2 rounded-full text-[10.5px] font-black tracking-wide',
+              /credit/i.test(cycle.payment_type) && !/card/i.test(cycle.payment_type)
+                ? 'bg-warn-bg text-warn'
+                : 'bg-surface-2 text-text-3 border border-border',
+            )}>
+              {cycle.payment_type}
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-border">
           <span className="text-[11px] font-semibold text-text-3">Ends {fmtDate(cycle.ends_at)}</span>
           <span className={cn('inline-flex items-center h-5 px-2 rounded-full text-[10.5px] font-bold', chipClass)}>

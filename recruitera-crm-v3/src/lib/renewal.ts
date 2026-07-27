@@ -1,16 +1,28 @@
 import type { Cycle } from '@/hooks/useContractCycles';
 
-export type RenewalBucket = 'healthy' | 'd90' | 'd60' | 'd30' | 'overdue' | 'renewed' | 'churned';
+export type RenewalBucket = 'healthy' | 'd90' | 'd60' | 'd30' | 'overdue' | 'renewed' | 'churned' | 'nonpaid';
 
 export const RENEWAL_COLUMNS: Array<{ key: RenewalBucket; label: string; dot: string; chip: string }> = [
-  { key: 'healthy', label: 'Healthy',  dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
-  { key: 'd90',     label: '90 days',  dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
-  { key: 'd60',     label: '60 days',  dot: 'bg-info',          chip: 'bg-info-bg text-info' },
-  { key: 'd30',     label: '30 days',  dot: 'bg-warn',          chip: 'bg-warn-bg text-warn' },
-  { key: 'overdue', label: 'Overdue',  dot: 'bg-bad',           chip: 'bg-bad-bg text-bad' },
-  { key: 'renewed', label: 'Renewed',  dot: 'bg-accent-strong', chip: 'bg-accent-soft text-accent-ink' },
-  { key: 'churned', label: 'Churned',  dot: 'bg-text-4',        chip: 'bg-surface-2 text-text-3' },
+  { key: 'healthy', label: 'Healthy',       dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
+  { key: 'd90',     label: '90 days',       dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
+  { key: 'd60',     label: '60 days',       dot: 'bg-info',          chip: 'bg-info-bg text-info' },
+  { key: 'd30',     label: '30 days',       dot: 'bg-warn',          chip: 'bg-warn-bg text-warn' },
+  { key: 'overdue', label: 'Overdue',       dot: 'bg-bad',           chip: 'bg-bad-bg text-bad' },
+  { key: 'nonpaid', label: 'Non-paid',      dot: 'bg-purple',        chip: 'bg-purple-bg text-purple' },
+  { key: 'renewed', label: 'Renewed',       dot: 'bg-accent-strong', chip: 'bg-accent-soft text-accent-ink' },
+  { key: 'churned', label: 'Churned',       dot: 'bg-text-4',        chip: 'bg-surface-2 text-text-3' },
 ];
+
+// A "No fees" plan tier or a Without-Charge paid_status marks a company we
+// service without billing — they still need renewal tracking but shouldn't
+// sit in the paying Healthy/90/60/30 flow.
+function isNonPaidCompany(
+  cycle: { plan_tier?: string | null } | null | undefined,
+  account: { paid_status?: string | null },
+): boolean {
+  return (cycle?.plan_tier || '').trim().toLowerCase() === 'no fees'
+    || account.paid_status === 'Without Charge';
+}
 
 /**
  * Ports the v2 renewal-bucket rule verbatim: an account only enters the
@@ -21,7 +33,7 @@ export const RENEWAL_COLUMNS: Array<{ key: RenewalBucket; label: string; dot: st
  * for cycles that already ended without a renewal record.
  */
 export function computeRenewalBucket(
-  cycle: Pick<Cycle, 'status' | 'ends_at'> | null | undefined,
+  cycle: Pick<Cycle, 'status' | 'ends_at' | 'plan_tier'> | null | undefined,
   account: { paid_status?: string | null; activation_status?: string | null },
   nowMs: number,
 ): RenewalBucket | null {
@@ -31,6 +43,9 @@ export function computeRenewalBucket(
 
   if (cycle.status === 'churned') return 'churned';
   if (cycle.status === 'renewed') return 'renewed';
+  // Non-paid companies (No fees / Without Charge) get their own column
+  // instead of diluting the paying buckets.
+  if (isNonPaidCompany(cycle, account)) return 'nonpaid';
 
   const days = (endMs - nowMs) / 86_400_000;
   const wasPaid = account.paid_status === 'Paid' || account.paid_status === 'Without Charge';

@@ -13,8 +13,8 @@ type Props = {
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'SAR'] as const;
 const STATUSES = ['active', 'renewed', 'collected', 'paid', 'churned', 'overdue'] as const;
-const PLAN_TIERS = ['Basic', 'Pro', 'Enterprise'] as const;
-const PAYMENT_TYPES = ['Bank transfer', 'Credit card', 'Cash', 'Cheque', 'Other'] as const;
+const PLAN_TIERS = ['Basic', 'Pro', 'Enterprise', 'No fees'] as const;
+const PAYMENT_TYPES = ['Bank transfer', 'Credit', 'Credit card', 'Cash', 'Cheque', 'Other'] as const;
 
 export function CycleModal({ accountId, existing, onClose, onDone }: Props) {
   const save = useSaveCycle(accountId);
