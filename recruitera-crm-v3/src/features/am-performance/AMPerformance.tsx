@@ -421,18 +421,29 @@ function TargetsTab({
   const asOfDate = useMemo(() => new Date(asOfISO), [asOfISO]);
   const { start, end } = useMemo(() => periodBounds(periodKind, asOfDate), [periodKind, asOfDate]);
 
-  // Sum every target row (any period_kind, any category) whose window
-  // overlaps the selected period. Picking Yearly with 22/07/2026 now
-  // aggregates all quarterly + monthly targets that fall inside 2026 —
-  // the previous strict period_kind match returned 0 whenever the stored
-  // rows were a different granularity than the toggle.
+  // Pro-rate each target row to the selected window. A Q3 target of 600k
+  // shown at Monthly should attribute ~200k to July (31/92 of the quarter),
+  // not the full 600k. When the target period sits entirely inside the
+  // selected window (e.g. a Q3 target in Yearly view) the ratio is 1.0
+  // and the full amount counts — which is what "yearly = sum of quarters"
+  // requires.
   const targetTotalByOwner = useMemo(() => {
     const m = new Map<string, number>();
+    const winStartMs = Date.parse(start);
+    const winEndMs = Date.parse(end);
+    const DAY = 86_400_000;
     (targets ?? []).forEach((t) => {
       if (!isProfileTarget(t)) return;
-      // Overlap test: [t.period_start, t.period_end] ∩ [start, end] non-empty.
       if (t.period_end < start || t.period_start > end) return;
-      m.set(t.owner_id!, (m.get(t.owner_id!) ?? 0) + (t.amount_egp || 0));
+      const tStartMs = Date.parse(t.period_start);
+      const tEndMs = Date.parse(t.period_end);
+      if (Number.isNaN(tStartMs) || Number.isNaN(tEndMs)) return;
+      const overlapDays = (Math.min(tEndMs, winEndMs) - Math.max(tStartMs, winStartMs)) / DAY + 1;
+      const targetDays = (tEndMs - tStartMs) / DAY + 1;
+      if (targetDays <= 0) return;
+      const ratio = Math.max(0, Math.min(1, overlapDays / targetDays));
+      const contribution = (t.amount_egp || 0) * ratio;
+      m.set(t.owner_id!, (m.get(t.owner_id!) ?? 0) + contribution);
     });
     return m;
   }, [targets, start, end]);
