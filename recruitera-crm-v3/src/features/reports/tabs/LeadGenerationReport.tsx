@@ -109,6 +109,24 @@ export default function LeadGenerationReport() {
     rightHint: s.disq > 0 ? `${Math.round(s.dropOffRate)}% dropped` : undefined,
   }));
 
+  // Leads dropped off (disqualified) per source, ranked by count. Only
+  // sources that actually lost a lead show up. Bar value is the drop-off
+  // count; the right hint is that source's drop-off rate so a small source
+  // with a high rate still reads as a problem.
+  const dropOffStats = channelStats
+    .filter((s) => s.disq > 0)
+    .sort((a, b) => b.disq - a.disq);
+  const dropOffBars: BarRow[] = dropOffStats.map((s) => ({
+    key: s.channel,
+    label: s.channel,
+    labelHint: `${fmtInt(s.disq)} of ${fmtInt(s.leads)} leads`,
+    value: s.disq,
+    displayValue: fmtInt(s.disq),
+    rightHint: `${Math.round(s.dropOffRate)}% of source`,
+    fillClass: 'bg-bad',
+  }));
+  const totalSourceDrop = dropOffStats.reduce((acc, s) => acc + s.disq, 0);
+
   const reasonBars: BarRow[] = reasonBreakdown.map((r) => ({
     key: r.reason,
     label: r.label,
@@ -147,6 +165,14 @@ export default function LeadGenerationReport() {
         headerRight={<HeaderPill>{fmtInt(totalLeads)} leads</HeaderPill>}
       >
         <BarList rows={channelBars} variant="raw" emptyText="No leads in this range." autoColor />
+      </ReportPanel>
+
+      <ReportPanel
+        title="Drop-off by source"
+        subtitle="Which channels lose the most leads"
+        headerRight={<HeaderPill tone={totalSourceDrop > 0 ? 'bad' : 'muted'}>{fmtInt(totalSourceDrop)} dropped</HeaderPill>}
+      >
+        <BarList rows={dropOffBars} variant="raw" emptyText="No leads dropped off in this range." />
       </ReportPanel>
 
       <ReportPanel
