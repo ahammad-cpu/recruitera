@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn';
 import { RecruiteraLogo, RecruiteraFullLogo } from './RecruiteraLogo';
 import { useSession, signOut } from '@/lib/auth';
 import { useMe } from '@/hooks/useMe';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks } from '@/hooks/useTasks';
@@ -57,7 +58,10 @@ export function Sidebar() {
     { to: '/tasks', icon: CheckSquare, label: 'Tasks', badge: openTasks || undefined },
   ];
 
-  const isAdmin = (me.data?.role || '') === 'admin';
+  // Canonical admin check — reads both legacy text role AND role_id →
+  // roles.type, so a stale profiles.role can't sneak a non-admin past
+  // sidebar-level gates (Users, Requalification).
+  const { isAdmin } = useIsAdmin();
 
   // Users is an admin-only page (roles + module toggles + team members).
   // Non-admins shouldn't even see the tab; the /users route itself already

@@ -5,7 +5,7 @@ import { useProfiles, useRoles, useTeams, type Role, type Profile } from '@/hook
 import { useToggleRoleModule, useCreateRole, MODULE_CATALOG, MODULE_SECTIONS } from '@/hooks/useRoleMutations';
 import { useUpdateProfileFields } from '@/hooks/useProfileMutations';
 import { useInviteUser } from '@/hooks/useInviteUser';
-import { useMe } from '@/hooks/useMe';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { initials } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -17,13 +17,14 @@ export default function Users() {
   const profiles = useProfiles();
   const roles = useRoles();
   const teams = useTeams();
-  const me = useMe();
+  const { isAdmin, isLoading: adminLoading } = useIsAdmin();
 
-  // Admin-only page. The sidebar already hides the entry for non-admins;
-  // this gate covers the direct-URL case (someone bookmarks /users or
-  // pastes the link) so RLS isn't the only defence.
-  if (me.isLoading) return null;
-  if ((me.data?.role || '') !== 'admin') return <Navigate to="/" replace />;
+  // Admin-only page. Uses the canonical isAdmin check (both legacy text
+  // role AND role_id → roles.type) so a stale profiles.role field can't
+  // sneak a non-admin past the gate. Sidebar hides the entry for
+  // non-admins; this handles direct-URL and bookmark cases.
+  if (adminLoading) return null;
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   return (
     <div className="p-6 space-y-4">
