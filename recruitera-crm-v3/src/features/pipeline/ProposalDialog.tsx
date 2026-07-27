@@ -4,6 +4,7 @@ import type { Deal } from '@/hooks/useDeals';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { useOfferCycleSync } from '@/hooks/useOfferCycleSync';
 import { cn } from '@/lib/cn';
 
 type Props = { deal: Deal; onClose: () => void; onDone?: () => void };
@@ -25,6 +26,7 @@ type Tier = typeof TIERS[number]['key'];
  */
 export function ProposalDialog({ deal, onClose, onDone }: Props) {
   const qc = useQueryClient();
+  const { seedOffer } = useOfferCycleSync();
   const [amount, setAmount] = useState<string>(String(deal.amount ?? ''));
   const [close, setClose] = useState<string>(deal.expected_close_date ?? '');
   const [currency, setCurrency] = useState<string>(deal.currency || 'EGP');
@@ -55,6 +57,17 @@ export function ProposalDialog({ deal, onClose, onDone }: Props) {
         last_activity_at: new Date().toISOString(),
       }).eq('id', deal.id);
       if (error) throw error;
+      // Seed the renewal cycle's offer from this proposal — offer_sent_date
+      // = today, plus amount/currency/tier. Won/Collected fill in the rest.
+      if (deal.account_id) {
+        await seedOffer({
+          accountId: deal.account_id,
+          amount: n,
+          currency,
+          planTier: tier,
+          offerDateISO: new Date().toISOString().slice(0, 10),
+        });
+      }
       toast.success('Deal moved to Proposal');
       qc.invalidateQueries({ queryKey: ['deals'] });
       qc.invalidateQueries({ queryKey: ['accounts'] });

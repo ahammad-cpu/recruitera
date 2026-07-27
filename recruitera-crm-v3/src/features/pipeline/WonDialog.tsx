@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Trophy, FileText, CheckSquare } from 'lucide-react';
 import type { Deal } from '@/hooks/useDeals';
 import { useMarkDealWon } from '@/hooks/useDealMutations';
+import { useOfferCycleSync } from '@/hooks/useOfferCycleSync';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/cn';
 
@@ -9,6 +10,7 @@ type Props = { deal: Deal; onClose: () => void; onDone?: () => void };
 
 export function WonDialog({ deal, onClose, onDone }: Props) {
   const mark = useMarkDealWon();
+  const { stampInvoice } = useOfferCycleSync();
   const [amount, setAmount] = useState<string>(String(deal.amount ?? ''));
   const currency = deal.currency || 'EGP';
   const [requestInvoice, setRequestInvoice] = useState(true);
@@ -61,6 +63,10 @@ export function WonDialog({ deal, onClose, onDone }: Props) {
       if (tasks.length) {
         const { error } = await supabase.from('activities').insert(tasks);
         if (error) console.warn('[WonDialog] follow-up tasks failed', error);
+      }
+      // Won = invoice raised — stamp the cycle's invoice_date.
+      if (deal.account_id) {
+        await stampInvoice(deal.account_id, new Date().toISOString().slice(0, 10));
       }
       onDone?.();
       onClose();
