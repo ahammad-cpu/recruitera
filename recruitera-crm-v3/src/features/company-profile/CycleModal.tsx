@@ -13,7 +13,7 @@ type Props = {
 
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'SAR'] as const;
 const STATUSES = ['active', 'renewed', 'collected', 'paid', 'churned', 'overdue'] as const;
-const PLAN_TIERS = ['Basic', 'Growth', 'Growth+', 'Pro', 'Enterprise'] as const;
+const PLAN_TIERS = ['Basic', 'Pro', 'Enterprise'] as const;
 const PAYMENT_TYPES = ['Bank transfer', 'Credit card', 'Cash', 'Cheque', 'Other'] as const;
 
 export function CycleModal({ accountId, existing, onClose, onDone }: Props) {
@@ -28,8 +28,13 @@ export function CycleModal({ accountId, existing, onClose, onDone }: Props) {
     ends_at: existing?.ends_at ?? '',
     status: existing?.status ?? 'active',
     auto_renew: !!existing?.auto_renew,
-    payment_type: '',
-    notes: '',
+    payment_type: existing?.payment_type ?? '',
+    notes: existing?.notes ?? '',
+    offer_sent_date: existing?.offer_sent_date ?? '',
+    invoice_date: existing?.invoice_date ?? '',
+    paid_date: existing?.paid_date ?? '',
+    original_price: existing?.original_price != null ? String(existing.original_price) : '',
+    discount_given: existing?.discount_given != null ? String(existing.discount_given) : '',
   });
   const [err, setErr] = useState<string | null>(null);
 
@@ -76,6 +81,17 @@ export function CycleModal({ accountId, existing, onClose, onDone }: Props) {
             <input type="checkbox" checked={form.auto_renew} onChange={(e) => set('auto_renew', e.target.checked)} className="w-4 h-4 accent-accent-strong" />
             <span className="text-[12.5px] font-bold text-text-2">Auto-renew</span>
           </label>
+
+          {/* Money timeline + fees — offer → invoice → payment/collection */}
+          <div className="md:col-span-2 mt-1 pt-3 border-t border-border/60">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Money timeline &amp; fees</span>
+          </div>
+          <FieldDate label="Offer sent date" value={form.offer_sent_date ?? ''} onChange={(v) => set('offer_sent_date', v)} />
+          <FieldDate label="Invoice created date" value={form.invoice_date ?? ''} onChange={(v) => set('invoice_date', v)} />
+          <FieldDate label="Payment / collection date" value={form.paid_date ?? ''} onChange={(v) => set('paid_date', v)} />
+          <div />
+          <FieldNumber label="Original fees" value={String(form.original_price ?? '')} onChange={(v) => set('original_price', v)} />
+          <FieldNumber label="Discount given" value={String(form.discount_given ?? '')} onChange={(v) => set('discount_given', v)} />
           <div className="md:col-span-2">
             <label className="block">
               <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Notes</span>

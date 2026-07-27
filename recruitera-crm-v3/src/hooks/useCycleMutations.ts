@@ -14,6 +14,12 @@ export type CycleFormInput = {
   auto_renew: boolean;
   payment_type?: string | null;
   notes?: string | null;
+  // Renewal money timeline + fees (all optional).
+  offer_sent_date?: string | null;
+  invoice_date?: string | null;
+  paid_date?: string | null;
+  original_price?: string | number | null;
+  discount_given?: string | number | null;
 };
 
 export function useSaveCycle(accountId: string | undefined) {
@@ -24,10 +30,12 @@ export function useSaveCycle(accountId: string | undefined) {
       if (!form.plan_tier || !form.started_at || !form.ends_at) {
         throw new Error('Plan tier, term start, and term end are required');
       }
+      const num = (v: string | number | null | undefined) =>
+        v === '' || v == null ? null : Number(v);
       const payload = {
         account_id: accountId,
         plan_tier: form.plan_tier,
-        value: form.value ? Number(form.value) : null,
+        value: num(form.value),
         currency: form.currency || 'EGP',
         started_at: form.started_at,
         ends_at: form.ends_at,
@@ -35,6 +43,11 @@ export function useSaveCycle(accountId: string | undefined) {
         auto_renew: !!form.auto_renew,
         payment_type: form.payment_type || null,
         notes: form.notes || null,
+        offer_sent_date: form.offer_sent_date || null,
+        invoice_date: form.invoice_date || null,
+        paid_date: form.paid_date || null,
+        original_price: num(form.original_price),
+        discount_given: num(form.discount_given),
       };
       if (form.id) {
         const { error } = await supabase.from('contract_cycles').update(payload).eq('id', form.id);

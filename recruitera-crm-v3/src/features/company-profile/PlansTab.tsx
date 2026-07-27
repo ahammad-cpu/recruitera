@@ -96,6 +96,18 @@ function CycleCard({ cycle: c, isCurrent, onEdit, onDelete }: { cycle: Cycle; is
         <Stat label="Length" value={months} />
         <Stat label="Amount" value={fmtValue(c.value, c.currency)} />
       </div>
+
+      {/* Money timeline — only rendered when the cycle has any of these set,
+          so old cycles without them stay clean. */}
+      {(c.offer_sent_date || c.invoice_date || c.paid_date || c.original_price != null || c.discount_given != null) && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border/60">
+          {c.offer_sent_date && <Stat label="Offer sent" value={fmtShortDate(c.offer_sent_date)} />}
+          {c.invoice_date && <Stat label="Invoice date" value={fmtShortDate(c.invoice_date)} />}
+          {c.paid_date && <Stat label="Payment / collection" value={fmtShortDate(c.paid_date)} />}
+          {c.original_price != null && <Stat label="Original fees" value={fmtValue(c.original_price, c.currency)} />}
+          {c.discount_given != null && <Stat label="Discount given" value={fmtValue(c.discount_given, c.currency)} />}
+        </div>
+      )}
     </div>
   );
 }

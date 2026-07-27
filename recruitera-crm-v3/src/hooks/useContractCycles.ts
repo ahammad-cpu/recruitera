@@ -13,6 +13,14 @@ export type Cycle = {
   renewal_due_date: string | null;
   auto_renew: boolean | null;
   plan_tier: string | null;
+  // Renewal money timeline + fees.
+  offer_sent_date: string | null;
+  invoice_date: string | null;
+  paid_date: string | null;
+  original_price: number | null;
+  discount_given: number | null;
+  payment_type: string | null;
+  notes: string | null;
 };
 
 export function useContractCycles() {
