@@ -70,28 +70,33 @@ export function CycleModal({ accountId, existing, onClose, onDone }: Props) {
         </header>
 
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FieldSelect label="Plan tier *" value={form.plan_tier} onChange={(v) => set('plan_tier', v)} options={PLAN_TIERS} allowCustom />
-          <FieldSelect label="Status" value={form.status} onChange={(v) => set('status', v)} options={STATUSES} />
-          <FieldDate label="Term start *" value={form.started_at} onChange={(v) => set('started_at', v)} />
-          <FieldDate label="Term end *" value={form.ends_at} onChange={(v) => set('ends_at', v)} />
-          <FieldNumber label="Amount" value={String(form.value ?? '')} onChange={(v) => set('value', v)} />
-          <FieldSelect label="Currency" value={form.currency} onChange={(v) => set('currency', v)} options={CURRENCIES} />
-          <FieldSelect label="Payment type" value={form.payment_type ?? ''} onChange={(v) => set('payment_type', v)} options={PAYMENT_TYPES} allowCustom optional />
-          <label className="flex items-center gap-2 mt-1">
-            <input type="checkbox" checked={form.auto_renew} onChange={(e) => set('auto_renew', e.target.checked)} className="w-4 h-4 accent-accent-strong" />
-            <span className="text-[12.5px] font-bold text-text-2">Auto-renew</span>
-          </label>
-
-          {/* Money timeline + fees — offer → invoice → payment/collection */}
-          <div className="md:col-span-2 mt-1 pt-3 border-t border-border/60">
+          {/* Money timeline & fees — leads the form: offer → invoice →
+              payment/collection, plus the fee figures and their currency. */}
+          <div className="md:col-span-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Money timeline &amp; fees</span>
           </div>
           <FieldDate label="Offer sent date" value={form.offer_sent_date ?? ''} onChange={(v) => set('offer_sent_date', v)} />
           <FieldDate label="Invoice created date" value={form.invoice_date ?? ''} onChange={(v) => set('invoice_date', v)} />
           <FieldDate label="Payment / collection date" value={form.paid_date ?? ''} onChange={(v) => set('paid_date', v)} />
+          <FieldSelect label="Currency" value={form.currency} onChange={(v) => set('currency', v)} options={CURRENCIES} />
+          <FieldNumber label={`Offer amount (${form.currency || 'EGP'})`} value={String(form.value ?? '')} onChange={(v) => set('value', v)} />
+          <FieldNumber label={`Original fees (${form.currency || 'EGP'})`} value={String(form.original_price ?? '')} onChange={(v) => set('original_price', v)} />
+          <FieldNumber label={`Discount given (${form.currency || 'EGP'})`} value={String(form.discount_given ?? '')} onChange={(v) => set('discount_given', v)} />
+          <FieldSelect label="Payment type" value={form.payment_type ?? ''} onChange={(v) => set('payment_type', v)} options={PAYMENT_TYPES} allowCustom optional />
+
+          {/* Plan + term */}
+          <div className="md:col-span-2 mt-1 pt-3 border-t border-border/60">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Plan &amp; term</span>
+          </div>
+          <FieldSelect label="Plan tier *" value={form.plan_tier} onChange={(v) => set('plan_tier', v)} options={PLAN_TIERS} allowCustom />
+          <FieldSelect label="Status" value={form.status} onChange={(v) => set('status', v)} options={STATUSES} />
+          <FieldDate label="Term start *" value={form.started_at} onChange={(v) => set('started_at', v)} />
+          <FieldDate label="Term end *" value={form.ends_at} onChange={(v) => set('ends_at', v)} />
+          <label className="flex items-center gap-2 mt-1">
+            <input type="checkbox" checked={form.auto_renew} onChange={(e) => set('auto_renew', e.target.checked)} className="w-4 h-4 accent-accent-strong" />
+            <span className="text-[12.5px] font-bold text-text-2">Auto-renew</span>
+          </label>
           <div />
-          <FieldNumber label="Original fees" value={String(form.original_price ?? '')} onChange={(v) => set('original_price', v)} />
-          <FieldNumber label="Discount given" value={String(form.discount_given ?? '')} onChange={(v) => set('discount_given', v)} />
           <div className="md:col-span-2">
             <label className="block">
               <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Notes</span>
