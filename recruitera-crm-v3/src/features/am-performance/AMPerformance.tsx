@@ -528,12 +528,55 @@ function TargetsTab({
             title="Next period"
           ><ChevronRight size={15} /></button>
         </div>
-        <input
-          type="date"
-          value={asOfISO}
-          onChange={(e) => setAsOfISO(e.target.value)}
-          className="h-9 px-2.5 border border-border rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
-        />
+        {/* Picker adapts to the period kind so reps don't need to think in
+            terms of day numbers when they only care about month/quarter/year. */}
+        {periodKind === 'monthly' && (
+          <input
+            type="month"
+            value={`${asOfDate.getFullYear()}-${String(asOfDate.getMonth() + 1).padStart(2, '0')}`}
+            onChange={(e) => {
+              const [yy, mm] = e.target.value.split('-').map(Number);
+              if (Number.isFinite(yy) && Number.isFinite(mm)) {
+                setAsOfISO(`${yy}-${String(mm).padStart(2, '0')}-01`);
+              }
+            }}
+            className="h-9 px-2.5 border border-border rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+          />
+        )}
+        {periodKind === 'quarterly' && (() => {
+          const y = asOfDate.getFullYear();
+          const q = Math.floor(asOfDate.getMonth() / 3) + 1;
+          const years = [y - 2, y - 1, y, y + 1, y + 2];
+          return (
+            <select
+              value={`${y}-Q${q}`}
+              onChange={(e) => {
+                const [yy, qq] = e.target.value.split('-Q').map(Number);
+                if (Number.isFinite(yy) && Number.isFinite(qq)) {
+                  setAsOfISO(`${yy}-${String((qq - 1) * 3 + 1).padStart(2, '0')}-01`);
+                }
+              }}
+              className="h-9 pl-3 pr-8 border border-border rounded-lg bg-surface text-[13px] font-semibold text-text outline-none focus:border-accent-strong cursor-pointer"
+            >
+              {years.flatMap((yr) => [1, 2, 3, 4].map((qi) => (
+                <option key={`${yr}-Q${qi}`} value={`${yr}-Q${qi}`}>Q{qi} {yr}</option>
+              )))}
+            </select>
+          );
+        })()}
+        {periodKind === 'yearly' && (() => {
+          const y = asOfDate.getFullYear();
+          const years = [y - 3, y - 2, y - 1, y, y + 1, y + 2, y + 3];
+          return (
+            <select
+              value={y}
+              onChange={(e) => setAsOfISO(`${e.target.value}-01-01`)}
+              className="h-9 pl-3 pr-8 border border-border rounded-lg bg-surface text-[13px] font-semibold text-text outline-none focus:border-accent-strong cursor-pointer"
+            >
+              {years.map((yr) => <option key={yr} value={yr}>{yr}</option>)}
+            </select>
+          );
+        })()}
         <button
           onClick={() => setAsOfISO(new Date().toISOString().slice(0, 10))}
           className="h-9 px-3 rounded-lg border border-border bg-surface text-[12.5px] font-bold text-text-2 hover:bg-surface-2"
