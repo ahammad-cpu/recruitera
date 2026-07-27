@@ -394,6 +394,19 @@ function ActivitiesFeed({
 
 type PeriodKind = 'monthly' | 'quarterly' | 'yearly';
 
+// The DB stores period_kind as 'month' | 'quarter' | 'year' and
+// owner_kind as 'profile' for per-AM rows. The UI uses the fuller words.
+// Map at the boundary so the two vocabularies never leak past this file.
+const UI_TO_DB_PERIOD: Record<PeriodKind, string> = {
+  monthly: 'month', quarterly: 'quarter', yearly: 'year',
+};
+function matchesUiPeriod(dbKind: string, ui: PeriodKind): boolean {
+  return dbKind === UI_TO_DB_PERIOD[ui] || dbKind === ui;
+}
+function isProfileTarget(t: Target): boolean {
+  return (t.owner_kind === 'profile' || t.owner_kind === 'user') && !!t.owner_id;
+}
+
 function periodBounds(kind: PeriodKind, asOf: Date): { start: string; end: string } {
   const y = asOf.getFullYear();
   const m = asOf.getMonth();
@@ -432,13 +445,32 @@ function TargetsTab({
   const asOfDate = useMemo(() => new Date(asOfISO), [asOfISO]);
   const { start, end } = useMemo(() => periodBounds(periodKind, asOfDate), [periodKind, asOfDate]);
 
-  const targetsByOwner = useMemo(() => {
+  // Sum every target row (any period_kind, any category) whose window
+  // overlaps the selected period. Picking Yearly with 22/07/2026 now
+  // aggregates all quarterly + monthly targets that fall inside 2026 —
+  // the previous strict period_kind match returned 0 whenever the stored
+  // rows were a different granularity than the toggle.
+  const targetTotalByOwner = useMemo(() => {
+    const m = new Map<string, number>();
+    (targets ?? []).forEach((t) => {
+      if (!isProfileTarget(t)) return;
+      // Overlap test: [t.period_start, t.period_end] ∩ [start, end] non-empty.
+      if (t.period_end < start || t.period_start > end) return;
+      m.set(t.owner_id!, (m.get(t.owner_id!) ?? 0) + (t.amount_egp || 0));
+    });
+    return m;
+  }, [targets, start, end]);
+
+  // Exact row for the Set/Edit action — only used to prefill the modal
+  // and to decide "Edit" vs "+ Set target" copy. Matches the selected
+  // granularity precisely so editing at Monthly doesn't clobber a
+  // Quarterly plan.
+  const exactTargetByOwner = useMemo(() => {
     const m = new Map<string, Target>();
     (targets ?? []).forEach((t) => {
-      if (t.owner_kind !== 'user' || !t.owner_id) return;
-      if (t.period_kind !== periodKind) return;
-      // Match a target row whose window covers the current period start.
-      if (t.period_start <= start && t.period_end >= end) m.set(t.owner_id, t);
+      if (!isProfileTarget(t)) return;
+      if (!matchesUiPeriod(t.period_kind, periodKind)) return;
+      if (t.period_start <= start && t.period_end >= end) m.set(t.owner_id!, t);
     });
     return m;
   }, [targets, periodKind, start, end]);
@@ -461,25 +493,26 @@ function TargetsTab({
   const rows = useMemo(() => {
     return profiles
       .map((p) => {
-        const target = targetsByOwner.get(p.id);
-        const targetAmt = target?.amount_egp ?? 0;
+        const targetAmt = targetTotalByOwner.get(p.id) ?? 0;
+        const target = exactTargetByOwner.get(p.id);
         const actual = actualByOwner.get(p.id) ?? 0;
         const pct = targetAmt > 0 ? Math.round((actual / targetAmt) * 100) : 0;
-        return { profile: p, target, targetAmt, actual, pct };
+        const hasAnyTarget = targetAmt > 0;
+        return { profile: p, target, targetAmt, actual, pct, hasAnyTarget };
       })
       .sort((a, b) => {
         // AMs with a target first (highest pct first), then AMs with actuals, then rest alphabetically.
-        if (!!a.target !== !!b.target) return a.target ? -1 : 1;
-        if (a.target && b.target) return b.pct - a.pct;
+        if (a.hasAnyTarget !== b.hasAnyTarget) return a.hasAnyTarget ? -1 : 1;
+        if (a.hasAnyTarget && b.hasAnyTarget) return b.pct - a.pct;
         if (a.actual !== b.actual) return b.actual - a.actual;
         return (a.profile.full_name || a.profile.email || '').localeCompare(b.profile.full_name || b.profile.email || '');
       });
-  }, [profiles, targetsByOwner, actualByOwner]);
+  }, [profiles, targetTotalByOwner, exactTargetByOwner, actualByOwner]);
 
   const teamTarget = rows.reduce((s, r) => s + r.targetAmt, 0);
   const teamActual = rows.reduce((s, r) => s + r.actual, 0);
   const teamPct = teamTarget > 0 ? Math.round((teamActual / teamTarget) * 100) : 0;
-  const amsWithTarget = rows.filter((r) => !!r.target).length;
+  const amsWithTarget = rows.filter((r) => r.hasAnyTarget).length;
 
   return (
     <div className="space-y-4">
@@ -557,7 +590,7 @@ function TargetsTab({
                 <tr><td colSpan={7} className="p-8 text-center text-[12.5px] text-text-3">No AMs to show.</td></tr>
               )}
               {!isLoading && rows.map((r) => {
-                const s = statusFromPct(r.pct, !!r.target);
+                const s = statusFromPct(r.pct, r.hasAnyTarget);
                 return (
                   <tr key={r.profile.id} className="border-t border-border hover:bg-surface-2/60">
                     <td className="px-4 py-3">
@@ -571,9 +604,9 @@ function TargetsTab({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-right tnum text-[13px] font-bold text-text">{r.target ? fmtEgp(r.targetAmt) : '—'}</td>
+                    <td className="px-3 py-3 text-right tnum text-[13px] font-bold text-text">{r.hasAnyTarget ? fmtEgp(r.targetAmt) : '—'}</td>
                     <td className="px-3 py-3 text-right tnum text-[13px] font-black text-text">{fmtEgp(r.actual)}</td>
-                    <td className="px-3 py-3 text-right tnum text-[12.5px] font-bold text-text-2">{r.target ? `${r.pct}%` : '—'}</td>
+                    <td className="px-3 py-3 text-right tnum text-[12.5px] font-bold text-text-2">{r.hasAnyTarget ? `${r.pct}%` : '—'}</td>
                     <td className="px-3 py-3">
                       <div className="h-2 rounded-full bg-surface-2 border border-border overflow-hidden min-w-[120px] max-w-[220px]">
                         <div className={cn('h-full rounded-full', s.barCls)} style={{ width: `${Math.min(100, r.pct)}%` }} />
@@ -586,7 +619,7 @@ function TargetsTab({
                       <button
                         onClick={() => setEditing({ profile: r.profile, existing: r.target })}
                         className="inline-flex items-center h-8 px-3 rounded-lg bg-accent text-cg-900 border border-accent-strong text-[12px] font-black hover:bg-accent-strong"
-                      >{r.target ? 'Edit target' : '+ Set target'}</button>
+                      >{r.target ? `Edit ${periodKind}` : '+ Set target'}</button>
                     </td>
                   </tr>
                 );
@@ -609,7 +642,7 @@ function TargetsTab({
       {bulkOpen && (
         <BulkSetTargetsModal
           profiles={profiles}
-          existingByOwner={targetsByOwner}
+          existingByOwner={exactTargetByOwner}
           periodKind={periodKind}
           periodStart={start}
           periodEnd={end}
@@ -651,10 +684,10 @@ function SetTargetModal({
     if (!Number.isFinite(n) || n < 0) { setErr('Enter a valid amount'); return; }
     try {
       await save.mutateAsync({
-        owner_kind: 'user',
+        owner_kind: 'profile',
         owner_id: profile.id,
-        category: 'revenue',
-        period_kind: periodKind,
+        category: 'new_sales',
+        period_kind: UI_TO_DB_PERIOD[periodKind],
         period_start: periodStart,
         period_end: periodEnd,
         amount_egp: n,
@@ -742,10 +775,10 @@ function BulkSetTargetsModal({
       // Sequential to keep the query invalidation predictable; volumes are small.
       for (const id of targets) {
         await save.mutateAsync({
-          owner_kind: 'user',
+          owner_kind: 'profile',
           owner_id: id,
-          category: 'revenue',
-          period_kind: periodKind,
+          category: 'new_sales',
+          period_kind: UI_TO_DB_PERIOD[periodKind],
           period_start: periodStart,
           period_end: periodEnd,
           amount_egp: n,
