@@ -138,6 +138,39 @@ export function useDeleteAccount() {
   });
 }
 
+// Edit the deal value straight from the Overview. Writes accounts.deal_value +
+// deal_currency; DB triggers fan the change out to the account's open deal and
+// its in-flight contract cycle, so all three money figures stay in step no
+// matter where they're edited.
+export function useUpdateDealValue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, deal_value, deal_currency }: { id: string; deal_value: number | null; deal_currency: string }) => {
+      const { error } = await supabase.from('accounts').update({ deal_value, deal_currency }).eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async ({ id, deal_value, deal_currency }) => {
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      const prev = qc.getQueryData<Account[]>(['accounts']);
+      qc.setQueryData<Account[]>(['accounts'], (old) =>
+        old?.map((a) => (a.id === id ? { ...a, deal_value, deal_currency } : a)) ?? old,
+      );
+      return { prev };
+    },
+    onError: (err, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
+      toast.error(`Deal value update failed: ${String((err as Error)?.message || err)}`);
+    },
+    onSuccess: () => {
+      toast.success('Deal value updated');
+      // The triggers touched deals + contract_cycles too — refresh those views.
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['contract_cycles'] });
+    },
+  });
+}
+
 export function useChangeStage() {
   const qc = useQueryClient();
   return useMutation({

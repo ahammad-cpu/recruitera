@@ -11,7 +11,7 @@ import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
 import { useDealsForCompany } from '@/hooks/useDeals';
-import { useRenameAccount, useChangeStage, useChangeOwner, useChangeCsOwner, useUpdateAccountDetails } from '@/hooks/useAccountMutations';
+import { useRenameAccount, useChangeStage, useChangeOwner, useChangeCsOwner, useUpdateAccountDetails, useUpdateDealValue } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
 import { LossModal } from '@/features/companies/LossModal';
@@ -296,7 +296,7 @@ export default function CompanyProfile() {
 
         {/* STAT STRIP */}
         <div className="mt-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          <Stat label="Deal value" value={lead.deal_value ? fmtEgp(toEgp(lead.deal_value, lead.deal_currency)) : '—'} hint={lead.deal_value ? '' : 'not set'} />
+          <DealValueStat lead={lead} />
           <OwnerStat lead={lead} owner={owner} profiles={profiles.data ?? []} />
           <Stat
             label="Trial"
@@ -414,6 +414,78 @@ function Stat({ label, value, hint, truncate, valueClass }: { label: string; val
       </div>
       {hint && <div className="text-[12px] text-text-3 mt-1">{hint}</div>}
     </div>
+  );
+}
+
+// Deal value, editable inline. Writing accounts.deal_value cascades to the
+// open deal + in-flight cycle via DB triggers, so editing here keeps the
+// Proposal offer and the plan/cycle value in step.
+const DEAL_CCY = ['EGP', 'USD', 'EUR', 'SAR'] as const;
+function DealValueStat({ lead }: { lead: Account }) {
+  const save = useUpdateDealValue();
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+  const [ccy, setCcy] = useState(lead.deal_currency || 'EGP');
+
+  function open() {
+    setVal(lead.deal_value != null ? String(lead.deal_value) : '');
+    setCcy(lead.deal_currency || 'EGP');
+    setEditing(true);
+  }
+  async function commit() {
+    const n = val.trim() === '' ? null : Number(val);
+    if (n != null && (!Number.isFinite(n) || n < 0)) { setEditing(false); return; }
+    await save.mutateAsync({ id: lead.id, deal_value: n, deal_currency: ccy });
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="bg-surface-2/60 rounded-xl p-3.5">
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3">Deal value</div>
+        <div className="mt-1 flex items-stretch border border-border-2 rounded-lg overflow-hidden focus-within:border-accent-strong bg-surface">
+          <select
+            value={ccy}
+            onChange={(e) => setCcy(e.target.value)}
+            className="px-1.5 bg-surface-2 border-r border-border-2 text-[11px] font-black text-text-2 outline-none cursor-pointer"
+          >
+            {DEAL_CCY.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input
+            autoFocus
+            type="number"
+            min={0}
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+            className="flex-1 w-full px-2 py-1.5 bg-transparent text-[15px] font-extrabold text-text outline-none tnum"
+            placeholder="0"
+          />
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={commit}
+            disabled={save.isPending}
+            className="h-7 px-3 rounded-md bg-accent text-cg-900 text-[11.5px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+          >
+            {save.isPending ? 'Saving…' : 'Save'}
+          </button>
+          <button onClick={() => setEditing(false)} className="h-7 px-2.5 rounded-md border border-border bg-surface text-[11.5px] font-bold text-text-2 hover:bg-surface-2">Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button type="button" onClick={open} className="text-left bg-surface-2/60 rounded-xl p-3.5 hover:bg-surface-2 transition-colors group" title="Edit deal value">
+      <div className="text-[10px] font-extrabold uppercase tracking-widest text-text-3 flex items-center gap-1">
+        Deal value <Pencil size={10} className="opacity-0 group-hover:opacity-60" />
+      </div>
+      <div className="mt-1 text-[16px] font-extrabold tracking-tight text-text">
+        {lead.deal_value ? fmtEgp(toEgp(lead.deal_value, lead.deal_currency)) : '—'}
+      </div>
+      <div className="text-[12px] text-text-3 mt-1">{lead.deal_value ? 'click to edit' : 'not set · click to add'}</div>
+    </button>
   );
 }
 
