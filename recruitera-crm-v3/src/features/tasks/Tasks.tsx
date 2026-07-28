@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckSquare, Square } from 'lucide-react';
+import { toast } from 'sonner';
+import { CheckSquare, Square, Pencil, X } from 'lucide-react';
 import { useTasks, type Task } from '@/hooks/useTasks';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useProfiles, useRoles, type Profile } from '@/hooks/useUsersData';
 import { useMe } from '@/hooks/useMe';
-import { useToggleTaskDone } from '@/hooks/useActivityMutations';
+import { useToggleTaskDone, useUpdateActivity } from '@/hooks/useActivityMutations';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { cn } from '@/lib/cn';
 
@@ -69,6 +70,7 @@ export default function Tasks() {
   const toggle = useToggleTaskDone();
   const [tab, setTab] = useState<TabKey>('all');
   const [range, setRange] = useState<RangeKey>('all');
+  const [editing, setEditing] = useState<Task | null>(null);
 
   const accountNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -248,14 +250,15 @@ export default function Tasks() {
                 <Th>Description</Th>
                 <Th>Responsible</Th>
                 <Th>Created by</Th>
+                <Th> </Th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={6} className="p-4 text-[12.5px] text-text-3">Loading…</td></tr>
+                <tr><td colSpan={7} className="p-4 text-[12.5px] text-text-3">Loading…</td></tr>
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={6} className="p-8 text-center text-[12.5px] text-text-3">No tasks here.</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-[12.5px] text-text-3">No tasks here.</td></tr>
               )}
               {!isLoading && filtered.map((t) => (
                 <TaskRow
@@ -266,11 +269,142 @@ export default function Tasks() {
                   responsible={profileById.get(t.assigned_to || t.author_id || '')}
                   author={profileById.get(t.author_id || '')}
                   onToggle={(done) => toggle.mutate({ id: t.id, done })}
+                  onEdit={() => setEditing(t)}
                 />
               ))}
             </tbody>
           </table>
         </div>
+      </div>
+
+      {editing && (
+        <TaskEditModal
+          task={editing}
+          assignees={responsibleOptions.length ? responsibleOptions : (profiles.data ?? [])}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function toDateInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const PRIORITIES = ['low', 'medium', 'high'] as const;
+
+function TaskEditModal({
+  task, assignees, onClose,
+}: {
+  task: Task;
+  assignees: Profile[];
+  onClose: () => void;
+}) {
+  const update = useUpdateActivity(task.account_id ?? undefined);
+  const [title, setTitle] = useState(task.title ?? '');
+  const [text, setText] = useState(task.text ?? '');
+  const [due, setDue] = useState(toDateInput(task.task_due_date));
+  const [assignedTo, setAssignedTo] = useState(task.assigned_to ?? '');
+  const [priority, setPriority] = useState(task.priority ?? 'medium');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  async function save() {
+    await update.mutateAsync({
+      id: task.id,
+      title: title.trim() || null,
+      text: text.trim() || null,
+      // Keep midday to avoid TZ rollover flipping the calendar day.
+      task_due_date: due ? new Date(`${due}T12:00:00`).toISOString() : null,
+      assigned_to: assignedTo || null,
+      priority,
+    });
+    toast.success('Task updated');
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-md overflow-hidden my-8" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-3 px-6 py-4 border-b border-border">
+          <div className="text-[15px] font-extrabold text-text">Edit task</div>
+          <div className="flex-1" />
+          <button onClick={onClose} className="p-1.5 rounded-md text-text-3 hover:bg-surface-2"><X size={16} /></button>
+        </header>
+
+        <div className="p-6 space-y-3">
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Title</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Details</span>
+            <textarea
+              rows={3}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              className="mt-1 w-full p-2.5 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong resize-vertical"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Due date</span>
+              <input
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Priority</span>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong capitalize"
+              >
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-3">Responsible</span>
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              className="mt-1 w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+            >
+              <option value="">Unassigned</option>
+              {assignees.map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <footer className="px-6 py-4 border-t border-border bg-surface-2/50 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-border bg-surface text-[12.5px] font-bold text-text-2 hover:bg-surface">Cancel</button>
+          <button
+            onClick={save}
+            disabled={update.isPending}
+            className="h-9 px-4 rounded-lg bg-accent text-cg-900 text-[12.5px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-60"
+          >
+            {update.isPending ? 'Saving…' : 'Save changes'}
+          </button>
+        </footer>
       </div>
     </div>
   );
@@ -281,7 +415,7 @@ function Th({ children }: { children: React.ReactNode }) {
 }
 
 function TaskRow({
-  task, now, companyName, responsible, author, onToggle,
+  task, now, companyName, responsible, author, onToggle, onEdit,
 }: {
   task: Task;
   now: number;
@@ -289,6 +423,7 @@ function TaskRow({
   responsible: Profile | undefined;
   author: Profile | undefined;
   onToggle: (done: boolean) => void;
+  onEdit: () => void;
 }) {
   return (
     <tr className={cn('border-t border-border hover:bg-surface-2/60 transition-colors', task.task_done && 'opacity-50')}>
@@ -333,6 +468,15 @@ function TaskRow({
         </div>
       </td>
       <td className="px-4 py-3 align-middle text-[12.5px] text-text-2">{author?.full_name || author?.email || '—'}</td>
+      <td className="px-4 py-3 align-middle text-right">
+        <button
+          onClick={onEdit}
+          title="Edit task"
+          className="p-1.5 rounded-md text-text-3 hover:bg-surface-2 hover:text-text"
+        >
+          <Pencil size={14} />
+        </button>
+      </td>
     </tr>
   );
 }

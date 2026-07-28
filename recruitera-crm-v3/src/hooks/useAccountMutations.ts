@@ -65,6 +65,35 @@ export function useChangeOwner() {
   });
 }
 
+// Reassign the Customer Success owner (customer_success_id + cs_email). Kept
+// separate from useChangeOwner so the AC (owner_id/am_mail) and CS assignments
+// can be changed independently from the Account team panel.
+export function useChangeCsOwner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, customer_success_id, cs_email }: { id: string; customer_success_id: string | null; cs_email: string | null }) => {
+      const { error } = await supabase.from('accounts').update({ customer_success_id, cs_email }).eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async ({ id, customer_success_id, cs_email }) => {
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      const prev = qc.getQueryData<Account[]>(['accounts']);
+      qc.setQueryData<Account[]>(['accounts'], (old) =>
+        old?.map((a) => (a.id === id ? { ...a, customer_success_id, cs_email } : a)) ?? old,
+      );
+      return { prev };
+    },
+    onError: (err, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
+      toast.error(`CS change failed: ${String((err as Error)?.message || err)}`);
+    },
+    onSuccess: (_d, v) => {
+      toast.success(`Customer Success set to ${v.cs_email || 'unassigned'}`);
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+    },
+  });
+}
+
 export function useBulkAssignOwner() {
   const qc = useQueryClient();
   return useMutation({

@@ -11,7 +11,7 @@ import { useMarketingTracking } from '@/hooks/useMarketingTracking';
 import { useAccountAttribution } from '@/hooks/useAccountAttribution';
 import { useUpsertContact } from '@/hooks/useContactMutations';
 import { useDealsForCompany } from '@/hooks/useDeals';
-import { useRenameAccount, useChangeStage, useChangeOwner, useUpdateAccountDetails } from '@/hooks/useAccountMutations';
+import { useRenameAccount, useChangeStage, useChangeOwner, useChangeCsOwner, useUpdateAccountDetails } from '@/hooks/useAccountMutations';
 import { OwnerPickerPopover } from '@/components/shared/OwnerPickerPopover';
 import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
 import { LossModal } from '@/features/companies/LossModal';
@@ -365,7 +365,7 @@ export default function CompanyProfile() {
           </div>
 
           <aside className="space-y-4">
-            <AccountTeamPanel primary={owner} csEmail={lead.cs_email} collectionId={lead.collection_team_id} profiles={profiles.data ?? []} />
+            <AccountTeamPanel lead={lead} primary={owner} collectionId={lead.collection_team_id} profiles={profiles.data ?? []} />
             <CompanyDetailsPanel lead={lead} attr={attribution.data ?? null} isAdmin={isAdmin} />
             {!dealsHidden && <DealsSection accountId={lead.id} />}
             <QuickTasksPanel accountId={lead.id} activities={activities ?? []} />
@@ -988,21 +988,46 @@ function LeadFormRows({ lf }: { lf: import('@/hooks/useAccountAttribution').Lead
 }
 
 function AccountTeamPanel({
-  primary, csEmail, collectionId, profiles,
+  lead, primary, collectionId, profiles,
 }: {
+  lead: Account;
   primary: import('@/hooks/useUsersData').Profile | undefined;
-  csEmail: string | null;
   collectionId: string | null;
   profiles: import('@/hooks/useUsersData').Profile[];
 }) {
-  const cs = csEmail ? profiles.find((p) => p.email?.toLowerCase() === csEmail.toLowerCase()) : undefined;
+  const csEmail = lead.cs_email;
+  const cs = lead.customer_success_id
+    ? profiles.find((p) => p.id === lead.customer_success_id)
+    : (csEmail ? profiles.find((p) => p.email?.toLowerCase() === csEmail.toLowerCase()) : undefined);
   const collection = collectionId ? profiles.find((p) => p.id === collectionId) : undefined;
+
+  const changeOwner = useChangeOwner();
+  const changeCs = useChangeCsOwner();
+
   return (
     <Panel title="Account team">
-      {!primary && !csEmail && !collectionId && <div className="text-[12px] text-text-3">Unassigned.</div>}
       <div className="space-y-3">
-        {primary && <TeamRow profile={primary} role="AC" roleTitle="Account Consultant" />}
-        {csEmail && <TeamRow profile={cs} fallbackEmail={csEmail} role="CS" roleTitle="Customer Success" />}
+        {/* AC and CS are always shown so an unassigned slot can still be
+            assigned. Both are editable; the collection team is derived from
+            stage and stays read-only. */}
+        <TeamRow
+          profile={primary}
+          fallbackEmail={lead.am_mail ?? undefined}
+          role="AC"
+          roleTitle="Account Consultant"
+          profiles={profiles}
+          currentId={lead.owner_id}
+          onSelect={(p) => changeOwner.mutate({ id: lead.id, owner_id: p?.id ?? null, am_mail: p?.email ?? null })}
+        />
+        <TeamRow
+          profile={cs}
+          fallbackEmail={csEmail ?? undefined}
+          role="CS"
+          roleTitle="Customer Success"
+          profiles={profiles}
+          currentId={lead.customer_success_id}
+          onSelect={(p) => changeCs.mutate({ id: lead.id, customer_success_id: p?.id ?? null, cs_email: p?.email ?? null })}
+        />
         {collectionId && <TeamRow profile={collection} role="COL" roleTitle="Collection team — invoice + payment tracking" />}
       </div>
     </Panel>
@@ -1010,17 +1035,23 @@ function AccountTeamPanel({
 }
 
 function TeamRow({
-  profile, fallbackEmail, role, roleTitle,
+  profile, fallbackEmail, role, roleTitle, profiles, currentId, onSelect,
 }: {
   profile: import('@/hooks/useUsersData').Profile | undefined;
   fallbackEmail?: string;
   role: 'AC' | 'CS' | 'COL';
   roleTitle: string;
+  // When these are supplied the row becomes editable (owner picker popover).
+  profiles?: import('@/hooks/useUsersData').Profile[];
+  currentId?: string | null;
+  onSelect?: (profile: import('@/hooks/useUsersData').Profile | null) => void;
 }) {
-  const name = profile?.full_name || profile?.email || fallbackEmail || '—';
+  const [open, setOpen] = useState(false);
+  const editable = !!profiles && !!onSelect;
+  const name = profile?.full_name || profile?.email || fallbackEmail || 'Unassigned';
   const email = profile?.email || fallbackEmail || '';
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 relative">
       <OwnerAvatar profile={profile} size={36} fallback={fallbackEmail} />
       <div className="min-w-0 flex-1">
         <div className="text-[13px] font-extrabold text-text truncate flex items-center gap-1.5">
@@ -1032,6 +1063,26 @@ function TeamRow({
         </div>
         {email && <div className="text-[12px] text-text-3 truncate">{email}</div>}
       </div>
+      {editable && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex-shrink-0 text-[11px] font-bold text-accent-ink hover:underline"
+          title={`Change ${roleTitle}`}
+        >
+          Change
+        </button>
+      )}
+      {editable && open && (
+        <OwnerPickerPopover
+          profiles={profiles!}
+          currentId={currentId}
+          onSelect={(p) => onSelect!(p)}
+          onClose={() => setOpen(false)}
+          placement="bottom"
+          align="right"
+        />
+      )}
     </div>
   );
 }

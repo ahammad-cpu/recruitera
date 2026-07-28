@@ -45,10 +45,22 @@ export function useLogActivity(accountId: string | undefined) {
 export function useUpdateActivity(accountId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, text, title }: { id: string; text?: string | null; title?: string | null }) => {
+    mutationFn: async ({
+      id, text, title, task_due_date, assigned_to, priority,
+    }: {
+      id: string;
+      text?: string | null;
+      title?: string | null;
+      task_due_date?: string | null;
+      assigned_to?: string | null;
+      priority?: string | null;
+    }) => {
       const patch: Record<string, unknown> = { edited_at: new Date().toISOString() };
       if (text !== undefined) patch.text = text;
       if (title !== undefined) patch.title = title;
+      if (task_due_date !== undefined) patch.task_due_date = task_due_date;
+      if (assigned_to !== undefined) patch.assigned_to = assigned_to;
+      if (priority !== undefined) patch.priority = priority;
       const { error } = await supabase.from('activities').update(patch).eq('id', id);
       if (error) throw error;
     },
