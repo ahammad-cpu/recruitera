@@ -1218,6 +1218,7 @@ function QuickTasksPanel({
               assignee={t.assigned_to ? profileById.get(t.assigned_to) : undefined}
               replies={repliesByParent.get(t.id) ?? []}
               profileById={profileById}
+              profileList={profileList}
               onToggle={() => toggle.mutate({ id: t.id, done: !t.task_done })}
             />
           ))}
@@ -1242,19 +1243,42 @@ function TaskTab({ active, onClick, label }: { active: boolean; onClick: () => v
 }
 
 function TaskRow({
-  accountId, task, assignee, replies, profileById, onToggle,
+  accountId, task, assignee, replies, profileById, profileList, onToggle,
 }: {
   accountId: string;
   task: import('@/hooks/useAccountDetail').Activity;
   assignee: import('@/hooks/useUsersData').Profile | undefined;
   replies: import('@/hooks/useAccountDetail').Activity[];
   profileById: Map<string, import('@/hooks/useUsersData').Profile>;
+  profileList: import('@/hooks/useUsersData').Profile[];
   onToggle: () => void;
 }) {
   const done = !!task.task_done;
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [editing, setEditing] = useState(false);
   const log = useLogActivity(accountId);
+  const update = useUpdateActivity(accountId);
+
+  // Edit form state — seeded from the task, reset whenever it opens.
+  const [eTitle, setETitle] = useState(task.title || task.text || '');
+  const [eDue, setEDue] = useState((task.task_due_date || '').slice(0, 10));
+  const [eAssignee, setEAssignee] = useState(task.assigned_to || '');
+  function openEdit() {
+    setETitle(task.title || task.text || '');
+    setEDue((task.task_due_date || '').slice(0, 10));
+    setEAssignee(task.assigned_to || '');
+    setEditing(true);
+  }
+  async function saveEdit() {
+    await update.mutateAsync({
+      id: task.id,
+      title: eTitle.trim() || null,
+      task_due_date: eDue || null,
+      assigned_to: eAssignee || null,
+    });
+    setEditing(false);
+  }
 
   function sendReply() {
     const t = replyText.trim();
@@ -1283,28 +1307,85 @@ function TaskRow({
           className="mt-0.5 w-[18px] h-[18px] rounded border-2 border-border-2 accent-accent cursor-pointer flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
-          <div className={cn('text-[13.5px] break-words', done ? 'line-through text-text-3' : 'font-bold text-text')}>
-            {task.title || task.text || 'Untitled task'}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap mt-1.5">
-            {task.task_due_date && (
-              <span className={cn('inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[12px] font-bold', dueClass)}>
-                <Clock size={10} /> {fmtDate(task.task_due_date)}
-              </span>
-            )}
-            {assignee && (
-              <span className="inline-flex items-center gap-1.5 h-[20px] pl-0.5 pr-2 rounded-full bg-surface border border-border">
-                <OwnerAvatar profile={assignee} size={18} />
-                <span className="text-[12px] font-bold text-text-2 truncate max-w-[120px]">{assignee.full_name || assignee.email}</span>
-              </span>
-            )}
-            <button
-              onClick={() => setReplyOpen((v) => !v)}
-              className="ml-auto text-[11.5px] font-bold text-accent-ink hover:underline"
-            >
-              {replies.length > 0 ? `${replyOpen ? 'Hide' : 'Show'} ${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}` : (replyOpen ? 'Cancel' : 'Reply')}
-            </button>
-          </div>
+          {editing ? (
+            <div className="space-y-2">
+              <input
+                autoFocus
+                value={eTitle}
+                onChange={(e) => setETitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(); } if (e.key === 'Escape') setEditing(false); }}
+                placeholder="Task title…"
+                className="w-full h-9 px-3 border border-border-2 rounded-lg bg-surface text-[13px] outline-none focus:border-accent-strong"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  value={eDue}
+                  onChange={(e) => setEDue(e.target.value)}
+                  className="h-9 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] outline-none focus:border-accent-strong"
+                />
+                <select
+                  value={eAssignee}
+                  onChange={(e) => setEAssignee(e.target.value)}
+                  className="h-9 px-3 border border-border-2 rounded-lg bg-surface text-[12.5px] font-semibold outline-none focus:border-accent-strong"
+                >
+                  <option value="">Unassigned</option>
+                  {profileList.map((p) => (
+                    <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={saveEdit}
+                  disabled={update.isPending}
+                  className="h-8 px-4 rounded-lg bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong disabled:opacity-50"
+                >
+                  {update.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="h-8 px-3 rounded-lg border border-border bg-surface text-[12px] font-bold text-text-2 hover:bg-surface-2"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={cn('text-[13.5px] break-words', done ? 'line-through text-text-3' : 'font-bold text-text')}>
+                {task.title || task.text || 'Untitled task'}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                {task.task_due_date && (
+                  <span className={cn('inline-flex items-center gap-1 h-[20px] px-2 rounded-full text-[12px] font-bold', dueClass)}>
+                    <Clock size={10} /> {fmtDate(task.task_due_date)}
+                  </span>
+                )}
+                {assignee && (
+                  <span className="inline-flex items-center gap-1.5 h-[20px] pl-0.5 pr-2 rounded-full bg-surface border border-border">
+                    <OwnerAvatar profile={assignee} size={18} />
+                    <span className="text-[12px] font-bold text-text-2 truncate max-w-[120px]">{assignee.full_name || assignee.email}</span>
+                  </span>
+                )}
+                <div className="ml-auto flex items-center gap-3">
+                  <button
+                    onClick={openEdit}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-bold text-text-3 hover:text-text"
+                    title="Edit task"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                  <button
+                    onClick={() => setReplyOpen((v) => !v)}
+                    className="text-[11.5px] font-bold text-accent-ink hover:underline"
+                  >
+                    {replies.length > 0 ? `${replyOpen ? 'Hide' : 'Show'} ${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}` : (replyOpen ? 'Cancel' : 'Reply')}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
