@@ -338,46 +338,18 @@ function Column({
     <div
       ref={setNodeRef}
       className={cn(
-        'group/col flex-shrink-0 flex flex-col transition-colors',
+        // Same shell as the Renewal board: surface-2 column, white header
+        // strip, rounded + clipped.
+        'group/col flex-shrink-0 flex flex-col overflow-hidden bg-surface-2 border border-border rounded-2xl transition-colors',
         col.slim ? 'w-[240px]' : 'w-[288px]',
         isOver && 'ring-2 ring-accent',
       )}
-      style={{
-        // Framed column shell — subtle border + gradient top-fade so each
-        // stage reads as its own container instead of a loose card stack.
-        background: 'linear-gradient(rgb(247, 248, 249) 0%, rgba(247, 248, 249, 0) 95%)',
-        border: '1px solid rgb(230, 233, 225)',
-        borderRadius: 14,
-        padding: '14px 12px 12px',
-        minHeight: 420,
-      }}
+      style={{ minHeight: 420 }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 12px' }}>
-        <span
-          className="truncate"
-          style={{
-            display: 'inline-flex', alignItems: 'center',
-            height: 22, padding: '0 10px', borderRadius: 999,
-            background: col.badge, color: '#fff',
-            fontSize: 12, fontWeight: 700, letterSpacing: '0.01em',
-            whiteSpace: 'nowrap',
-          }}
-        >{col.label}</span>
-        <span
-          className="tnum"
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: 'rgb(91, 107, 95)',
-            background: 'rgb(238, 241, 234)',
-            borderRadius: 999,
-            minWidth: 22, height: 20,
-            display: 'inline-flex',
-            alignItems: 'center', justifyContent: 'center',
-            padding: '0 7px',
-            marginLeft: 'auto',
-          }}
-        >
+      <div className="flex items-center gap-2 px-4 pt-3.5 pb-3 bg-surface">
+        <span className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', col.dot)} />
+        <span className="text-[15px] font-black tracking-tight text-text truncate">{col.label}</span>
+        <span className="tnum bg-surface-2 border border-border text-text-2 text-[12px] font-black px-2.5 py-0.5 rounded-full" style={{ marginLeft: 'auto' }}>
           {isLoading ? '…' : fmtInt(rows.length)}
         </span>
         <button
@@ -398,7 +370,7 @@ function Column({
 
       {/* Column footer — HubSpot-style: Total amount, then Weighted amount
           (total × stage win-probability) with the % shown inline. */}
-      <div style={{ padding: '10px 6px 2px', borderTop: '1px solid rgb(238, 241, 234)', marginTop: 4 }}>
+      <div className="bg-surface border-t border-border" style={{ padding: '10px 14px' }}>
         <div className="tnum" style={{ fontSize: 12.5, color: 'rgb(26, 43, 40)' }}>
           <span style={{ fontWeight: 700 }}>{fmtEgpShort(total)}</span>
           <span style={{ color: 'rgb(138, 151, 143)', fontWeight: 500 }}> | Total amount</span>
@@ -441,7 +413,7 @@ function ColumnBody({
     <div
       onScroll={onScroll}
       className="max-h-[calc(100vh-410px)] overflow-y-auto sc flex-1"
-      style={{ padding: '0 0 2px', minHeight: 0 }}
+      style={{ padding: '12px 12px 2px', minHeight: 0 }}
     >
       {isLoading && [...Array(2)].map((_, i) => (
         <div key={i} className="h-32 bg-surface-2 rounded-xl animate-pulse" />
