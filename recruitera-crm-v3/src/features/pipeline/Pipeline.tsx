@@ -1,48 +1,57 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { Briefcase, Trophy, FileText, Gauge, Download, Clock, RotateCcw, AlertTriangle, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, RotateCcw, GripVertical, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useDeals, isStale, isOverdue, type Deal, type DealStage } from '@/hooks/useDeals';
 import { useMoveDeal, useReopenDeal, positionBetween } from '@/hooks/useDealMutations';
 import { useProfiles } from '@/hooks/useUsersData';
+import { useAllAccountTags, useTags, useAttachTag, useDetachTag, useCreateTag, type Tag } from '@/hooks/useTags';
+import { TagPickerPopover } from '@/components/shared/TagPickerPopover';
 import { OwnerAvatar } from '@/components/shared/OwnerAvatar';
 import { fmtInt } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { WonDialog } from './WonDialog';
 import { LostDialog } from './LostDialog';
 import { ProposalDialog } from './ProposalDialog';
-import { DEAL_TYPES } from '@/hooks/useDeals';
 import {
   defaultFilters, filtersFromParams, filtersToParams,
   type PipelineFilterState,
 } from './PipelineFilters';
 import { PipelineFilterBar } from './PipelineFilterBar';
 
-type ColMeta = { key: DealStage; label: string; dot: string; bar: string; slim?: boolean };
+type ColMeta = { key: DealStage; label: string; dot: string; bar: string; badge: string; weight: number; slim?: boolean };
 
+// HubSpot-style board: each stage is a solid colour-coded badge, and every
+// stage carries a win-probability used for the column's Weighted amount.
 // Lost + Collected render slim (240px) as end-of-funnel storage — reps rarely
-// browse them, but they must remain drop targets. Active columns stay 320px.
+// browse them, but they must remain drop targets. Active columns stay 288px.
 const COLUMNS: ColMeta[] = [
-  { key: 'mql',       label: 'MQL',       dot: 'bg-accent-strong', bar: 'border-accent-strong' },
-  { key: 'sql',       label: 'SQL',       dot: 'bg-violet',        bar: 'border-violet' },
-  { key: 'demo',      label: 'DEMO',      dot: 'bg-purple',        bar: 'border-purple' },
-  { key: 'proposal',  label: 'PROPOSAL',  dot: 'bg-warn',          bar: 'border-warn' },
-  { key: 'won',       label: 'WON',       dot: 'bg-ok',            bar: 'border-ok' },
-  { key: 'collected', label: 'COLLECTED', dot: 'bg-accent',        bar: 'border-accent', slim: true },
-  { key: 'lost',      label: 'LOST',      dot: 'bg-bad',           bar: 'border-bad',    slim: true },
+  { key: 'mql',       label: 'MQL',       dot: 'bg-accent-strong', bar: 'border-accent-strong', badge: '#0091ae', weight: 0.20 },
+  { key: 'sql',       label: 'SQL',       dot: 'bg-violet',        bar: 'border-violet',        badge: '#c2410c', weight: 0.40 },
+  { key: 'demo',      label: 'Demo',      dot: 'bg-purple',        bar: 'border-purple',        badge: '#b02a91', weight: 0.60 },
+  { key: 'proposal',  label: 'Proposal',  dot: 'bg-warn',          bar: 'border-warn',          badge: '#c98a00', weight: 0.80 },
+  { key: 'won',       label: 'Won',       dot: 'bg-ok',            bar: 'border-ok',            badge: '#00875a', weight: 1.00 },
+  { key: 'collected', label: 'Collected', dot: 'bg-accent',        bar: 'border-accent',        badge: '#0d8a8a', weight: 1.00, slim: true },
+  { key: 'lost',      label: 'Lost',      dot: 'bg-bad',           bar: 'border-bad',           badge: '#d64545', weight: 0.00, slim: true },
 ];
+
+// Short US-style date for card property rows (HubSpot uses MM/DD/YYYY).
+function mdY(iso?: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${d.getFullYear()}`;
+}
+const AMT_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 
 const EGP_FMT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const fmtEgpShort = (n: number) => `${EGP_FMT.format(Math.round(n))} EGP`;
-function fmtEgpCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 1 : 2)}M EGP`;
-  if (n >= 10_000)    return `${Math.round(n / 1000)}k EGP`;
-  return fmtEgpShort(n);
-}
 
 function temperature(d: Deal): 'hot' | 'warm' | 'cold' {
   if (d.temperature) return d.temperature;
@@ -143,13 +152,7 @@ export default function Pipeline() {
   }, [deals]);
 
   const openStages = new Set<DealStage>(['mql', 'sql', 'demo', 'proposal']);
-  const openDeals = deals.filter((d) => openStages.has(d.stage));
-  const openPipeline = openDeals.reduce((s, d) => s + (d.amount || 0), 0);
-  const wonQtd = deals.filter((d) => d.stage === 'won' || d.stage === 'collected').reduce((s, d) => s + (d.amount || 0), 0);
-  const proposalsLive = deals.filter((d) => d.stage === 'proposal').length;
-  const dealsWithValue = openDeals.filter((d) => (d.amount || 0) > 0);
-  const avgDeal = dealsWithValue.length ? openPipeline / dealsWithValue.length : 0;
-  const totalLeads = openDeals.length;
+  const totalLeads = deals.filter((d) => openStages.has(d.stage)).length;
 
   function handleDragStart(e: DragStartEvent) {
     setActiveDeal(allDeals.find((d) => d.id === String(e.active.id)) ?? null);
@@ -218,17 +221,6 @@ export default function Pipeline() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard icon={<Briefcase size={18} />} iconBg="bg-accent-soft" iconColor="text-accent-ink" barColor="bg-accent-strong"
-                 label="Open pipeline" value={fmtEgpCompact(openPipeline)} sub="Active new-business" />
-        <KpiCard icon={<Trophy size={18} />} iconBg="bg-warn-bg" iconColor="text-warn" barColor="bg-warn"
-                 label="Won QTD" value={fmtEgpCompact(wonQtd)} sub="Closed revenue" />
-        <KpiCard icon={<FileText size={18} />} iconBg="bg-info-bg" iconColor="text-info" barColor="bg-info"
-                 label="Proposals live" value={fmtInt(proposalsLive)} sub="Awaiting decision" />
-        <KpiCard icon={<Gauge size={18} />} iconBg="bg-ok-bg" iconColor="text-ok" barColor="bg-ok"
-                 label="Avg deal size" value={fmtEgpCompact(avgDeal)} sub="Open pipeline" />
-      </div>
-
       <PipelineFilterBar value={filters} onChange={setFilters} profiles={profilesQ.data ?? []} />
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -251,7 +243,6 @@ export default function Pipeline() {
                 rows={groups.get(col.key) ?? []}
                 profilesById={profilesById}
                 isLoading={isLoading}
-                pctDenom={openPipeline}
                 onReopen={(id) => reopen.mutate({ id })}
                 isCollapsed={collapsed.has(col.key)}
                 onToggleCollapsed={() => toggleCollapsed(col.key)}
@@ -281,49 +272,19 @@ export default function Pipeline() {
   );
 }
 
-function KpiCard({
-  icon, iconBg, iconColor, barColor, label, value, sub,
-}: {
-  icon: React.ReactNode; iconBg: string; iconColor: string; barColor: string;
-  label: string; value: string; sub: string;
-}) {
-  return (
-    <div className="relative bg-surface border border-border rounded-xl p-3.5 pt-4 shadow-sh1 overflow-hidden">
-      <div className={cn('absolute top-0 left-0 right-0 h-[3px]', barColor)} />
-      <div className="flex items-center gap-2.5">
-        <div className={cn('w-8 h-8 rounded-lg grid place-items-center flex-shrink-0', iconBg, iconColor)}>{icon}</div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[9.5px] font-black tracking-[0.14em] uppercase text-text-3">{label}</div>
-          <div className="tnum text-[18px] font-black tracking-tight text-text leading-none mt-0.5">{value}</div>
-        </div>
-      </div>
-      <div className="text-[10.5px] text-text-3 font-semibold mt-1.5">{sub}</div>
-    </div>
-  );
-}
-
 function Column({
-  col, rows, profilesById, isLoading, pctDenom, onReopen, isCollapsed, onToggleCollapsed,
+  col, rows, profilesById, isLoading, onReopen, isCollapsed, onToggleCollapsed,
 }: {
   col: ColMeta;
   rows: Deal[];
   profilesById: Map<string, import('@/hooks/useUsersData').Profile>;
   isLoading: boolean;
-  // Denominator for the stage-share %. Open pipeline (not board total) so
-  // MQL/SQL/etc. read as "share of active work", not diluted by Lost.
-  pctDenom: number;
   onReopen: (id: string) => void;
   isCollapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.key });
   const total = useMemo(() => rows.reduce((s, d) => s + (d.amount || 0), 0), [rows]);
-  const avg = useMemo(() => {
-    const withValue = rows.filter((d) => (d.amount || 0) > 0);
-    return withValue.length ? Math.round(total / withValue.length) : 0;
-  }, [rows, total]);
-  const pct = pctDenom > 0 ? Math.round((total / pctDenom) * 100) : 0;
-  const isOpenStage = col.key === 'mql' || col.key === 'sql' || col.key === 'demo' || col.key === 'proposal';
 
   // Collapsed rail — narrow vertical strip with count + rotated label, click
   // anywhere to expand. Still a drop target so reps can drag cards into a
@@ -391,14 +352,16 @@ function Column({
         minHeight: 420,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 4px 12px' }}>
-        <span
-          className={cn('flex-shrink-0', col.dot)}
-          style={{ width: 9, height: 9, borderRadius: 999, display: 'inline-block' }}
-        />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 12px' }}>
         <span
           className="truncate"
-          style={{ fontSize: 14, fontWeight: 600, color: 'rgb(26, 43, 40)' }}
+          style={{
+            display: 'inline-flex', alignItems: 'center',
+            height: 22, padding: '0 10px', borderRadius: 999,
+            background: col.badge, color: '#fff',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.01em',
+            whiteSpace: 'nowrap',
+          }}
         >{col.label}</span>
         <span
           className="tnum"
@@ -407,11 +370,11 @@ function Column({
             fontWeight: 700,
             color: 'rgb(91, 107, 95)',
             background: 'rgb(238, 241, 234)',
-            borderRadius: 6,
-            height: 19,
+            borderRadius: 999,
+            minWidth: 22, height: 20,
             display: 'inline-flex',
-            alignItems: 'center',
-            padding: '0 8px',
+            alignItems: 'center', justifyContent: 'center',
+            padding: '0 7px',
             marginLeft: 'auto',
           }}
         >
@@ -433,22 +396,19 @@ function Column({
 
       <ColumnBody rows={rows} profilesById={profilesById} isLoading={isLoading} isLost={col.key === 'lost'} slim={!!col.slim} onReopen={onReopen} />
 
-      {/* Column footer — kept from the original layout (Total + Avg) but
-          restyled to sit lightly inside the gradient column rather than
-          the old bordered strip. Same data, muted chrome. */}
-      <div style={{ padding: '10px 6px 2px' }}>
-        <div className="flex items-baseline justify-between">
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgb(138, 151, 143)' }}>
-            Total {isOpenStage && pct > 0 && <span className="tnum" style={{ fontWeight: 700, color: 'rgb(138, 151, 143)' }}>· {pct}%</span>}
-          </div>
-          <div className="tnum" style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(26, 43, 40)' }}>{total > 0 ? fmtEgpShort(total) : '0 EGP'}</div>
+      {/* Column footer — HubSpot-style: Total amount, then Weighted amount
+          (total × stage win-probability) with the % shown inline. */}
+      <div style={{ padding: '10px 6px 2px', borderTop: '1px solid rgb(238, 241, 234)', marginTop: 4 }}>
+        <div className="tnum" style={{ fontSize: 12.5, color: 'rgb(26, 43, 40)' }}>
+          <span style={{ fontWeight: 700 }}>{fmtEgpShort(total)}</span>
+          <span style={{ color: 'rgb(138, 151, 143)', fontWeight: 500 }}> | Total amount</span>
         </div>
-        {!col.slim && (
-          <div className="flex items-baseline justify-between" style={{ marginTop: 4 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgb(138, 151, 143)' }}>Avg</div>
-            <div className="tnum" style={{ fontSize: 12.5, fontWeight: 600, color: 'rgb(91, 107, 95)' }}>{avg > 0 ? fmtEgpShort(avg) : '0 EGP'}</div>
-          </div>
-        )}
+        <div className="tnum" style={{ fontSize: 12.5, color: 'rgb(26, 43, 40)', marginTop: 3 }}>
+          <span style={{ fontWeight: 700 }}>{fmtEgpShort(Math.round(total * col.weight))}</span>
+          <span style={{ color: 'rgb(138, 151, 143)', fontWeight: 500 }}>
+            {' '}({Math.round(col.weight * 100)}%) | Weighted amount
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -508,8 +468,92 @@ function ColumnBody({
   );
 }
 
+// Tag chips + "Add tag" picker on a pipeline card. Uses the SAME account_tags
+// store as the company profile, so a tag added here appears there instantly
+// (and vice-versa). The picker is portalled to <body> so the card's overflow
+// clipping and drag listeners don't interfere.
+function CardTags({ accountId }: { accountId: string }) {
+  const allAcctTags = useAllAccountTags();
+  const allTags = useTags();
+  const attach = useAttachTag(accountId);
+  const detach = useDetachTag(accountId);
+  const create = useCreateTag();
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const tags: Tag[] = allAcctTags.data?.get(accountId) ?? [];
+  const attachedIds = new Set(tags.map((t) => t.id));
+
+  function openPicker(e: React.MouseEvent) {
+    e.stopPropagation();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.min(r.left, window.innerWidth - 312), top: r.bottom });
+    setOpen(true);
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+      {tags.map((t) => (
+        <span
+          key={t.id}
+          className="truncate"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            maxWidth: 140, height: 20, padding: '0 8px', borderRadius: 999,
+            background: 'rgb(238, 241, 234)', color: 'rgb(26, 43, 40)',
+            fontSize: 11, fontWeight: 600,
+          }}
+        >
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: t.color || 'rgb(var(--accent))', flex: '0 0 auto' }} />
+          <span className="truncate">{t.label}</span>
+        </span>
+      ))}
+      <button
+        ref={btnRef}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={openPicker}
+        title="Add tag"
+        className="inline-flex items-center gap-1"
+        style={{
+          height: 20, padding: tags.length ? '0 6px' : '0 8px', borderRadius: 999,
+          border: '1px dashed rgb(200, 208, 198)', background: 'transparent',
+          color: 'rgb(107, 122, 116)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        <Plus size={11} />{tags.length ? '' : ' Add tag'}
+      </button>
+
+      {open && pos && createPortal(
+        <div style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 200 }}>
+          <TagPickerPopover
+            allTags={allTags.data ?? []}
+            attachedIds={attachedIds}
+            onAttach={(id) => attach.mutate(id)}
+            onDetach={(id) => detach.mutate(id)}
+            onCreate={(label) => create.mutateAsync(label)}
+            onClose={() => setOpen(false)}
+            placement="bottom"
+            align="left"
+          />
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function PropRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, fontSize: 12.5, lineHeight: 1.35 }}>
+      <span style={{ color: 'rgb(138, 151, 143)', flex: '0 0 auto' }}>{label}:</span>
+      <span className="truncate tnum" style={{ color: 'rgb(26, 43, 40)', fontWeight: strong ? 700 : 500 }}>{value}</span>
+    </div>
+  );
+}
+
 function Card({
-  d, owner, isLost, slim, onReopen, isOverlay,
+  d, owner, isLost, onReopen, isOverlay,
 }: {
   d: Deal;
   owner: import('@/hooks/useUsersData').Profile | undefined;
@@ -525,15 +569,6 @@ function Card({
   const stale = isStale(d);
   const overdue = isOverdue(d);
   const name = d.company?.name || d.title || '—';
-
-  // Company initials for the reference-style avatar chip in the card top.
-  const initials = (name || '—')
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.charAt(0))
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || '—';
 
   return (
     <div
@@ -569,124 +604,54 @@ function Card({
           style={{ border: '2px dashed rgb(230, 233, 225)', background: 'rgba(238, 241, 234, 0.4)', borderRadius: 12 }}
         />
       )}
-      <div className={cn(isDragging && !isOverlay && 'invisible')}>
-        {/* Card top — mirrors the reference: initials-avatar + name + a
-            metadata row of small pastel chips. */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '13px 14px 11px' }}>
-          <span
-            className="tnum"
-            style={{
-              width: 24, height: 24, borderRadius: 999,
-              background: 'rgb(0, 36, 39)', color: 'rgb(255, 255, 255)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 700, fontSize: 10, flex: '0 0 auto',
-            }}
-          >{initials}</span>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingRight: 16 }}>
-              <Link
-                to={`/companies/${d.account_id}`}
-                state={{ from: 'pipeline' }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="truncate"
-                style={{ fontWeight: 600, fontSize: 14, color: 'rgb(26, 43, 40)' }}
-              >{name}</Link>
-              {overdue && (
-                <span
-                  className="tnum"
-                  style={{
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.02em',
-                    color: 'rgb(196, 61, 61)',
-                    border: '1px solid rgb(240, 205, 205)',
-                    background: 'rgb(251, 237, 237)',
-                    borderRadius: 5, padding: '2px 6px', flex: '0 0 auto',
-                  }}
-                >Overdue</span>
-              )}
-              {!overdue && stale && (
-                <span
-                  className="tnum"
-                  style={{
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.02em',
-                    color: 'rgb(163, 121, 27)',
-                    border: '1px solid rgb(238, 220, 178)',
-                    background: 'rgb(253, 246, 227)',
-                    borderRadius: 5, padding: '2px 6px', flex: '0 0 auto',
-                  }}
-                >Stale</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
-              {(d.amount ?? 0) > 0 && (
-                <span
-                  className="tnum"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-                    color: 'rgb(91, 107, 95)', background: 'rgb(238, 241, 234)',
-                    borderRadius: 4, padding: '2px 6px',
-                  }}
-                >
-                  VALUE
-                  <span style={{ color: 'rgb(26, 43, 40)', fontSize: 10 }}>
-                    {new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(d.amount!)} {d.currency || 'EGP'}
-                  </span>
-                </span>
-              )}
-              {d.deal_type && (
-                <span
-                  style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-                    color: 'rgb(91, 107, 95)', background: 'rgb(238, 241, 234)',
-                    borderRadius: 4, padding: '2px 6px',
-                  }}
-                  title="Deal type"
-                >
-                  {DEAL_TYPES.find((t) => t.key === d.deal_type)?.label ?? d.deal_type}
-                </span>
-              )}
-              {d.company?.industry && !slim && (
-                <span style={{ fontSize: 12.5, color: 'rgb(138, 151, 143)' }} className="truncate">
-                  {d.company.industry}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Card footer — owner + optional Reopen action, styled like the
-            reference "location" footer strip. */}
-        <div
-          style={{
-            borderTop: '1px solid rgb(241, 243, 236)',
-            padding: '9px 14px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 12.5,
-            color: 'rgb(91, 107, 95)',
-          }}
-        >
-          <OwnerAvatar profile={owner} size={18} fallback={d.company?.am_mail ?? undefined} />
-          <span className="truncate" style={{ color: 'rgb(138, 151, 143)', flex: 1 }}>
-            {owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'}
-          </span>
-          {isLost && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onReopen(d.id); }}
-              title="Reopen deal — sends it back to MQL"
-              className="inline-flex items-center gap-1"
-              style={{
-                height: 22, padding: '0 8px', borderRadius: 6,
-                border: '1px solid rgb(230, 233, 225)', background: 'rgb(255, 255, 255)',
-                color: 'rgb(91, 107, 95)', fontSize: 10.5, fontWeight: 700,
-              }}
-            >
-              <RotateCcw size={11} /> Reopen
-            </button>
+      <div className={cn(isDragging && !isOverlay && 'invisible')} style={{ padding: '12px 14px 10px' }}>
+        {/* Title — the deal name as an accent link (HubSpot card header). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, paddingRight: 16 }}>
+          <Link
+            to={`/companies/${d.account_id}`}
+            state={{ from: 'pipeline' }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="truncate hover:underline"
+            style={{ fontWeight: 700, fontSize: 14, color: 'rgb(15, 118, 110)' }}
+          >{d.title || name}</Link>
+          {overdue && (
+            <span className="tnum" style={{ fontSize: 10, fontWeight: 700, color: 'rgb(196, 61, 61)', border: '1px solid rgb(240, 205, 205)', background: 'rgb(251, 237, 237)', borderRadius: 5, padding: '1px 6px', flex: '0 0 auto' }}>Overdue</span>
+          )}
+          {!overdue && stale && (
+            <span className="tnum" style={{ fontSize: 10, fontWeight: 700, color: 'rgb(163, 121, 27)', border: '1px solid rgb(238, 220, 178)', background: 'rgb(253, 246, 227)', borderRadius: 5, padding: '1px 6px', flex: '0 0 auto' }}>Stale</span>
           )}
         </div>
+
+        {/* Property rows — label: value, HubSpot's default card layout. */}
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <PropRow label="Create date" value={mdY(d.created_at)} />
+          <PropRow label="Close date" value={mdY(d.expected_close_date)} />
+          <PropRow label="Amount" value={(d.amount ?? 0) > 0 ? `${AMT_FMT.format(d.amount!)} ${d.currency || 'EGP'}` : '—'} strong />
+          <PropRow label="Deal owner" value={owner?.full_name || owner?.email || d.company?.am_mail || 'Unassigned'} />
+        </div>
+
+        {/* Tags — same picker + store as the company profile, so a tag added
+            here shows there (and vice-versa). */}
+        {!isOverlay && d.account_id && (
+          <div style={{ borderTop: '1px solid rgb(241, 243, 236)', marginTop: 10, paddingTop: 2 }}>
+            <CardTags accountId={d.account_id} />
+          </div>
+        )}
+
+        {isLost && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onReopen(d.id); }}
+            title="Reopen deal — sends it back to MQL"
+            className="inline-flex items-center gap-1"
+            style={{
+              marginTop: 9, height: 24, padding: '0 8px', borderRadius: 6,
+              border: '1px solid rgb(230, 233, 225)', background: 'rgb(255, 255, 255)',
+              color: 'rgb(91, 107, 95)', fontSize: 10.5, fontWeight: 700,
+            }}
+          >
+            <RotateCcw size={11} /> Reopen
+          </button>
+        )}
       </div>
     </div>
   );

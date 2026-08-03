@@ -7,20 +7,21 @@ import {
 } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import { useRenewalBoard, type RenewalRow } from '@/hooks/useRenewals';
-import { useRenewCycle } from '@/hooks/useCycleMutations';
+import { useRenewCycle, useMarkInProgress } from '@/hooks/useCycleMutations';
 import { ChurnReasonModal } from './ChurnReasonModal';
 import { RENEWAL_COLUMNS, type RenewalBucket } from '@/lib/renewal';
 import { fmtInt, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
-// Only these two columns are a real, settable status on the contract cycle.
-// The day-count buckets (90/60/30/Overdue) are always derived from ends_at
-// and can't be dragged into — dropping there is a no-op with an explanation.
-const SETTABLE_COLUMNS = new Set<RenewalBucket>(['renewed', 'churned']);
+// These columns are real, settable statuses on the contract cycle. The
+// day-count buckets (90/60/30/Overdue) are always derived from ends_at and
+// can't be dragged into — dropping there is a no-op with an explanation.
+const SETTABLE_COLUMNS = new Set<RenewalBucket>(['inprogress', 'renewed', 'churned']);
 
 export default function Renewal() {
   const { rowsByBucket, isLoading, error, refetch } = useRenewalBoard();
   const renewCycle = useRenewCycle();
+  const markInProgress = useMarkInProgress();
   const [activeRow, setActiveRow] = useState<RenewalRow | null>(null);
   // When a card is dropped on Churned we open a reason modal instead of
   // silently flipping status — Reports needs to differentiate the why.
@@ -50,6 +51,11 @@ export default function Renewal() {
     }
     if (target === 'churned') {
       setPendingChurn(row);
+      return;
+    }
+    if (target === 'inprogress') {
+      // Mark the cycle as actively-worked (status 'negotiating').
+      markInProgress.mutate({ id: cycleId });
       return;
     }
     // Renewed: close the old cycle AND spin up the next term so the customer
@@ -160,7 +166,7 @@ function RenewalCard({
   const { attributes, listeners, setNodeRef, isDragging } = drag;
   const name = account.name || account.domain || '—';
   const plan = cycle.plan_tier || '—';
-  const chipLabel = bucket === 'overdue' ? 'Overdue' : bucket === 'renewed' ? 'Renewed' : bucket === 'churned' ? 'Churned' : label;
+  const chipLabel = bucket === 'overdue' ? 'Overdue' : bucket === 'inprogress' ? 'In Progress' : bucket === 'renewed' ? 'Renewed' : bucket === 'churned' ? 'Churned' : label;
 
   return (
     <div

@@ -129,6 +129,25 @@ export function useRenewCycle() {
   });
 }
 
+/** Mark a cycle as actively-worked ("In Progress" column → status negotiating). */
+export function useMarkInProgress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase
+        .from('contract_cycles')
+        .update({ status: 'negotiating' })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Moved to In Progress');
+      qc.invalidateQueries({ queryKey: ['contract_cycles'] });
+    },
+    onError: (e) => toast.error(`Update failed: ${String((e as Error).message || e)}`),
+  });
+}
+
 export const CHURN_REASONS = [
   { key: 'competitor',        label: 'Went to competitor' },
   { key: 'feature_gap',       label: 'Missing features' },

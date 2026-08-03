@@ -20,6 +20,11 @@ describe('computeRenewalBucket', () => {
     expect(computeRenewalBucket({ status: 'renewed', ends_at: daysFromNow(-100) }, {}, NOW)).toBe('renewed');
   });
 
+  it('honors a negotiating cycle as In Progress regardless of dates', () => {
+    expect(computeRenewalBucket({ status: 'negotiating', ends_at: daysFromNow(-5) }, {}, NOW)).toBe('inprogress');
+    expect(computeRenewalBucket({ status: 'negotiating', ends_at: daysFromNow(200) }, paidActive, NOW)).toBe('inprogress');
+  });
+
   it('buckets by days remaining for currently paid+active customers: d30/d60/d90', () => {
     expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(15) }, paidActive, NOW)).toBe('d30');
     expect(computeRenewalBucket({ status: 'active', ends_at: daysFromNow(45) }, paidActive, NOW)).toBe('d60');

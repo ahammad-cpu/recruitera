@@ -1,16 +1,19 @@
 import type { Cycle } from '@/hooks/useContractCycles';
 
-export type RenewalBucket = 'healthy' | 'd90' | 'd60' | 'd30' | 'overdue' | 'renewed' | 'churned' | 'nonpaid';
+export type RenewalBucket = 'healthy' | 'd90' | 'd60' | 'd30' | 'overdue' | 'inprogress' | 'renewed' | 'churned' | 'nonpaid';
 
 export const RENEWAL_COLUMNS: Array<{ key: RenewalBucket; label: string; dot: string; chip: string }> = [
-  { key: 'healthy', label: 'Healthy',       dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
-  { key: 'd90',     label: '90 days',       dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
-  { key: 'd60',     label: '60 days',       dot: 'bg-info',          chip: 'bg-info-bg text-info' },
-  { key: 'd30',     label: '30 days',       dot: 'bg-warn',          chip: 'bg-warn-bg text-warn' },
-  { key: 'overdue', label: 'Overdue',       dot: 'bg-bad',           chip: 'bg-bad-bg text-bad' },
-  { key: 'nonpaid', label: 'Non-paid',      dot: 'bg-purple',        chip: 'bg-purple-bg text-purple' },
-  { key: 'renewed', label: 'Renewed',       dot: 'bg-accent-strong', chip: 'bg-accent-soft text-accent-ink' },
-  { key: 'churned', label: 'Churned',       dot: 'bg-text-4',        chip: 'bg-surface-2 text-text-3' },
+  { key: 'healthy',    label: 'Healthy',     dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
+  { key: 'd90',        label: '90 days',     dot: 'bg-ok',            chip: 'bg-ok-bg text-ok' },
+  { key: 'd60',        label: '60 days',     dot: 'bg-info',          chip: 'bg-info-bg text-info' },
+  { key: 'd30',        label: '30 days',     dot: 'bg-warn',          chip: 'bg-warn-bg text-warn' },
+  { key: 'overdue',    label: 'Overdue',     dot: 'bg-bad',           chip: 'bg-bad-bg text-bad' },
+  // Manually-set: a renewal the CS team is actively working (status
+  // 'negotiating'). Sits right after Overdue in the flow.
+  { key: 'inprogress', label: 'In Progress', dot: 'bg-info',          chip: 'bg-info-bg text-info' },
+  { key: 'nonpaid',    label: 'Non-paid',    dot: 'bg-purple',        chip: 'bg-purple-bg text-purple' },
+  { key: 'renewed',    label: 'Renewed',     dot: 'bg-accent-strong', chip: 'bg-accent-soft text-accent-ink' },
+  { key: 'churned',    label: 'Churned',     dot: 'bg-text-4',        chip: 'bg-surface-2 text-text-3' },
 ];
 
 // A "No fees" plan tier or a Without-Charge paid_status marks a company we
@@ -43,6 +46,8 @@ export function computeRenewalBucket(
 
   if (cycle.status === 'churned') return 'churned';
   if (cycle.status === 'renewed') return 'renewed';
+  // Actively-worked renewal — honored regardless of dates, like churned/renewed.
+  if (cycle.status === 'negotiating') return 'inprogress';
   // Non-paid companies (No fees / Without Charge) get their own column
   // instead of diluting the paying buckets.
   if (isNonPaidCompany(cycle, account)) return 'nonpaid';

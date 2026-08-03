@@ -36,6 +36,28 @@ export function useAccountTags(accountId: string | undefined) {
   });
 }
 
+// All account→tag links in one query, keyed by account_id. Used by the
+// pipeline board so each card doesn't fire its own account_tags request.
+export function useAllAccountTags() {
+  return useQuery({
+    queryKey: ['account_tags', 'all'],
+    queryFn: async (): Promise<Map<string, Tag[]>> => {
+      const { data, error } = await supabase
+        .from('account_tags')
+        .select('account_id, tag:tags(*)');
+      if (error) throw error;
+      const m = new Map<string, Tag[]>();
+      (data ?? []).forEach((r: { account_id: string; tag: Tag | null }) => {
+        if (!r.tag) return;
+        const arr = m.get(r.account_id) ?? [];
+        arr.push(r.tag);
+        m.set(r.account_id, arr);
+      });
+      return m;
+    },
+  });
+}
+
 export function useCreateTag() {
   const qc = useQueryClient();
   return useMutation({
@@ -67,7 +89,9 @@ export function useAttachTag(accountId: string | undefined) {
         .insert({ account_id: accountId, tag_id: tagId, added_by });
       if (error && !String(error.message).match(/duplicate/i)) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['account_tags', accountId] }); },
+    // Prefix key invalidates BOTH ['account_tags', id] (profile) and
+    // ['account_tags', 'all'] (pipeline board) so tags sync everywhere.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['account_tags'] }); },
     onError: (e) => toast.error(`Attach failed: ${String((e as Error).message || e)}`),
   });
 }
@@ -84,7 +108,7 @@ export function useDetachTag(accountId: string | undefined) {
         .eq('tag_id', tagId);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['account_tags', accountId] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['account_tags'] }); },
     onError: (e) => toast.error(`Remove failed: ${String((e as Error).message || e)}`),
   });
 }
