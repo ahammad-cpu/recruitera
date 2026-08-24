@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2, Eye } from 'lucide-react';
+import { Search, Plus, MoreVertical, ChevronDown, ChevronRight, Users2, Eye, KeyRound, Trash2, Copy, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useImpersonation } from '@/lib/impersonation';
 import { useRealMe } from '@/hooks/useMe';
@@ -8,6 +8,8 @@ import { useProfiles, useRoles, useTeams, type Role, type Profile } from '@/hook
 import { useToggleRoleModule, useCreateRole, MODULE_CATALOG, MODULE_SECTIONS } from '@/hooks/useRoleMutations';
 import { useUpdateProfileFields } from '@/hooks/useProfileMutations';
 import { useInviteUser } from '@/hooks/useInviteUser';
+import { useResetUserPassword, useDeleteUser } from '@/hooks/useManageUser';
+import { toast } from 'sonner';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { initials } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -84,6 +86,10 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
   const { startImpersonation } = useImpersonation();
   const realMe = useRealMe();
   const navigate = useNavigate();
+  const resetPw = useResetUserPassword();
+  const delUser = useDeleteUser();
+  const [tempPw, setTempPw] = useState<{ name: string; pw: string } | null>(null);
+  const [delTarget, setDelTarget] = useState<Profile | null>(null);
   const [q, setQ] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const roleName = (id: string | null) => roles?.find((r) => r.id === id)?.name ?? '—';
@@ -200,7 +206,7 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
                       <Eye size={15} />
                     </button>
                   )}
-                  {reports.length > 0 ? (
+                  {reports.length > 0 && (
                     <button
                       onClick={() => toggleExpand(p.id)}
                       title={`${reports.length} direct report${reports.length === 1 ? '' : 's'}`}
@@ -209,11 +215,14 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
                       {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       {reports.length}
                     </button>
-                  ) : (
-                    <button className="w-8 h-8 grid place-items-center rounded-md text-text-3 hover:bg-surface-2" title="More">
-                      <MoreVertical size={15} />
-                    </button>
                   )}
+                  <RowMenu
+                    isSelf={realMe.data?.id === p.id}
+                    onReset={() => resetPw.mutate(p.id, {
+                      onSuccess: (d) => setTempPw({ name: p.full_name || p.email, pw: d.temp_password }),
+                    })}
+                    onDelete={() => setDelTarget(p)}
+                  />
                 </div>
               </div>
 
@@ -236,6 +245,128 @@ function MembersTab({ onInvite }: { onInvite: () => void }) {
             </div>
           );
         })}
+      </div>
+
+      {tempPw && <TempPasswordModal name={tempPw.name} pw={tempPw.pw} onClose={() => setTempPw(null)} />}
+      {delTarget && (
+        <DeleteUserModal
+          profile={delTarget}
+          pending={delUser.isPending}
+          onClose={() => setDelTarget(null)}
+          onConfirm={() => delUser.mutate(delTarget.id, { onSuccess: () => setDelTarget(null) })}
+        />
+      )}
+    </div>
+  );
+}
+
+function RowMenu({ isSelf, onReset, onDelete }: { isSelf: boolean; onReset: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', h);
+    document.addEventListener('keydown', k);
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', k); };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-8 h-8 grid place-items-center rounded-md text-text-3 hover:bg-surface-2"
+        title="More"
+      >
+        <MoreVertical size={15} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-9 z-50 w-48 bg-surface border border-border rounded-lg shadow-sh3 py-1">
+          <button
+            onClick={() => { setOpen(false); onReset(); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] font-semibold text-text hover:bg-surface-2"
+          >
+            <KeyRound size={14} /> Reset password
+          </button>
+          <button
+            disabled={isSelf}
+            onClick={() => { setOpen(false); onDelete(); }}
+            title={isSelf ? "You can't delete your own account" : undefined}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] font-semibold text-bad hover:bg-bad-bg disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Trash2 size={14} /> Delete user
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TempPasswordModal({ name, pw, onClose }: { name: string; pw: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-6" onClick={onClose}>
+      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-3 px-6 py-4 border-b border-border">
+          <div className="w-9 h-9 rounded-lg bg-accent-soft text-accent-ink grid place-items-center flex-shrink-0"><KeyRound size={17} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] font-extrabold text-text">Temporary password</div>
+            <div className="text-[12px] text-text-3 truncate">for {name}</div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md text-text-3 hover:bg-surface-2"><X size={16} /></button>
+        </header>
+        <div className="p-6 space-y-3">
+          <div className="flex items-center gap-2 p-3 border-2 border-border-2 rounded-lg bg-surface-2">
+            <code className="flex-1 font-mono text-[15px] font-bold text-text tracking-wide select-all break-all">{pw}</code>
+            <button
+              onClick={() => { navigator.clipboard.writeText(pw).then(() => toast.success('Copied')); }}
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-accent text-cg-900 text-[12px] font-black border border-accent-strong hover:bg-accent-strong flex-shrink-0"
+            >
+              <Copy size={13} /> Copy
+            </button>
+          </div>
+          <div className="text-[12px] text-text-2 bg-warn-bg/60 border border-warn/30 rounded-lg px-3 py-2">
+            This is shown <b>once</b>. Share it with the user over a secure channel and ask them to change it on first login.
+          </div>
+        </div>
+        <footer className="px-6 py-4 border-t border-border bg-surface-2/50 flex justify-end">
+          <button onClick={onClose} className="h-9 px-4 rounded-lg bg-cg-900 text-white text-[12.5px] font-black hover:opacity-90">Done</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function DeleteUserModal({ profile, pending, onClose, onConfirm }: { profile: Profile; pending: boolean; onClose: () => void; onConfirm: () => void }) {
+  const label = profile.full_name || profile.email;
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-6" onClick={onClose}>
+      <div className="bg-surface rounded-2xl shadow-sh3 w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-3 px-6 py-4 border-b border-border">
+          <div className="w-9 h-9 rounded-lg bg-bad-bg text-bad grid place-items-center flex-shrink-0"><Trash2 size={17} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] font-extrabold text-text">Delete user</div>
+            <div className="text-[12px] text-text-3 truncate">{label}</div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md text-text-3 hover:bg-surface-2"><X size={16} /></button>
+        </header>
+        <div className="p-6 space-y-3 text-[13px] text-text-2">
+          <p>This permanently removes <b className="text-text">{label}</b>'s login and profile. This <b>can't be undone.</b></p>
+          <ul className="list-disc pl-5 space-y-1 text-[12.5px]">
+            <li>Their companies become <b>unassigned</b> (no owner) — nothing is deleted.</li>
+            <li>Open tasks assigned to them become unassigned.</li>
+            <li>Their past notes/activity stay, shown without an author.</li>
+          </ul>
+        </div>
+        <footer className="px-6 py-4 border-t border-border bg-surface-2/50 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-border bg-surface text-[12.5px] font-bold text-text-2 hover:bg-surface-2">Cancel</button>
+          <button
+            onClick={onConfirm}
+            disabled={pending}
+            className="h-9 px-4 rounded-lg bg-bad text-white text-[12.5px] font-black hover:opacity-90 disabled:opacity-60"
+          >
+            {pending ? 'Deleting…' : 'Delete permanently'}
+          </button>
+        </footer>
       </div>
     </div>
   );
