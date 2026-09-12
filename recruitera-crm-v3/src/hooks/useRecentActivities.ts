@@ -41,9 +41,12 @@ export function useRecentActivities(limit = 200) {
  * covers a normal workday and initial render matches the old hook.
  */
 const PAGE_SIZE = 300;
-export function useRecentActivitiesInfinite() {
+// person: 'all' | 'humans' (hide system) | 'system' (only automation) | a profile id.
+// Filtering server-side matters: the feed can be swamped by automated rows, so
+// client-only filtering would show "0" until you page far enough back.
+export function useRecentActivitiesInfinite(person: string = 'all') {
   return useInfiniteQuery({
-    queryKey: ['activities', 'logs', PAGE_SIZE],
+    queryKey: ['activities', 'logs', PAGE_SIZE, person],
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }): Promise<ActivityRow[]> => {
       let q = supabase
@@ -51,6 +54,9 @@ export function useRecentActivitiesInfinite() {
         .select('id,account_id,author_id,type,text,title,from_stage,to_stage,email_subject,call_outcome,created_at')
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
+      if (person === 'humans') q = q.not('author_id', 'is', null);
+      else if (person === 'system') q = q.is('author_id', null);
+      else if (person !== 'all') q = q.eq('author_id', person);
       if (pageParam) q = q.lt('created_at', pageParam);
       const { data, error } = await q;
       if (error) throw error;

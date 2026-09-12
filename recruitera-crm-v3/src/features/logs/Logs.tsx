@@ -43,12 +43,12 @@ const DATE_RANGES: { key: DateRangeKey; label: string }[] = [
 ];
 
 export default function Logs() {
-  const q = useRecentActivitiesInfinite();
+  const [kind, setKind] = useState('all');
+  const [personId, setPersonId] = useState('all');
+  const q = useRecentActivitiesInfinite(personId); // person filter runs server-side
   const activityTypes = useEnum('activity_type');
   const accounts = useAccounts();
   const profiles = useProfiles();
-  const [kind, setKind] = useState('all');
-  const [personId, setPersonId] = useState('all');
   const [dateRange, setDateRange] = useState<DateRangeKey>('all');
 
   // Flatten every fetched page into one array. Order is preserved because
@@ -85,10 +85,9 @@ export default function Logs() {
 
   // People + date filter first — kind is a top-level tab and its count
   // should reflect the currently narrowed slice, not the raw feed.
+  // Person filter is applied server-side (in the query); here we only narrow
+  // the already-person-scoped feed by date.
   const scoped = data.filter((a) => {
-    if (personId === 'system') { if (a.author_id !== null) return false; }        // only automation
-    else if (personId === 'humans') { if (a.author_id === null) return false; }   // hide automation
-    else if (personId !== 'all') { if (a.author_id !== personId) return false; }  // one person
     if (rangeStart !== null && new Date(a.created_at).getTime() < rangeStart) return false;
     return true;
   });
