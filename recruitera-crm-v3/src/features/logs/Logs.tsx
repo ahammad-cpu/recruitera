@@ -44,7 +44,9 @@ const DATE_RANGES: { key: DateRangeKey; label: string }[] = [
 
 export default function Logs() {
   const [kind, setKind] = useState('all');
-  const [personId, setPersonId] = useState('all');
+  // Default to human activity — the automated/system feed is noisy and rarely
+  // what someone opening Logs wants first.
+  const [personId, setPersonId] = useState('humans');
   const q = useRecentActivitiesInfinite(personId); // person filter runs server-side
   const activityTypes = useEnum('activity_type');
   const accounts = useAccounts();
