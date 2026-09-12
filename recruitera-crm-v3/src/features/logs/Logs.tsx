@@ -86,9 +86,9 @@ export default function Logs() {
   // People + date filter first — kind is a top-level tab and its count
   // should reflect the currently narrowed slice, not the raw feed.
   const scoped = data.filter((a) => {
-    if (personId !== 'all') {
-      if (personId === 'system' ? a.author_id !== null : a.author_id !== personId) return false;
-    }
+    if (personId === 'system') { if (a.author_id !== null) return false; }        // only automation
+    else if (personId === 'humans') { if (a.author_id === null) return false; }   // hide automation
+    else if (personId !== 'all') { if (a.author_id !== personId) return false; }  // one person
     if (rangeStart !== null && new Date(a.created_at).getTime() < rangeStart) return false;
     return true;
   });
@@ -137,6 +137,7 @@ export default function Logs() {
             className="h-8 pl-3 pr-8 border border-border-2 rounded-lg bg-surface text-[12.5px] font-bold text-text outline-none cursor-pointer"
           >
             <option value="all">Everyone</option>
+            <option value="humans">People only (no system)</option>
             <option value="system">System (automated)</option>
             {(profiles.data ?? []).map((p) => (
               <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
