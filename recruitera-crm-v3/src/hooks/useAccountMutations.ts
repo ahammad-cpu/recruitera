@@ -132,7 +132,14 @@ export function useDeleteAccount() {
     },
     onSuccess: () => {
       toast.success('Company deleted');
+      // The FK cascade removed the company's deals/cycles/activities too, so
+      // refresh every view that could still show a card for it — otherwise the
+      // Pipeline board keeps a stale deal card that 404s when clicked.
       qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['contract_cycles'] });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['activities'] });
     },
     onError: (err) => toast.error(`Delete failed: ${String((err as Error).message || err)}`),
   });

@@ -119,6 +119,9 @@ export default function Pipeline() {
     const ownersSet = new Set(filters.owners);
     const tempsSet = new Set(filters.temps);
     return allDeals.filter((d) => {
+      // Never render a card whose company no longer resolves (deleted account) —
+      // it would 404 on click.
+      if (!d.company || !d.account_id) return false;
       if (ownersSet.size && !(d.owner_id && ownersSet.has(d.owner_id))) return false;
       if (tempsSet.size && !tempsSet.has(temperature(d))) return false;
       const v = d.amount || 0;
