@@ -58,6 +58,7 @@ export function useActivities(accountId: string | undefined) {
         .from('activities')
         .select('id,account_id,author_id,type,text,title,from_stage,to_stage,task_due_date,task_done,assigned_to,parent_id,email_subject,call_outcome,call_duration_minutes,meeting_start_at,created_at')
         .eq('account_id', accountId!)
+        .eq('is_archived', false) // hide deduped/archived activities
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;

@@ -24,6 +24,7 @@ export function useTasks() {
         .from('activities')
         .select('id,account_id,author_id,title,text,task_due_date,task_done,task_done_at,priority,assigned_to,created_at,onboarding_plan_id')
         .eq('type', 'task')
+        .eq('is_archived', false) // hide deduped/archived tasks
         .order('task_due_date', { ascending: true, nullsFirst: false })
         .limit(500);
       if (error) throw error;
