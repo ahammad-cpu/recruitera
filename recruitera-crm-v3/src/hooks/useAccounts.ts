@@ -77,3 +77,12 @@ export function useAccounts() {
 export const isPaid = (a: Account) =>
   (a.paid_status === 'Paid' || a.paid_status === 'Without Charge') &&
   a.activation_status === 'Active';
+
+/**
+ * The company's REAL creation date. Synced companies get `created_at` = the
+ * moment the row landed in the CRM (often months after signup); Bubble's
+ * Original_Creation_Date lives in `bubble_created_at`. Prefer that.
+ */
+export function accountCreatedAt(a: Pick<Account, 'created_at' | 'bubble_created_at'>): string {
+  return a.bubble_created_at || a.created_at;
+}

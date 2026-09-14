@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Search, Search as SearchIcon, ArrowUpDown, AlertTriangle, Send, UserCheck, X, Ban, RotateCcw } from 'lucide-react';
-import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
+import { useAccounts, isPaid, accountCreatedAt, type Account } from '@/hooks/useAccounts';
 import { useEnum } from '@/hooks/useEnum';
 import { useAllContacts } from '@/hooks/useAllContacts';
 import { useContractCycles } from '@/hooks/useContractCycles';
@@ -229,12 +229,12 @@ export default function Companies() {
         : key === 'stage' ? (a.stage || '')
         : key === 'owner' ? (a.am_mail || '')
         : key === 'source' ? (a.source || '')
-        : a.created_at;
+        : accountCreatedAt(a);
       const bv = key === 'name' ? (b.name || b.domain || '')
         : key === 'stage' ? (b.stage || '')
         : key === 'owner' ? (b.am_mail || '')
         : key === 'source' ? (b.source || '')
-        : b.created_at;
+        : accountCreatedAt(b);
       if (av < bv) return -1 * dir;
       if (av > bv) return 1 * dir;
       return 0;
@@ -497,7 +497,7 @@ export default function Companies() {
                         <span className="inline-flex h-5 px-2 rounded-full bg-ok-bg text-ok text-[10.5px] font-bold items-center">Paid</span>
                       ) : <span className="text-text-4">—</span>)}
                     </td>
-                    <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap border-r border-border/40">{fmtDate(a.created_at)}</td>
+                    <td className="px-4 py-2.5 text-text-3 text-[12px] whitespace-nowrap border-r border-border/40">{fmtDate(accountCreatedAt(a))}</td>
                     <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       {a.stage === 'lost' || a.loss_reason
                         ? (

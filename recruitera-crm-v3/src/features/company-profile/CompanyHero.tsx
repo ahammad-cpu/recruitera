@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Globe, Pencil, Check, X } from 'lucide-react';
 import type { Account } from '@/hooks/useAccounts';
-import { isPaid } from '@/hooks/useAccounts';
+import { isPaid, accountCreatedAt } from '@/hooks/useAccounts';
 import { useRenameAccount, useChangeStage } from '@/hooks/useAccountMutations';
 import { useEnum } from '@/hooks/useEnum';
 import { StagePill } from '@/components/shared/StagePill';
@@ -91,7 +91,7 @@ export function CompanyHero({ lead }: { lead: Account }) {
         <Stat label="Owner" value={lead.am_mail || '—'} truncate />
         <Stat label="Paid status" value={lead.paid_status || '—'} />
         <Stat label="Activation" value={lead.activation_status || '—'} />
-        <Stat label="Created" value={fmtDate(lead.created_at)} />
+        <Stat label="Created" value={fmtDate(accountCreatedAt(lead))} />
       </div>
     </div>
   );

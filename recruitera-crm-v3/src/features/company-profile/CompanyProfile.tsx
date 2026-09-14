@@ -4,7 +4,7 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Mail, FileText, Trash2,
   X, Pencil, Globe, Phone as PhoneIcon, Plus, Sparkles, Clock, RotateCcw,
 } from 'lucide-react';
-import { useAccounts, isPaid, type Account } from '@/hooks/useAccounts';
+import { useAccounts, isPaid, accountCreatedAt, type Account } from '@/hooks/useAccounts';
 import { useContacts, useActivities } from '@/hooks/useAccountDetail';
 import { useLogActivity, useToggleTaskDone, useUpdateActivity, useDeleteActivity } from '@/hooks/useActivityMutations';
 import { useMarketingTracking } from '@/hooks/useMarketingTracking';
@@ -304,7 +304,7 @@ export default function CompanyProfile() {
             valueClass={lead.has_trial && lead.activation_status === 'Active' ? 'text-ok' : undefined}
             hint={lead.has_trial ? 'free trial running' : 'no trial'}
           />
-          <Stat label="Created" value={fmtDate(lead.created_at)} hint={isPaid(lead) ? 'active customer' : 'no close date'} />
+          <Stat label="Created" value={fmtDate(accountCreatedAt(lead))} hint={isPaid(lead) ? 'active customer' : 'no close date'} />
           <StageStat
             lead={lead}
             stages={stagesEnum.data ?? []}
